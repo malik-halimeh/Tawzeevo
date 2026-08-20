@@ -6,9 +6,9 @@
 
 - Current phase: `1`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P1-M2`
+- Current milestone: `P1-M3`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P1-M1`
+- Last completed milestone: `P1-M2`
 - Next required user command: `continue`
 - Blocking decision: `none`
 
@@ -29,16 +29,16 @@
 
 ## Current milestone evidence
 
-- Code areas changed: monorepo, FastAPI/API foundation, React/Vite operations shell, infrastructure, contract docs
-- Migration(s): `20260820_0001` initial user/session/tenant/application/audit foundation + tenant RLS
-- Tests run: backend `2 passed`; PostgreSQL integration `1 passed`; frontend `1 passed`
-- Type/lint checks: Ruff PASS; mypy strict PASS; ESLint PASS; TypeScript strict PASS; frontend build PASS; Alembic drift check PASS
+- Code areas changed: registration/login schemas, phone normalization, Argon2id/JWT security, session repository/service, auth dependencies/routes, auth contract/tests
+- Migration(s): none
+- Tests run: PostgreSQL-backed backend suite `30 passed`; coverage `95%`
+- Type/lint checks: Ruff PASS; Ruff format PASS; mypy strict PASS; Alembic drift check PASS
 - Known defects: none
 - Contract deviations: none
 
 ## Latest completed milestone summary
 
-P1-M1 established the Tawzeevo monorepo, PostgreSQL/Alembic foundation, FastAPI health surface, bilingual React/Vite operations shell, test/quality harnesses, and architecture-contract skeletons. Migration-from-zero, PostgreSQL/RLS smoke checks, API/frontend boot checks, and dependency audit passed.
+P1-M2 implemented normalized public registration, Argon2id password hashing, login/access JWTs, opaque hashed refresh sessions, 15-minute/30-day session policy, refresh rotation with replay-triggered all-session revocation, logout, soft-delete/security-version validation, reusable bearer dependencies, and Swagger authorization support.
 
 ## Rules for updating this file
 

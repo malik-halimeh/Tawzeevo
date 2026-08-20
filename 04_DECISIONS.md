@@ -33,6 +33,7 @@ Do not use this file to invent decisions.
 | D-023 | Temporary non-payment never deletes a tenant or its business data. Platform admin uses tenant `SUSPENDED` with reason `SUBSCRIPTION_OVERDUE`, may set/extend `access_until` and optional `grace_until`, and later reactivates the same tenant with retained data intact. Automated payment-provider charging is not required unless later explicitly approved. | LOCKED |
 | D-024 | The public product/platform name and the single public GitHub repository name are `Tawzeevo`. “Cash Van” describes the operating model and is not the product name. | LOCKED |
 | D-025 | Public repository files and history use neutral implementation-agent terminology and exclude external assistant branding. | LOCKED |
+| D-026 | Session policy uses 15-minute access tokens and 30-day refresh tokens. The refresh cookie is HttpOnly, Secure in production, SameSite=Lax, and scoped to `/api/v1/auth`. Refresh tokens rotate on every refresh; reuse of a rotated token revokes all active sessions for that user. | LOCKED |
 
 ## Pending decisions
 

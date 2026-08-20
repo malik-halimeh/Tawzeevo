@@ -1,11 +1,14 @@
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
+from tawzeevo_api.errors import AppError, AuthenticationError
+from tawzeevo_api.routes.auth import auth_router, root_router
 
 settings = get_settings()
 
@@ -21,6 +24,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.include_router(root_router)
+app.include_router(auth_router)
+
+
+@app.exception_handler(AppError)
+def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
+    headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": {"code": exc.code, "message": exc.message}},
+        headers=headers,
+    )
+    if isinstance(exc, AuthenticationError) and exc.clear_refresh_cookie:
+        response.delete_cookie(
+            key=settings.refresh_cookie_name,
+            httponly=True,
+            secure=settings.refresh_cookie_secure,
+            samesite="lax",
+            path=settings.refresh_cookie_path,
+        )
+    return response
 
 
 @app.get("/health", tags=["system"])
