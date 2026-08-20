@@ -1,28 +1,19 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
 
-import { App } from "./App";
-import { AuthProvider } from "./auth/AuthContext";
-import "./i18n";
+import { ApplicationRoot } from "./ApplicationRoot";
+import { isDemoPath } from "./demo/demoPath";
 import "./styles.css";
 
-const queryClient = new QueryClient();
+const demoEnabled = import.meta.env.VITE_DEMO_PREVIEW === "true";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ApplicationRoot demoEnabled={demoEnabled} />
   </React.StrictMode>,
 );
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
+if ("serviceWorker" in navigator && import.meta.env.PROD && !(demoEnabled && isDemoPath(window.location.pathname))) {
   window.addEventListener("load", () => {
     void navigator.serviceWorker.register("/sw.js");
   });

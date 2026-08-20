@@ -1,0 +1,48 @@
+.demo-gallery { min-height: 100vh; }
+.demo-gallery .brand-route i { background: var(--paper); }
+.demo-preview-banner { align-items: center; background: var(--ink); color: white; display: flex; font-size: .8rem; gap: .75rem; justify-content: center; min-height: 2.5rem; padding: .55rem 1rem; text-align: center; }
+.demo-preview-banner strong { color: #ff9b72; font-family: Consolas, "Courier New", monospace; letter-spacing: .06em; text-transform: uppercase; }
+.demo-preview-banner span { color: rgb(255 255 255 / 75%); }
+.demo-header { align-items: center; display: flex; justify-content: space-between; margin: 0 auto; max-width: 82rem; min-height: 5.5rem; padding: 1rem clamp(1rem, 4vw, 3.5rem); }
+.demo-content { margin: 0 auto; max-width: 82rem; padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 4vw, 3.5rem) 4rem; }
+.demo-intro { align-items: end; display: grid; gap: 1.5rem 3rem; grid-template-columns: minmax(0, 1.5fr) minmax(18rem, .65fr); margin-block-end: clamp(2.5rem, 6vw, 5rem); }
+.demo-intro .eyebrow { grid-column: 1 / -1; margin: 0; }
+.demo-intro h1 { font-size: clamp(3rem, 8vw, 7rem); letter-spacing: -.07em; line-height: .9; margin: 0; max-width: 58rem; }
+.demo-intro > p:last-child { border-inline-start: 3px solid var(--route); color: var(--muted); line-height: 1.65; margin: 0; padding-inline-start: 1.25rem; }
+[dir="rtl"] .demo-intro h1 { letter-spacing: -.02em; }
+.demo-role-shell { background: var(--panel); border: 1px solid var(--line); border-radius: 1rem; box-shadow: var(--shadow); overflow: hidden; }
+.demo-role-toolbar { align-items: center; border-block-end: 1px solid var(--line); display: flex; gap: 1rem; justify-content: space-between; padding: 1rem 1.25rem; }
+.demo-role-toolbar h2 { font-size: 1rem; margin: 0; }
+.demo-role-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.demo-role-tabs button { align-items: flex-start; background: var(--panel); border: 0; border-block-end: 1px solid var(--line); border-inline-end: 1px solid var(--line); color: var(--muted); display: flex; flex-direction: column; gap: .75rem; min-height: 8rem; padding: 1.25rem; text-align: start; }
+.demo-role-tabs button:last-child { border-inline-end: 0; }
+.demo-role-tabs button[aria-selected="true"] { background: var(--ink); color: white; box-shadow: inset 0 4px 0 var(--route); }
+.demo-role-tabs button > span { font-family: Consolas, "Courier New", monospace; font-size: .72rem; }
+.demo-role-tabs button > strong { font-size: clamp(1.05rem, 2vw, 1.4rem); }
+.demo-role-panel { min-height: 18rem; overflow: hidden; padding: clamp(1.5rem, 4vw, 3.5rem); position: relative; }
+.demo-role-panel h2 { font-size: clamp(2.5rem, 6vw, 5rem); letter-spacing: -.055em; line-height: 1; margin: 0 0 1rem; }
+.demo-role-panel > p:not(.section-kicker) { color: var(--muted); font-size: 1.08rem; line-height: 1.65; margin: 0; max-width: 42rem; }
+.demo-route-line { border-block-start: 2px dashed var(--sky-deep); inset-block-end: 3.5rem; inset-inline: 3.5rem; position: absolute; }
+.demo-route-line i { background: var(--panel); border: 2px solid var(--route); border-radius: 50%; height: .8rem; inset-block-start: -.5rem; position: absolute; width: .8rem; }
+.demo-route-line i:nth-child(1) { inset-inline-start: 0; }
+.demo-route-line i:nth-child(2) { inset-inline-start: 33%; }
+.demo-route-line i:nth-child(3) { inset-inline-start: 66%; }
+.demo-route-line i:nth-child(4) { inset-inline-end: 0; }
+.demo-unavailable { align-items: flex-start; display: flex; flex-direction: column; justify-content: center; margin: 0 auto; max-width: 58rem; min-height: 100vh; padding: 2rem; }
+.demo-unavailable > span { color: var(--route); font-family: Consolas, monospace; font-weight: 800; }
+.demo-unavailable h1 { font-size: clamp(2.5rem, 7vw, 5rem); letter-spacing: -.06em; margin-block: .5rem 1rem; }
+.demo-unavailable p { color: var(--muted); line-height: 1.6; margin-block: 0 1.5rem; }
+
+@media (max-width: 48rem) {
+  .demo-preview-banner { align-items: flex-start; flex-direction: column; gap: .15rem; }
+  .demo-intro { display: block; }
+  .demo-intro h1 { margin-block: 1rem 1.5rem; }
+  .demo-role-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo-role-tabs button:nth-child(2) { border-inline-end: 0; }
+  .demo-role-tabs button { min-height: 6.5rem; }
+  .demo-route-line { inset-inline: 1.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-gallery *, .demo-gallery *::before, .demo-gallery *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}

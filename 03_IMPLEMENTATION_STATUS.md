@@ -8,7 +8,7 @@
 - Current phase: `1`
 - Current phase status: `COMPLETE`
 - Current milestone: `DRG-M1`
-- Current milestone status: `NOT_STARTED`
+- Current milestone status: `IN_PROGRESS`
 - Last completed milestone: `P1-M7`
 - Next required user command: `continue`
 - Blocking decision: `none`
@@ -22,7 +22,7 @@ stops after its validation report.
 
 | Milestone | Status | Scope |
 |---|---|---|
-| DRG-M1 | NOT_STARTED | Isolation boundary and gallery shell |
+| DRG-M1 | IN_PROGRESS | Isolation boundary and gallery shell plus registration-regression prerequisite |
 | DRG-M2 | NOT_STARTED | Guest and customer perspectives |
 | DRG-M3 | NOT_STARTED | Owner perspective |
 | DRG-M4 | NOT_STARTED | Driver perspective and least privilege |
