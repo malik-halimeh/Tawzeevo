@@ -1,0 +1,20 @@
+{
+  "name": "tawzeevo",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "apps/operations-web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:operations": "npm run dev --workspace @tawzeevo/operations-web",
+    "build:operations": "npm run build --workspace @tawzeevo/operations-web",
+    "lint:operations": "npm run lint --workspace @tawzeevo/operations-web",
+    "test:operations": "npm run test --workspace @tawzeevo/operations-web",
+    "typecheck:operations": "npm run typecheck --workspace @tawzeevo/operations-web",
+    "check": "npm run lint:operations && npm run typecheck:operations && npm run test:operations && npm run build:operations"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

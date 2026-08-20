@@ -1,0 +1,35 @@
+name: tawzeevo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tawzeevo}
+      POSTGRES_USER: ${POSTGRES_USER:-tawzeevo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - tawzeevo-postgres-data:/var/lib/postgresql/data
+
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-tawzeevo_test}
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-tawzeevo_test}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-change-me}
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tawzeevo-postgres-data:

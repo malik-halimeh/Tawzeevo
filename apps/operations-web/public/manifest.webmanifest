@@ -1,0 +1,10 @@
+{
+  "name": "Tawzeevo Operations",
+  "short_name": "Tawzeevo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f2eb",
+  "theme_color": "#17352b",
+  "lang": "en",
+  "dir": "auto"
+}
