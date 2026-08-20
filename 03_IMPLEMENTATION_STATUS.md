@@ -8,10 +8,10 @@
 - Current phase: `1`
 - Current phase status: `COMPLETE`
 - Current milestone: `DRG-M1`
-- Current milestone status: `IN_PROGRESS`
+- Current milestone status: `BLOCKED`
 - Last completed milestone: `P1-M7`
 - Next required user command: `continue`
-- Blocking decision: `none`
+- Blocking decision: `Render is investigating a multi-region builds/deploys incident; wait for recovery or approve creation/sign-in of a Vercel account through GitHub as the fallback host`
 
 Phase 2 remains locked. The demo workstream does not advance product phases or count as Phase 2
 evidence. Its approved plan is `docs/demo-role-gallery-plan.md`.
@@ -22,7 +22,7 @@ stops after its validation report.
 
 | Milestone | Status | Scope |
 |---|---|---|
-| DRG-M1 | IN_PROGRESS | Isolation boundary and gallery shell plus registration-regression prerequisite |
+| DRG-M1 | BLOCKED | Shell and registration checks pass; the public API restart is blocked by Render's provider incident |
 | DRG-M2 | NOT_STARTED | Guest and customer perspectives |
 | DRG-M3 | NOT_STARTED | Owner perspective |
 | DRG-M4 | NOT_STARTED | Driver perspective and least privilege |
@@ -45,12 +45,12 @@ stops after its validation report.
 
 ## Current milestone evidence
 
-- Code areas changed: root project guide, architecture overview, folder ownership, frozen test report, safe demo/presentation guide, future-phase boundary summary, complete Phase 1 requirements audit
+- Code areas changed: isolated pre-auth demo boot selection, gated role gallery shell, demo-only styles, accessibility and zero-network tests, environment example
 - Migration(s): none
-- Tests run: final PostgreSQL-backed backend suite `70 passed`; coverage `94%`; frontend `10 passed`; Phase 1 audit PASS
-- Type/lint checks: Ruff PASS; Ruff format PASS; mypy strict PASS; ESLint PASS; TypeScript PASS; production build PASS; Alembic head/drift and zero-migration checks PASS
-- Known defects: none
-- Contract deviations: none
+- Tests run: frontend `13 passed`; zero-network, disabled-flag, role keyboard, registration, login, and public statistics regressions PASS
+- Type/lint checks: ESLint PASS; TypeScript PASS; production build PASS; `git diff --check` PASS
+- Known defects: public Render API returns `502` while Render rejects deploys with `Service Unavailable` during its acknowledged deployment incident
+- Contract deviations: none; hosted Supabase registration returned `201`, login `200`, and authenticated profile `200`, but milestone completion awaits public API restoration
 
 ## Latest completed milestone summary
 

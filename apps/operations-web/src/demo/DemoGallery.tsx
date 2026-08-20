@@ -9,6 +9,7 @@ type DemoRole = (typeof roles)[number];
 const copy = {
   en: {
     brandHome: "Tawzeevo home",
+    skip: "Skip to demo content",
     language: "العربية",
     preview: "Synthetic preview",
     privacy: "Nothing on this page is saved or sent.",
@@ -27,6 +28,7 @@ const copy = {
   },
   ar: {
     brandHome: "الصفحة الرئيسية لتوزيفو",
+    skip: "انتقل إلى محتوى العرض",
     language: "English",
     preview: "معاينة ببيانات تجريبية",
     privacy: "لا يتم حفظ أو إرسال أي شيء في هذه الصفحة.",
@@ -78,7 +80,7 @@ export function DemoGallery() {
 
   return (
     <div className="demo-gallery">
-      <a className="skip-link" href="#demo-content">Skip to demo content</a>
+      <a className="skip-link" href="#demo-content">{text.skip}</a>
       <div className="demo-preview-banner" role="status">
         <strong>{text.preview}</strong>
         <span>{text.privacy}</span>
