@@ -23,10 +23,20 @@ def test_engine() -> Generator[Engine]:
 @pytest.fixture(autouse=True)
 def clean_database(test_engine: Engine) -> Generator[None]:
     with test_engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE auth_sessions, users CASCADE"))
+        connection.execute(
+            text(
+                "TRUNCATE TABLE audit_events, tenant_applications, tenant_invitations, "
+                "tenant_memberships, auth_sessions, tenants, users CASCADE"
+            )
+        )
     yield
     with test_engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE auth_sessions, users CASCADE"))
+        connection.execute(
+            text(
+                "TRUNCATE TABLE audit_events, tenant_applications, tenant_invitations, "
+                "tenant_memberships, auth_sessions, tenants, users CASCADE"
+            )
+        )
 
 
 @pytest.fixture

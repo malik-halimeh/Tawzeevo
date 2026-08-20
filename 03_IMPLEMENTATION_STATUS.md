@@ -6,9 +6,9 @@
 
 - Current phase: `1`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P1-M3`
+- Current milestone: `P1-M4`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P1-M2`
+- Last completed milestone: `P1-M3`
 - Next required user command: `continue`
 - Blocking decision: `none`
 
@@ -29,16 +29,16 @@
 
 ## Current milestone evidence
 
-- Code areas changed: registration/login schemas, phone normalization, Argon2id/JWT security, session repository/service, auth dependencies/routes, auth contract/tests
-- Migration(s): none
-- Tests run: PostgreSQL-backed backend suite `30 passed`; coverage `95%`
+- Code areas changed: user/profile/admin/statistics APIs, safe admin bootstrap, tenant context authorization, tenant application review, platform access/lifecycle APIs, audit RLS, evaluator tests
+- Migration(s): `20260820_0002_platform_audit_rls.py`
+- Tests run: PostgreSQL-backed backend suite `45 passed`; coverage `95%`
 - Type/lint checks: Ruff PASS; Ruff format PASS; mypy strict PASS; Alembic drift check PASS
 - Known defects: none
 - Contract deviations: none
 
 ## Latest completed milestone summary
 
-P1-M2 implemented normalized public registration, Argon2id password hashing, login/access JWTs, opaque hashed refresh sessions, 15-minute/30-day session policy, refresh rotation with replay-triggered all-session revocation, logout, soft-delete/security-version validation, reusable bearer dependencies, and Swagger authorization support.
+P1-M3 implemented profile and platform-admin user management, soft deletion with concurrent last-owner protection, public statistics, a hidden-password admin bootstrap command, tenant application approval/rejection, platform access and lifecycle controls, tenant-context suspension enforcement, and audited state transitions.
 
 ## Rules for updating this file
 
