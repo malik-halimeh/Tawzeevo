@@ -7,11 +7,11 @@
 - Current workstream: `reversible role demo gallery`
 - Current phase: `1`
 - Current phase status: `COMPLETE`
-- Current milestone: `DRG-M1`
-- Current milestone status: `BLOCKED`
-- Last completed milestone: `P1-M7`
+- Current milestone: `DRG-M2`
+- Current milestone status: `NOT_STARTED`
+- Last completed milestone: `DRG-M1`
 - Next required user command: `continue`
-- Blocking decision: `Render is investigating a multi-region builds/deploys incident; wait for recovery or approve creation/sign-in of a Vercel account through GitHub as the fallback host`
+- Blocking decision: `none`
 
 Phase 2 remains locked. The demo workstream does not advance product phases or count as Phase 2
 evidence. Its approved plan is `docs/demo-role-gallery-plan.md`.
@@ -22,7 +22,7 @@ stops after its validation report.
 
 | Milestone | Status | Scope |
 |---|---|---|
-| DRG-M1 | BLOCKED | Shell and registration checks pass; the public API restart is blocked by Render's provider incident |
+| DRG-M1 | COMPLETE | Isolated pre-auth gallery shell and live registration regression proof |
 | DRG-M2 | NOT_STARTED | Guest and customer perspectives |
 | DRG-M3 | NOT_STARTED | Owner perspective |
 | DRG-M4 | NOT_STARTED | Driver perspective and least privilege |
@@ -49,12 +49,12 @@ stops after its validation report.
 - Migration(s): none
 - Tests run: frontend `13 passed`; zero-network, disabled-flag, role keyboard, registration, login, and public statistics regressions PASS
 - Type/lint checks: ESLint PASS; TypeScript PASS; production build PASS; `git diff --check` PASS
-- Known defects: public Render API returns `502` while Render rejects deploys with `Service Unavailable` during its acknowledged deployment incident
-- Contract deviations: none; hosted Supabase registration returned `201`, login `200`, and authenticated profile `200`, but milestone completion awaits public API restoration
+- Known defects: none
+- Contract deviations: none; live Render registration returned `201`, login and authenticated profile returned `200`, and the hosted database confirmed the client and active session
 
 ## Latest completed milestone summary
 
-P1-M7 froze Phase 1 with complete setup and validation instructions, architecture and folder ownership, reproducible test evidence, safe demonstration steps, presentation checks, future-phase boundaries, and an evidence-backed audit of every Phase 1 section and Definition of Done item. Phase 1 remains complete. The approved reversible demo workstream is planned with `DRG-M1` next; Phase 2 remains locked until the explicit command `Start Phase 2`.
+DRG-M1 added the environment-gated `/demo` boot path before authentication, a synthetic-preview banner, accessible four-perspective selector, reset behavior, bilingual shell, and isolated demo-only styles. Automated checks prove zero network calls, an unavailable disabled state, unchanged production routes, and keyboard controls. Live Render registration/login/profile and Supabase persistence checks pass. Phase 2 remains locked until the explicit command `Start Phase 2`.
 
 ## Rules for updating this file
 
