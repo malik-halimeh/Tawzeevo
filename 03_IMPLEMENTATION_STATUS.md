@@ -8,15 +8,15 @@
 - Current phase: `1`
 - Current phase status: `COMPLETE`
 - Current milestone: `DRG-M5`
-- Current milestone status: `IN_PROGRESS`
-- Last completed milestone: `DRG-M4`
-- Next required user command: `continue`
+- Current milestone status: `COMPLETE`
+- Last completed milestone: `DRG-M5`
+- Next required user command: `Start Phase 2`
 - Blocking decision: `none`
 
 Phase 2 remains locked. The demo workstream does not advance product phases or count as Phase 2
 evidence. Its approved plan is `docs/demo-role-gallery-plan.md`.
-While this workstream is active, one user `continue` executes exactly one `DRG` milestone and
-stops after its validation report.
+The reversible demo workstream is complete. No product phase advances until the user explicitly
+starts the next phase.
 
 ## Demo workstream status
 
@@ -26,7 +26,7 @@ stops after its validation report.
 | DRG-M2 | COMPLETE | Guest and customer perspectives |
 | DRG-M3 | COMPLETE | Owner perspective |
 | DRG-M4 | COMPLETE | Driver perspective and least privilege |
-| DRG-M5 | IN_PROGRESS | Cross-role hardening, deployment, and teardown proof |
+| DRG-M5 | COMPLETE | Cross-role hardening, deployment, and teardown proof |
 
 ## Phase status
 
@@ -45,16 +45,18 @@ stops after its validation report.
 
 ## Current milestone evidence
 
-- Code areas changed: isolated driver membership context, assigned-stop dispatch sheet, minimum customer/invoice projection, responsive styles, and least-privilege component tests
+- Code areas changed: isolated role-gallery journey hardening, responsive and bilingual presentation polish, feature-flagged Render configuration, operator walkthrough, and teardown checklist
 - Migration(s): none
-- Tests run: frontend `21 passed`; assigned-only driver work, no reassignment or privileged commercial controls, minimum stop details, keyboard, compact width, EN/AR, zero-network, and production-route regressions PASS
-- Type/lint checks: ESLint PASS; TypeScript PASS; Vite production build PASS (`207` modules, non-blocking size advisory); responsive-rule scan and `git diff --check` PASS
+- Tests run: frontend `22 passed`; full guest-to-customer demo journey, all four role surfaces, assigned-only driver work, least privilege, keyboard, compact width, EN/AR, zero-network, zero-storage, and production-route regressions PASS
+- Type/lint checks: full `npm run check` PASS; explicit feature-flag-off and feature-flag-on production builds PASS (`207` modules, non-blocking size advisory); responsive, isolation, prohibited-language, credential, branding, and `git diff --check` scans PASS
+- Browser QA: desktop and mobile EN/AR layouts, RTL direction, overflow, keyboard tab selection, visible focus, reduced motion, and representative contrast PASS; public Guest, Customer, Owner, and Driver views PASS
+- Deployment QA: Render Blueprint flag `VITE_DEMO_PREVIEW=true` approved; commit `09856cf` deployed live; `/demo`, `/login`, `/register`, and `/stats` PASS; API health, database health, count, average-age, and top-cities endpoints return HTTP 200
 - Known defects: none
-- Contract deviations: none; static scans confirm no API/auth/storage integration, route-provider claim, customer delivery surface, or prohibited catalog-state language; backend, migrations, dependencies, and lockfiles are unchanged
+- Contract deviations: none; the gallery remains synthetic and memory-only with no API/auth/storage integration; backend, migrations, dependencies, and lockfiles are unchanged; teardown requires only the documented frontend/configuration removals
 
 ## Latest completed milestone summary
 
-DRG-M4 added a bilingual synthetic driver dispatch sheet limited to the driver membership's two assigned stops and the minimum customer contact, invoice reference, and delivery note required for those stops. It provides no reassignment, privileged commercial, platform, supplier, analytics, or external route-provider surface. Phase 2 remains locked until the explicit command `Start Phase 2`.
+DRG-M5 completed and deployed the reversible bilingual role gallery, verified its four public demo perspectives and existing production routes, and documented a frontend-only teardown with no database cleanup or migration rollback. The demo workstream is complete. Phase 2 remains locked until the explicit command `Start Phase 2`.
 
 ## Rules for updating this file
 
