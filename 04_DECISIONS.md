@@ -34,6 +34,8 @@ Do not use this file to invent decisions.
 | D-024 | The public product/platform name and the single public GitHub repository name are `Tawzeevo`. “Cash Van” describes the operating model and is not the product name. | LOCKED |
 | D-025 | Public repository files and history use neutral implementation-agent terminology and exclude external assistant branding. | LOCKED |
 | D-026 | Session policy uses 15-minute access tokens and 30-day refresh tokens. The refresh cookie is HttpOnly, Secure in production, SameSite=Lax, and scoped to `/api/v1/auth`. Refresh tokens rotate on every refresh; reuse of a rotated token revokes all active sessions for that user. | LOCKED |
+| D-027 | The current development database is the free hosted Supabase PostgreSQL project `Tawzeevo` in `eu-central-1`. Tawzeevo continues to use its own FastAPI authentication and direct PostgreSQL access; Supabase Auth and the Supabase Data API are not application dependencies. Docker Compose remains available for reproducible local PostgreSQL and disposable database tests. | LOCKED |
+| D-028 | The public Tawzeevo deployment uses Render's free static-site hosting for the operations client and Render's free web-service hosting for the FastAPI service. The API continues to use the hosted Supabase PostgreSQL database directly. | LOCKED |
 
 ## Pending decisions
 
