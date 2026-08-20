@@ -9,6 +9,7 @@ from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.errors import AppError, AuthenticationError
 from tawzeevo_api.routes.auth import auth_router, root_router
+from tawzeevo_api.routes.cash_van import cash_van_router
 from tawzeevo_api.routes.platform import platform_router, tenant_applications_router
 from tawzeevo_api.routes.users import stats_router, users_router
 
@@ -32,6 +33,7 @@ app.include_router(users_router)
 app.include_router(stats_router)
 app.include_router(tenant_applications_router)
 app.include_router(platform_router)
+app.include_router(cash_van_router)
 
 
 @app.exception_handler(AppError)

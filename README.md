@@ -2,7 +2,7 @@
 
 Tawzeevo is a multi-tenant Cash Van operations platform with a linked bilingual customer storefront. This repository is the authoritative monorepo for the platform.
 
-Phase 1 is in progress. The repository currently includes the FastAPI/PostgreSQL platform foundation and a bilingual React operations client for authentication, profiles, public statistics, user administration, tenant application review, and tenant lifecycle controls.
+Phase 1 is in progress. The repository currently includes the FastAPI/PostgreSQL platform foundation, a bilingual React operations client, and the first tenant-isolated Cash Van slice for customers, categories, barcode products, and database-backed draft invoices.
 
 ## Repository layout
 

@@ -22,6 +22,17 @@ Phase 1 authentication routes include:
 
 Access tokens use the Swagger bearer authorization control. Refresh tokens are opaque, hashed in PostgreSQL, rotated on every refresh, and sent only through the scoped HttpOnly cookie.
 
+The Phase 1 tenant slice is exposed under `/api/v1/tenants/{tenant_id}`. An active owner membership is required for customer, category, tenant-product/barcode, and draft-invoice routes. The path tenant ID selects the requested context but never grants access: the API validates membership and tenant lifecycle state before every business operation.
+
+The initial slice includes:
+
+- `POST /customers`, `GET /customers/{customer_id}`, and `GET /customers/search?phone=...`
+- `POST /categories`, `GET /categories`, and `GET /categories/{category_id}`
+- `POST /products`, `GET /products/{product_id}`, and `GET /products/barcode/{barcode}`
+- `POST /invoices` and `GET /invoices/{invoice_id}` for real database-backed drafts
+
+Product and invoice money uses four-decimal values and an explicit ISO currency code. Draft invoices reject mixed-currency products.
+
 ## Create the first platform administrator
 
 There is no public administrator-registration route and no default administrator password. After applying migrations, run the local command below against the intended database. The password is entered twice through a hidden prompt and is never accepted as a command-line argument.

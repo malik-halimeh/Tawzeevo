@@ -6,9 +6,9 @@
 
 - Current phase: `1`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P1-M5`
+- Current milestone: `P1-M6`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P1-M4`
+- Last completed milestone: `P1-M5`
 - Next required user command: `continue`
 - Blocking decision: `none`
 
@@ -29,16 +29,16 @@
 
 ## Current milestone evidence
 
-- Code areas changed: operations-web authentication/session flow, protected routing, profile editor, public statistics, platform dashboard, user administration, tenant applications, tenant lifecycle controls, responsive EN/AR RTL design
-- Migration(s): none
-- Tests run: operations-web interaction suite `7 passed`; critical live browser flows PASS
-- Type/lint checks: TypeScript PASS; ESLint PASS; Vite production build PASS
+- Code areas changed: tenant-scoped customers, categories, barcode products, decimal piece/box pricing, draft invoices, owner authorization, RLS policies, integration tests, API contracts
+- Migration(s): `20260820_0003_cash_van_slice.py`
+- Tests run: PostgreSQL-backed backend suite `50 passed`; coverage `94%`
+- Type/lint checks: Ruff PASS; Ruff format PASS; mypy strict PASS; Alembic drift and zero-migration checks PASS; OpenAPI route check PASS
 - Known defects: none
 - Contract deviations: none
 
 ## Latest completed milestone summary
 
-P1-M4 implemented the real-API bilingual operations client: registration and login, memory-only access sessions with HttpOnly refresh handling, role-protected workspaces, profile editing, public statistics, platform dashboards, complete user administration, tenant application review, and tenant access/lifecycle controls.
+P1-M5 implemented the first real tenant-isolated Cash Van slice: approved owners can create and view customers and categories, resolve tenant products by barcode, and create database-backed draft invoices from real customer/product rows. Suspended, unapproved, rejected, platform-admin-only, and cross-tenant access are blocked.
 
 ## Rules for updating this file
 

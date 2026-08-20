@@ -19,6 +19,7 @@ from tawzeevo_api.models import (
     SystemUserType,
     Tenant,
     TenantMembership,
+    TenantRole,
     TenantStatus,
     User,
 )
@@ -119,3 +120,19 @@ def resolve_tenant_context(db: Session, user: User, tenant_id: UUID) -> TenantCo
     if tenant.status is TenantStatus.CLOSED:
         raise AppError(403, "TENANT_CLOSED", "Tenant business access is closed")
     return TenantContext(tenant=tenant, membership=membership)
+
+
+def get_tenant_context(
+    tenant_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> TenantContext:
+    return resolve_tenant_context(db, user, tenant_id)
+
+
+def require_tenant_owner(
+    context: Annotated[TenantContext, Depends(get_tenant_context)],
+) -> TenantContext:
+    if context.membership.role is not TenantRole.OWNER:
+        raise AppError(403, "TENANT_OWNER_REQUIRED", "Tenant owner access is required")
+    return context
