@@ -105,6 +105,49 @@ afterEach(() => {
 });
 
 describe("public and authentication flows", () => {
+  test("shows explicit loading states while public data and a protected session are pending", async () => {
+    const pendingStatistics: Array<{ url: string; resolve: (response: Response) => void }> = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(unauthenticated());
+      return new Promise<Response>((resolve) => pendingStatistics.push({ url, resolve }));
+    }));
+    const publicView = renderApp("/stats");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading current data");
+    await waitFor(() => expect(pendingStatistics).toHaveLength(3));
+    for (const pending of pendingStatistics) {
+      if (pending.url.endsWith("/stats/count")) pending.resolve(json({ count: 0 }));
+      if (pending.url.endsWith("/stats/average-age")) pending.resolve(json({ average_age: null }));
+      if (pending.url.endsWith("/stats/top-cities")) pending.resolve(json([]));
+    }
+    expect(await screen.findByLabelText("Platform statistics summary")).toBeInTheDocument();
+    publicView.unmount();
+
+    let finishRefresh: ((response: Response) => void) | undefined;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { finishRefresh = resolve; })));
+    renderApp("/profile");
+    expect(screen.getByRole("status")).toHaveTextContent("Restoring your secure session");
+    await waitFor(() => expect(finishRefresh).toBeDefined());
+    finishRefresh?.(unauthenticated());
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  test("shows a translated API error state without rendering stale statistics", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(unauthenticated());
+      if (url.includes("/stats/")) {
+        return Promise.resolve(json({ detail: { code: "DATABASE_UNAVAILABLE", message: "Database is unavailable" } }, 503));
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderApp("/stats");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The request could not be completed");
+    expect(screen.getByRole("alert")).toHaveTextContent("Database is unavailable");
+    expect(screen.queryByLabelText("Platform statistics summary")).not.toBeInTheDocument();
+  });
+
   test("renders live public statistics and switches the document to RTL", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = requestUrl(input);
@@ -121,8 +164,21 @@ describe("public and authentication flows", () => {
     expect(screen.getByText("31.5")).toBeInTheDocument();
     expect(screen.getByText("Beirut")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /العربية/ }));
-    await waitFor(() => expect(document.documentElement.dir).toBe("rtl"));
+    await waitFor(() => {
+      expect(document.documentElement.dir).toBe("rtl");
+      expect(document.documentElement.lang).toBe("ar");
+    });
     expect(screen.getByRole("heading", { name: /مجتمع توزيـفو/ })).toBeInTheDocument();
+  });
+
+  test("keeps phone entry left-to-right inside the Arabic registration layout", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(unauthenticated())));
+    renderApp("/register");
+    fireEvent.click(screen.getByRole("button", { name: /العربية/ }));
+
+    await waitFor(() => expect(document.documentElement.dir).toBe("rtl"));
+    expect(screen.getByRole("heading", { name: "إنشاء حساب" })).toBeInTheDocument();
+    expect(screen.getByLabelText("الهاتف")).toHaveAttribute("dir", "ltr");
   });
 
   test("registers only the public client fields and returns to sign in", async () => {

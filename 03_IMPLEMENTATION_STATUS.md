@@ -6,9 +6,9 @@
 
 - Current phase: `1`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P1-M6`
+- Current milestone: `P1-M7`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P1-M5`
+- Last completed milestone: `P1-M6`
 - Next required user command: `continue`
 - Blocking decision: `none`
 
@@ -29,16 +29,16 @@
 
 ## Current milestone evidence
 
-- Code areas changed: tenant-scoped customers, categories, barcode products, decimal piece/box pricing, draft invoices, owner authorization, RLS policies, integration tests, API contracts
-- Migration(s): `20260820_0003_cash_van_slice.py`
-- Tests run: PostgreSQL-backed backend suite `50 passed`; coverage `94%`
-- Type/lint checks: Ruff PASS; Ruff format PASS; mypy strict PASS; Alembic drift and zero-migration checks PASS; OpenAPI route check PASS
+- Code areas changed: negative authorization and OpenAPI regressions, real non-superuser RLS enforcement, zero-database migration automation, frontend loading/error/RTL coverage, safe synthetic demo seeding, contract-doc index
+- Migration(s): none
+- Tests run: PostgreSQL-backed backend suite `70 passed`; coverage `94%`; frontend `10 passed`; live Arabic RTL smoke PASS
+- Type/lint checks: Ruff PASS; Ruff format PASS; mypy strict PASS; ESLint PASS; TypeScript PASS; production build PASS; Alembic drift and zero-migration checks PASS
 - Known defects: none
 - Contract deviations: none
 
 ## Latest completed milestone summary
 
-P1-M5 implemented the first real tenant-isolated Cash Van slice: approved owners can create and view customers and categories, resolve tenant products by barcode, and create database-backed draft invoices from real customer/product rows. Suspended, unapproved, rejected, platform-admin-only, and cross-tenant access are blocked.
+P1-M6 hardened the complete Phase 1 surface with exhaustive unauthenticated/platform authorization checks, actual PostgreSQL RLS visibility/write enforcement, automated migration-from-zero validation, OpenAPI contract checks, frontend loading/error/RTL regressions, live Arabic smoke validation, safe owner-scoped synthetic demo data, and finalized contract navigation.
 
 ## Rules for updating this file
 

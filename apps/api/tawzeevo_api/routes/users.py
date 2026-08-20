@@ -31,7 +31,7 @@ from tawzeevo_api.services.users import (
 )
 
 users_router = APIRouter(tags=["users"])
-stats_router = APIRouter(prefix="/stats", tags=["statistics"])
+stats_router = APIRouter(prefix="/stats", tags=["public statistics"])
 
 
 @users_router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

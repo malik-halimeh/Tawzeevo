@@ -15,10 +15,30 @@ from tawzeevo_api.routes.users import stats_router, users_router
 
 settings = get_settings()
 
+OPENAPI_TAGS = [
+    {"name": "system", "description": "Service and PostgreSQL health checks."},
+    {"name": "authentication", "description": "Registration, login, refresh, and logout."},
+    {"name": "users", "description": "Authenticated profiles and administrator user management."},
+    {
+        "name": "public statistics",
+        "description": "Aggregate, non-sensitive public user statistics.",
+    },
+    {"name": "tenant applications", "description": "Client business onboarding applications."},
+    {
+        "name": "platform administration",
+        "description": "Application review and tenant lifecycle/access controls.",
+    },
+    {
+        "name": "tenant operations",
+        "description": "Owner-authorized, tenant-scoped Phase 1 Cash Van operations.",
+    },
+]
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="Tawzeevo platform API",
+    openapi_tags=OPENAPI_TAGS,
 )
 app.add_middleware(
     CORSMiddleware,

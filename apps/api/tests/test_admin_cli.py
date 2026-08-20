@@ -14,6 +14,7 @@ def test_admin_bootstrap_uses_hidden_confirmed_password_and_creates_admin(
     capsys: object,
     session_factory: sessionmaker[Session],
 ) -> None:
+    monkeypatch.setattr(create_admin, "SessionLocal", session_factory)  # type: ignore[attr-defined]
     password_values = iter(["safe bootstrap password", "safe bootstrap password"])
     monkeypatch.setattr(create_admin.getpass, "getpass", lambda _prompt: next(password_values))  # type: ignore[attr-defined]
     monkeypatch.setattr(  # type: ignore[attr-defined]

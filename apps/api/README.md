@@ -33,6 +33,17 @@ The initial slice includes:
 
 Product and invoice money uses four-decimal values and an explicit ISO currency code. Draft invoices reject mixed-currency products.
 
+## Seed synthetic demo data
+
+The demo seeder never creates users, tenants, or memberships and never bypasses onboarding. Register a client, have a platform administrator approve its tenant application, then pass that existing active owner and tenant to the command. Currency and customer phone are explicit inputs; no credentials or production data are embedded.
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://tawzeevo:change-me@localhost:5432/tawzeevo"
+.\.venv\Scripts\python -m tawzeevo_api.cli.seed_demo --owner-email owner@example.com --tenant-id 00000000-0000-0000-0000-000000000000 --customer-phone "+961 70 555 444" --currency USD
+```
+
+The command creates one synthetic customer, category, piece-priced barcode product, and database-backed draft invoice in one transaction. It refuses replay for the same tenant instead of silently duplicating the demo slice.
+
 ## Create the first platform administrator
 
 There is no public administrator-registration route and no default administrator password. After applying migrations, run the local command below against the intended database. The password is entered twice through a hidden prompt and is never accepted as a command-line argument.

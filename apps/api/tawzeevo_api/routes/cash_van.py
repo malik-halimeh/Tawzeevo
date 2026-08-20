@@ -33,7 +33,7 @@ from tawzeevo_api.services.cash_van import (
     search_customers_by_phone,
 )
 
-cash_van_router = APIRouter(prefix="/api/v1/tenants/{tenant_id}", tags=["Cash Van slice"])
+cash_van_router = APIRouter(prefix="/api/v1/tenants/{tenant_id}", tags=["tenant operations"])
 
 
 @cash_van_router.post(
