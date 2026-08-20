@@ -4,13 +4,29 @@
 
 ## Current execution
 
+- Current workstream: `reversible role demo gallery`
 - Current phase: `1`
 - Current phase status: `COMPLETE`
-- Current milestone: `P1-M7`
-- Current milestone status: `COMPLETE`
+- Current milestone: `DRG-M1`
+- Current milestone status: `NOT_STARTED`
 - Last completed milestone: `P1-M7`
-- Next required user command: `Start Phase 2`
+- Next required user command: `continue`
 - Blocking decision: `none`
+
+Phase 2 remains locked. The demo workstream does not advance product phases or count as Phase 2
+evidence. Its approved plan is `docs/demo-role-gallery-plan.md`.
+While this workstream is active, one user `continue` executes exactly one `DRG` milestone and
+stops after its validation report.
+
+## Demo workstream status
+
+| Milestone | Status | Scope |
+|---|---|---|
+| DRG-M1 | NOT_STARTED | Isolation boundary and gallery shell |
+| DRG-M2 | NOT_STARTED | Guest and customer perspectives |
+| DRG-M3 | NOT_STARTED | Owner perspective |
+| DRG-M4 | NOT_STARTED | Driver perspective and least privilege |
+| DRG-M5 | NOT_STARTED | Cross-role hardening, deployment, and teardown proof |
 
 ## Phase status
 
@@ -38,7 +54,7 @@
 
 ## Latest completed milestone summary
 
-P1-M7 froze Phase 1 with complete setup and validation instructions, architecture and folder ownership, reproducible test evidence, safe demonstration steps, presentation checks, future-phase boundaries, and an evidence-backed audit of every Phase 1 section and Definition of Done item. Phase 1 is complete; Phase 2 remains locked until the explicit command `Start Phase 2`.
+P1-M7 froze Phase 1 with complete setup and validation instructions, architecture and folder ownership, reproducible test evidence, safe demonstration steps, presentation checks, future-phase boundaries, and an evidence-backed audit of every Phase 1 section and Definition of Done item. Phase 1 remains complete. The approved reversible demo workstream is planned with `DRG-M1` next; Phase 2 remains locked until the explicit command `Start Phase 2`.
 
 ## Rules for updating this file
 

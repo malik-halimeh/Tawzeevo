@@ -36,6 +36,7 @@ Do not use this file to invent decisions.
 | D-026 | Session policy uses 15-minute access tokens and 30-day refresh tokens. The refresh cookie is HttpOnly, Secure in production, SameSite=Lax, and scoped to `/api/v1/auth`. Refresh tokens rotate on every refresh; reuse of a rotated token revokes all active sessions for that user. | LOCKED |
 | D-027 | The current development database is the free hosted Supabase PostgreSQL project `Tawzeevo` in `eu-central-1`. Tawzeevo continues to use its own FastAPI authentication and direct PostgreSQL access; Supabase Auth and the Supabase Data API are not application dependencies. Docker Compose remains available for reproducible local PostgreSQL and disposable database tests. | LOCKED |
 | D-028 | The public Tawzeevo deployment uses Render's free static-site hosting for the operations client and Render's free web-service hosting for the FastAPI service. The API continues to use the hosted Supabase PostgreSQL database directly. | LOCKED |
+| D-029 | The guest, customer, owner, and driver role demonstration is an environment-gated, frontend-only synthetic gallery at `/demo`. It introduces no new login role, credential, backend behavior, migration, database row, persistence, API request, or dependency. Guest/customer remain unauthenticated storefront perspectives; owner/driver remain tenant membership roles. The gallery is not Phase 2 evidence and must be removable without database or migration cleanup. | LOCKED |
 
 ## Pending decisions
 
