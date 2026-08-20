@@ -79,6 +79,7 @@ The frozen results are in [`docs/phase-1/test-report.md`](docs/phase-1/test-repo
 
 ## Demonstration and audit
 
+- [`docs/demo-role-gallery.md`](docs/demo-role-gallery.md) — isolated public role-gallery walkthrough, boundaries, and teardown checklist
 - [`docs/phase-1/demo-guide.md`](docs/phase-1/demo-guide.md) — setup, safe seeding, and presentation checklist
 - [`docs/phase-1/requirements-audit.md`](docs/phase-1/requirements-audit.md) — evidence for every Phase 1 contract section and Definition of Done item
 - [`docs/future-phases.md`](docs/future-phases.md) — contracted sequence without implementation claims

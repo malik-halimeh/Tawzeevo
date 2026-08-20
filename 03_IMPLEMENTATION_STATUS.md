@@ -7,9 +7,9 @@
 - Current workstream: `reversible role demo gallery`
 - Current phase: `1`
 - Current phase status: `COMPLETE`
-- Current milestone: `DRG-M2`
-- Current milestone status: `NOT_STARTED`
-- Last completed milestone: `DRG-M1`
+- Current milestone: `DRG-M5`
+- Current milestone status: `IN_PROGRESS`
+- Last completed milestone: `DRG-M4`
 - Next required user command: `continue`
 - Blocking decision: `none`
 
@@ -23,10 +23,10 @@ stops after its validation report.
 | Milestone | Status | Scope |
 |---|---|---|
 | DRG-M1 | COMPLETE | Isolated pre-auth gallery shell and live registration regression proof |
-| DRG-M2 | NOT_STARTED | Guest and customer perspectives |
-| DRG-M3 | NOT_STARTED | Owner perspective |
-| DRG-M4 | NOT_STARTED | Driver perspective and least privilege |
-| DRG-M5 | NOT_STARTED | Cross-role hardening, deployment, and teardown proof |
+| DRG-M2 | COMPLETE | Guest and customer perspectives |
+| DRG-M3 | COMPLETE | Owner perspective |
+| DRG-M4 | COMPLETE | Driver perspective and least privilege |
+| DRG-M5 | IN_PROGRESS | Cross-role hardening, deployment, and teardown proof |
 
 ## Phase status
 
@@ -45,16 +45,16 @@ stops after its validation report.
 
 ## Current milestone evidence
 
-- Code areas changed: isolated pre-auth demo boot selection, gated role gallery shell, demo-only styles, accessibility and zero-network tests, environment example
+- Code areas changed: isolated driver membership context, assigned-stop dispatch sheet, minimum customer/invoice projection, responsive styles, and least-privilege component tests
 - Migration(s): none
-- Tests run: frontend `13 passed`; zero-network, disabled-flag, role keyboard, registration, login, and public statistics regressions PASS
-- Type/lint checks: ESLint PASS; TypeScript PASS; production build PASS; `git diff --check` PASS
+- Tests run: frontend `21 passed`; assigned-only driver work, no reassignment or privileged commercial controls, minimum stop details, keyboard, compact width, EN/AR, zero-network, and production-route regressions PASS
+- Type/lint checks: ESLint PASS; TypeScript PASS; Vite production build PASS (`207` modules, non-blocking size advisory); responsive-rule scan and `git diff --check` PASS
 - Known defects: none
-- Contract deviations: none; live Render registration returned `201`, login and authenticated profile returned `200`, and the hosted database confirmed the client and active session
+- Contract deviations: none; static scans confirm no API/auth/storage integration, route-provider claim, customer delivery surface, or prohibited catalog-state language; backend, migrations, dependencies, and lockfiles are unchanged
 
 ## Latest completed milestone summary
 
-DRG-M1 added the environment-gated `/demo` boot path before authentication, a synthetic-preview banner, accessible four-perspective selector, reset behavior, bilingual shell, and isolated demo-only styles. Automated checks prove zero network calls, an unavailable disabled state, unchanged production routes, and keyboard controls. Live Render registration/login/profile and Supabase persistence checks pass. Phase 2 remains locked until the explicit command `Start Phase 2`.
+DRG-M4 added a bilingual synthetic driver dispatch sheet limited to the driver membership's two assigned stops and the minimum customer contact, invoice reference, and delivery note required for those stops. It provides no reassignment, privileged commercial, platform, supplier, analytics, or external route-provider surface. Phase 2 remains locked until the explicit command `Start Phase 2`.
 
 ## Rules for updating this file
 
