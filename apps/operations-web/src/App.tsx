@@ -1,62 +1,54 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
 
-const contactSchema = z.object({ email: z.email() });
-type ContactForm = z.infer<typeof contactSchema>;
+import { AppShell, PublicHeader } from "./components/AppShell";
+import { AdminRoute, ClientRoute, ProtectedRoute } from "./components/RouteGuards";
+import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { ApplicationsPage } from "./pages/ApplicationsPage";
+import { LoginPage, RegisterPage } from "./pages/AuthPages";
+import { ClientHomePage } from "./pages/ClientHomePage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { PublicStatsPage } from "./pages/PublicStatsPage";
+import { TenantsPage } from "./pages/TenantsPage";
+import { UsersPage } from "./pages/UsersPage";
 
-const foundations = ["api", "database", "tenant"] as const;
+function NotFoundPage() {
+  const { t } = useTranslation();
+  return (
+    <div className="public-page">
+      <PublicHeader />
+      <main className="not-found">
+        <span>404</span>
+        <h1>{t("notFound.title")}</h1>
+        <p>{t("notFound.body")}</p>
+        <a className="button" href="/">{t("notFound.action")}</a>
+      </main>
+    </div>
+  );
+}
 
 export function App() {
-  const { i18n, t } = useTranslation();
-  const {
-    formState: { errors, isSubmitSuccessful },
-    handleSubmit,
-    register,
-  } = useForm<ContactForm>({ resolver: zodResolver(contactSchema) });
-
-  const switchLanguage = async () => {
-    const language = i18n.language === "ar" ? "en" : "ar";
-    await i18n.changeLanguage(language);
-    document.documentElement.lang = language;
-    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-  };
-
   return (
-    <main className="shell">
-      <nav aria-label="Primary navigation">
-        <a className="brand" href="/">{t("brand")}</a>
-        <button className="language" onClick={() => void switchLanguage()} type="button">
-          {t("language")}
-        </button>
-      </nav>
-
-      <section className="hero">
-        <p className="eyebrow">{t("eyebrow")}</p>
-        <h1>{t("heading")}</h1>
-        <p className="lede">{t("body")}</p>
-      </section>
-
-      <section aria-labelledby="foundation-heading" className="panel">
-        <h2 id="foundation-heading">{t("foundation")}</h2>
-        <ul>
-          {foundations.map((item) => (
-            <li key={item}>
-              <span>{t(item)}</span>
-              <strong>{t("ready")}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <form className="panel form" onSubmit={(event) => void handleSubmit(() => undefined)(event)}>
-        <label htmlFor="email">{t("email")}</label>
-        <input id="email" type="email" {...register("email")} />
-        {errors.email ? <p role="alert">{errors.email.message}</p> : null}
-        <button type="submit">{t("validate")}</button>
-        {isSubmitSuccessful ? <p role="status">{t("valid")}</p> : null}
-      </form>
-    </main>
+    <Routes>
+      <Route element={<Navigate replace to="/stats" />} path="/" />
+      <Route element={<PublicStatsPage />} path="/stats" />
+      <Route element={<LoginPage />} path="/login" />
+      <Route element={<RegisterPage />} path="/register" />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppShell />}>
+          <Route element={<ClientRoute />}>
+            <Route element={<ClientHomePage />} path="/workspace" />
+          </Route>
+          <Route element={<ProfilePage />} path="/profile" />
+          <Route element={<AdminRoute />}>
+            <Route element={<AdminDashboardPage />} path="/admin" />
+            <Route element={<UsersPage />} path="/admin/users" />
+            <Route element={<ApplicationsPage />} path="/admin/applications" />
+            <Route element={<TenantsPage />} path="/admin/tenants" />
+          </Route>
+        </Route>
+      </Route>
+      <Route element={<NotFoundPage />} path="*" />
+    </Routes>
   );
 }

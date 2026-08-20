@@ -1,48 +1,59 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-const resources = {
-  en: {
-    translation: {
-      brand: "Tawzeevo",
-      eyebrow: "Operations platform",
-      heading: "Your Cash Van workspace is taking shape.",
-      body: "The secure tenant, session, and PostgreSQL foundations are ready for the next milestone.",
-      language: "العربية",
-      foundation: "Foundation status",
-      api: "FastAPI service",
-      database: "PostgreSQL migrations",
-      tenant: "Tenant isolation contract",
-      ready: "Established",
-      email: "Contact email",
-      validate: "Validate form foundation",
-      valid: "Form validation is connected.",
-    },
-  },
-  ar: {
-    translation: {
-      brand: "توزيفو",
-      eyebrow: "منصة العمليات",
-      heading: "مساحة عمل سيارة التوزيع قيد الإنشاء.",
-      body: "أُسست بنية المستأجرين والجلسات وقاعدة PostgreSQL بأمان للمرحلة التالية.",
-      language: "English",
-      foundation: "حالة الأساس",
-      api: "خدمة FastAPI",
-      database: "ترحيلات PostgreSQL",
-      tenant: "عقد عزل المستأجرين",
-      ready: "جاهز",
-      email: "البريد الإلكتروني للتواصل",
-      validate: "اختبار أساس النموذج",
-      valid: "التحقق من النموذج متصل.",
-    },
-  },
+const en = {
+  brandHome: "Tawzeevo home",
+  language: "العربية",
+  skipToContent: "Skip to content",
+  nav: { primary: "Primary navigation", workspaceNav: "Workspace navigation", overview: "Overview", users: "Users", applications: "Applications", tenants: "Tenants", profile: "Profile", statistics: "Public statistics", login: "Sign in", register: "Register", logout: "Sign out", workspace: "Open workspace" },
+  roles: { platformAdmin: "Platform administrator", client: "Client" },
+  common: { loadingSession: "Restoring your secure session…", loading: "Loading current data…", requestFailed: "The request could not be completed", signingIn: "Signing in…", creatingAccount: "Creating account…", saving: "Saving…", sending: "Sending…", saveChanges: "Save changes", cancel: "Cancel", close: "Close", manage: "Manage", review: "Review", view: "View", edit: "Edit", delete: "Delete", actions: "Actions", search: "Search", clear: "Clear", apply: "Apply filters", all: "All" },
+  fields: { firstName: "First name", lastName: "Last name", email: "Email", phone: "Phone", city: "City", age: "Age", password: "Password", confirmPassword: "Confirm password", businessName: "Business name", role: "System role", status: "Status", accessUntil: "Access until", graceUntil: "Grace until", reviewNotes: "Review notes", suspensionReason: "Suspension reason" },
+  validation: { required: "This field is required.", email: "Enter a valid email address.", age: "Age must be between 1 and 120.", passwordLength: "Use 10 to 128 characters.", passwordMatch: "Passwords must match." },
+  login: { eyebrow: "Secure operations access", title: "Pick up where your route left off.", intro: "Sign in to manage your profile or operate the Tawzeevo platform. Your refresh session stays protected in an HttpOnly cookie.", formTitle: "Sign in", noAccount: "New to Tawzeevo?", createAccount: "Create a client account", viewStatistics: "View public platform statistics" },
+  register: { eyebrow: "Start with a client account", title: "Your distribution workspace begins here.", intro: "Create a secure account, then submit your business for platform review. Registration never grants administrator access.", formTitle: "Create account", hasAccount: "Already registered?", action: "Create client account", success: "Account created. Sign in to continue." },
+  stats: { eyebrow: "Platform pulse", title: "A clear view of Tawzeevo’s active community.", intro: "Live public figures from the platform API. Soft-deleted accounts are never included.", summary: "Platform statistics summary", activeUsers: "Active users", activeUsersNote: "Current non-deleted accounts", averageAge: "Average age", years: "years", topCities: "Top cities", byUsers: "by active users", noCities: "City activity will appear after registration begins.", footer: "Built for bilingual Cash Van operations." },
+  profile: { eyebrow: "Account settings", title: "Profile", description: "Keep your identity and contact details current.", newPassword: "New password", passwordPlaceholder: "Leave blank to keep your password", passwordHint: "Changing your password securely ends all active sessions.", passwordChanged: "Password changed. Sign in again with your new password.", saved: "Profile changes saved." },
+  clientHome: { eyebrow: "Client workspace", title: "Welcome, {{name}}.", description: "Your account is ready. Business activation begins with a reviewed tenant application.", tenantApplication: "Business onboarding", applicationTitle: "Apply for a Tawzeevo tenant", applicationBody: "Tell the platform team the business name you operate under. Approval creates the tenant and makes you its owner in one secure transaction.", applicationReceived: "Application received for {{name}}.", submitApplication: "Submit application", account: "Account details", keepCurrent: "Keep dispatch contacts current", profileBody: "Accurate email, phone, and city details help the platform team review your application.", editProfile: "Edit profile" },
+  admin: { eyebrow: "Platform control desk", title: "Operational overview", description: "Manage people, tenant onboarding, and commercial access without entering tenant-private business data.", summary: "Platform summary", activeUsers: "Active users", pendingApplications: "Pending applications", activeTenants: "Active tenants", suspendedTenants: "Suspended tenants", overdue: "overdue", accessDesk: "Access route", accessTitle: "Commercial access watch", accessAttention: "{{count}} tenant has overdue access metadata that needs review.", accessClear: "No listed tenant currently has overdue access metadata.", openTenantDesk: "Open tenant desk" },
+  users: { eyebrow: "People directory", title: "Users", description: "Create, find, update, or softly delete platform accounts.", add: "Add user", editKicker: "Update account", createKicker: "New account", editTitle: "Edit user", createTitle: "Create user", createAction: "Create user", newPassword: "New password", passwordOptional: "Leave blank to keep the current password.", searchPlaceholder: "Name or email", deleted: "User softly deleted.", confirmDelete: "Soft-delete {{name}}? They will no longer be able to sign in.", emptyTitle: "No users match these filters", emptyBody: "Clear one or more filters and try again.", resultCount: "{{count}} matching users", person: "Person" },
+  applications: { eyebrow: "Onboarding queue", title: "Tenant applications", description: "Review client applications and create approved tenants without granting platform administrators tenant membership.", reviewKicker: "Application review", applicant: "Applicant ID", submitted: "Submitted", submittedOn: "Submitted {{date}}", approve: "Approve application", reject: "Reject application", reviewed: "Reviewed", approved: "{{name}} approved and activated.", rejected: "{{name}} rejected. The client account was retained.", invalidGrace: "Grace end cannot be before access end.", emptyTitle: "No applications in this queue", emptyBody: "Choose another status or wait for a client submission." },
+  tenants: { eyebrow: "Commercial access", title: "Tenants", description: "Set access periods and control lifecycle status while preserving every tenant and its data.", searchPlaceholder: "Tenant name", manageKicker: "Tenant controls", accessRequired: "Choose an access end date before saving.", accessSaved: "Access period updated for {{name}}.", suspended: "{{name}} suspended. Its data remains stored.", reactivated: "{{name}} reactivated with its retained data.", saveAccess: "Save access period", suspend: "Suspend tenant", reactivate: "Reactivate tenant", emptyTitle: "No tenants match this view", emptyBody: "Change the name search or lifecycle filter.", noEndDate: "No end date", manage: "Manage access and status" },
+  pagination: { label: "Pagination", previous: "Previous", next: "Next", page: "Page {{page}} of {{total}}" },
+  status: { admin: "Administrator", client: "Client", PENDING: "Pending", APPROVED: "Approved", REJECTED: "Rejected", ACTIVE: "Active", SUSPENDED: "Suspended", CLOSED: "Closed", current: "Current", grace: "Grace", overdue: "Overdue" },
+  reasons: { SUBSCRIPTION_OVERDUE: "Subscription overdue", ADMINISTRATIVE: "Administrative", SECURITY: "Security", OTHER: "Other" },
+  errors: { INVALID_CREDENTIALS: "Email or password is incorrect.", INVALID_AUTHENTICATION: "Your session is no longer valid. Sign in again.", EMAIL_ALREADY_EXISTS: "An account already uses this email.", OWNER_TRANSFER_REQUIRED: "Transfer ownership before deleting this user.", TENANT_APPLICATION_ALREADY_REVIEWED: "This application has already been reviewed.", ACCESS_PERIOD_CANNOT_BE_SHORTENED: "Access can only be set or extended.", UNKNOWN: "Check your connection and try again." },
+  notFound: { title: "That stop is not on this route.", body: "The page may have moved or the address may be incorrect.", action: "Return to Tawzeevo" },
 } as const;
 
-void i18n.use(initReactI18next).init({
-  resources,
-  lng: "en",
-  fallbackLng: "en",
-  interpolation: { escapeValue: false },
-});
+const ar = {
+  brandHome: "الصفحة الرئيسية لتوزيفو",
+  language: "English",
+  skipToContent: "انتقل إلى المحتوى",
+  nav: { primary: "التنقل الرئيسي", workspaceNav: "التنقل في مساحة العمل", overview: "نظرة عامة", users: "المستخدمون", applications: "الطلبات", tenants: "المستأجرون", profile: "الملف الشخصي", statistics: "إحصاءات عامة", login: "تسجيل الدخول", register: "إنشاء حساب", logout: "تسجيل الخروج", workspace: "فتح مساحة العمل" },
+  roles: { platformAdmin: "مسؤول المنصة", client: "عميل" },
+  common: { loadingSession: "جارٍ استعادة الجلسة الآمنة…", loading: "جارٍ تحميل البيانات الحالية…", requestFailed: "تعذّر إكمال الطلب", signingIn: "جارٍ تسجيل الدخول…", creatingAccount: "جارٍ إنشاء الحساب…", saving: "جارٍ الحفظ…", sending: "جارٍ الإرسال…", saveChanges: "حفظ التغييرات", cancel: "إلغاء", close: "إغلاق", manage: "إدارة", review: "مراجعة", view: "عرض", edit: "تعديل", delete: "حذف", actions: "الإجراءات", search: "بحث", clear: "مسح", apply: "تطبيق عوامل التصفية", all: "الكل" },
+  fields: { firstName: "الاسم", lastName: "اسم العائلة", email: "البريد الإلكتروني", phone: "الهاتف", city: "المدينة", age: "العمر", password: "كلمة المرور", confirmPassword: "تأكيد كلمة المرور", businessName: "اسم المنشأة", role: "دور النظام", status: "الحالة", accessUntil: "الوصول حتى", graceUntil: "فترة السماح حتى", reviewNotes: "ملاحظات المراجعة", suspensionReason: "سبب التعليق" },
+  validation: { required: "هذا الحقل مطلوب.", email: "أدخل بريداً إلكترونياً صحيحاً.", age: "يجب أن يكون العمر بين 1 و120.", passwordLength: "استخدم من 10 إلى 128 حرفاً.", passwordMatch: "يجب أن تتطابق كلمتا المرور." },
+  login: { eyebrow: "وصول آمن للعمليات", title: "تابع من حيث توقّف مسارك.", intro: "سجّل الدخول لإدارة ملفك أو تشغيل منصة توزيـفو. تبقى جلسة التحديث محمية في ملف ارتباط HttpOnly.", formTitle: "تسجيل الدخول", noAccount: "جديد في توزيـفو؟", createAccount: "أنشئ حساب عميل", viewStatistics: "عرض إحصاءات المنصة العامة" },
+  register: { eyebrow: "ابدأ بحساب عميل", title: "مساحة التوزيع الخاصة بك تبدأ هنا.", intro: "أنشئ حساباً آمناً، ثم أرسل منشأتك للمراجعة. التسجيل لا يمنح صلاحية المسؤول.", formTitle: "إنشاء حساب", hasAccount: "لديك حساب؟", action: "إنشاء حساب عميل", success: "تم إنشاء الحساب. سجّل الدخول للمتابعة." },
+  stats: { eyebrow: "نبض المنصة", title: "صورة واضحة عن مجتمع توزيـفو النشط.", intro: "أرقام عامة مباشرة من واجهة المنصة. لا تشمل الحسابات المحذوفة منطقياً.", summary: "ملخص إحصاءات المنصة", activeUsers: "المستخدمون النشطون", activeUsersNote: "الحسابات الحالية غير المحذوفة", averageAge: "متوسط العمر", years: "سنة", topCities: "أبرز المدن", byUsers: "حسب المستخدمين النشطين", noCities: "سيظهر نشاط المدن بعد بدء التسجيل.", footer: "مصممة لعمليات سيارة التوزيع باللغتين." },
+  profile: { eyebrow: "إعدادات الحساب", title: "الملف الشخصي", description: "حافظ على تحديث بيانات الهوية والتواصل.", newPassword: "كلمة مرور جديدة", passwordPlaceholder: "اتركها فارغة للاحتفاظ بكلمة المرور", passwordHint: "تغيير كلمة المرور ينهي كل الجلسات النشطة بأمان.", passwordChanged: "تم تغيير كلمة المرور. سجّل الدخول مجدداً بالكلمة الجديدة.", saved: "تم حفظ تغييرات الملف الشخصي." },
+  clientHome: { eyebrow: "مساحة العميل", title: "أهلاً، {{name}}.", description: "حسابك جاهز. يبدأ تفعيل المنشأة بطلب مستأجر تتم مراجعته.", tenantApplication: "تهيئة المنشأة", applicationTitle: "قدّم طلب مستأجر في توزيـفو", applicationBody: "أدخل اسم المنشأة التي تديرها. الموافقة تنشئ المستأجر وتجعلك مالكه ضمن معاملة آمنة واحدة.", applicationReceived: "تم استلام طلب {{name}}.", submitApplication: "إرسال الطلب", account: "بيانات الحساب", keepCurrent: "حافظ على تحديث بيانات التواصل", profileBody: "تساعد بيانات البريد والهاتف والمدينة الدقيقة فريق المنصة على مراجعة طلبك.", editProfile: "تعديل الملف" },
+  admin: { eyebrow: "مكتب تحكم المنصة", title: "نظرة تشغيلية عامة", description: "أدر الأشخاص وطلبات المستأجرين والوصول التجاري دون الدخول إلى بيانات المنشآت الخاصة.", summary: "ملخص المنصة", activeUsers: "المستخدمون النشطون", pendingApplications: "الطلبات المعلقة", activeTenants: "المستأجرون النشطون", suspendedTenants: "المستأجرون المعلّقون", overdue: "متأخر", accessDesk: "مسار الوصول", accessTitle: "متابعة الوصول التجاري", accessAttention: "هناك {{count}} مستأجر ببيانات وصول متأخرة تحتاج للمراجعة.", accessClear: "لا توجد حالياً بيانات وصول متأخرة ضمن المستأجرين المعروضين.", openTenantDesk: "فتح مكتب المستأجرين" },
+  users: { eyebrow: "دليل الأشخاص", title: "المستخدمون", description: "أنشئ حسابات المنصة وابحث عنها وعدّلها أو احذفها منطقياً.", add: "إضافة مستخدم", editKicker: "تحديث الحساب", createKicker: "حساب جديد", editTitle: "تعديل المستخدم", createTitle: "إنشاء مستخدم", createAction: "إنشاء المستخدم", newPassword: "كلمة مرور جديدة", passwordOptional: "اتركها فارغة للاحتفاظ بالكلمة الحالية.", searchPlaceholder: "الاسم أو البريد", deleted: "تم حذف المستخدم منطقياً.", confirmDelete: "هل تريد حذف {{name}} منطقياً؟ لن يتمكن من تسجيل الدخول.", emptyTitle: "لا يوجد مستخدمون يطابقون التصفية", emptyBody: "امسح عامل تصفية أو أكثر وحاول مجدداً.", resultCount: "{{count}} مستخدم مطابق", person: "الشخص" },
+  applications: { eyebrow: "طابور التهيئة", title: "طلبات المستأجرين", description: "راجع طلبات العملاء وأنشئ المستأجرين الموافق عليهم دون منح مسؤول المنصة عضوية في المستأجر.", reviewKicker: "مراجعة الطلب", applicant: "معرّف مقدم الطلب", submitted: "تاريخ الإرسال", submittedOn: "أُرسل في {{date}}", approve: "الموافقة على الطلب", reject: "رفض الطلب", reviewed: "تمت المراجعة", approved: "تمت الموافقة على {{name}} وتفعيلها.", rejected: "تم رفض {{name}} مع الاحتفاظ بحساب العميل.", invalidGrace: "لا يمكن أن تنتهي فترة السماح قبل نهاية الوصول.", emptyTitle: "لا توجد طلبات في هذا الطابور", emptyBody: "اختر حالة أخرى أو انتظر طلب عميل جديد." },
+  tenants: { eyebrow: "الوصول التجاري", title: "المستأجرون", description: "حدّد فترات الوصول وتحكم بالحالة مع الحفاظ على كل مستأجر وبياناته.", searchPlaceholder: "اسم المستأجر", manageKicker: "ضوابط المستأجر", accessRequired: "اختر تاريخ نهاية الوصول قبل الحفظ.", accessSaved: "تم تحديث فترة وصول {{name}}.", suspended: "تم تعليق {{name}} مع إبقاء بياناته مخزنة.", reactivated: "تمت إعادة تفعيل {{name}} ببياناته المحفوظة.", saveAccess: "حفظ فترة الوصول", suspend: "تعليق المستأجر", reactivate: "إعادة التفعيل", emptyTitle: "لا يوجد مستأجرون يطابقون العرض", emptyBody: "غيّر البحث بالاسم أو عامل تصفية الحالة.", noEndDate: "دون تاريخ نهاية", manage: "إدارة الوصول والحالة" },
+  pagination: { label: "ترقيم الصفحات", previous: "السابق", next: "التالي", page: "الصفحة {{page}} من {{total}}" },
+  status: { admin: "مسؤول", client: "عميل", PENDING: "معلق", APPROVED: "مقبول", REJECTED: "مرفوض", ACTIVE: "نشط", SUSPENDED: "معلّق", CLOSED: "مغلق", current: "ساري", grace: "فترة سماح", overdue: "متأخر" },
+  reasons: { SUBSCRIPTION_OVERDUE: "اشتراك متأخر", ADMINISTRATIVE: "إداري", SECURITY: "أمني", OTHER: "أخرى" },
+  errors: { INVALID_CREDENTIALS: "البريد الإلكتروني أو كلمة المرور غير صحيحة.", INVALID_AUTHENTICATION: "الجلسة لم تعد صالحة. سجّل الدخول مجدداً.", EMAIL_ALREADY_EXISTS: "يوجد حساب يستخدم هذا البريد.", OWNER_TRANSFER_REQUIRED: "انقل الملكية قبل حذف هذا المستخدم.", TENANT_APPLICATION_ALREADY_REVIEWED: "تمت مراجعة هذا الطلب مسبقاً.", ACCESS_PERIOD_CANNOT_BE_SHORTENED: "يمكن تعيين الوصول أو تمديده فقط.", UNKNOWN: "تحقق من الاتصال وحاول مجدداً." },
+  notFound: { title: "هذه المحطة ليست على المسار.", body: "ربما نُقلت الصفحة أو أن العنوان غير صحيح.", action: "العودة إلى توزيـفو" },
+} as const;
+
+void i18n.use(initReactI18next).init({ resources: { en: { translation: en }, ar: { translation: ar } }, lng: "en", fallbackLng: "en", interpolation: { escapeValue: false } });
+
+document.documentElement.lang = i18n.resolvedLanguage ?? "en";
+document.documentElement.dir = i18n.resolvedLanguage === "ar" ? "rtl" : "ltr";
 
 export default i18n;

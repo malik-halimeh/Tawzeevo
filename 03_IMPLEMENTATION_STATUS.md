@@ -6,9 +6,9 @@
 
 - Current phase: `1`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P1-M4`
+- Current milestone: `P1-M5`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P1-M3`
+- Last completed milestone: `P1-M4`
 - Next required user command: `continue`
 - Blocking decision: `none`
 
@@ -29,16 +29,16 @@
 
 ## Current milestone evidence
 
-- Code areas changed: user/profile/admin/statistics APIs, safe admin bootstrap, tenant context authorization, tenant application review, platform access/lifecycle APIs, audit RLS, evaluator tests
-- Migration(s): `20260820_0002_platform_audit_rls.py`
-- Tests run: PostgreSQL-backed backend suite `45 passed`; coverage `95%`
-- Type/lint checks: Ruff PASS; Ruff format PASS; mypy strict PASS; Alembic drift check PASS
+- Code areas changed: operations-web authentication/session flow, protected routing, profile editor, public statistics, platform dashboard, user administration, tenant applications, tenant lifecycle controls, responsive EN/AR RTL design
+- Migration(s): none
+- Tests run: operations-web interaction suite `7 passed`; critical live browser flows PASS
+- Type/lint checks: TypeScript PASS; ESLint PASS; Vite production build PASS
 - Known defects: none
 - Contract deviations: none
 
 ## Latest completed milestone summary
 
-P1-M3 implemented profile and platform-admin user management, soft deletion with concurrent last-owner protection, public statistics, a hidden-password admin bootstrap command, tenant application approval/rejection, platform access and lifecycle controls, tenant-context suspension enforcement, and audited state transitions.
+P1-M4 implemented the real-API bilingual operations client: registration and login, memory-only access sessions with HttpOnly refresh handling, role-protected workspaces, profile editing, public statistics, platform dashboards, complete user administration, tenant application review, and tenant access/lifecycle controls.
 
 ## Rules for updating this file
 
