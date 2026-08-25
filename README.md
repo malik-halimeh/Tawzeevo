@@ -36,7 +36,109 @@ Prerequisites:
 
 - Python 3.13+
 - Node.js 22+
-- Docker with Compose for the preferred PostgreSQL development/test runtime
+- a PostgreSQL database, either the hosted Supabase project or Docker Compose locally
+- Docker with Compose only if using the local PostgreSQL option
+
+### Run with hosted Supabase PostgreSQL on Windows (no Docker)
+
+This is the normal no-Docker workflow. Run every command from the repository root in PowerShell.
+
+1. Create and activate the Python virtual environment:
+
+```powershell
+python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+The execution-policy command affects only the current PowerShell process and is needed only when
+PowerShell blocks `Activate.ps1`.
+
+2. Install the API and frontend dependencies:
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -e ".\apps\api[dev]"
+npm ci
+```
+
+3. Create the local environment file if it does not already exist:
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
+```
+
+In the Supabase dashboard, open the Tawzeevo project and click **Connect**. Use the direct database
+connection when IPv6 is available; otherwise use the **Session pooler** on port `5432`. Replace the
+`postgresql://` prefix in the copied URI with `postgresql+psycopg://` for SQLAlchemy/psycopg. If the
+password contains URI-reserved characters, URL-encode it. Do not use the transaction pooler on port
+`6543` for migrations. See the
+[Supabase database connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres)
+for the current connection modes.
+
+Configure `.env` with real local values while keeping secrets out of Git:
+
+```dotenv
+APP_ENV=development
+DATABASE_URL=postgresql+psycopg://postgres.PROJECT_REFERENCE:URL_ENCODED_PASSWORD@SESSION_POOLER_HOST:5432/postgres?sslmode=require
+CORS_ALLOWED_ORIGINS=["http://localhost:5173"]
+JWT_SECRET=replace-with-a-long-random-local-secret
+ACCESS_TOKEN_TTL_MINUTES=15
+REFRESH_TOKEN_TTL_DAYS=30
+REFRESH_COOKIE_SECURE=false
+VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_DEMO_PREVIEW=false
+```
+
+Never commit `.env`, database passwords, connection strings, or JWT secrets.
+
+4. Apply every database migration before starting the API:
+
+```powershell
+python -m alembic -c .\apps\api\alembic.ini upgrade head
+python -m alembic -c .\apps\api\alembic.ini current
+```
+
+The second command should show the latest revision followed by `(head)`.
+
+5. Start the FastAPI service in the first PowerShell terminal:
+
+```powershell
+python -m uvicorn tawzeevo_api.main:app `
+  --app-dir .\apps\api `
+  --reload `
+  --host 127.0.0.1 `
+  --port 8000
+```
+
+Keep this terminal open. The API is ready when Uvicorn reports that it is running on
+`http://127.0.0.1:8000`. Verify both the service and PostgreSQL connection from another terminal:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+Invoke-RestMethod http://127.0.0.1:8000/health/database
+```
+
+Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
+
+6. Start the React operations client in a second PowerShell terminal:
+
+```powershell
+cd C:\path\to\Tawzeevo
+$env:VITE_API_BASE_URL = "http://127.0.0.1:8000"
+npm run dev:operations
+```
+
+Open `http://localhost:5173`. Keep both terminals running while using Tawzeevo. Press `Ctrl+C` in
+each terminal to stop the frontend and API; this does not delete or stop the hosted database.
+
+If `/health` works but `/health/database` returns `503`, confirm the Supabase project is running and
+recheck the database URL, password encoding, and pooler mode. If the browser reports `Failed to
+fetch`, confirm the API terminal is running, `VITE_API_BASE_URL` points to port `8000`, and
+`CORS_ALLOWED_ORIGINS` contains `http://localhost:5173`.
+
+### Run with local PostgreSQL through Docker Compose
 
 From the repository root:
 
