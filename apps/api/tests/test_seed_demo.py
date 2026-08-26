@@ -14,6 +14,7 @@ from tawzeevo_api.models import (
     InvoiceItem,
     SystemUserType,
     Tenant,
+    TenantBarcode,
     TenantMembership,
     TenantProduct,
     TenantRole,
@@ -87,8 +88,9 @@ def test_demo_seed_creates_one_real_slice_and_rejects_replay(
         invoice = db.scalar(select(Invoice))
         product = db.scalar(select(TenantProduct))
         assert invoice is not None and str(invoice.subtotal) == "10.0000"
+        barcode = db.scalar(select(TenantBarcode))
         assert product is not None and product.currency == "USD"
-        assert product.barcode == seed_demo.DEMO_BARCODE
+        assert barcode is not None and barcode.barcode == seed_demo.DEMO_BARCODE
 
     assert seed_demo.main(session_factory) == 1
     with session_factory() as db:

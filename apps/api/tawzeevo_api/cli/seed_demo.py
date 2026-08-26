@@ -12,12 +12,14 @@ from tawzeevo_api.database import SessionLocal
 from tawzeevo_api.dependencies import resolve_tenant_context
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
+    BarcodePackageLevel,
     Category,
     Customer,
     Invoice,
     InvoiceItem,
     InvoiceStatus,
     ProductPriceBasis,
+    TenantBarcode,
     TenantProduct,
     TenantRole,
     User,
@@ -78,15 +80,21 @@ def seed_demo_data(
     if context.membership.role is not TenantRole.OWNER:
         raise AppError(403, "TENANT_OWNER_REQUIRED", "Tenant owner access is required")
     existing = db.scalar(
-        select(TenantProduct.id).where(
-            TenantProduct.tenant_id == tenant_id,
-            TenantProduct.barcode == DEMO_BARCODE,
+        select(TenantBarcode.id).where(
+            TenantBarcode.tenant_id == tenant_id,
+            TenantBarcode.barcode == DEMO_BARCODE,
         )
     )
     if existing is not None:
         raise AppError(409, "DEMO_DATA_ALREADY_EXISTS", "Demo data already exists for this tenant")
 
-    category = Category(tenant_id=tenant_id, name="Demo beverages")
+    category = Category(
+        tenant_id=tenant_id,
+        name_en="Demo beverages",
+        name_ar="مشروبات تجريبية",
+        slug="demo-beverages",
+        display_order=0,
+    )
     customer = Customer(
         tenant_id=tenant_id,
         name="Demo Customer",
@@ -104,7 +112,6 @@ def seed_demo_data(
         tenant_id=tenant_id,
         category_id=category.id,
         name="Demo bottled water",
-        barcode=DEMO_BARCODE,
         unit_price=unit_price,
         currency=normalized_currency,
         price_basis=ProductPriceBasis.PIECE,
@@ -112,6 +119,14 @@ def seed_demo_data(
     )
     db.add(product)
     db.flush()
+    db.add(
+        TenantBarcode(
+            tenant_id=tenant_id,
+            tenant_product_id=product.id,
+            barcode=DEMO_BARCODE,
+            package_level=BarcodePackageLevel.PIECE,
+        )
+    )
     invoice = Invoice(
         tenant_id=tenant_id,
         customer_id=customer.id,
@@ -127,7 +142,7 @@ def seed_demo_data(
             invoice_id=invoice.id,
             product_id=product.id,
             product_name=product.name,
-            barcode=product.barcode,
+            barcode=DEMO_BARCODE,
             quantity=quantity,
             price_basis=product.price_basis,
             unit_price=unit_price,

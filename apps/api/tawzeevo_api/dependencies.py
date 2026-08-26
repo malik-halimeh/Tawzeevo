@@ -9,7 +9,6 @@ import jwt
 from fastapi import Depends, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, ValidationError
-from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
@@ -23,6 +22,7 @@ from tawzeevo_api.models import (
     TenantStatus,
     User,
 )
+from tawzeevo_api.repositories.tenancy import get_scoped_membership, set_user_scope
 from tawzeevo_api.security import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False, scheme_name="BearerAuth")
@@ -79,6 +79,7 @@ def get_auth_context(
         or auth_session.security_version != user.security_version
     ):
         raise AuthenticationError()
+    set_user_scope(db, user.id)
     return AuthContext(user=user, auth_session=auth_session)
 
 
@@ -99,16 +100,11 @@ def require_client(user: Annotated[User, Depends(get_current_user)]) -> User:
 
 
 def resolve_tenant_context(db: Session, user: User, tenant_id: UUID) -> TenantContext:
-    db.execute(
-        text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
-        {"tenant_id": str(tenant_id)},
-    )
-    membership = db.scalar(
-        select(TenantMembership).where(
-            TenantMembership.tenant_id == tenant_id,
-            TenantMembership.user_id == user.id,
-            TenantMembership.is_active.is_(True),
-        )
+    membership = get_scoped_membership(
+        db,
+        tenant_id=tenant_id,
+        user_id=user.id,
+        active_only=True,
     )
     if membership is None:
         raise AppError(403, "TENANT_MEMBERSHIP_REQUIRED", "Active tenant membership is required")

@@ -4,19 +4,19 @@
 
 ## Current execution
 
-- Current workstream: `reversible role demo gallery`
-- Current phase: `1`
-- Current phase status: `COMPLETE`
-- Current milestone: `DRG-M5`
-- Current milestone status: `COMPLETE`
-- Last completed milestone: `DRG-M5`
-- Next required user command: `Start Phase 2`
-- Blocking decision: `none`
+- Current workstream: `Phase 2 — Tenant Business Core`
+- Current phase: `2`
+- Current phase status: `IN_PROGRESS`
+- Current milestone: `P2-M5 — Catalog import + acceptance`
+- Current milestone status: `NOT_STARTED`
+- Last completed milestone: `P2-M4`
+- Next required user command: `continue`
+- Blocking decision: `none; pricing-v1 approved as D-030`
 
-Phase 2 remains locked. The demo workstream does not advance product phases or count as Phase 2
-evidence. Its approved plan is `docs/demo-role-gallery-plan.md`.
-The reversible demo workstream is complete. No product phase advances until the user explicitly
-starts the next phase.
+The user explicitly authorized `Start Phase 2`, the Phase 1 Definition of Done gate is passed, and
+the authoritative `PHASE_02.md` contract has been supplied. P2-M1 through P2-M4 are complete. P2-M5
+is the next milestone. Historical supplier-cost snapshot behavior is locked for later confirmed-invoice/
+supplier integration as D-031 and was not prematurely pulled into Phase 2 pricing.
 
 ## Demo workstream status
 
@@ -33,7 +33,7 @@ starts the next phase.
 | Phase | Status | Gate |
 |---|---|---|
 | 1 | COMPLETE | DoD PASSED |
-| 2 | LOCKED | Phase 1 DoD |
+| 2 | IN_PROGRESS | P2-M1 through P2-M4 complete; P2-M5 not started |
 | 3 | LOCKED | Gate C |
 | 4 | LOCKED | Gate D |
 | 5 | LOCKED | Gate E |
@@ -45,18 +45,17 @@ starts the next phase.
 
 ## Current milestone evidence
 
-- Code areas changed: isolated role-gallery journey hardening, responsive and bilingual presentation polish, feature-flagged Render configuration, operator walkthrough, and teardown checklist
-- Migration(s): none
-- Tests run: frontend `22 passed`; full guest-to-customer demo journey, all four role surfaces, assigned-only driver work, least privilege, keyboard, compact width, EN/AR, zero-network, zero-storage, and production-route regressions PASS
-- Type/lint checks: full `npm run check` PASS; explicit feature-flag-off and feature-flag-on production builds PASS (`207` modules, non-blocking size advisory); responsive, isolation, prohibited-language, credential, branding, and `git diff --check` scans PASS
-- Browser QA: desktop and mobile EN/AR layouts, RTL direction, overflow, keyboard tab selection, visible focus, reduced motion, and representative contrast PASS; public Guest, Customer, Owner, and Driver views PASS
-- Deployment QA: Render Blueprint flag `VITE_DEMO_PREVIEW=true` approved; commit `09856cf` deployed live; `/demo`, `/login`, `/register`, and `/stats` PASS; API health, database health, count, average-age, and top-cities endpoints return HTTP 200
+- Code areas changed: tenant grade-discount and explicit product-grade-price models/APIs/UI; pricing-v1 Decimal resolution and draft-invoice snapshots; piece/box counterpart derivation; provider-neutral media interface, safe local adapter, image metadata/content APIs, and authenticated owner image UI
+- Migration(s): `20260826_0006`; from-zero upgrade, Alembic drift check, and downgrade/upgrade PASS
+- Tests run: backend `87 passed` with `93%` statement coverage on a disposable PostgreSQL 18 database; pricing precedence, exact half-up rounding, piece/box calculations, immutable selling-price snapshots, image re-encoding/type rejection, cross-tenant denial, and non-bypass PostgreSQL pricing RLS PASS; frontend `27 passed`
+- Type/lint checks: Ruff lint and format PASS; strict mypy PASS; full `npm run check` PASS; production build PASS (`208` modules, non-blocking size advisory)
+- Security checks: pricing and tenant-image tables use forced RLS, explicit tenant predicates, and same-tenant composite foreign keys; images are byte/dimension limited, decoded, re-encoded to WebP, and served only after owner authorization with `nosniff`; SVG is rejected
 - Known defects: none
-- Contract deviations: none; the gallery remains synthetic and memory-only with no API/auth/storage integration; backend, migrations, dependencies, and lockfiles are unchanged; teardown requires only the documented frontend/configuration removals
+- Contract deviations: none; the local media adapter is development/demo storage and durable production object storage remains an explicit provider decision; no stock, availability, supplier-cost implementation, catalog import, or later-phase workflow was introduced
 
 ## Latest completed milestone summary
 
-DRG-M5 completed and deployed the reversible bilingual role gallery, verified its four public demo perspectives and existing production routes, and documented a frontend-only teardown with no database cleanup or migration rollback. The demo workstream is complete. Phase 2 remains locked until the explicit command `Start Phase 2`.
+P2-M4 added the locked pricing-v1 precedence and rounding contract, customer-grade discount and explicit product-grade controls, invoice selling-price provenance snapshots, piece/box calculations, and secure provider-neutral product images. The high-priority historical supplier-cost/profit snapshot requirement is recorded as D-031 for the later supplier and confirmed-invoice implementation. P2-M5 is next and remains not started.
 
 ## Rules for updating this file
 

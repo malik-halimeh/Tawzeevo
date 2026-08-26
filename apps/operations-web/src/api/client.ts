@@ -79,7 +79,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     ...requestInit
   } = options;
   const headers = new Headers(suppliedHeaders);
-  if (requestInit.body && !headers.has("Content-Type")) {
+  if (
+    requestInit.body &&
+    !(requestInit.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  ) {
     headers.set("Content-Type", "application/json");
   }
   if (authenticated && accessToken) {
@@ -98,6 +102,33 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (!response.ok) throw await parseError(response);
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+export async function apiBlobRequest(
+  path: string,
+  options: RequestOptions = {},
+): Promise<Blob> {
+  const {
+    authenticated = true,
+    retryAuthentication = true,
+    headers: suppliedHeaders,
+    ...requestInit
+  } = options;
+  const headers = new Headers(suppliedHeaders);
+  if (authenticated && accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...requestInit,
+    headers,
+    credentials: "include",
+  });
+  if (response.status === 401 && authenticated && retryAuthentication) {
+    await refreshAccessToken();
+    return apiBlobRequest(path, { ...options, retryAuthentication: false });
+  }
+  if (!response.ok) throw await parseError(response);
+  return response.blob();
 }
 
 export async function loginRequest(email: string, password: string): Promise<TokenResponse> {

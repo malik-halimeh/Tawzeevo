@@ -5,7 +5,7 @@ import unicodedata
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
@@ -22,6 +22,7 @@ from tawzeevo_api.models import (
 )
 from tawzeevo_api.phone import normalize_phone
 from tawzeevo_api.repositories.auth import get_user_by_email, revoke_active_user_sessions
+from tawzeevo_api.repositories.tenancy import count_usable_owners, set_tenant_scope
 from tawzeevo_api.schemas.users import AdminCreateUserRequest, ProfileUpdateRequest
 from tawzeevo_api.security import hash_password
 
@@ -156,13 +157,6 @@ def list_users(
     return users, total, math.ceil(total / limit) if total else 0
 
 
-def _set_tenant_scope(db: Session, tenant_id: UUID) -> None:
-    db.execute(
-        text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
-        {"tenant_id": str(tenant_id)},
-    )
-
-
 def soft_delete_user(db: Session, user_id: UUID) -> None:
     user = get_user_for_update(db, user_id)
     if user.is_deleted:
@@ -171,7 +165,7 @@ def soft_delete_user(db: Session, user_id: UUID) -> None:
     tenants = list(db.scalars(select(Tenant).order_by(Tenant.id).with_for_update()))
     active_membership_tenants: list[UUID] = []
     for tenant in tenants:
-        _set_tenant_scope(db, tenant.id)
+        set_tenant_scope(db, tenant.id)
         membership = db.scalar(
             select(TenantMembership).where(
                 TenantMembership.tenant_id == tenant.id,
@@ -184,20 +178,7 @@ def soft_delete_user(db: Session, user_id: UUID) -> None:
         active_membership_tenants.append(tenant.id)
         if tenant.status is not TenantStatus.ACTIVE or membership.role is not TenantRole.OWNER:
             continue
-        usable_owner_count = int(
-            db.scalar(
-                select(func.count())
-                .select_from(TenantMembership)
-                .join(User, User.id == TenantMembership.user_id)
-                .where(
-                    TenantMembership.tenant_id == tenant.id,
-                    TenantMembership.role == TenantRole.OWNER,
-                    TenantMembership.is_active.is_(True),
-                    User.is_deleted.is_(False),
-                )
-            )
-            or 0
-        )
+        usable_owner_count = count_usable_owners(db, tenant.id)
         if usable_owner_count <= 1:
             db.rollback()
             raise AppError(
@@ -208,7 +189,7 @@ def soft_delete_user(db: Session, user_id: UUID) -> None:
 
     now = datetime.now(UTC)
     for tenant_id in active_membership_tenants:
-        _set_tenant_scope(db, tenant_id)
+        set_tenant_scope(db, tenant_id)
         db.execute(
             update(TenantMembership)
             .where(

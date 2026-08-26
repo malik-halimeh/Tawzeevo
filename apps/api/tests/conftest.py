@@ -25,7 +25,10 @@ def clean_database(test_engine: Engine) -> Generator[None]:
     with test_engine.begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE TABLE invoice_items, invoices, tenant_products, categories, customers, "
+                "TRUNCATE TABLE invoice_items, invoices, tenant_product_images, "
+                "product_grade_prices, tenant_grade_discounts, tenant_barcodes, "
+                "tenant_products, master_product_images, master_barcodes, master_products, "
+                "categories, master_categories, customers, "
                 "audit_events, tenant_applications, tenant_invitations, tenant_memberships, "
                 "auth_sessions, tenants, users CASCADE"
             )
@@ -34,7 +37,10 @@ def clean_database(test_engine: Engine) -> Generator[None]:
     with test_engine.begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE TABLE invoice_items, invoices, tenant_products, categories, customers, "
+                "TRUNCATE TABLE invoice_items, invoices, tenant_product_images, "
+                "product_grade_prices, tenant_grade_discounts, tenant_barcodes, "
+                "tenant_products, master_product_images, master_barcodes, master_products, "
+                "categories, master_categories, customers, "
                 "audit_events, tenant_applications, tenant_invitations, tenant_memberships, "
                 "auth_sessions, tenants, users CASCADE"
             )

@@ -1,24 +1,39 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from io import BytesIO
+from pathlib import Path
 from uuid import UUID
 
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from tawzeevo_api.main import app
 from tawzeevo_api.models import (
+    BarcodePackageLevel,
     Category,
     Customer,
     Invoice,
     InvoiceItem,
+    MasterBarcode,
+    MasterCategory,
+    MasterProduct,
+    MasterProductImage,
+    ProductGradePrice,
     SystemUserType,
     Tenant,
+    TenantBarcode,
+    TenantGradeDiscount,
     TenantMembership,
     TenantProduct,
+    TenantProductImage,
     User,
 )
+from tawzeevo_api.routes.cash_van import _storage_dependency
 from tawzeevo_api.security import hash_password
+from tawzeevo_api.services.media import LocalObjectStorage
 
 PASSWORD = "correct horse battery staple"
 
@@ -82,7 +97,12 @@ def create_category(client: TestClient, tenant_id: str, owner_token: str) -> dic
     response = client.post(
         f"/api/v1/tenants/{tenant_id}/categories",
         headers=auth(owner_token),
-        json={"name": "Beverages"},
+        json={
+            "name_en": "Beverages",
+            "name_ar": "مشروبات",
+            "slug": "beverages",
+            "display_order": 0,
+        },
     )
     assert response.status_code == 201, response.text
     result: dict[str, object] = response.json()
@@ -416,13 +436,25 @@ def test_money_packaging_currency_and_barcode_invariants(
 def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
     session_factory: sessionmaker[Session],
 ) -> None:
-    table_names = {"customers", "categories", "tenant_products", "invoices", "invoice_items"}
+    table_names = {
+        "customers",
+        "categories",
+        "tenant_products",
+        "tenant_barcodes",
+        "invoices",
+        "invoice_items",
+        "tenant_grade_discounts",
+        "product_grade_prices",
+        "tenant_product_images",
+    }
     with session_factory() as db:
         rls_rows = db.execute(
             text(
                 "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class "
                 "WHERE relname IN ('customers', 'categories', 'tenant_products', "
-                "'invoices', 'invoice_items')"
+                "'tenant_barcodes', 'invoices', 'invoice_items', "
+                "'tenant_grade_discounts', 'product_grade_prices', "
+                "'tenant_product_images')"
             )
         ).all()
         assert {row.relname for row in rls_rows} == table_names
@@ -432,19 +464,38 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
                 text(
                     "SELECT tablename FROM pg_policies WHERE policyname LIKE "
                     "'%_tenant_isolation' AND tablename IN ('customers', 'categories', "
-                    "'tenant_products', 'invoices', 'invoice_items')"
+                    "'tenant_products', 'tenant_barcodes', 'invoices', 'invoice_items', "
+                    "'tenant_grade_discounts', 'product_grade_prices', "
+                    "'tenant_product_images')"
                 )
             )
         )
         assert policy_tables == table_names
+        master_rls = db.execute(
+            text(
+                "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class "
+                "WHERE relname IN ('master_products', 'master_barcodes', "
+                "'master_product_images')"
+            )
+        ).all()
+        assert {row.relname for row in master_rls} == {
+            "master_products",
+            "master_barcodes",
+            "master_product_images",
+        }
+        assert all(row.relrowsecurity and not row.relforcerowsecurity for row in master_rls)
 
     forbidden_fragments = ("stock", "availability", "warehouse", "reserved")
     for table in (
         Customer.__table__,
         Category.__table__,
         TenantProduct.__table__,
+        TenantBarcode.__table__,
         Invoice.__table__,
         InvoiceItem.__table__,
+        TenantGradeDiscount.__table__,
+        ProductGradePrice.__table__,
+        TenantProductImage.__table__,
     ):
         assert all(
             fragment not in column.name.lower()
@@ -452,6 +503,711 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
             for fragment in forbidden_fragments
         )
         assert "tenant_id" in table.columns
+    for table in (
+        MasterProduct.__table__,
+        MasterBarcode.__table__,
+        MasterProductImage.__table__,
+    ):
+        assert all(
+            fragment not in column.name.lower()
+            for column in table.columns
+            for fragment in forbidden_fragments
+        )
     assert TenantProduct.__table__.c.unit_price.type.scale == 4
     assert Invoice.__table__.c.subtotal.type.scale == 4
     assert Decimal("0.1") + Decimal("0.2") == Decimal("0.3")
+
+
+def test_customer_grades_locations_updates_and_duplicate_phone_disambiguation(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    _owner_a, tenant_a, token_a = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner-a@example.com",
+        business_name="Tenant A",
+    )
+    _owner_b, tenant_b, token_b = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner-b@example.com",
+        business_name="Tenant B",
+    )
+
+    first = client.post(
+        f"/api/v1/tenants/{tenant_a}/customers",
+        headers=auth(token_a),
+        json={
+            "name": "Maya Market",
+            "phone": "+961 70 123 456",
+            "address": "Hamra, Beirut",
+            "latitude": "33.895920",
+            "longitude": "35.478430",
+            "grade": "A+",
+        },
+    )
+    second = client.post(
+        f"/api/v1/tenants/{tenant_a}/customers",
+        headers=auth(token_a),
+        json={
+            "name": "Maya Market — Branch 2",
+            "phone": "70123456",
+            "address": "Verdun, Beirut",
+            "grade": "B+",
+        },
+    )
+    assert first.status_code == second.status_code == 201
+    assert first.json()["phone"] == second.json()["phone"] == "+96170123456"
+
+    search = client.get(
+        f"/api/v1/tenants/{tenant_a}/customers/search",
+        headers=auth(token_a),
+        params={"phone": "70 123 456"},
+    )
+    assert search.status_code == 200
+    matches = search.json()["customers"]
+    assert [match["id"] for match in matches] == [first.json()["id"], second.json()["id"]]
+    assert [(match["address"], match["grade"]) for match in matches] == [
+        ("Hamra, Beirut", "A+"),
+        ("Verdun, Beirut", "B+"),
+    ]
+
+    updated = client.put(
+        f"/api/v1/tenants/{tenant_a}/customers/{second.json()['id']}",
+        headers=auth(token_a),
+        json={
+            "address": "Achrafieh, Beirut",
+            "latitude": "33.889800",
+            "longitude": "35.501800",
+            "grade": "A",
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["grade"] == "A"
+    assert updated.json()["latitude"] == "33.889800"
+    assert (
+        client.put(
+            f"/api/v1/tenants/{tenant_b}/customers/{first.json()['id']}",
+            headers=auth(token_b),
+            json={"grade": "B"},
+        ).status_code
+        == 404
+    )
+    invalid_coordinates = client.post(
+        f"/api/v1/tenants/{tenant_a}/customers",
+        headers=auth(token_a),
+        json={"name": "Invalid", "phone": "+96171111111", "latitude": "33.9"},
+    )
+    assert invalid_coordinates.status_code == 422
+
+
+def test_bilingual_category_order_master_link_archive_and_slug_invariants(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    _owner, tenant_id, owner_token = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner@example.com",
+        business_name="Category Route",
+    )
+    with session_factory() as db:
+        master = MasterCategory(name_en="Beverages", name_ar="مشروبات")
+        db.add(master)
+        db.commit()
+        db.refresh(master)
+        master_id = str(master.id)
+
+    later = client.post(
+        f"/api/v1/tenants/{tenant_id}/categories",
+        headers=auth(owner_token),
+        json={"name_en": "Snacks", "name_ar": "وجبات خفيفة", "slug": "Snacks", "display_order": 20},
+    )
+    first = client.post(
+        f"/api/v1/tenants/{tenant_id}/categories",
+        headers=auth(owner_token),
+        json={
+            "master_category_id": master_id,
+            "name_en": "Cold drinks",
+            "name_ar": "مشروبات باردة",
+            "slug": "Cold Drinks",
+            "display_order": 10,
+        },
+    )
+    assert later.status_code == first.status_code == 201
+    assert first.json()["slug"] == "cold-drinks"
+    assert first.json()["master_category_id"] == master_id
+
+    duplicate = client.post(
+        f"/api/v1/tenants/{tenant_id}/categories",
+        headers=auth(owner_token),
+        json={"name_en": "Other", "name_ar": "أخرى", "slug": "cold_drinks"},
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "CATEGORY_SLUG_ALREADY_EXISTS"
+
+    listed = client.get(f"/api/v1/tenants/{tenant_id}/categories", headers=auth(owner_token))
+    assert [item["id"] for item in listed.json()["categories"]] == [
+        first.json()["id"],
+        later.json()["id"],
+    ]
+    updated = client.put(
+        f"/api/v1/tenants/{tenant_id}/categories/{later.json()['id']}",
+        headers=auth(owner_token),
+        json={"display_order": 5, "name_ar": "مأكولات خفيفة"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["display_order"] == 5
+
+    archived = client.post(
+        f"/api/v1/tenants/{tenant_id}/categories/{first.json()['id']}/archive",
+        headers=auth(owner_token),
+    )
+    assert archived.status_code == 200
+    assert archived.json()["is_active"] is False
+    active = client.get(
+        f"/api/v1/tenants/{tenant_id}/categories", headers=auth(owner_token)
+    ).json()["categories"]
+    assert [item["id"] for item in active] == [later.json()["id"]]
+    retained = client.get(
+        f"/api/v1/tenants/{tenant_id}/categories?include_archived=true",
+        headers=auth(owner_token),
+    ).json()["categories"]
+    assert {item["id"] for item in retained} == {first.json()["id"], later.json()["id"]}
+    product = client.post(
+        f"/api/v1/tenants/{tenant_id}/products",
+        headers=auth(owner_token),
+        json={
+            "category_id": first.json()["id"],
+            "name": "Hidden category product",
+            "barcode": "5280000000999",
+            "unit_price": "2.0000",
+            "currency": "USD",
+            "price_basis": "PIECE",
+        },
+    )
+    assert product.status_code == 404
+
+
+def test_authenticated_user_lists_only_their_tenant_contexts(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    _owner_a, tenant_a, token_a = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner-a@example.com",
+        business_name="Alpha Route",
+    )
+    _owner_b, tenant_b, token_b = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner-b@example.com",
+        business_name="Beta Route",
+    )
+    contexts_a = client.get("/api/v1/tenant-contexts", headers=auth(token_a))
+    assert contexts_a.status_code == 200, contexts_a.text
+    assert contexts_a.json()["tenants"] == [
+        {
+            "membership_id": contexts_a.json()["tenants"][0]["membership_id"],
+            "tenant_id": tenant_a,
+            "tenant_name": "Alpha Route",
+            "tenant_status": "ACTIVE",
+            "role": "owner",
+        }
+    ]
+    assert (
+        client.get("/api/v1/tenant-contexts", headers=auth(token_b)).json()["tenants"][0][
+            "tenant_id"
+        ]
+        == tenant_b
+    )
+
+
+def test_known_master_barcode_scans_then_adopts_with_tenant_price_and_publication(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    with session_factory() as db:
+        master = MasterProduct(name="Cedar Sparkling Water")
+        db.add(master)
+        db.flush()
+        db.add_all(
+            [
+                MasterBarcode(
+                    master_product_id=master.id,
+                    barcode="5285001111111",
+                    package_level=BarcodePackageLevel.PIECE,
+                ),
+                MasterBarcode(
+                    master_product_id=master.id,
+                    barcode="5285001111128",
+                    package_level=BarcodePackageLevel.BOX,
+                ),
+            ]
+        )
+        db.commit()
+        master_id = str(master.id)
+
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    _owner, tenant_id, owner_token = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner@example.com",
+        business_name="Master Catalog Route",
+    )
+    category = create_category(client, tenant_id, owner_token)
+
+    scan = client.get(
+        f"/api/v1/tenants/{tenant_id}/catalog/barcodes/5285001111111",
+        headers=auth(owner_token),
+    )
+    assert scan.status_code == 200, scan.text
+    assert scan.json()["ownership"] == "MASTER"
+    assert scan.json()["package_level"] == "PIECE"
+    assert scan.json()["master_product"]["id"] == master_id
+    assert scan.json()["tenant_product"] is None
+
+    adopted = client.post(
+        f"/api/v1/tenants/{tenant_id}/products",
+        headers=auth(owner_token),
+        json={
+            "category_id": category["id"],
+            "master_product_id": master_id,
+            "name": "Cedar Water — Tenant Label",
+            "barcode": "5285001111111",
+            "unit_price": "3.2500",
+            "currency": "USD",
+            "price_basis": "PIECE",
+            "pieces_per_box": 12,
+            "is_published": True,
+        },
+    )
+    assert adopted.status_code == 201, adopted.text
+    product = adopted.json()
+    assert product["master_product_id"] == master_id
+    assert product["is_published"] is True
+    assert product["piece_price"] == "3.2500"
+    assert {
+        (item["barcode"], item["ownership"], item["package_level"]) for item in product["barcodes"]
+    } == {
+        ("5285001111111", "MASTER", "PIECE"),
+        ("5285001111128", "MASTER", "BOX"),
+    }
+
+    box_scan = client.get(
+        f"/api/v1/tenants/{tenant_id}/catalog/barcodes/5285001111128",
+        headers=auth(owner_token),
+    )
+    assert box_scan.status_code == 200
+    assert box_scan.json()["package_level"] == "BOX"
+    assert box_scan.json()["tenant_product"]["id"] == product["id"]
+    assert box_scan.json()["tenant_product"]["barcode"] == "5285001111128"
+    assert box_scan.json()["tenant_product"]["unit_price"] == "3.2500"
+
+    duplicate = client.post(
+        f"/api/v1/tenants/{tenant_id}/products",
+        headers=auth(owner_token),
+        json={
+            "category_id": category["id"],
+            "master_product_id": master_id,
+            "name": "Duplicate adoption",
+            "barcode": "5285001111111",
+            "unit_price": "4.0000",
+            "currency": "USD",
+            "price_basis": "PIECE",
+        },
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "MASTER_PRODUCT_ALREADY_ADOPTED"
+    listed = client.get(f"/api/v1/tenants/{tenant_id}/products", headers=auth(owner_token))
+    assert [item["id"] for item in listed.json()["products"]] == [product["id"]]
+
+
+def test_unknown_barcode_manual_product_extra_package_barcode_and_visibility_update(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    _owner_a, tenant_a, token_a = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner-a@example.com",
+        business_name="Manual Product Route",
+    )
+    _owner_b, tenant_b, token_b = onboard_owner(
+        client,
+        session_factory,
+        login(client, admin.email),
+        email="owner-b@example.com",
+        business_name="Other Route",
+    )
+    category_a = create_category(client, tenant_a, token_a)
+    category_b = create_category(client, tenant_b, token_b)
+
+    unknown = client.get(
+        f"/api/v1/tenants/{tenant_a}/catalog/barcodes/TENANT-BOX-001",
+        headers=auth(token_a),
+    )
+    assert unknown.status_code == 404
+    assert unknown.json()["detail"]["code"] == "BARCODE_NOT_FOUND"
+
+    created = client.post(
+        f"/api/v1/tenants/{tenant_a}/products",
+        headers=auth(token_a),
+        json={
+            "category_id": category_a["id"],
+            "name": "Manual olive oil",
+            "barcode": "TENANT-BOX-001",
+            "barcode_package_level": "BOX",
+            "unit_price": "9.5000",
+            "currency": "USD",
+            "price_basis": "PIECE",
+            "pieces_per_box": 6,
+        },
+    )
+    assert created.status_code == 201, created.text
+    product = created.json()
+    assert product["master_product_id"] is None
+    assert product["is_published"] is False
+    assert product["barcodes"][0]["ownership"] == "TENANT"
+    assert product["barcodes"][0]["package_level"] == "BOX"
+
+    extra = client.post(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}/barcodes",
+        headers=auth(token_a),
+        json={"barcode": "TENANT-PIECE-001", "package_level": "PIECE"},
+    )
+    assert extra.status_code == 201, extra.text
+    assert {item["barcode"] for item in extra.json()["barcodes"]} == {
+        "TENANT-BOX-001",
+        "TENANT-PIECE-001",
+    }
+    piece_scan = client.get(
+        f"/api/v1/tenants/{tenant_a}/catalog/barcodes/TENANT-PIECE-001",
+        headers=auth(token_a),
+    )
+    assert piece_scan.status_code == 200
+    assert piece_scan.json()["ownership"] == "TENANT"
+    assert piece_scan.json()["tenant_product"]["id"] == product["id"]
+
+    published = client.put(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}",
+        headers=auth(token_a),
+        json={"is_published": True},
+    )
+    assert published.status_code == 200
+    assert published.json()["is_published"] is True
+    assert "stock" not in published.json()
+    assert "availability" not in published.json()
+
+    hidden_cross_tenant = client.get(
+        f"/api/v1/tenants/{tenant_b}/catalog/barcodes/TENANT-PIECE-001",
+        headers=auth(token_b),
+    )
+    assert hidden_cross_tenant.status_code == 404
+    cross_tenant_mutation = client.post(
+        f"/api/v1/tenants/{tenant_b}/products/{product['id']}/barcodes",
+        headers=auth(token_b),
+        json={"barcode": "OTHER", "package_level": "PIECE"},
+    )
+    assert cross_tenant_mutation.status_code == 404
+    same_barcode_other_tenant = client.post(
+        f"/api/v1/tenants/{tenant_b}/products",
+        headers=auth(token_b),
+        json={
+            "category_id": category_b["id"],
+            "name": "Other tenant product",
+            "barcode": "TENANT-PIECE-001",
+            "unit_price": "7.0000",
+            "currency": "USD",
+            "price_basis": "PIECE",
+        },
+    )
+    assert same_barcode_other_tenant.status_code == 201
+
+    with session_factory() as db:
+        assert db.scalar(select(func.count()).select_from(TenantBarcode)) == 3
+
+
+def test_pricing_v1_precedence_rounding_packaging_and_invoice_snapshot(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    admin_token = login(client, admin.email)
+    _owner_a, tenant_a, token_a = onboard_owner(
+        client,
+        session_factory,
+        admin_token,
+        email="pricing-owner@example.com",
+        business_name="Pricing Route",
+    )
+    _owner_b, tenant_b, token_b = onboard_owner(
+        client,
+        session_factory,
+        admin_token,
+        email="other-pricing-owner@example.com",
+        business_name="Other Pricing Route",
+    )
+    category_a = create_category(client, tenant_a, token_a)
+    category_b = create_category(client, tenant_b, token_b)
+    customer = client.post(
+        f"/api/v1/tenants/{tenant_a}/customers",
+        headers=auth(token_a),
+        json={"name": "Grade A Market", "phone": "+96170123123", "grade": "A"},
+    )
+    assert customer.status_code == 201, customer.text
+    product = create_product(
+        client,
+        tenant_a,
+        token_a,
+        category_a["id"],
+        barcode="PRICING-PIECE-001",
+        unit_price="10.0050",
+    )
+
+    discount = client.put(
+        f"/api/v1/tenants/{tenant_a}/grade-discounts/A",
+        headers=auth(token_a),
+        json={"discount_percent": "12.3456"},
+    )
+    assert discount.status_code == 200, discount.text
+    assert discount.json()["discount_percent"] == "12.3456"
+    discounted = client.get(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}/pricing",
+        headers=auth(token_a),
+        params={"customer_id": customer.json()["id"]},
+    )
+    assert discounted.status_code == 200, discounted.text
+    assert discounted.json() == {
+        "product_id": product["id"],
+        "customer_id": customer.json()["id"],
+        "customer_grade": "A",
+        "source": "GRADE_DISCOUNT",
+        "discount_percent": "12.3456",
+        "currency": "USD",
+        "price_basis": "PIECE",
+        "basis_price": "8.7698",
+        "piece_price": "8.7698",
+        "box_price": "105.2376",
+    }
+
+    explicit = client.put(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}/grade-prices/A",
+        headers=auth(token_a),
+        json={"unit_price": "9.8765"},
+    )
+    assert explicit.status_code == 200, explicit.text
+    explicit_resolution = client.get(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}/pricing",
+        headers=auth(token_a),
+        params={"customer_id": customer.json()["id"]},
+    ).json()
+    assert explicit_resolution["source"] == "EXPLICIT_GRADE_PRICE"
+    assert explicit_resolution["discount_percent"] is None
+    assert explicit_resolution["basis_price"] == "9.8765"
+    assert explicit_resolution["box_price"] == "118.5180"
+
+    blocked_basis_change = client.put(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}",
+        headers=auth(token_a),
+        json={"price_basis": "BOX"},
+    )
+    assert blocked_basis_change.status_code == 409
+    assert blocked_basis_change.json()["detail"]["code"] == "GRADE_PRICES_REQUIRE_RESET"
+
+    invoice_response = client.post(
+        f"/api/v1/tenants/{tenant_a}/invoices",
+        headers=auth(token_a),
+        json={
+            "customer_id": customer.json()["id"],
+            "items": [{"product_id": product["id"], "quantity": "2.0000"}],
+        },
+    )
+    assert invoice_response.status_code == 201, invoice_response.text
+    invoice = invoice_response.json()
+    assert invoice["subtotal"] == "19.7530"
+    assert invoice["items"][0]["unit_price"] == "9.8765"
+    assert invoice["items"][0]["customer_grade"] == "A"
+    assert invoice["items"][0]["price_source"] == "EXPLICIT_GRADE_PRICE"
+    assert invoice["items"][0]["grade_discount_percent"] is None
+
+    changed_explicit = client.put(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}/grade-prices/A",
+        headers=auth(token_a),
+        json={"unit_price": "8.0000"},
+    )
+    assert changed_explicit.status_code == 200
+    preserved = client.get(
+        f"/api/v1/tenants/{tenant_a}/invoices/{invoice['id']}", headers=auth(token_a)
+    )
+    assert preserved.status_code == 200
+    assert preserved.json()["items"][0]["unit_price"] == "9.8765"
+    assert preserved.json()["subtotal"] == "19.7530"
+
+    assert (
+        client.delete(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/grade-prices/A",
+            headers=auth(token_a),
+        ).status_code
+        == 204
+    )
+    assert (
+        client.get(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/pricing",
+            headers=auth(token_a),
+            params={"customer_id": customer.json()["id"]},
+        ).json()["source"]
+        == "GRADE_DISCOUNT"
+    )
+    assert (
+        client.delete(
+            f"/api/v1/tenants/{tenant_a}/grade-discounts/A", headers=auth(token_a)
+        ).status_code
+        == 204
+    )
+    assert (
+        client.get(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/pricing",
+            headers=auth(token_a),
+            params={"customer_id": customer.json()["id"]},
+        ).json()["source"]
+        == "NORMAL"
+    )
+
+    box_product = client.post(
+        f"/api/v1/tenants/{tenant_a}/products",
+        headers=auth(token_a),
+        json={
+            "category_id": category_a["id"],
+            "name": "Three-piece box",
+            "barcode": "PRICING-BOX-001",
+            "unit_price": "10.0000",
+            "currency": "USD",
+            "price_basis": "BOX",
+            "pieces_per_box": 3,
+        },
+    )
+    assert box_product.status_code == 201, box_product.text
+    assert box_product.json()["piece_price"] == "3.3333"
+    assert box_product.json()["box_price"] == "10.0000"
+
+    cross_membership = client.get(
+        f"/api/v1/tenants/{tenant_a}/grade-discounts", headers=auth(token_b)
+    )
+    assert cross_membership.status_code == 403
+    hidden_product = client.get(
+        f"/api/v1/tenants/{tenant_b}/products/{product['id']}", headers=auth(token_b)
+    )
+    assert hidden_product.status_code == 404
+    assert category_b["tenant_id"] == tenant_b
+
+
+def test_product_image_upload_reencodes_and_scan_returns_tenant_image(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    admin_token = login(client, admin.email)
+    _owner_a, tenant_a, token_a = onboard_owner(
+        client,
+        session_factory,
+        admin_token,
+        email="media-owner@example.com",
+        business_name="Media Route",
+    )
+    _owner_b, tenant_b, token_b = onboard_owner(
+        client,
+        session_factory,
+        admin_token,
+        email="other-media-owner@example.com",
+        business_name="Other Media Route",
+    )
+    category = create_category(client, tenant_a, token_a)
+    product = create_product(
+        client,
+        tenant_a,
+        token_a,
+        category["id"],
+        barcode="MEDIA-001",
+    )
+    storage_root = tmp_path / "objects"
+    app.dependency_overrides[_storage_dependency] = lambda: LocalObjectStorage(storage_root)
+    try:
+        source = BytesIO()
+        Image.new("RGBA", (16, 10), (18, 104, 92, 180)).save(source, format="PNG")
+        uploaded = client.post(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/images",
+            headers=auth(token_a),
+            files={"file": ("product.png", source.getvalue(), "image/png")},
+            data={"alt_text": "Green bottle", "display_order": "2"},
+        )
+        assert uploaded.status_code == 201, uploaded.text
+        image = uploaded.json()
+        assert image["ownership"] == "TENANT"
+        assert image["content_type"] == "image/webp"
+        assert (image["width"], image["height"]) == (16, 10)
+        assert image["alt_text"] == "Green bottle"
+
+        content = client.get(image["url"], headers=auth(token_a))
+        assert content.status_code == 200
+        assert content.headers["content-type"] == "image/webp"
+        assert content.headers["x-content-type-options"] == "nosniff"
+        with Image.open(BytesIO(content.content)) as decoded:
+            assert decoded.format == "WEBP"
+            assert decoded.size == (16, 10)
+
+        scan = client.get(
+            f"/api/v1/tenants/{tenant_a}/catalog/barcodes/MEDIA-001",
+            headers=auth(token_a),
+        )
+        assert scan.status_code == 200, scan.text
+        assert scan.json()["tenant_product"]["images"] == [image]
+
+        svg = client.post(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/images",
+            headers=auth(token_a),
+            files={"file": ("unsafe.svg", b"<svg></svg>", "image/svg+xml")},
+        )
+        assert svg.status_code == 415
+        assert svg.json()["detail"]["code"] == "UNSUPPORTED_IMAGE_TYPE"
+        invalid = client.post(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/images",
+            headers=auth(token_a),
+            files={"file": ("spoofed.jpg", b"not an image", "image/jpeg")},
+        )
+        assert invalid.status_code == 400
+        assert invalid.json()["detail"]["code"] == "INVALID_IMAGE"
+        oversized_source = BytesIO()
+        Image.new("RGB", (6001, 1), "white").save(oversized_source, format="PNG")
+        oversized = client.post(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/images",
+            headers=auth(token_a),
+            files={
+                "file": (
+                    "too-wide.png",
+                    oversized_source.getvalue(),
+                    "image/png",
+                )
+            },
+        )
+        assert oversized.status_code == 413
+        assert oversized.json()["detail"]["code"] == "IMAGE_DIMENSIONS_TOO_LARGE"
+
+        wrong_membership = client.get(image["url"], headers=auth(token_b))
+        assert wrong_membership.status_code == 403
+        hidden = client.get(
+            f"/api/v1/tenants/{tenant_b}/product-images/TENANT/{image['id']}/content",
+            headers=auth(token_b),
+        )
+        assert hidden.status_code == 404
+        assert len(list(storage_root.rglob("*.webp"))) == 1
+    finally:
+        app.dependency_overrides.pop(_storage_dependency, None)

@@ -1,5 +1,6 @@
 # Environment and secrets
 .env
+.local-media/
 .env.*
 !.env.example
 *.pem

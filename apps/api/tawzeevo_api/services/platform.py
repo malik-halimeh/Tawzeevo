@@ -19,6 +19,7 @@ from tawzeevo_api.models import (
     TenantStatus,
     User,
 )
+from tawzeevo_api.repositories.tenancy import count_usable_owners, set_tenant_scope
 from tawzeevo_api.schemas.platform import (
     AccessPeriodRequest,
     AccessState,
@@ -29,13 +30,6 @@ from tawzeevo_api.schemas.platform import (
     TenantApplicationReviewRequest,
     TenantResponse,
 )
-
-
-def _set_tenant_scope(db: Session, tenant_id: UUID) -> None:
-    db.execute(
-        text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
-        {"tenant_id": str(tenant_id)},
-    )
 
 
 def _set_platform_audit_scope(db: Session) -> None:
@@ -149,7 +143,7 @@ def approve_application(
     )
     db.add(tenant)
     db.flush()
-    _set_tenant_scope(db, tenant.id)
+    set_tenant_scope(db, tenant.id)
     db.add(
         TenantMembership(
             tenant_id=tenant.id,
@@ -255,7 +249,7 @@ def _audit_tenant_change(
     action: str,
     details: dict[str, str | None],
 ) -> None:
-    _set_tenant_scope(db, tenant.id)
+    set_tenant_scope(db, tenant.id)
     db.add(
         AuditEvent(
             tenant_id=tenant.id,
@@ -321,6 +315,12 @@ def reactivate_tenant(
     tenant = _tenant_for_update(db, tenant_id)
     if tenant.status is not TenantStatus.SUSPENDED:
         raise AppError(409, "TENANT_NOT_SUSPENDED", "Only a suspended tenant can be reactivated")
+    if count_usable_owners(db, tenant.id) < 1:
+        raise AppError(
+            409,
+            "OWNER_TRANSFER_REQUIRED",
+            "An active tenant must have at least one active usable owner",
+        )
     if request.access_until is not None:
         _ensure_not_shortened(tenant, request.access_until)
         tenant.access_until = request.access_until

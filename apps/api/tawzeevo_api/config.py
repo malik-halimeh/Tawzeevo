@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     refresh_cookie_path: str = "/api/v1/auth"
     jwt_issuer: str = "tawzeevo-api"
     jwt_audience: str = "tawzeevo-operations"
+    media_local_root: str = ".local-media"
+    media_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
+    media_max_dimension: int = Field(default=6000, ge=1)
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":
