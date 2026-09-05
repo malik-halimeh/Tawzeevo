@@ -10,17 +10,23 @@ from PIL import Image
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from tawzeevo_api.cli.import_master_catalog import DEFAULT_DATASET_PATH
+from tawzeevo_api.config import get_settings
+from tawzeevo_api.errors import AppError
 from tawzeevo_api.main import app
 from tawzeevo_api.models import (
     BarcodePackageLevel,
     Category,
     Customer,
     Invoice,
-    InvoiceItem,
+    InvoiceRevision,
+    InvoiceRevisionItem,
     MasterBarcode,
+    MasterCatalogImport,
     MasterCategory,
     MasterProduct,
     MasterProductImage,
+    MasterProductSource,
     ProductGradePrice,
     SystemUserType,
     Tenant,
@@ -33,7 +39,8 @@ from tawzeevo_api.models import (
 )
 from tawzeevo_api.routes.cash_van import _storage_dependency
 from tawzeevo_api.security import hash_password
-from tawzeevo_api.services.media import LocalObjectStorage
+from tawzeevo_api.services.catalog_import import import_catalog_dataset, load_catalog_dataset
+from tawzeevo_api.services.media import LocalObjectStorage, process_product_image
 
 PASSWORD = "correct horse battery staple"
 
@@ -236,7 +243,7 @@ def test_owner_uses_real_customer_catalog_barcode_and_draft_invoice_slice(
         assert db.get(Tenant, UUID(tenant_id)).status.value == "ACTIVE"  # type: ignore[union-attr]
         assert db.scalar(select(func.count()).select_from(Customer)) == 2
         assert db.scalar(select(func.count()).select_from(Invoice)) == 1
-        assert db.scalar(select(func.count()).select_from(InvoiceItem)) == 1
+        assert db.scalar(select(func.count()).select_from(InvoiceRevisionItem)) == 1
 
 
 def test_unapproved_rejected_admin_and_other_tenant_cannot_access_private_slice(
@@ -442,7 +449,8 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
         "tenant_products",
         "tenant_barcodes",
         "invoices",
-        "invoice_items",
+        "invoice_revisions",
+        "invoice_revision_items",
         "tenant_grade_discounts",
         "product_grade_prices",
         "tenant_product_images",
@@ -452,7 +460,8 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
             text(
                 "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class "
                 "WHERE relname IN ('customers', 'categories', 'tenant_products', "
-                "'tenant_barcodes', 'invoices', 'invoice_items', "
+                "'tenant_barcodes', 'invoices', 'invoice_revisions', "
+                "'invoice_revision_items', "
                 "'tenant_grade_discounts', 'product_grade_prices', "
                 "'tenant_product_images')"
             )
@@ -464,7 +473,8 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
                 text(
                     "SELECT tablename FROM pg_policies WHERE policyname LIKE "
                     "'%_tenant_isolation' AND tablename IN ('customers', 'categories', "
-                    "'tenant_products', 'tenant_barcodes', 'invoices', 'invoice_items', "
+                    "'tenant_products', 'tenant_barcodes', 'invoices', "
+                    "'invoice_revisions', 'invoice_revision_items', "
                     "'tenant_grade_discounts', 'product_grade_prices', "
                     "'tenant_product_images')"
                 )
@@ -475,13 +485,16 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
             text(
                 "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class "
                 "WHERE relname IN ('master_products', 'master_barcodes', "
-                "'master_product_images')"
+                "'master_product_images', 'master_catalog_imports', "
+                "'master_product_sources')"
             )
         ).all()
         assert {row.relname for row in master_rls} == {
             "master_products",
             "master_barcodes",
             "master_product_images",
+            "master_catalog_imports",
+            "master_product_sources",
         }
         assert all(row.relrowsecurity and not row.relforcerowsecurity for row in master_rls)
 
@@ -492,7 +505,7 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
         TenantProduct.__table__,
         TenantBarcode.__table__,
         Invoice.__table__,
-        InvoiceItem.__table__,
+        InvoiceRevisionItem.__table__,
         TenantGradeDiscount.__table__,
         ProductGradePrice.__table__,
         TenantProductImage.__table__,
@@ -507,6 +520,8 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
         MasterProduct.__table__,
         MasterBarcode.__table__,
         MasterProductImage.__table__,
+        MasterCatalogImport.__table__,
+        MasterProductSource.__table__,
     ):
         assert all(
             fragment not in column.name.lower()
@@ -514,7 +529,7 @@ def test_new_business_tables_have_forced_tenant_rls_and_no_inventory_fields(
             for fragment in forbidden_fragments
         )
     assert TenantProduct.__table__.c.unit_price.type.scale == 4
-    assert Invoice.__table__.c.subtotal.type.scale == 4
+    assert InvoiceRevision.__table__.c.subtotal.type.scale == 4
     assert Decimal("0.1") + Decimal("0.2") == Decimal("0.3")
 
 
@@ -1058,14 +1073,47 @@ def test_pricing_v1_precedence_rounding_packaging_and_invoice_snapshot(
         ).status_code
         == 204
     )
-    assert (
-        client.get(
-            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/pricing",
-            headers=auth(token_a),
-            params={"customer_id": customer.json()["id"]},
-        ).json()["source"]
-        == "GRADE_DISCOUNT"
+    tie_discount = client.put(
+        f"/api/v1/tenants/{tenant_a}/grade-discounts/A",
+        headers=auth(token_a),
+        json={"discount_percent": "0.0150"},
     )
+    assert tie_discount.status_code == 200, tie_discount.text
+    repriced_product = client.put(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}",
+        headers=auth(token_a),
+        json={"unit_price": "1.0000"},
+    )
+    assert repriced_product.status_code == 200, repriced_product.text
+    tie_resolution = client.get(
+        f"/api/v1/tenants/{tenant_a}/products/{product['id']}/pricing",
+        headers=auth(token_a),
+        params={"customer_id": customer.json()["id"]},
+    )
+    assert tie_resolution.status_code == 200, tie_resolution.text
+    assert tie_resolution.json()["source"] == "GRADE_DISCOUNT"
+    assert tie_resolution.json()["discount_percent"] == "0.0150"
+    # 1.0000 * (1 - 0.0150 / 100) = 0.99985. HALF_UP must produce
+    # 0.9999; HALF_EVEN would incorrectly produce 0.9998.
+    assert tie_resolution.json()["basis_price"] == "0.9999"
+    assert tie_resolution.json()["piece_price"] == "0.9999"
+    assert tie_resolution.json()["box_price"] == "11.9988"
+
+    discounted_invoice_response = client.post(
+        f"/api/v1/tenants/{tenant_a}/invoices",
+        headers=auth(token_a),
+        json={
+            "customer_id": customer.json()["id"],
+            "items": [{"product_id": product["id"], "quantity": "2.0000"}],
+        },
+    )
+    assert discounted_invoice_response.status_code == 201, discounted_invoice_response.text
+    discounted_invoice = discounted_invoice_response.json()
+    assert discounted_invoice["subtotal"] == "1.9998"
+    assert discounted_invoice["items"][0]["unit_price"] == "0.9999"
+    assert discounted_invoice["items"][0]["price_source"] == "GRADE_DISCOUNT"
+    assert discounted_invoice["items"][0]["grade_discount_percent"] == "0.0150"
+
     assert (
         client.delete(
             f"/api/v1/tenants/{tenant_a}/grade-discounts/A", headers=auth(token_a)
@@ -1080,23 +1128,32 @@ def test_pricing_v1_precedence_rounding_packaging_and_invoice_snapshot(
         ).json()["source"]
         == "NORMAL"
     )
+    preserved_discounted_invoice = client.get(
+        f"/api/v1/tenants/{tenant_a}/invoices/{discounted_invoice['id']}",
+        headers=auth(token_a),
+    )
+    assert preserved_discounted_invoice.status_code == 200
+    assert preserved_discounted_invoice.json()["items"][0]["unit_price"] == "0.9999"
+    assert preserved_discounted_invoice.json()["items"][0]["grade_discount_percent"] == "0.0150"
 
     box_product = client.post(
         f"/api/v1/tenants/{tenant_a}/products",
         headers=auth(token_a),
         json={
             "category_id": category_a["id"],
-            "name": "Three-piece box",
+            "name": "Thirty-two-piece box",
             "barcode": "PRICING-BOX-001",
-            "unit_price": "10.0000",
+            "unit_price": "1.0000",
             "currency": "USD",
             "price_basis": "BOX",
-            "pieces_per_box": 3,
+            "pieces_per_box": 32,
         },
     )
     assert box_product.status_code == 201, box_product.text
-    assert box_product.json()["piece_price"] == "3.3333"
-    assert box_product.json()["box_price"] == "10.0000"
+    # 1.0000 / 32 = 0.03125. The independently quantized counterpart must
+    # use HALF_UP and therefore resolve to 0.0313, not HALF_EVEN's 0.0312.
+    assert box_product.json()["piece_price"] == "0.0313"
+    assert box_product.json()["box_price"] == "1.0000"
 
     cross_membership = client.get(
         f"/api/v1/tenants/{tenant_a}/grade-discounts", headers=auth(token_b)
@@ -1185,6 +1242,19 @@ def test_product_image_upload_reencodes_and_scan_returns_tenant_image(
         )
         assert invalid.status_code == 400
         assert invalid.json()["detail"]["code"] == "INVALID_IMAGE"
+        over_byte_limit = client.post(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/images",
+            headers=auth(token_a),
+            files={
+                "file": (
+                    "too-large.png",
+                    b"x" * (get_settings().media_max_upload_bytes + 1),
+                    "image/png",
+                )
+            },
+        )
+        assert over_byte_limit.status_code == 413
+        assert over_byte_limit.json()["detail"]["code"] == "IMAGE_TOO_LARGE"
         oversized_source = BytesIO()
         Image.new("RGB", (6001, 1), "white").save(oversized_source, format="PNG")
         oversized = client.post(
@@ -1209,5 +1279,174 @@ def test_product_image_upload_reencodes_and_scan_returns_tenant_image(
         )
         assert hidden.status_code == 404
         assert len(list(storage_root.rglob("*.webp"))) == 1
+    finally:
+        app.dependency_overrides.pop(_storage_dependency, None)
+
+
+def test_media_processor_accepts_supported_formats_and_storage_blocks_traversal(
+    tmp_path: Path,
+) -> None:
+    for source_format, declared_type in (
+        ("JPEG", "image/jpeg"),
+        ("PNG", "image/png"),
+        ("WEBP", "image/webp"),
+    ):
+        source = BytesIO()
+        Image.new("RGB", (8, 6), "navy").save(source, format=source_format)
+        processed = process_product_image(source.getvalue(), declared_type)
+        assert processed.content_type == "image/webp"
+        assert (processed.width, processed.height) == (8, 6)
+        with Image.open(BytesIO(processed.content)) as decoded:
+            assert decoded.format == "WEBP"
+            assert decoded.size == (8, 6)
+
+    storage = LocalObjectStorage(tmp_path / "safe-objects")
+    try:
+        storage.put_bytes("../outside.webp", b"unsafe")
+    except AppError as exc:
+        assert exc.status_code == 400
+        assert exc.code == "INVALID_MEDIA_KEY"
+    else:
+        raise AssertionError("Local media storage accepted a traversal object key")
+    assert not (tmp_path / "outside.webp").exists()
+
+
+def test_imported_catalog_scan_returns_tenant_image_price_and_isolated_grade_pricing(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    tmp_path: Path,
+) -> None:
+    with session_factory() as db:
+        imported = import_catalog_dataset(db, load_catalog_dataset(DEFAULT_DATASET_PATH))
+        assert imported.inserted_count == 4
+
+    admin = create_user(session_factory, "admin@example.com", SystemUserType.ADMIN)
+    admin_token = login(client, admin.email)
+    _owner_a, tenant_a, token_a = onboard_owner(
+        client,
+        session_factory,
+        admin_token,
+        email="catalog-owner-a@example.com",
+        business_name="Catalog Route A",
+    )
+    _owner_b, tenant_b, token_b = onboard_owner(
+        client,
+        session_factory,
+        admin_token,
+        email="catalog-owner-b@example.com",
+        business_name="Catalog Route B",
+    )
+    category_a = create_category(client, tenant_a, token_a)
+    category_b = create_category(client, tenant_b, token_b)
+    barcode = "5283003202007"
+
+    master_scan = client.get(
+        f"/api/v1/tenants/{tenant_a}/catalog/barcodes/{barcode}",
+        headers=auth(token_a),
+    )
+    assert master_scan.status_code == 200, master_scan.text
+    master_product = master_scan.json()["master_product"]
+    assert master_product["name"] == "Hummus tahini"
+    assert master_scan.json()["tenant_product"] is None
+
+    def adopt_product(
+        tenant_id: str, token: str, category_id: str, price: str
+    ) -> dict[str, object]:
+        response = client.post(
+            f"/api/v1/tenants/{tenant_id}/products",
+            headers=auth(token),
+            json={
+                "category_id": category_id,
+                "master_product_id": master_product["id"],
+                "name": master_product["name"],
+                "barcode": barcode,
+                "barcode_package_level": "PIECE",
+                "unit_price": price,
+                "currency": "USD",
+                "price_basis": "PIECE",
+                "pieces_per_box": 6,
+                "is_published": True,
+            },
+        )
+        assert response.status_code == 201, response.text
+        result: dict[str, object] = response.json()
+        return result
+
+    product_a = adopt_product(tenant_a, token_a, str(category_a["id"]), "3.2500")
+    customer_a = client.post(
+        f"/api/v1/tenants/{tenant_a}/customers",
+        headers=auth(token_a),
+        json={"name": "Grade A Shop", "phone": "+96170111001", "grade": "A"},
+    )
+    assert customer_a.status_code == 201, customer_a.text
+    assert (
+        client.put(
+            f"/api/v1/tenants/{tenant_a}/grade-discounts/A",
+            headers=auth(token_a),
+            json={"discount_percent": "10.0000"},
+        ).status_code
+        == 200
+    )
+
+    storage_root = tmp_path / "catalog-objects"
+    app.dependency_overrides[_storage_dependency] = lambda: LocalObjectStorage(storage_root)
+    try:
+        source = BytesIO()
+        Image.new("RGB", (12, 12), "orange").save(source, format="PNG")
+        uploaded = client.post(
+            f"/api/v1/tenants/{tenant_a}/products/{product_a['id']}/images",
+            headers=auth(token_a),
+            files={"file": ("hummus.png", source.getvalue(), "image/png")},
+            data={"alt_text": "Hummus product"},
+        )
+        assert uploaded.status_code == 201, uploaded.text
+
+        scan_a = client.get(
+            f"/api/v1/tenants/{tenant_a}/catalog/barcodes/{barcode}",
+            headers=auth(token_a),
+        )
+        assert scan_a.status_code == 200, scan_a.text
+        assert scan_a.json()["master_product"]["name"] == "Hummus tahini"
+        assert scan_a.json()["tenant_product"]["unit_price"] == "3.2500"
+        assert scan_a.json()["tenant_product"]["images"] == [uploaded.json()]
+
+        pricing_a = client.get(
+            f"/api/v1/tenants/{tenant_a}/products/{product_a['id']}/pricing",
+            headers=auth(token_a),
+            params={"customer_id": customer_a.json()["id"]},
+        )
+        assert pricing_a.status_code == 200, pricing_a.text
+        assert pricing_a.json()["source"] == "GRADE_DISCOUNT"
+        assert pricing_a.json()["basis_price"] == "2.9250"
+
+        isolated_scan_b = client.get(
+            f"/api/v1/tenants/{tenant_b}/catalog/barcodes/{barcode}",
+            headers=auth(token_b),
+        )
+        assert isolated_scan_b.status_code == 200, isolated_scan_b.text
+        assert isolated_scan_b.json()["master_product"]["name"] == "Hummus tahini"
+        assert isolated_scan_b.json()["tenant_product"] is None
+
+        product_b = adopt_product(tenant_b, token_b, str(category_b["id"]), "4.5000")
+        scan_b = client.get(
+            f"/api/v1/tenants/{tenant_b}/catalog/barcodes/{barcode}",
+            headers=auth(token_b),
+        )
+        assert scan_b.status_code == 200, scan_b.text
+        assert scan_b.json()["tenant_product"]["id"] == product_b["id"]
+        assert scan_b.json()["tenant_product"]["unit_price"] == "4.5000"
+        assert scan_b.json()["tenant_product"]["images"] == []
+
+        cross_tenant_product = client.get(
+            f"/api/v1/tenants/{tenant_a}/products/{product_a['id']}",
+            headers=auth(token_b),
+        )
+        assert cross_tenant_product.status_code == 403
+        unchanged_a = client.get(
+            f"/api/v1/tenants/{tenant_a}/products/{product_a['id']}/pricing",
+            headers=auth(token_a),
+            params={"customer_id": customer_a.json()["id"]},
+        )
+        assert unchanged_a.json()["basis_price"] == "2.9250"
     finally:
         app.dependency_overrides.pop(_storage_dependency, None)

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic import Field, model_validator
@@ -27,6 +28,9 @@ class Settings(BaseSettings):
     media_local_root: str = ".local-media"
     media_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     media_max_dimension: int = Field(default=6000, ge=1)
+    invoice_fuzzy_match_threshold: Decimal = Field(
+        default=Decimal("0.7000"), ge=Decimal("0"), le=Decimal("1")
+    )
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":

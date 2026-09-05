@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "schema_version": "catalog-import-v1",
+  "import_version": "off-lebanon-2026-08-26-v1",
+  "total_records": 4,
+  "accepted_records": 4,
+  "rejected_records": 0,
+  "duplicate_barcodes": [],
+  "category_count": 2,
+  "issues": []
+}

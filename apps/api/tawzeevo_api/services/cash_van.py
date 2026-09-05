@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -15,7 +15,8 @@ from tawzeevo_api.models import (
     Category,
     Customer,
     Invoice,
-    InvoiceItem,
+    InvoiceRevision,
+    InvoiceRevisionItem,
     InvoiceStatus,
     MasterBarcode,
     MasterCategory,
@@ -39,6 +40,7 @@ from tawzeevo_api.schemas.cash_van import (
     CustomerResponse,
     CustomerUpdateRequest,
     DraftInvoiceCreateRequest,
+    DraftInvoiceItemCreateRequest,
     DraftInvoiceResponse,
     InvoiceItemResponse,
     MasterProductResponse,
@@ -599,12 +601,26 @@ def get_product_by_barcode(db: Session, tenant_id: UUID, barcode: str) -> tuple[
 
 
 def _invoice_response(db: Session, tenant_id: UUID, invoice: Invoice) -> DraftInvoiceResponse:
+    revision = db.scalar(
+        select(InvoiceRevision).where(
+            InvoiceRevision.id == invoice.current_revision_id,
+            InvoiceRevision.invoice_id == invoice.id,
+            InvoiceRevision.tenant_id == tenant_id,
+        )
+    )
+    if revision is None:
+        raise AppError(409, "INVOICE_REVISION_MISSING", "Invoice revision was not found")
+    if invoice.customer_id is None:
+        raise AppError(409, "INVOICE_CUSTOMER_MISSING", "Draft invoice customer was not found")
     customer = get_customer(db, tenant_id, invoice.customer_id)
     items = list(
         db.scalars(
-            select(InvoiceItem)
-            .where(InvoiceItem.invoice_id == invoice.id, InvoiceItem.tenant_id == tenant_id)
-            .order_by(InvoiceItem.created_at.asc(), InvoiceItem.id.asc())
+            select(InvoiceRevisionItem)
+            .where(
+                InvoiceRevisionItem.invoice_revision_id == revision.id,
+                InvoiceRevisionItem.tenant_id == tenant_id,
+            )
+            .order_by(InvoiceRevisionItem.line_number.asc())
         )
     )
     return DraftInvoiceResponse(
@@ -612,9 +628,25 @@ def _invoice_response(db: Session, tenant_id: UUID, invoice: Invoice) -> DraftIn
         tenant_id=invoice.tenant_id,
         customer=CustomerResponse.model_validate(customer),
         status=invoice.status,
-        currency=invoice.currency,
-        subtotal=invoice.subtotal,
-        items=[InvoiceItemResponse.model_validate(item) for item in items],
+        currency=revision.currency,
+        subtotal=revision.subtotal,
+        items=[
+            InvoiceItemResponse(
+                id=item.id,
+                product_id=item.tenant_product_id,
+                product_name=item.product_name,
+                barcode=item.barcode or "",
+                quantity=item.quantity,
+                price_basis=item.price_basis,
+                unit_price=item.effective_unit_price,
+                line_total=item.line_total,
+                customer_grade=item.customer_grade,
+                price_source=item.price_source,
+                grade_discount_percent=item.grade_discount_percent,
+            )
+            for item in items
+            if item.tenant_product_id is not None
+        ],
         created_at=invoice.created_at,
         updated_at=invoice.updated_at,
     )
@@ -648,39 +680,100 @@ def create_draft_invoice(
             "A draft invoice cannot combine products with different currencies",
         )
     currency = currencies.pop()
-    invoice = Invoice(
-        tenant_id=tenant_id,
-        customer_id=request.customer_id,
-        status=InvoiceStatus.DRAFT,
-        currency=currency,
-        subtotal=Decimal("0.0000"),
-    )
-    db.add(invoice)
-    db.flush()
-
+    prepared_items: list[
+        tuple[TenantProduct, DraftInvoiceItemCreateRequest, Decimal, str, dict[str, object]]
+    ] = []
     subtotal = Decimal("0.0000")
     for requested_item in request.items:
         product = products_by_id[requested_item.product_id]
         pricing = resolve_product_pricing(db, tenant_id, product, customer.grade)
         line_total = _money(pricing.basis_price * requested_item.quantity)
         subtotal += line_total
+        response = product_response(db, product)
+        prepared_items.append(
+            (
+                product,
+                requested_item,
+                line_total,
+                response.barcode,
+                {"images": [image.model_dump(mode="json") for image in response.images]},
+            )
+        )
+
+    invoice_id = uuid4()
+    revision_id = uuid4()
+    invoice = Invoice(
+        id=invoice_id,
+        tenant_id=tenant_id,
+        customer_id=request.customer_id,
+        status=InvoiceStatus.DRAFT,
+        current_revision_id=revision_id,
+    )
+    db.add(invoice)
+    db.flush()
+    revision = InvoiceRevision(
+        id=revision_id,
+        tenant_id=tenant_id,
+        invoice_id=invoice_id,
+        client_command_id=uuid4(),
+        server_revision_number=1,
+        pricing_version="pricing-v1",
+        currency=currency,
+        customer_id=customer.id,
+        customer_snapshot={
+            "id": str(customer.id),
+            "name": customer.name,
+            "phone": customer.phone,
+            "address": customer.address,
+            "grade": str(customer.grade) if customer.grade is not None else None,
+        },
+        prior_balance_snapshot=Decimal("0.0000"),
+        subtotal=_money(subtotal),
+        discount_total=Decimal("0.0000"),
+        markup_total=Decimal("0.0000"),
+        net_sales=_money(subtotal),
+        amount_due_display=_money(subtotal),
+    )
+    db.add(revision)
+    for line_number, (
+        product,
+        requested_item,
+        line_total,
+        barcode,
+        media_snapshot,
+    ) in enumerate(prepared_items, start=1):
+        pricing = resolve_product_pricing(db, tenant_id, product, customer.grade)
         db.add(
-            InvoiceItem(
+            InvoiceRevisionItem(
                 tenant_id=tenant_id,
-                invoice_id=invoice.id,
-                product_id=product.id,
+                invoice_revision_id=revision_id,
+                line_number=line_number,
+                tenant_product_id=product.id,
                 product_name=product.name,
-                barcode=product_response(db, product).barcode,
+                barcode=barcode,
+                media_snapshot=media_snapshot,
                 quantity=requested_item.quantity,
                 price_basis=product.price_basis,
-                unit_price=pricing.basis_price,
+                pieces_per_box=product.pieces_per_box,
+                normal_unit_price=product.unit_price,
+                grade_rule_snapshot={
+                    "customer_grade": (str(customer.grade) if customer.grade is not None else None),
+                    "price_source": str(pricing.source),
+                    "discount_percent": (
+                        str(pricing.discount_percent)
+                        if pricing.discount_percent is not None
+                        else None
+                    ),
+                },
+                effective_unit_price=pricing.basis_price,
+                line_discount=Decimal("0.0000"),
+                line_markup=Decimal("0.0000"),
                 line_total=line_total,
                 customer_grade=customer.grade,
                 price_source=pricing.source,
                 grade_discount_percent=pricing.discount_percent,
             )
         )
-    invoice.subtotal = _money(subtotal)
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(invoice)
     return _invoice_response(db, tenant_id, invoice)

@@ -4,19 +4,21 @@
 
 ## Current execution
 
-- Current workstream: `Phase 2 — Tenant Business Core`
-- Current phase: `2`
+- Current workstream: `Phase 3 — Production Financial Core`
+- Current phase: `3`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P2-M5 — Catalog import + acceptance`
+- Current milestone: `P3-M6 — Financial hardening and phase freeze`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P2-M4`
+- Last completed milestone: `P3-M5`
 - Next required user command: `continue`
-- Blocking decision: `none; pricing-v1 approved as D-030`
+- Blocking decision: `none`
 
-The user explicitly authorized `Start Phase 2`, the Phase 1 Definition of Done gate is passed, and
-the authoritative `PHASE_02.md` contract has been supplied. P2-M1 through P2-M4 are complete. P2-M5
-is the next milestone. Historical supplier-cost snapshot behavior is locked for later confirmed-invoice/
-supplier integration as D-031 and was not prematurely pulled into Phase 2 pricing.
+The user explicitly authorized `Start Phase 3`. Phase 2 is complete and its requirements audit,
+test report, and demo guide are frozen under `docs/phase-2`. Gate C verification confirms the Phase 2
+pricing, Decimal/NUMERIC, rounding, immutable ledger/payment/allocation, sequencing, cancellation,
+and refund contracts. D-033 locks one optional order to at most one invoice header. D-034 locks
+tenant-private supplier/product costs, latest-eligible prefilling, reasoned owner override, and
+immutable confirmed-line cost provenance. P3-M5 is complete; P3-M6 remains not started.
 
 ## Demo workstream status
 
@@ -33,8 +35,8 @@ supplier integration as D-031 and was not prematurely pulled into Phase 2 pricin
 | Phase | Status | Gate |
 |---|---|---|
 | 1 | COMPLETE | DoD PASSED |
-| 2 | IN_PROGRESS | P2-M1 through P2-M4 complete; P2-M5 not started |
-| 3 | LOCKED | Gate C |
+| 2 | COMPLETE | Definition of Done PASSED; P2-M1 through P2-M5 complete |
+| 3 | IN_PROGRESS | Gate C and P3-M1 through P3-M5 PASSED; P3-M6 not started |
 | 4 | LOCKED | Gate D |
 | 5 | LOCKED | Gate E |
 | 6 | LOCKED | Phase 5 DoD |
@@ -45,17 +47,26 @@ supplier integration as D-031 and was not prematurely pulled into Phase 2 pricin
 
 ## Current milestone evidence
 
-- Code areas changed: tenant grade-discount and explicit product-grade-price models/APIs/UI; pricing-v1 Decimal resolution and draft-invoice snapshots; piece/box counterpart derivation; provider-neutral media interface, safe local adapter, image metadata/content APIs, and authenticated owner image UI
-- Migration(s): `20260826_0006`; from-zero upgrade, Alembic drift check, and downgrade/upgrade PASS
-- Tests run: backend `87 passed` with `93%` statement coverage on a disposable PostgreSQL 18 database; pricing precedence, exact half-up rounding, piece/box calculations, immutable selling-price snapshots, image re-encoding/type rejection, cross-tenant denial, and non-bypass PostgreSQL pricing RLS PASS; frontend `27 passed`
-- Type/lint checks: Ruff lint and format PASS; strict mypy PASS; full `npm run check` PASS; production build PASS (`208` modules, non-blocking size advisory)
-- Security checks: pricing and tenant-image tables use forced RLS, explicit tenant predicates, and same-tenant composite foreign keys; images are byte/dimension limited, decoded, re-encoded to WebP, and served only after owner authorization with `nosniff`; SVG is rejected
-- Known defects: none
-- Contract deviations: none; the local media adapter is development/demo storage and durable production object storage remains an explicit provider decision; no stock, availability, supplier-cost implementation, catalog import, or later-phase workflow was introduced
+- Code areas changed: owner-only capability lifecycle APIs; restricted public invoice API/EN-AR page; privacy middleware/log redaction/rate limiting; WhatsApp/owner sharing controls; immutable supplier opening/payment/reversal APIs; tests and demonstration documentation
+- Migration: none added or modified; existing head `20260827_0011`; from-zero/legacy migration regressions and standalone Alembic drift check PASS
+- Tests run (2026-09-05): backend `124 passed` with `92.29%` statement coverage on disposable PostgreSQL 18; focused public-link/log-safety rerun `7 passed`; frontend `34 passed`. Commands and individual-test ledger: `RUN_TESTS.md`
+- Type/lint/build: application/test Ruff lint and format PASS (68 files); strict mypy PASS (52 source files); ESLint and strict TypeScript PASS; production build PASS (210 modules, existing non-blocking size advisory)
+- Security/invariants: 256-bit secret stored as SHA-256 only; tenant/invoice-scoped validation before business reads; expiry/revocation/rotation; restricted projection, private headers and redacted logs; forced-RLS tests; supplier row locks and idempotent compensating-only payments/reversals; no supplier purchase allocations
+- Known defects: no known P3-M5 functional defect. Baseline-only remediation resolved whole-backend Ruff checks through exact historical migration exceptions guarded by content fingerprints; 0009/0010 were not edited. All other/new migrations retain full selected checks.
+- Contract deviations: none. Public limiting is explicitly per-process, not distributed; hosting/proxy telemetry and full phase-wide E2E/accessibility/reconciliation audits remain P3-M6 work. No production deployment performed.
 
 ## Latest completed milestone summary
 
-P2-M4 added the locked pricing-v1 precedence and rounding contract, customer-grade discount and explicit product-grade controls, invoice selling-price provenance snapshots, piece/box calculations, and secure provider-neutral product images. The high-priority historical supplier-cost/profit snapshot requirement is recorded as D-031 for the later supplier and confirmed-invoice implementation. P2-M5 is next and remains not started.
+P3-M5 delivers 90-day owner-managed private invoice links, a restricted current-invoice customer view, EN/AR WhatsApp sharing controls, and tenant-private aggregate supplier payable/payment/reversal services. Tests cover invalid/internal-ID access, token lifecycle and rotation races, projection privacy, log safety, forced RLS, supplier replay/reversal concurrency, and UI interactions. Demo and operational boundaries are in `docs/phase-3/p3-m5.md`. P3-M6 is next; Phase 3 is not yet complete.
+
+## Baseline remediation (not a new milestone)
+
+The user authorized baseline remediation only. Whole-backend Ruff lint/format, strict mypy,
+126 backend tests (92.29% coverage, including two migration-content guards), 34 frontend tests,
+TypeScript/ESLint/build and Alembic upgrade/drift checks pass. Required earlier uncommitted
+implementation is included; nine future/study paths are safely preserved in a verified local stash.
+The path classification and checkpoint validation are recorded in
+`docs/phase-3/baseline-remediation.md`. P3-M6 remains NOT_STARTED; no production deployment occurred.
 
 ## Rules for updating this file
 

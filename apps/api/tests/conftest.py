@@ -25,9 +25,14 @@ def clean_database(test_engine: Engine) -> Generator[None]:
     with test_engine.begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE TABLE invoice_items, invoices, tenant_product_images, "
+                "TRUNCATE TABLE tenant_financial_settings, public_invoice_capabilities, "
+                "payment_allocations, payments, "
+                "customer_ledger_entries, supplier_ledger_entries, invoice_revision_items, "
+                "invoice_revisions, invoices, invoice_sequences, tenant_product_cost_entries, "
+                "tenant_suppliers, tenant_product_images, "
                 "product_grade_prices, tenant_grade_discounts, tenant_barcodes, "
-                "tenant_products, master_product_images, master_barcodes, master_products, "
+                "tenant_products, master_product_images, master_product_sources, "
+                "master_barcodes, master_products, master_catalog_imports, "
                 "categories, master_categories, customers, "
                 "audit_events, tenant_applications, tenant_invitations, tenant_memberships, "
                 "auth_sessions, tenants, users CASCADE"
@@ -37,9 +42,14 @@ def clean_database(test_engine: Engine) -> Generator[None]:
     with test_engine.begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE TABLE invoice_items, invoices, tenant_product_images, "
+                "TRUNCATE TABLE tenant_financial_settings, public_invoice_capabilities, "
+                "payment_allocations, payments, "
+                "customer_ledger_entries, supplier_ledger_entries, invoice_revision_items, "
+                "invoice_revisions, invoices, invoice_sequences, tenant_product_cost_entries, "
+                "tenant_suppliers, tenant_product_images, "
                 "product_grade_prices, tenant_grade_discounts, tenant_barcodes, "
-                "tenant_products, master_product_images, master_barcodes, master_products, "
+                "tenant_products, master_product_images, master_product_sources, "
+                "master_barcodes, master_products, master_catalog_imports, "
                 "categories, master_categories, customers, "
                 "audit_events, tenant_applications, tenant_invitations, tenant_memberships, "
                 "auth_sessions, tenants, users CASCADE"

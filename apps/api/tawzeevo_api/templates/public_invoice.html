@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+  <title>Tawzeevo · Invoice / فاتورة</title>
+  <style>
+    :root{color-scheme:light dark;--paper:#fafaf5;--ink:#18332f;--line:#b3c9c0;--accent:#276453}
+    @media(prefers-color-scheme:dark){:root{--paper:#122822;--ink:#f0f5ef;--line:#526c61;--accent:#9bdbbe}}
+    *{box-sizing:border-box}body{margin:0;padding:clamp(1rem,4vw,3rem);background:var(--paper);color:var(--ink);font:1rem/1.6 system-ui,sans-serif}
+    main{max-width:55rem;margin:auto}header{display:flex;align-items:center;justify-content:space-between;gap:1rem;border-bottom:2px solid var(--accent)}
+    button{font:inherit;background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:.5rem 1rem;cursor:pointer}button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+    h1{font-size:clamp(1.5rem,5vw,2.5rem)}.table-wrap{overflow:auto}table{border-collapse:collapse;min-width:38rem;width:100%}th,td{padding:.8rem;text-align:start;border-bottom:1px solid var(--line)}
+    dl{margin-inline-start:auto;max-width:25rem}dl div{display:flex;justify-content:space-between;gap:2rem}dd{margin:0}dt,dd{padding:.4rem 0}.total{font-size:1.3rem;border-top:2px solid var(--accent);font-weight:bold}
+    [hidden]{display:none!important}#notice{padding:1rem 0}footer{border-top:1px solid var(--line);margin-top:2rem;padding-top:1rem}
+  </style>
+</head>
+<body><main>
+  <header><strong>Tawzeevo</strong><button id="language" type="button">العربية</button></header>
+  <p id="notice" role="status" aria-live="polite">Loading invoice… / جارٍ تحميل الفاتورة…</p>
+  <article id="invoice" hidden>
+    <h1 id="business"></h1><h2 id="heading"></h2><p id="customer"></p><p id="status"></p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Invoice items / بنود الفاتورة">
+      <table><thead><tr id="columns"></tr></thead><tbody id="items"></tbody></table>
+    </div>
+    <dl id="totals"></dl>
+    <footer id="note"></footer>
+  </article>
+</main><script>
+(() => {
+  "use strict";
+  const token = location.hash.slice(1);
+  history.replaceState(null, "", location.pathname);
+  let language = "en";
+  let invoice;
+  const words = {
+    en: {invoice:"Invoice",draft:"Draft",revision:"Revision",customer:"Customer",status:"Status",DRAFT:"Draft — not confirmed",CONFIRMED:"Confirmed",CANCELLED:"Cancelled",name:"Item",quantity:"Quantity",unit:"Unit",price:"Unit price",total:"Line total",subtotal:"Subtotal",discount:"Discounts",markup:"Markups",net_sales:"Invoice value",PIECE:"Piece",BOX:"Box",note:"This page shows this invoice only. Invoice value excludes other balances and does not indicate payment status. Keep this private link safe.",error:"This link is invalid, expired, revoked, or temporarily unavailable. Reopen the original shared link or contact the business."},
+    ar: {invoice:"فاتورة",draft:"مسودة",revision:"الإصدار",customer:"العميل",status:"الحالة",DRAFT:"مسودة — غير مؤكدة",CONFIRMED:"مؤكدة",CANCELLED:"ملغاة",name:"الصنف",quantity:"الكمية",unit:"الوحدة",price:"سعر الوحدة",total:"إجمالي البند",subtotal:"المجموع",discount:"الخصومات",markup:"الزيادات",net_sales:"قيمة الفاتورة",PIECE:"قطعة",BOX:"علبة",note:"تعرض هذه الصفحة هذه الفاتورة فقط. لا تشمل القيمة الأرصدة الأخرى ولا تدل على حالة الدفع. احتفظ بالرابط الخاص بأمان.",error:"الرابط غير صالح أو منتهي أو ملغى أو غير متاح مؤقتاً. افتح الرابط الأصلي أو تواصل مع صاحب العمل."}
+  };
+  const put = (id, value) => { document.getElementById(id).textContent = value; };
+  function render() {
+    const w = words[language];
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    put("language", language === "ar" ? "English" : "العربية");
+    if (!invoice) { put("notice", w.error); return; }
+    put("notice", "");
+    document.getElementById("invoice").hidden = false;
+    put("business", invoice.business_name);
+    put("heading", `${w.invoice} ${invoice.number || w.draft} · ${w.revision} ${invoice.revision}`);
+    put("customer", invoice.customer_name ? `${w.customer}: ${invoice.customer_name}` : "");
+    put("status", `${w.status}: ${w[invoice.status]}`);
+    const columns = document.getElementById("columns"); columns.replaceChildren();
+    for (const key of ["name","quantity","unit","price","total"]) {
+      const th = document.createElement("th"); th.scope = "col"; th.textContent = w[key]; columns.append(th);
+    }
+    const rows = document.getElementById("items"); rows.replaceChildren();
+    for (const item of invoice.items) {
+      const tr = document.createElement("tr");
+      for (const value of [item.name,item.quantity,w[item.unit],`${item.unit_price} ${invoice.currency}`,`${item.total} ${invoice.currency}`]) {
+        const td = document.createElement("td"); td.textContent = value; tr.append(td);
+      }
+      rows.append(tr);
+    }
+    const totals = document.getElementById("totals"); totals.replaceChildren();
+    for (const key of ["subtotal","discount","markup","net_sales"]) {
+      const row = document.createElement("div"); const dt = document.createElement("dt"); const dd = document.createElement("dd");
+      dt.textContent = w[key]; dd.textContent = `${invoice[key]} ${invoice.currency}`; dd.dir = "ltr";
+      if (key === "net_sales") row.className = "total";
+      row.append(dt,dd); totals.append(row);
+    }
+    put("note", w.note);
+  }
+  document.getElementById("language").addEventListener("click", () => {language = language === "en" ? "ar" : "en"; render();});
+  if (!/^[a-f0-9]{32}\.[A-Za-z0-9_-]{43}$/.test(token)) {render(); return;}
+  fetch("invoice/data", {headers:{"X-Invoice-Capability":token},credentials:"omit",cache:"no-store",referrerPolicy:"no-referrer"})
+    .then(response => {if (!response.ok) throw new Error("unavailable"); return response.json();})
+    .then(data => {invoice = data; render();}).catch(() => render());
+})();
+</script></body></html>

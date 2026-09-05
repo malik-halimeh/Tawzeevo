@@ -189,7 +189,7 @@ def test_migrations_build_a_new_database_from_zero(test_engine: Engine) -> None:
         with target_engine.connect() as connection:
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("20260826_0006")
+            ).scalar_one() == ("20260827_0011")
         assert {
             "users",
             "auth_sessions",
@@ -202,6 +202,8 @@ def test_migrations_build_a_new_database_from_zero(test_engine: Engine) -> None:
             "master_categories",
             "master_products",
             "master_barcodes",
+            "master_catalog_imports",
+            "master_product_sources",
             "tenant_products",
             "tenant_barcodes",
             "tenant_grade_discounts",
@@ -209,7 +211,11 @@ def test_migrations_build_a_new_database_from_zero(test_engine: Engine) -> None:
             "master_product_images",
             "tenant_product_images",
             "invoices",
-            "invoice_items",
+            "invoice_revisions",
+            "invoice_revision_items",
+            "customer_ledger_entries",
+            "payments",
+            "payment_allocations",
         }.issubset(inspect(target_engine).get_table_names())
     finally:
         target_engine.dispose()
@@ -459,8 +465,18 @@ def test_all_tenant_owned_tables_have_forced_rls_and_a_policy(test_engine: Engin
         "audit_events",
         "categories",
         "customers",
-        "invoice_items",
+        "invoice_revisions",
+        "invoice_revision_items",
+        "invoice_sequences",
         "invoices",
+        "customer_ledger_entries",
+        "payments",
+        "payment_allocations",
+        "supplier_ledger_entries",
+        "tenant_financial_settings",
+        "tenant_suppliers",
+        "tenant_product_cost_entries",
+        "public_invoice_capabilities",
         "tenant_invitations",
         "tenant_memberships",
         "tenant_products",

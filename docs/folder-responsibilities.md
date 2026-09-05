@@ -32,7 +32,7 @@ The directories under `packages` are placeholders for API clients, contracts, UI
 ## Documentation and operations
 
 - `docs/contracts` summarizes approved contracts without superseding the authoritative root files.
-- `docs/phase-1` contains frozen completion evidence and the demo guide.
+- `docs/phase-<number>` contains the frozen requirements audit, test report, and safe demo guide for each completed phase.
 - `docs/architecture.md` explains current system boundaries and security flow.
 - `docs/future-phases.md` summarizes only the approved phase sequence.
 - `infra` documents local service infrastructure.

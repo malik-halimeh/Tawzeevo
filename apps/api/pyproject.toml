@@ -35,6 +35,9 @@ dev = [
 where = ["."]
 include = ["tawzeevo_api*"]
 
+[tool.setuptools.package-data]
+tawzeevo_api = ["templates/*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
@@ -48,6 +51,18 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["B008"]
+
+# Historical migrations are immutable (AGENTS.md / PHASE_03.md section M).
+# These exact contents are guarded by test_immutable_migration_files.py.
+# Retain every other lint rule and full checking for all other/new migrations.
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/20260827_0009_invoice_item_line_order.py" = ["I001"]
+
+[tool.ruff.format]
+exclude = [
+  "alembic/versions/20260827_0009_invoice_item_line_order.py",
+  "alembic/versions/20260827_0010_financial_confirmation_debt.py",
+]
 
 [tool.mypy]
 python_version = "3.13"

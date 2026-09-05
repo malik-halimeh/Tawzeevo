@@ -10,6 +10,7 @@
 | `04_DECISIONS.md` | user-approved decisions only | when needed |
 | `05_DESIGN_REFERENCES.md` | user-provided visual direction | design/UI milestones |
 | `PHASE_01.md` ... `PHASE_10.md` | current phase contract and milestones | current phase only |
+| `docs/phase-<number>/` | frozen requirements audit, test report, and safe demo guide for each completed phase | phase completion and review |
 | `IMPLEMENTATION_MASTER_PROMPT.md` | initial implementation prompt | execute once |
 | `ROOT_GUIDE_README.md` | human usage instructions | user-facing |
 

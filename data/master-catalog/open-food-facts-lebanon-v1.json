@@ -1,0 +1,62 @@
+{
+  "schema_version": "catalog-import-v1",
+  "import_version": "off-lebanon-2026-08-26-v1",
+  "source": {
+    "name": "Open Food Facts",
+    "url": "https://world.openfoodfacts.org/data",
+    "license": "ODbL-1.0",
+    "license_url": "https://opendatacommons.org/licenses/odbl/1-0/",
+    "attribution": "Open Food Facts contributors",
+    "retrieved_at": "2026-08-26T07:54:30Z"
+  },
+  "records": [
+    {
+      "barcode": "5283003200010",
+      "product_name": "CONSERVES MODERNES CHTAURA - Foul Moudammas 400GR",
+      "category": {
+        "name_en": "Canned legumes",
+        "name_ar": "بقوليات معلبة"
+      },
+      "source_categories": "Canned broad beans, Beans, Healthy, Vegan, Vegetarian",
+      "source_product_url": "https://world.openfoodfacts.org/product/5283003200010",
+      "source_revision": 29,
+      "source_last_modified_at": "2026-03-25T16:49:52Z"
+    },
+    {
+      "barcode": "5283003202007",
+      "product_name": "Hummus tahini",
+      "category": {
+        "name_en": "Dips & spreads",
+        "name_ar": "غموس ومقبلات"
+      },
+      "source_categories": "Hummus",
+      "source_product_url": "https://world.openfoodfacts.org/product/5283003202007",
+      "source_revision": 23,
+      "source_last_modified_at": "2026-03-21T19:25:12Z"
+    },
+    {
+      "barcode": "5283003201017",
+      "product_name": "CONSERVES MODERNES CHTAURA - Babaghannouj 175 GR",
+      "category": {
+        "name_en": "Dips & spreads",
+        "name_ar": "غموس ومقبلات"
+      },
+      "source_categories": "Hummus, Tahini, Groceries, Healthy, Vegan, Vegetarian",
+      "source_product_url": "https://world.openfoodfacts.org/product/5283003201017",
+      "source_revision": 33,
+      "source_last_modified_at": "2026-01-26T05:39:30Z"
+    },
+    {
+      "barcode": "5283003214024",
+      "product_name": "Tahina Roasted Sesame Paste",
+      "category": {
+        "name_en": "Dips & spreads",
+        "name_ar": "غموس ومقبلات"
+      },
+      "source_categories": "Tahini, Healthy, Vegan, Vegetarian",
+      "source_product_url": "https://world.openfoodfacts.org/product/5283003214024",
+      "source_revision": 20,
+      "source_last_modified_at": "2025-05-19T07:17:05Z"
+    }
+  ]
+}

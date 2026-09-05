@@ -102,8 +102,16 @@ Do not execute two milestones from one `continue`.
 
 When the last milestone of a phase passes:
 - mark the phase `COMPLETE`;
-- produce the phase completion report;
+- create or update `docs/phase-<number>/requirements-audit.md` with requirement-to-code/test evidence and the phase Definition of Done;
+- create or update `docs/phase-<number>/test-report.md` with the dated, actually executed validation results and reproduction commands;
+- create or update `docs/phase-<number>/demo-guide.md` with a synthetic-data presentation workflow, phase boundary, and pre-demo checklist;
+- produce the concise phase completion report;
 - STOP.
+
+The three phase evidence files are required completion artifacts. Generate them automatically when
+the final milestone passes; do not wait for a separate user request. They are frozen evidence, not
+new sources of truth, and must never claim behavior beyond the completed phase or contain secrets,
+credentials, production data, or invented test results.
 
 A generic `continue` must **not** cross into the next phase.
 

@@ -8,12 +8,22 @@ from sqlalchemy.orm import Session
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.errors import AppError, AuthenticationError
+from tawzeevo_api.public_invoice_security import (
+    PublicInvoicePrivacyMiddleware,
+    install_capability_log_redaction,
+)
 from tawzeevo_api.routes.auth import auth_router, root_router
 from tawzeevo_api.routes.cash_van import cash_van_router, tenant_contexts_router
+from tawzeevo_api.routes.customer_ledger import customer_ledger_router
+from tawzeevo_api.routes.invoices import invoices_router
+from tawzeevo_api.routes.payments import payments_router
 from tawzeevo_api.routes.platform import platform_router, tenant_applications_router
+from tawzeevo_api.routes.public_invoices import capabilities_router, public_invoices_router
+from tawzeevo_api.routes.supplier_ledger import supplier_ledger_router, supplier_payments_router
 from tawzeevo_api.routes.users import stats_router, users_router
 
 settings = get_settings()
+install_capability_log_redaction()
 
 OPENAPI_TAGS = [
     {"name": "system", "description": "Service and PostgreSQL health checks."},
@@ -31,6 +41,22 @@ OPENAPI_TAGS = [
     {
         "name": "tenant operations",
         "description": "Owner-authorized, tenant-scoped Phase 1 Cash Van operations.",
+    },
+    {
+        "name": "invoice editor",
+        "description": (
+            "Owner-only production invoice calculation, confirmation, and revision history."
+        ),
+    },
+    {
+        "name": "customer ledger",
+        "description": "Owner-only customer balances, opening balances, and overdue debt.",
+    },
+    {
+        "name": "payments",
+        "description": (
+            "Owner-only immutable customer receipts, allocations, reversals, and refunds."
+        ),
     },
 ]
 
@@ -55,6 +81,14 @@ app.include_router(tenant_applications_router)
 app.include_router(platform_router)
 app.include_router(tenant_contexts_router)
 app.include_router(cash_van_router)
+app.include_router(invoices_router)
+app.include_router(customer_ledger_router)
+app.include_router(payments_router)
+app.include_router(capabilities_router)
+app.include_router(public_invoices_router)
+app.include_router(supplier_ledger_router)
+app.include_router(supplier_payments_router)
+app.add_middleware(PublicInvoicePrivacyMiddleware)
 
 
 @app.exception_handler(AppError)

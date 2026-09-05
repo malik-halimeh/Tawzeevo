@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -16,7 +16,8 @@ from tawzeevo_api.models import (
     Category,
     Customer,
     Invoice,
-    InvoiceItem,
+    InvoiceRevision,
+    InvoiceRevisionItem,
     InvoiceStatus,
     ProductPriceBasis,
     TenantBarcode,
@@ -127,25 +128,59 @@ def seed_demo_data(
             package_level=BarcodePackageLevel.PIECE,
         )
     )
+    invoice_id = uuid4()
+    revision_id = uuid4()
     invoice = Invoice(
+        id=invoice_id,
         tenant_id=tenant_id,
         customer_id=customer.id,
         status=InvoiceStatus.DRAFT,
-        currency=normalized_currency,
-        subtotal=subtotal,
+        current_revision_id=revision_id,
     )
     db.add(invoice)
     db.flush()
     db.add(
-        InvoiceItem(
+        InvoiceRevision(
+            id=revision_id,
             tenant_id=tenant_id,
-            invoice_id=invoice.id,
-            product_id=product.id,
+            invoice_id=invoice_id,
+            client_command_id=uuid4(),
+            server_revision_number=1,
+            pricing_version="pricing-v1",
+            currency=normalized_currency,
+            customer_id=customer.id,
+            customer_snapshot={
+                "id": str(customer.id),
+                "name": customer.name,
+                "phone": customer.phone,
+                "address": customer.address,
+                "grade": None,
+            },
+            prior_balance_snapshot=Decimal("0.0000"),
+            subtotal=subtotal,
+            discount_total=Decimal("0.0000"),
+            markup_total=Decimal("0.0000"),
+            net_sales=subtotal,
+            amount_due_display=subtotal,
+        )
+    )
+    db.add(
+        InvoiceRevisionItem(
+            tenant_id=tenant_id,
+            invoice_revision_id=revision_id,
+            line_number=1,
+            tenant_product_id=product.id,
             product_name=product.name,
             barcode=DEMO_BARCODE,
+            media_snapshot={},
             quantity=quantity,
             price_basis=product.price_basis,
-            unit_price=unit_price,
+            pieces_per_box=product.pieces_per_box,
+            normal_unit_price=unit_price,
+            grade_rule_snapshot={},
+            effective_unit_price=unit_price,
+            line_discount=Decimal("0.0000"),
+            line_markup=Decimal("0.0000"),
             line_total=subtotal,
         )
     )
