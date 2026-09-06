@@ -548,6 +548,15 @@ The final handoff records the separate commit and post-commit clean-tree/HEAD ch
 tests are claimed for this documentation-only task. The original implementation and continuity
 SHAs remain distinct; this document cannot embed its own future commit SHA.
 
+## Narrow owner-intent recovery follow-up — 2026-09-06
+
+[USER_INTENT_RECOVERY.md](USER_INTENT_RECOVERY.md) records the supplied extraction packet's
+evidence limitation: the guard produced aggregate counts but zero individual owner messages.
+Zero decisions or confirmations were recovered; CT-002–CT-005, R-F and R-P retain their existing
+status. No later override of D-031/D-034 was found in that packet; this is not proof that no
+historical override exists. No authority or application behavior changed. A bounded packet with
+actual quotations and chronology is needed before owner-intent reconciliation can resolve provenance.
+
 ## Current next action only
 
 Obtain source/owner disposition of the narrowly scoped requests R-S, R-F and R-P above, prioritizing
