@@ -74,6 +74,16 @@ The final checkpoint only adds this documentation evidence; tested runtime conte
 
 ## Rules for updating this file
 
+### Continuity audit overlay — 2026-09-06
+
+Implementation audit baseline remains `2248c137e43c6c043725830c1303756da1d210ee`.
+The phase/milestone rows above are recorded state, not authorization to start P3-M6 during an
+audit. This documentation-only task does not implement a milestone or certify Phase 3 complete.
+See `AGENT_START_HERE.md`, `docs/TRACEABILITY_MATRIX.md` and `docs/audits/AUDIT_REGISTER.md`.
+Earlier "Blocking decision: none" / "Contract deviations: none" entries are historical milestone
+claims, not a disposition of newly recorded provenance and cold-start findings. Await the next
+explicit audit/work request; no candidate rule is approved by this status update.
+
 At milestone start:
 - set milestone status `IN_PROGRESS`.
 

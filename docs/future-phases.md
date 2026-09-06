@@ -1,5 +1,11 @@
 # Future phase sequence
 
+Continuity note (2026-09-06): the text below is a historical Phase 1 sequence summary, not the
+current execution cursor. Phases 1/2 and P3-M1–M5 are recorded complete in
+`03_IMPLEMENTATION_STATUS.md`; P3-M6 is NOT_STARTED. At implementation audit baseline
+`2248c137e43c6c043725830c1303756da1d210ee`, detailed Phase 4–10 files are absent and preserved
+outside the baseline. See `AGENT_START_HERE.md` and CT-002; this summary cannot replace them.
+
 Phase 1 is complete. The items below are approved sequence summaries, not claims that later functionality exists.
 
 | Phase | Contracted objective | Required start condition |

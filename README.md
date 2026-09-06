@@ -1,5 +1,9 @@
 # Tawzeevo
 
+For repository-only continuation, start with [AGENT_START_HERE.md](AGENT_START_HERE.md).
+The [continuity audit register](docs/audits/AUDIT_REGISTER.md) records unresolved questions;
+completed milestone claims below do not resolve those findings or authorize P3-M6.
+
 Tawzeevo is a multi-tenant Cash Van operations platform with a linked bilingual customer storefront. This repository is the authoritative monorepo for the platform.
 
 Phases 1 and 2 are complete, and Phase 3 milestones P3-M1 through P3-M5 are complete. Tawzeevo includes the FastAPI/PostgreSQL authentication and platform

@@ -9,10 +9,16 @@
 | `03_IMPLEMENTATION_STATUS.md` | persistent milestone state | every run; update every milestone |
 | `04_DECISIONS.md` | user-approved decisions only | when needed |
 | `05_DESIGN_REFERENCES.md` | user-provided visual direction | design/UI milestones |
-| `PHASE_01.md` ... `PHASE_10.md` | current phase contract and milestones | current phase only |
+| `PHASE_01.md` ... `PHASE_03.md` | phase contracts present at the implementation audit baseline | current phase only during implementation |
+| `PHASE_04.md` ... `PHASE_10.md` | absent from baseline; preserved separately per baseline-remediation evidence | obtain approved guides before future implementation; do not restore during audits |
 | `docs/phase-<number>/` | frozen requirements audit, test report, and safe demo guide for each completed phase | phase completion and review |
 | `IMPLEMENTATION_MASTER_PROMPT.md` | initial implementation prompt | execute once |
-| `ROOT_GUIDE_README.md` | human usage instructions | user-facing |
+| `README.md` | human setup/run instructions; formerly listed ROOT_GUIDE_README.md is absent | user-facing |
+| `AGENT_START_HERE.md` | repository-only continuation entry point | new reviewer/implementer |
+| `docs/governance/SOURCE_OF_TRUTH.md` | authority/provenance classification without overriding AGENTS.md | interpreting evidence |
+| `docs/architecture.md` | reconstructed architecture and current state | system orientation |
+| `docs/TRACEABILITY_MATRIX.md` | requirement evidence and qualified gaps | targeted verification |
+| `docs/audits/AUDIT_REGISTER.md` | unresolved findings and candidate decisions | before affected work |
 
 ## Context rule
 

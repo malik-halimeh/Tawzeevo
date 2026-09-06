@@ -1,0 +1,105 @@
+# Source-of-truth governance
+
+Implementation audit baseline: `2248c137e43c6c043725830c1303756da1d210ee`.
+Audit date: 2026-09-06. This document is Tier E audit/navigation material. It does not approve
+new product behavior or supersede AGENTS.md. Only material present in the baseline was used
+as project evidence; no chat history or excluded stash contents were used.
+
+## Existing precedence — preserve, do not silently replace
+
+AGENTS.md explicitly orders: (1) exact Phase 1 program requirements in PHASE_01.md;
+(2) user-approved decisions in 04_DECISIONS.md; (3) 00_PROJECT_CONTRACT.md;
+(4) current PHASE_XX.md; (5) 01_TECH_STACK.md; (6) compliant existing implementation;
+(7) mechanical choices. Its no-invention and stop-on-conflict rules govern execution.
+
+The requested A–E taxonomy below classifies evidence and authority; it is not permission to
+silently reorder those sources. A lower tier may never silently override a higher one. A conflict
+within a tier must be recorded, not resolved by the reviewer. Where tier ordering and the existing
+precedence would give different answers, stop the affected decision and record both sources
+(CT-001). Do not claim that naming a document a contract makes it binding.
+
+The A–E labels do not establish a second, independently effective conflict-resolution order.
+The approved AGENTS.md order remains in force. Any proposal to use tier ordering to change
+that order remains CANDIDATE / REVIEW_REQUIRED; this audit does not reconcile it by fiat.
+
+## Tier inventory and provenance
+
+Paths in this inventory are repository-root-relative. Root contracts and implementation sources
+are baseline inputs. New audit/navigation artifacts are Tier E outputs, not files claimed to have
+existed at the implementation baseline. Missing future guides are explicitly identified separately.
+
+| Tier | Actual sources | Why this authority / limitation applies |
+|---|---|---|
+| A — normative hard constraints | PHASE_01.md exact program requirements; non-negotiable clauses in 00_PROJECT_CONTRACT.md; approved invariant clauses in 04_DECISIONS.md such as D-008/010/011/019/031/034 | AGENTS.md explicitly binds the first two; the ledger explicitly records approved/locked decisions. A hard-constraint clause can be classified A even if its containing ledger is generally B. Do not upgrade untraced summaries. |
+| B — approved product/architecture decisions | 04_DECISIONS.md D-001–D-034; locked technology clauses in 01_TECH_STACK.md; approved architecture clauses in 00_PROJECT_CONTRACT.md | The operating contract names these sources and their order. Approval provenance is the recorded repository ledger/contract, not independently recovered transcripts. |
+| C — delivery intent | Current PHASE_03.md; PHASE_02.md; non-program delivery sections of PHASE_01.md; 02_PHASE_INDEX.md | Phase files define milestones, acceptance and gates under higher sources. Mandatory current-phase instructions remain requirements; C does not mean optional. Future phase summaries do not supply missing milestone specifications. |
+| D — implementation evidence | apps/api/tawzeevo_api, apps/api/alembic, apps/operations-web, tests, compose.yaml, render.yaml, package manifests/locks, data/master-catalog | These show what exists and how it is configured. Code/tests/schema cannot independently approve product decisions; a test conflicting with an invariant is a finding, not an override. |
+| E — derived operational state | 03_IMPLEMENTATION_STATUS.md; README files; docs/architecture.md; docs/folder-responsibilities.md; docs/future-phases.md; GUIDE_MANIFEST.md; RUN_TESTS.md; UNIT_TEST_STRATEGY.md; phase evidence and audit documents; AGENT_START_HERE.md | Status and reports are navigation/evidence. Frozen phase reports describe their dated state, not current implementation authority. Proposed test templates are not executed tests. |
+| E — derived contract summaries | docs/contracts/README.md and its 15 linked summaries | Their own index explicitly says they restate root sources and lose conflicts. A sentence is binding only by its traceable higher source; the folder name does not grant independent authority. |
+| E — historical/supporting | IMPLEMENTATION_MASTER_PROMPT.md, CHANGELOG_PLATFORM_ADMIN.md, demo-gallery docs and study HTML | Historical initial instructions/changelogs/learning materials are not a current execution cursor. D-029 governs the demo, not its illustrative future screens. |
+
+AGENTS.md is the governing operating contract rather than a product-evidence tier. Its milestone,
+approval, safety, and precedence rules remain in force. 05_DESIGN_REFERENCES.md is the designated
+UI-reference input under AGENTS.md, not a new source for financial or authorization rules; this
+task performs no visual redesign.
+
+## Origin and authority labels
+
+- EXPLICIT: stated directly in a cited source. It is not necessarily approved: code can explicitly implement an unapproved rule.
+- DERIVED: reviewer reconstruction/inference from sources. Keep CANDIDATE.
+- PROPOSED: a possible change/decision not present as approved behavior. Keep CANDIDATE.
+- BINDING: traceable to the existing approved authority named below. Do not mark newly inferred/proposed rules BINDING.
+- CANDIDATE: requires review; may document an existing implementation choice without approving it.
+
+VERIFIED traceability means evidence matches the specific scoped claim; it is not approval,
+complete test coverage, a fresh runtime execution, or a production certification.
+
+## Binding-rule index (summaries, not replacements)
+
+Every row is EXPLICIT / BINDING solely through the listed baseline authority. Consult that source
+for exact wording. Rules not in this compact index can still be binding in their original sources;
+absence here does not remove a requirement.
+
+| ID | Rule summarized | Traceable approved authority |
+|---|---|---|
+| B01 | Exact training routes, validation, admin/client checks and mandatory real frontend | PHASE_01.md A–D; D-001 |
+| B02 | Public register creates client; users and storefront customers are distinct | PHASE_01.md A; 00_PROJECT_CONTRACT.md Identity / Customers; D-007/008/009 |
+| B03 | Argon2id, in-memory access token, rotating hashed refresh, 15m/30d session policy and scoped HttpOnly cookie | PHASE_01.md C; D-026; 01_TECH_STACK.md Backend / Operations |
+| B04 | System admin is not tenant owner; active membership and tenant lifecycle precede business access | 00_PROJECT_CONTRACT.md Multi-tenancy / Platform administration; D-007/022 |
+| B05 | Explicit tenant IDs, tenant predicates and RLS; active tenants retain a usable owner | 00_PROJECT_CONTRACT.md Multi-tenancy; PHASE_01.md A/C; PHASE_03.md A/M |
+| B06 | Suspension preserves data; manual access control is not automatic billing | 00_PROJECT_CONTRACT.md Tenant lifecycle; D-023 |
+| B07 | No stock, availability, automatic customer merging or per-purchase supplier payment allocation | 00_PROJECT_CONTRACT.md exclusions; D-010/019/020 |
+| B08 | Customer duplicate-phone disambiguation; categories/master/tenant catalog and barcode separation | PHASE_02.md Required domain behavior; 00_PROJECT_CONTRACT.md Customers / Catalog |
+| B09 | Grades A+, A, B+, B; explicit grade price before percentage before normal, round basis then counterpart | D-030; PHASE_02.md Pricing; 00_PROJECT_CONTRACT.md Grades |
+| B10 | Backend Decimal, NUMERIC(20,4), Q4 HALF_UP, no silent currency aggregation/conversion | 01_TECH_STACK.md Money; PHASE_03.md A; D-030/034 |
+| B11 | Header is identity; immutable revision is financial truth; confirmed edits append revision and ledger delta | PHASE_03.md A/B/E; D-011 |
+| B12 | One optional order per invoice; at most one header per order | D-033; PHASE_03.md Gate C / B |
+| B13 | Latest eligible tenant-private supplier cost and reasoned override; immutable historical cost provenance | D-031/034; PHASE_03.md B |
+| B14 | Server tenant/year invoice numbering; replay does not duplicate charge or number | PHASE_03.md C/E |
+| B15 | Per-currency ledger balance; opening balance is not sales; payments/allocations immutable, reversible and FIFO by default | 00_PROJECT_CONTRACT.md Financial truth; PHASE_03.md F/H |
+| B16 | Cancellation preserves payment history; refunds are separate, credit-limited and serialized | PHASE_03.md I; 00_PROJECT_CONTRACT.md Financial truth |
+| B17 | Public token >=256 random bits, SHA-256 only, 90-day default, expiry/revocation/rotation, privacy projection/headers/no logs/rate limiting | PHASE_03.md J; 00_PROJECT_CONTRACT.md Public invoice access |
+| B18 | WhatsApp uses normalized phone, summary and capability URL; PDF not mandatory | PHASE_03.md J |
+| B19 | Provider-neutral validated/re-encoded JPEG/PNG/WebP media; no SVG | PHASE_02.md Media; 01_TECH_STACK.md Media |
+| B20 | Curated names/barcodes/categories only from approved ODbL subset; provenance, attribution, compatible catalog sharing, no imported source images | D-032; PHASE_02.md Master catalog import |
+| B21 | FastAPI, sync SQLAlchemy, PostgreSQL, React/Vite now; Next.js storefront beginning Phase 5 | D-002–006; 01_TECH_STACK.md |
+| B22 | Hosted PostgreSQL/direct API-owned auth, recorded Render deployment choice; no Supabase Auth/Data API dependency | D-027/028 |
+| B23 | Future guest checkout, owner cancellation/delivery decisions, no tracking; owner-as-operator/driver least privilege | 00_PROJECT_CONTRACT.md Order / Location; D-009/012/013/014/021 |
+| B24 | Future offline protocol, encrypted Drive backup not live DB, scope/provider approvals, analytics currency/timezone gate, forecasting last | 00_PROJECT_CONTRACT.md Offline / Google / Analytics / AI; 02_PHASE_INDEX.md Gates D/F/G; D-017/018 |
+| B25 | One milestone per continuation; explicit phase transitions; immutable applied migrations; tests/evidence before completion; no unauthorized push | AGENTS.md execution/completion/safety rules; PHASE_03.md M |
+| B26 | Synthetic frontend-only removable role gallery; no production role/API/data changes | D-029 |
+
+## Candidate decisions and conflicts
+
+CT-004 and CT-005 in [the register](../audits/AUDIT_REGISTER.md) contain the unapproved
+formula/behavior observations. None is added to 04_DECISIONS.md. Approval must follow the
+existing user-decision process, including exact decision wording and affected scope. Same-tier
+disagreement is left open; implementation evidence is not used as the deciding vote.
+
+## Implementation baseline versus documentation HEAD
+
+The immutable implementation reference remains `2248c137e43c6c043725830c1303756da1d210ee`.
+This audit's documentation commit is identified by Git history (`docs(audit): establish Tawzeevo
+continuity baseline`) and the handoff. Obtain current HEAD using `git rev-parse HEAD`; do not
+substitute it for the implementation reference. A document cannot truthfully embed its own final
+commit hash before that commit exists.
