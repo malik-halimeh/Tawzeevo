@@ -550,12 +550,21 @@ SHAs remain distinct; this document cannot embed its own future commit SHA.
 
 ## Narrow owner-intent recovery follow-up — 2026-09-06
 
-[USER_INTENT_RECOVERY.md](USER_INTENT_RECOVERY.md) records the supplied extraction packet's
-evidence limitation: the guard produced aggregate counts but zero individual owner messages.
-Zero decisions or confirmations were recovered; CT-002–CT-005, R-F and R-P retain their existing
-status. No later override of D-031/D-034 was found in that packet; this is not proof that no
-historical override exists. No authority or application behavior changed. A bounded packet with
-actual quotations and chronology is needed before owner-intent reconciliation can resolve provenance.
+The first pass at `41c5af0790cc36d37a9cffb3248d3e46fef51086` correctly found zero owner
+quotations in its guard-only packet. The corrected-packet follow-up in
+[USER_INTENT_RECOVERY.md](USER_INTENT_RECOVERY.md) reviews three actual messages:
+two explicit decisions corroborate catalog grade precedence/backend Decimal and historical-cost
+protection; one supplier-pricing question anticipates later approval and is DISCUSSION_ONLY.
+There are zero recovered explicit confirmations. The referent of the opening "Approved." in
+INTENT-002 is ambiguous and supplies no blanket approval.
+
+Recovered explicit intent remains `RECOVERED_USER_INTENT — FORMALIZATION_REQUIRED`.
+CT-002 gains no guide approval or later D-031/D-034 override; CT-003 gains no provisioning
+surface/deferral approval; CT-004 gains corroboration only for already documented principles;
+CT-005 gains no policy approval. R-F and financial R-P remain open. Original finding statuses,
+severities and requirement authority are unchanged. No application behavior or source-of-truth
+file changed. The packet is temporary evidence and is not committed; no raw-history search,
+extraction rerun, stash inspection or wider audit was performed in this follow-up.
 
 ## Current next action only
 
