@@ -134,7 +134,7 @@ and financial R-P questions, using explicit numerical examples and acceptance bo
 
 The owner subsequently answered the prepared decision packet. Those answers are no longer merely
 `RECOVERED_USER_INTENT — FORMALIZATION_REQUIRED`: their exact approved scope is formalized in
-D-035–D-042. This follow-up does not retroactively change the classifications of the three evidence
+D-035–D-043. This follow-up does not retroactively change the classifications of the three evidence
 messages above; it records new direct owner decisions made after that evidence-only review.
 
 | Earlier open item | Current disposition |
@@ -147,6 +147,7 @@ messages above; it records new direct owner decisions made after that evidence-o
 | Overdue | D-040: `Asia/Beirut`, `age_days > threshold`, unset disables. Durable notification cadence safely waits. |
 | Supplier/cost provisioning | D-041: dedicated owner API/UI before Phase 3 completes, linked from Invoice Editor. |
 | Public invoice links | D-042: one active confirmed-invoice link; replace/rotate invalidates old; cancellation revokes; fragment-to-private-header transport. |
+| Confirmed-invoice boundary | D-043: every confirmed revision has strictly positive net sales; positive quantity and nonnegative monetary inputs/totals; cancellation/reversal handles zero economic effect. |
 
 The owner also supplied the seven Phase 4–10 guides and their manifest under
 `docs/recovered-planning/`. Their blob identities match the previously inventoried objects, but
@@ -158,3 +159,8 @@ later supersessions, current questions and safely deferred phase-gate questions.
 No later owner instruction changes D-031/D-034: historical invoice profit continues to use its
 immutable sale-time cost snapshot. The recovered Phase 8 later-purchase/latest-cost precedence is
 superseded for historical profit. No application behavior is changed by this reconciliation.
+
+The owner then completed D-038 by approving signed nonzero historical openings for customers and
+suppliers. D-038's already-approved multiplicity provenance remains separate: one initial opening
+per party/currency, followed only by immutable correction/reversal events. Negative historical
+supplier credit is not an operational overpayment/prepayment; D-039 governs later operations.

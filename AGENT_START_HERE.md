@@ -37,8 +37,8 @@ byte-identical copies under `docs/recovered-planning/`; the original stash remai
 legitimate historical planning evidence, but not authoritative root specifications. Their manifest
 cites an absent frozen roadmap and their generated details require reconciliation; Phase 8's
 historical-profit precedence is superseded by D-031/D-034. Read the directory README before using
-them. Detailed approved Phase 4–10 specifications remain unavailable until the reconciliation,
-remaining owner decisions and explicit approval are complete.
+them. Reconciled authoritative root Phase 4–10 specifications now exist; their explicit
+`REVIEW_REQUIRED` clauses must be resolved only at the named phase gates.
 
 ## Run and verify without hidden history
 
@@ -55,7 +55,7 @@ The next implementation milestone is P3-M6 only after the user authorizes it and
 questions are addressed. Do not advance Phase 3 to COMPLETE from this audit. At eventual phase
 completion, automatically produce the three evidence reports required by AGENTS.md.
 Future phases still require explicit `Start Phase N`, their approved detailed specification and gate.
-The owner has resolved most previously open formula and policy choices in D-035–D-042. Read the
-recovered-planning README and the register's 2026-09-07 follow-up. Two narrow financial admission
-questions remain before the financial audit; safely deferrable future questions stay at their
-phase gates. Do not repeat the broad audit or begin implementation from historical plans.
+The owner has resolved the current formula and policy choices in D-035–D-043, including strict
+positive confirmed-revision net sales and signed nonzero historical openings. Read the register's
+2026-09-07 follow-up. Future questions stay at their phase gates. The recommended next audit is
+the previously deferred financial audit; do not remediate code or begin P3-M6 from this document.

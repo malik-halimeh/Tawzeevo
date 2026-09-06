@@ -58,7 +58,7 @@ part of public project authority.
 | ID | CT-002 |
 | Audited commit | `2248c137e43c6c043725830c1303756da1d210ee` |
 | Area | Future delivery continuity |
-| Claim | A successor with only this baseline cannot safely execute the detailed plan through Phase 10: PHASE_04.md–PHASE_10.md are absent. |
+| Claim | At the immutable implementation baseline, a repository-only successor could not safely execute through Phase 10 because PHASE_04.md–PHASE_10.md were absent. |
 | Evidence | Baseline inventory and preservation report; later authorized inspection of exactly PHASE_04–10 and their manifest from stash parent 068bb2ec38e66c1143b87d7f766cf38b9d896c2b. The manifest calls them generated consolidated guides and cites an absent frozen roadmap. Per-file blobs, added-detail examples and Phase 8 cost conflict are recorded below. |
 | Affected requirement/invariant | B24/B25; T57; required current-phase specification before implementation. |
 | Severity | P1 |
@@ -66,14 +66,14 @@ part of public project authority.
 | Source/model | Repository-only continuity reviewer; model identifier not recorded; not product authority. |
 | Origin / Authority | DERIVED / CANDIDATE |
 | Independent verification | Original continuity pass did not open the stash. This reconciliation read only the eight allowlisted planning/manifest paths; no study content or other stash payload was read. No independent second reviewer or original approval transcript is available. |
-| Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | CANNOT VERIFY complete specification authority / REVIEW_REQUIRED. All eight are legitimate planning/provenance material, but none was restored as authoritative; no recovery commit was created. |
-| Resolution rationale | Intended specification status and matching roadmap headings do not prove approval of generated added detail. No accidental application/generated-build payload found. Phase 8's later-cost precedence conflicts with D-031/D-034; missing cited roadmap/ADR provenance remains unresolved. |
-| Decision impact | Supply the cited frozen roadmap/approval provenance, or explicitly review/adopt these exact blob versions with approved corrections, especially Phase 8 cost basis. Then recover only the approved files in a separate specification commit. Do not restore/apply the whole stash. |
+| Disagreement | Owner supplied the historical set, approved the remaining current decisions, and directed creation of reconciled authoritative specifications without promoting the historical copies. |
+| Resolution | CLOSED. Root PHASE_04.md–PHASE_10.md now preserve compatible requirements, apply later approved authority and mark remaining phase-specific choices `REVIEW_REQUIRED`. |
+| Resolution rationale | The historical set remains provenance only. D-031/D-034 supersede Phase 8 later-cost historical-profit logic; D-035–D-043 and the reconciliation wrapper govern other corrections. Root specifications and phase gates no longer depend on the missing frozen roadmap. |
+| Decision impact | Future work uses root phase specifications only, after explicit `Start Phase N` and satisfaction of each gate. Historical copies never override later decisions. |
 | Regression-test reference | N/A — file-presence/preservation check. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | CANNOT_VERIFY_AUTHORITY / REVIEW_REQUIRED — BLOCKS_FUTURE_IMPLEMENTATION |
+| Status | CLOSED — FUTURE SPECIFICATIONS FORMALIZED; PHASE GATES STILL APPLY |
 
 ### CT-003 — New-tenant finance workflow
 
@@ -86,18 +86,18 @@ part of public project authority.
 | Evidence | services/invoice_editor.py::_prepare_cost requires an existing supplier even for an override; services/invoice_finance.py::_validate_confirmable_costs rejects absent supplier/cost; routes/invoices.py exposes cost-options GET, not cost creation. InvoiceEditor.tsx shows cost controls only when options exist; seed_demo has no supplier/cost setup. Corrected fixture anchor: _attach_latest_cost and the dedicated cost-prefill test insert prerequisites directly; _catalog itself uses catalog/customer APIs. test_supplier_ledger.py::_supplier_context also inserts directly. |
 | Affected requirement/invariant | D-034; PHASE_03.md B/D/L; T32–T34/T60. |
 | Severity | P1 |
-| Confidence | HIGH for missing surface; MEDIUM for exact intended milestone ownership |
+| Confidence | HIGH for missing surface and D-041 Phase 3 ownership |
 | Source/model | Repository-only continuity reviewer; model identifier not recorded; not product authority. |
 | Origin / Authority | DERIVED / CANDIDATE |
 | Independent verification | Route, schema, CLI, UI and fixture inventory inspected. No new end-to-end or hosted reproduction performed. No second independent reviewer has verified this finding. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | PARTIAL overall: minimum schema/selection/override exists, supported fresh-tenant provisioning is MISSING. Existing Phase 3 workflow integration gap confirmed; exact creation surface and individual-milestone attribution remain REVIEW_REQUIRED. No workaround implemented. |
+| Resolution | PARTIAL overall: minimum schema/selection/override exists; supported fresh-tenant provisioning remains MISSING. D-041 resolves the owner-facing surface and Phase 3 ownership. No workaround implemented. |
 | Resolution rationale | D-034 plus PHASE_03 B require minimum cost-entry foundation and usable confirmed-line provenance in Phase 3; Phase 6 may append automatically, not supply an explicitly authorized prerequisite deferral. Specific supplier CRUD screen/endpoint placement is not prescribed by a current approved milestone. |
 | Decision impact | Required remediation, when authorized: make the existing tenant-private supplier/cost/preference foundation establishable through a supported authorized workflow and prove fresh-tenant invoice confirmation and explicit new-cost saving without direct fixture writes. Confirm the minimum surface/milestone boundary first; preserve D-034 validation and do not pull full procurement forward. |
 | Regression-test reference | test_invoice_editor.py::test_editor_prefills_latest_tenant_cost_and_keeps_reasoned_override_revision_only; test_financial_schema.py::test_supplier_costs_are_tenant_private_append_only_and_independently_priced. No cold-start provisioning regression found. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | PARTIAL / MISSING_PROVISIONING — BLOCKS_AFFECTED_WORKFLOW; surface/milestone REVIEW_REQUIRED |
+| Status | PARTIAL / MISSING_PROVISIONING — BLOCKS_AFFECTED_WORKFLOW; DECISION RESOLVED |
 
 ### CT-004 — Financial formula provenance — no financial audit performed
 
@@ -106,7 +106,7 @@ part of public project authority.
 | ID | CT-004 |
 | Audited commit | `2248c137e43c6c043725830c1303756da1d210ee` |
 | Area | Financial formula provenance — no financial audit performed |
-| Claim | D-030 explicitly locks catalog grade/basis rounding, but an approved complete invoice-adjustment pricing-v1 formula and numerical example set cannot be located in baseline authority. PHASE_03.md requires locked/tested examples; implementation/tests supply additional choices. |
+| Claim | The immutable baseline lacked approved complete invoice-adjustment and opening-boundary provenance; later owner decisions now supply it. |
 | Evidence | D-030; PHASE_03 Gate C/A/B/D/E/F/H/I/N; components F01–F15 below distinguish explicit equations, actual code, test assertions and missing provenance. _prepare_items/_totals implement fixed amounts and intermediate rounding. confirm_invoice rejects initial zero net sales, while confirmed edits can reach zero. Tests establish examples, not approval. No recovered future authority supplies the missing formula. |
 | Affected requirement/invariant | B09/B10/B11; T26/T35; no-invention rule for financial formulas. |
 | Severity | P1 |
@@ -115,13 +115,13 @@ part of public project authority.
 | Origin / Authority | DERIVED / CANDIDATE |
 | Independent verification | Tracked normative Markdown searched for pricing-v1/formula/net_sales/discount/Q4; relevant service and test anchors inspected. No chat or study document treated as authority. No second independent reviewer has verified this finding. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | CANNOT VERIFY complete approval; component-level PARTIAL provenance. Explicit catalog/ledger/delta/refund contracts remain BINDING through their sources; added invoice units/order/rounding/manual/zero/prior-balance policies remain CANDIDATE / REVIEW_REQUIRED. |
-| Resolution rationale | A plausible implementation and passing example test cannot prove that the complete formula was approved. This finding is provenance, not a claim of arithmetic loss. |
-| Decision impact | Resolve R-F below before an unqualified full financial audit: obtain approved source or explicit disposition of the implemented formula/boundaries, including opening-event policy where unspecified. Do not approve arithmetic from tests, add percentages/taxes, or rewrite the implementation. |
+| Resolution | FORMULA AUTHORITY RESOLVED; IMPLEMENTATION CONTRADICTED for the identified zero-revision and opening-multiplicity paths. |
+| Resolution rationale | D-035–D-037 lock manual price, fixed adjustments, Q4 stages and displayed due. D-038 locks one signed nonzero historical opening/corrections. D-043 locks positive confirmed net sales and nonnegative boundaries. |
+| Decision impact | The financial audit can assess exact compliance without inventing these rules. Remediation remains separately unauthorized. |
 | Regression-test reference | test_cash_van.py::test_pricing_v1_precedence_rounding_packaging_and_invoice_snapshot; test_invoice_editor.py::test_editor_recalculates_pricing_v1_calculator_adjustments_and_immutable_updates. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | CANNOT_VERIFY_FULL_FORMULA_AUTHORITY / REVIEW_REQUIRED |
+| Status | AUTHORITY_RESOLVED / IMPLEMENTATION_REVIEW_REQUIRED |
 
 ### CT-005 — Implicit policy / P3-M5 post-hoc review
 
@@ -130,7 +130,7 @@ part of public project authority.
 | ID | CT-005 |
 | Audited commit | `2248c137e43c6c043725830c1303756da1d210ee` |
 | Area | Implicit policy / P3-M5 post-hoc review |
-| Claim | P3-M5 introduces several observable policy/architecture choices beyond the explicit capability and supplier-foundation requirements. The candidate inventory below records them without making them binding; a related earlier overdue-policy gap is separately labeled. |
+| Claim | P3-M5 introduced observable policy/architecture choices that lacked approval at the baseline; later owner decisions now resolve the material supplier/overdue/public-link behavior. |
 | Evidence | PHASE_03.md J/H/P3-M5; 04_DECISIONS.md; services/public_invoices.py; public_invoice_security.py; schemas/public_invoices.py; routes/public_invoices.py; services/supplier_ledger.py; schemas/supplier_ledger.py; templates/public_invoice.html; InvoiceSharing.tsx; candidate table C01–C08. |
 | Affected requirement/invariant | B17/B18/B15; T41/T47–T52/T61. |
 | Severity | P2 |
@@ -139,13 +139,13 @@ part of public project authority.
 | Origin / Authority | DERIVED / CANDIDATE |
 | Independent verification | Governing text compared with current implementation and scoped tests. No external or independent reviewer approval inferred. No second independent reviewer has verified this finding. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | RECONCILED_CLASSIFICATION — C01–C08 dispositions below separate A approved facets, B ordinary mechanics, C material decisions and E unverifiable intent. No accidental behavior (D) is established merely by missing approval. Material decisions remain open; no decision ledger or behavior changed. |
+| Resolution | CORE DECISIONS RESOLVED through D-039–D-042; current contrary code is an implementation mismatch. Exact rate-limit constants and durable alert cadence remain explicitly deferred. |
 | Resolution rationale | An architectural or business-policy choice needs traceable authority; some may prove acceptable mechanical details after review. |
-| Decision impact | Escalate only material rate/transport/link/lifecycle/supplier/overdue policies. Existing FastAPI rendering, CSP hashing, safe text/WhatsApp formatting and alert-key syntax need no new product decision on current evidence. Future Next.js remains locked; public-contract changes still need review. |
+| Decision impact | Audit current behavior against D-039–D-042 before remediation. Exact rate-limit constants and durable alert cadence remain gated; ordinary rendering/CSP/text mechanics need no product redesign. |
 | Regression-test reference | test_public_invoices.py; test_supplier_ledger.py; InvoiceSharing.test.tsx; PublicInvoicePage.test.ts; overdue tests for C08. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | PARTIAL_RECONCILIATION / MATERIAL_CANDIDATES_REVIEW_REQUIRED |
+| Status | CORE_DECISIONS_RESOLVED / IMPLEMENTATION_REVIEW_REQUIRED |
 
 ### CT-006 — Stale/duplicate documentation
 
@@ -576,15 +576,15 @@ workflow implementation, Graphify installation, financial audit or P3-M6 is star
 ## Owner decisions and recovered Phase 4–10 reconciliation — 2026-09-07
 
 This section supersedes only the open-status statements above; it preserves their evidence and
-historical classifications. The owner directly approved D-035–D-042 and supplied byte-identical
+historical classifications. The owner directly approved D-035–D-043 and supplied byte-identical
 copies of the seven future guides plus manifest under `docs/recovered-planning/`. The supplied set
 was read in full and remains historical planning evidence, not current phase authority.
 
 | Finding/request | Updated status and evidence |
 |---|---|
-| CT-002 / R-G | **PARTIAL_RECOVERY / REVIEW_REQUIRED.** All eight planned artifacts are now available in normal version control with matching inventoried blob IDs. The manifest describes generated consolidation, cites an absent frozen roadmap, and does not prove clause-level approval. Compatible requirements, supersessions and deferred gates are indexed in the directory README. CT-002 may close only after the two current questions are answered, reconciled root specifications are produced, cross-phase checked and explicitly owner-approved. |
+| CT-002 / R-G | **CLOSED.** All eight historical artifacts are available with matching inventoried blob IDs. The owner resolved the two current questions and directed formalization. Reconciled root `PHASE_04.md`–`PHASE_10.md` preserve compatible requirements, apply later authority and mark deferred material choices `REVIEW_REQUIRED`; the historical directory remains provenance only. |
 | CT-003 / R-S | **PARTIAL; DECISION RESOLVED / IMPLEMENTATION MISSING.** D-041 establishes the exact owner-facing surface and Phase 3 boundary. Current code still lacks the dedicated supplier/product-cost creation/preference API/UI and fresh-tenant path; no workaround is authorized. |
-| CT-004 / R-F | **PARTIAL; MATERIAL DECISIONS MOSTLY RESOLVED.** D-035–D-037 and D-036's exact equations approve manual-price, adjustment, rounding and display semantics. D-038 approves one opening plus immutable correction. RP-NOW-01 zero/sign admission rules and RP-NOW-02 initial-opening sign remain `REVIEW_REQUIRED`; only those block an unqualified formula-provenance conclusion. |
+| CT-004 / R-F | **DECISIONS RESOLVED; IMPLEMENTATION REVIEW REQUIRED.** D-035–D-037 approve manual-price, adjustment, rounding and display semantics. Completed D-038 approves one signed nonzero historical opening plus immutable correction/reversal. D-043 requires strictly positive net sales for every confirmed revision and nonnegative inputs/totals. Current zero-edit behavior conflicts. |
 | CT-005 / R-P | **PARTIAL; CORE FINANCIAL/SHARING POLICY RESOLVED.** D-039 resolves supplier overpayment/prepayment, D-040 overdue calendar/boundary/unset behavior, and D-042 link cardinality/status/rotation/cancellation/transport. Existing contrary behavior is an implementation mismatch to be handled later, not in this reconciliation. Exact rate-limit constants and durable alert cadence safely wait as operational policy. |
 | D-031/D-034 | **UNCHANGED / VERIFIED AUTHORITY.** No owner override exists. Recovered Phase 8 wording that would recompute historical profit from later actual/latest cost is superseded. A separately named later-purchase estimate would require a new Phase 8 decision. |
 
@@ -597,12 +597,10 @@ was read in full and remains historical planning evidence, not current phase aut
   to be the D-040 Beirut boundary. These must be verified/fixed only in an authorized implementation
   or financial-audit task.
 
-### Remaining current owner decisions
+### Current owner-decision status
 
-- **RP-NOW-01:** invoice zero/sign admission boundaries. Existing code requires quantity `> 0`,
-  nonnegative price/cost/adjustments and nonnegative line/net totals; initial confirmation requires
-  positive net sales while a confirmed edit may reach zero.
-- **RP-NOW-02:** whether the single initial customer/supplier opening per currency may be negative.
-
-All other recovered-plan questions listed in `docs/recovered-planning/README.md` safely wait for
-their named phase gate. No root Phase 4–10 specification is created or promoted in this step.
+RP-NOW-01 is resolved by D-043. RP-NOW-02 is resolved by completed D-038. Opening multiplicity
+was not inferred from Q2: it was already separately approved in D-038 as at most one initial event
+per party/currency, with immutable correction/reversal thereafter. All other recovered-plan
+questions safely wait for their named gates in the now-authoritative root Phase 4–10 specifications.
+No application remediation is authorized by this formalization.

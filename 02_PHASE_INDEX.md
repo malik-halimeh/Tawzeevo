@@ -34,6 +34,8 @@ Before Phase 3 code:
 - payment allocation locked;
 - refund ceiling locked;
 - cancellation/reversal semantics locked.
+- every confirmed revision's net sales strictly positive and monetary sign boundaries locked;
+- one signed nonzero historical opening per party/currency, correction/reversal semantics locked.
 
 ## Gate D — Offline
 
@@ -50,7 +52,8 @@ Before Phase 4 code:
 Before Phase 5:
 - order state machine locked;
 - checkout idempotency locked;
-- capability-token lifecycle locked;
+- provisional checkout presentation/session/revisit contract locked;
+- D-042 confirmed-invoice capability lifecycle/transport enforced;
 - guest customer privacy rules locked;
 - notification/reminder behavior locked.
 

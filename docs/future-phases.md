@@ -4,9 +4,9 @@ Continuity note (updated 2026-09-07): the text below is a historical Phase 1 seq
 current execution cursor. Phases 1/2 and P3-M1–M5 are recorded complete in
 `03_IMPLEMENTATION_STATUS.md`; P3-M6 is NOT_STARTED. At implementation audit baseline
 `2248c137e43c6c043725830c1303756da1d210ee`, detailed Phase 4–10 files were absent. Byte-identical
-copies are now retained in `docs/recovered-planning/` as historical owner planning evidence, not
-authoritative specifications. See its README, `AGENT_START_HERE.md` and CT-002; this summary and
-the recovered files cannot replace approved root phase specifications.
+copies are retained in `docs/recovered-planning/` as historical owner planning evidence. Reconciled
+authoritative root `PHASE_04.md` through `PHASE_10.md` now govern future delivery under higher
+authority and their explicit gates. See their files, the historical README and CT-002.
 
 Phase 1 is complete. The items below are approved sequence summaries, not claims that later functionality exists.
 
@@ -24,4 +24,4 @@ Phase 1 is complete. The items below are approved sequence summaries, not claims
 
 No later phase begins from a generic `continue`. The current implementation remains in Phase 3;
 P3-M6 requires explicit authorization after its affected open questions are resolved. A future
-phase requires the exact `Start Phase N` command plus its reconciled, approved root specification.
+phase requires the exact `Start Phase N` command and satisfaction of its authoritative root gate.

@@ -37,7 +37,7 @@ existed at the implementation baseline. Recovered historical guides are explicit
 |---|---|---|
 | A — normative hard constraints | PHASE_01.md exact program requirements; non-negotiable clauses in 00_PROJECT_CONTRACT.md; approved invariant clauses in 04_DECISIONS.md such as D-008/010/011/019/031/034 | AGENTS.md explicitly binds the first two; the ledger explicitly records approved/locked decisions. A hard-constraint clause can be classified A even if its containing ledger is generally B. Do not upgrade untraced summaries. |
 | B — approved product/architecture decisions | 04_DECISIONS.md D-001–D-042; locked technology clauses in 01_TECH_STACK.md; approved architecture clauses in 00_PROJECT_CONTRACT.md | The operating contract names these sources and their order. Approval provenance is the recorded repository ledger/contract, not independently recovered transcripts. |
-| C — delivery intent | Current PHASE_03.md; PHASE_02.md; non-program delivery sections of PHASE_01.md; 02_PHASE_INDEX.md | Phase files define milestones, acceptance and gates under higher sources. Mandatory current-phase instructions remain requirements; C does not mean optional. Future phase summaries do not supply missing milestone specifications. |
+| C — delivery intent | PHASE_01.md through PHASE_10.md; 02_PHASE_INDEX.md | Phase files define milestones, acceptance and gates under higher sources. Mandatory phase instructions remain requirements; C does not mean optional. Explicit `REVIEW_REQUIRED` clauses are gate blockers/candidates, not approved behavior. |
 | D — implementation evidence | apps/api/tawzeevo_api, apps/api/alembic, apps/operations-web, tests, compose.yaml, render.yaml, package manifests/locks, data/master-catalog | These show what exists and how it is configured. Code/tests/schema cannot independently approve product decisions; a test conflicting with an invariant is a finding, not an override. |
 | E — derived operational state | 03_IMPLEMENTATION_STATUS.md; README files; docs/architecture.md; docs/folder-responsibilities.md; docs/future-phases.md; GUIDE_MANIFEST.md; RUN_TESTS.md; UNIT_TEST_STRATEGY.md; phase evidence and audit documents; AGENT_START_HERE.md | Status and reports are navigation/evidence. Frozen phase reports describe their dated state, not current implementation authority. Proposed test templates are not executed tests. |
 | E — derived contract summaries | docs/contracts/README.md and its 15 linked summaries | Their own index explicitly says they restate root sources and lose conflicts. A sentence is binding only by its traceable higher source; the folder name does not grant independent authority. |
@@ -95,31 +95,31 @@ absence here does not remove a requirement.
 | B26 | Synthetic frontend-only removable role gallery; no production role/API/data changes | D-029 |
 | B27 | Manual non-catalog invoice price is final; fixed line/invoice adjustments and the exact Q4 invoice formula | D-035/036 |
 | B28 | Immutable revision due snapshot is distinct from live customer balance | D-037 |
-| B29 | One initial opening per party/currency; later changes use immutable correction/reversal; initial sign remains review-required | D-038 |
+| B29 | One signed nonzero historical opening per party/currency; later changes use immutable correction/reversal; operational payments/prepayments stay distinct | D-038 |
 | B30 | Ordinary supplier payment is payable-capped; excess uses a separate labelled prepayment action | D-039 |
 | B31 | Customer overdue uses the `Asia/Beirut` calendar, `age_days > threshold`, and unset disables detection | D-040 |
 | B32 | Dedicated owner supplier/product-cost API/UI is required before Phase 3 completes | D-041 |
 | B33 | One active confirmed-invoice public link; replacement invalidates the old link and cancellation revokes it; fragment/header transport remains | D-042 |
+| B34 | Every confirmed invoice revision has strictly positive net sales; quantities positive, monetary inputs/totals nonnegative; cancellation/reversal handles zero economic effect | D-043 |
 
 ## Candidate decisions and conflicts
 
 CT-004 and CT-005 in [the register](../audits/AUDIT_REGISTER.md) distinguish resolved decisions
-now recorded as D-035–D-042 from remaining candidates. The remaining zero/sign admission rules,
-initial-opening sign, exact rate-limit constants, durable notification cadence and later-phase gate
-details are not approved merely because code or historical planning contains them. Approval must
+now recorded as D-035–D-043 from remaining candidates. Exact rate-limit constants, durable
+notification cadence and later-phase gate details are not approved merely because code or
+historical planning contains them. Approval must
 follow the existing user-decision process. Same-tier disagreement is left open; implementation
 evidence is not used as the deciding vote.
 
 The register's narrow reconciliation distinguishes approved facets, ordinary mechanics, and
 material policy questions. Classifying a detail as mechanical does not create a BINDING product
 rule. Most formula, supplier-provisioning, public-link, overpayment and overdue policy questions
-are now explicitly decided in D-035–D-042. RP-NOW-01 and RP-NOW-02 remain review-required,
-while named future-phase details safely wait for their phase gates.
+are now explicitly decided in D-035–D-043. Named future-phase details safely wait for their gates.
 
 The tracked recovered manifest describes generated consolidated guides, cites an absent frozen
 roadmap, and supplies no independently traceable approval of their added details. All seven
-future guides remain historical CANDIDATE / REVIEW_REQUIRED evidence, not authoritative root
-phase files.
+future guides remain historical evidence, not authority. Reconciled root `PHASE_04.md` through
+`PHASE_10.md` are now Tier C specifications; their explicit `REVIEW_REQUIRED` clauses remain gated.
 In particular, the preserved Phase 8 profit-cost precedence cannot supersede D-031/D-034.
 See CT-002's per-file blob/provenance inventory; recovering a file is not approving its contents.
 

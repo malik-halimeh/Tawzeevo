@@ -151,6 +151,7 @@ Do not present prior executions as tests run by this audit.
 
 Use [persistent status](../03_IMPLEMENTATION_STATUS.md); no duplicate PHASE_STATUS document.
 Phase 1/2 evidence is frozen; P3-M5 evidence is not a Phase 3 completion report. The
-[phase index](../02_PHASE_INDEX.md) retains future gates, but PHASE_04–10 are absent at the
-implementation baseline. See CT-002 and AGENT_START_HERE before later work. Exact sync/order/job,
-provider and metric details awaiting later gates are not established by the short summaries.
+[phase index](../02_PHASE_INDEX.md) retains future gates. PHASE_04–10 were absent at the immutable
+implementation baseline but are now reconciled authoritative root specifications; CT-002 is closed.
+Their explicit `REVIEW_REQUIRED` sync/order/job/provider/metric details remain phase-gate blockers,
+not approved defaults. Historical copies under `docs/recovered-planning/` are provenance only.

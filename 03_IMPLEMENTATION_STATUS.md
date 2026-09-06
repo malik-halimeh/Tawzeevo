@@ -94,6 +94,14 @@ CT-005's material policy requests are recorded in `docs/audits/AUDIT_REGISTER.md
 documentation task passes its stated reconciliation criteria; it does not close product decisions,
 start any larger audit/P3-M6, or change the original implementation baseline or preserved stash.
 
+Owner disposition and future-specification formalization followed on 2026-09-07. D-035–D-043 now
+resolve the current formula, historical-opening, supplier-payment, overdue, supplier-setup and
+public-link decisions. CT-002 is closed because reconciled root `PHASE_04.md`–`PHASE_10.md` now
+exist with later authority applied and unresolved future details explicitly gated. CT-003–CT-005
+identify application mismatches still requiring later audit/remediation. No application code was
+changed, P3-M6 was not started, and the next recommended work is the separately authorized
+financial audit—not automatic remediation.
+
 At milestone start:
 - set milestone status `IN_PROGRESS`.
 

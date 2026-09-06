@@ -83,8 +83,8 @@ Later approved decisions win while the older wording remains here for provenance
 
 | ID | Conflict/ambiguity | Status |
 |---|---|---|
-| RP-NOW-01 | Current invoice validation requires positive quantity/nonnegative price and adjustments, rejects initial confirmation when net sales is zero, but permits a confirmed edit to reach zero. These exact zero/sign admission rules were not selected in the owner packet. | `REVIEW_REQUIRED` before the financial audit |
-| RP-NOW-02 | D-038 permits one initial opening per party/currency plus immutable correction, but the owner packet did not decide whether an initial customer or supplier opening may be negative credit. | `REVIEW_REQUIRED` before the financial audit |
+| RP-NOW-01 | Current invoice validation rejects initial zero net sales but permits a confirmed edit to reach zero. | **RESOLVED by D-043:** every confirmed revision requires strictly positive net sales; quantity is positive and monetary inputs/totals are nonnegative. Cancellation/reversal handles zero economic effect. |
+| RP-NOW-02 | Whether the one initial opening per party/currency may represent negative credit. | **RESOLVED by completed D-038:** signed nonzero initial openings are allowed and clearly historical; multiplicity remains one and operational payments/prepayments remain distinct. |
 | RP-P4-01 | Exact sync page size 500, 90-day tombstone minimum, 24-hour offline lease and retirement rules lack final approval. | Record at Gate D; safely wait until Phase 4 |
 | RP-P4-02 | Google OAuth scope/folder model, retention, backup schedule, KEK provider/recovery and exact AES/DEK/KEK deployment need explicit security/provider review. | Required before P4-M5; safely wait |
 | RP-P5-01 | D-042 confirmed-only sharing supersedes provisional capability issuance. The customer still needs the contracted provisional checkout representation; exact session/receipt/revisit behavior is undefined. | Resolve at Gate E before P5-M3 |
@@ -98,8 +98,8 @@ Later approved decisions win while the older wording remains here for provenance
 
 ## Questions requiring owner answer now
 
-Only RP-NOW-01 and RP-NOW-02 block an unqualified financial audit. See the current handoff for
-concrete options. No other recovered-planning question affects the current Phase 3 foundation.
+None for specification formalization. RP-NOW-01 and RP-NOW-02 are resolved by D-043 and completed
+D-038. The phase-specific questions below remain gated rather than silently approved.
 
 ## Questions that safely wait
 
@@ -110,16 +110,8 @@ implementation detail when they do not change product, security, financial or pr
 
 ## CT-002 closure condition
 
-CT-002 cannot close yet. The historical planning is now available to a repository-only successor,
-so the original availability gap becomes partial rather than missing. CT-002 may close after:
-
-1. RP-NOW-01/RP-NOW-02 are answered and recorded;
-2. each recovered phase is transformed into a root authoritative phase specification using current
-   authority, the supersession list above and explicit `REVIEW_REQUIRED` gates for safely deferred items;
-3. those resulting specifications are reviewed for internal/cross-phase consistency and explicitly
-   approved by the owner; and
-4. navigation/governance/traceability point to the approved specifications without treating this
-   historical directory or its manifest as authority.
-
-Until then, implementation remains at P3-M5 and future phase execution remains blocked by its
-normal explicit-start and gate requirements.
+CT-002 is closed by the 2026-09-07 formalization: RP-NOW-01/RP-NOW-02 are recorded in D-043/D-038;
+reconciled authoritative root `PHASE_04.md` through `PHASE_10.md` preserve compatible planning,
+apply later supersessions and explicitly gate deferred items; and navigation/governance/traceability
+identify this directory as historical provenance only. Future implementation still requires the
+normal explicit `Start Phase N`, completed prior phase and satisfaction of each root file's gate.
