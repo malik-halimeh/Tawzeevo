@@ -1,10 +1,12 @@
 # Future phase sequence
 
-Continuity note (2026-09-06): the text below is a historical Phase 1 sequence summary, not the
+Continuity note (updated 2026-09-07): the text below is a historical Phase 1 sequence summary, not the
 current execution cursor. Phases 1/2 and P3-M1–M5 are recorded complete in
 `03_IMPLEMENTATION_STATUS.md`; P3-M6 is NOT_STARTED. At implementation audit baseline
-`2248c137e43c6c043725830c1303756da1d210ee`, detailed Phase 4–10 files are absent and preserved
-outside the baseline. See `AGENT_START_HERE.md` and CT-002; this summary cannot replace them.
+`2248c137e43c6c043725830c1303756da1d210ee`, detailed Phase 4–10 files were absent. Byte-identical
+copies are now retained in `docs/recovered-planning/` as historical owner planning evidence, not
+authoritative specifications. See its README, `AGENT_START_HERE.md` and CT-002; this summary and
+the recovered files cannot replace approved root phase specifications.
 
 Phase 1 is complete. The items below are approved sequence summaries, not claims that later functionality exists.
 
@@ -20,4 +22,6 @@ Phase 1 is complete. The items below are approved sequence summaries, not claims
 | 9 | Production hardening, deployment, and pilot | Phases 1–8 Definitions of Done |
 | 10 | Optional season/month product forecasting | Reliable production-like historical data |
 
-No later phase begins from a generic `continue`. The next authorized transition requires the exact user command `Start Phase 2`; its own phase file and gate are read only at that time.
+No later phase begins from a generic `continue`. The current implementation remains in Phase 3;
+P3-M6 requires explicit authorization after its affected open questions are resolved. A future
+phase requires the exact `Start Phase N` command plus its reconciled, approved root specification.

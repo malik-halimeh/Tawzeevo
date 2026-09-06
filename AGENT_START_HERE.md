@@ -24,21 +24,21 @@ capability-based invoice sharing. The role gallery is synthetic, not a storefron
 There is no implemented guest checkout, offline business sync, procurement, delivery routing,
 analytics, or forecasting. Supplier/cost tables are not a complete supplier management workflow.
 
-## Preserved work — do not mix it into this baseline
+## Recovered planning — historical evidence, not future authority
 
 The prior [preservation report](docs/phase-3/baseline-remediation.md) identifies nine excluded paths:
 `PHASE_04.md` through `PHASE_10.md`, `REMAINING_PHASE_GUIDE_MANIFEST.md`, and changes to
 `docs/Tawzeevo-Python-FastAPI-Study-Journey.html`. They were preserved in local stash
 `9050d544791b5e22d15c2ff1a1acdbd503b40418`.
 
-The original continuity audit did not open the stash. The subsequent user-authorized narrow
-reconciliation inspected only the seven guides and their manifest, never the study redesign.
-They are legitimate generated planning material, but approval of the complete specifications
-cannot be verified; the manifest's frozen roadmap is absent and Phase 8 contains conflicting
-cost-basis instructions. No file was restored. The stash remains intact; a clone does not receive it.
-Do not reconstruct specifications from memory or treat generated detail as approved. CT-002's
-blob inventory and exact provenance/approval next action are in the register. Detailed approved
-Phase 4–10 specifications are still unavailable in normal version control.
+The original continuity audit did not open the stash. A later authorized reconciliation inspected
+only the seven guides and their manifest, never the study redesign. The owner has now supplied
+byte-identical copies under `docs/recovered-planning/`; the original stash remains intact. These are
+legitimate historical planning evidence, but not authoritative root specifications. Their manifest
+cites an absent frozen roadmap and their generated details require reconciliation; Phase 8's
+historical-profit precedence is superseded by D-031/D-034. Read the directory README before using
+them. Detailed approved Phase 4–10 specifications remain unavailable until the reconciliation,
+remaining owner decisions and explicit approval are complete.
 
 ## Run and verify without hidden history
 
@@ -55,7 +55,7 @@ The next implementation milestone is P3-M6 only after the user authorizes it and
 questions are addressed. Do not advance Phase 3 to COMPLETE from this audit. At eventual phase
 completion, automatically produce the three evidence reports required by AGENTS.md.
 Future phases still require explicit `Start Phase N`, their approved detailed specification and gate.
-The narrow CT-001–CT-005 reconciliation is now complete as documentation work. Read its
-component-level formula matrix and material decision requests in the register. The next action
-is source/owner disposition of those exact requests, not a repeated broad audit, automatic
-implementation, or the financial audit. CT-001 requires no change to existing precedence.
+The owner has resolved most previously open formula and policy choices in D-035–D-042. Read the
+recovered-planning README and the register's 2026-09-07 follow-up. Two narrow financial admission
+questions remain before the financial audit; safely deferrable future questions stay at their
+phase gates. Do not repeat the broad audit or begin implementation from historical plans.

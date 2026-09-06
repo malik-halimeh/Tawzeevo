@@ -572,3 +572,37 @@ Obtain source/owner disposition of the narrowly scoped requests R-S, R-F and R-P
 the full formula and supplier financial semantics before the financial audit. Future specifications
 need the separate R-G provenance/adoption step before future implementation. No larger audit,
 workflow implementation, Graphify installation, financial audit or P3-M6 is started by this task.
+
+## Owner decisions and recovered Phase 4–10 reconciliation — 2026-09-07
+
+This section supersedes only the open-status statements above; it preserves their evidence and
+historical classifications. The owner directly approved D-035–D-042 and supplied byte-identical
+copies of the seven future guides plus manifest under `docs/recovered-planning/`. The supplied set
+was read in full and remains historical planning evidence, not current phase authority.
+
+| Finding/request | Updated status and evidence |
+|---|---|
+| CT-002 / R-G | **PARTIAL_RECOVERY / REVIEW_REQUIRED.** All eight planned artifacts are now available in normal version control with matching inventoried blob IDs. The manifest describes generated consolidation, cites an absent frozen roadmap, and does not prove clause-level approval. Compatible requirements, supersessions and deferred gates are indexed in the directory README. CT-002 may close only after the two current questions are answered, reconciled root specifications are produced, cross-phase checked and explicitly owner-approved. |
+| CT-003 / R-S | **PARTIAL; DECISION RESOLVED / IMPLEMENTATION MISSING.** D-041 establishes the exact owner-facing surface and Phase 3 boundary. Current code still lacks the dedicated supplier/product-cost creation/preference API/UI and fresh-tenant path; no workaround is authorized. |
+| CT-004 / R-F | **PARTIAL; MATERIAL DECISIONS MOSTLY RESOLVED.** D-035–D-037 and D-036's exact equations approve manual-price, adjustment, rounding and display semantics. D-038 approves one opening plus immutable correction. RP-NOW-01 zero/sign admission rules and RP-NOW-02 initial-opening sign remain `REVIEW_REQUIRED`; only those block an unqualified formula-provenance conclusion. |
+| CT-005 / R-P | **PARTIAL; CORE FINANCIAL/SHARING POLICY RESOLVED.** D-039 resolves supplier overpayment/prepayment, D-040 overdue calendar/boundary/unset behavior, and D-042 link cardinality/status/rotation/cancellation/transport. Existing contrary behavior is an implementation mismatch to be handled later, not in this reconciliation. Exact rate-limit constants and durable alert cadence safely wait as operational policy. |
+| D-031/D-034 | **UNCHANGED / VERIFIED AUTHORITY.** No owner override exists. Recovered Phase 8 wording that would recompute historical profit from later actual/latest cost is superseded. A separately named later-purchase estimate would require a new Phase 8 decision. |
+
+### Current implementation mismatches — do not fix in this task
+
+- CT-003: supported owner supplier/cost/preference provisioning required by D-041 is absent.
+- CT-004: current initial-confirmation versus confirmed-edit zero-total asymmetry lacks approval.
+- CT-005: current supplier payment can overpay and supplier openings can repeat; public sharing can
+  issue multiple links and expose draft/cancelled invoices; overdue uses a date basis not yet shown
+  to be the D-040 Beirut boundary. These must be verified/fixed only in an authorized implementation
+  or financial-audit task.
+
+### Remaining current owner decisions
+
+- **RP-NOW-01:** invoice zero/sign admission boundaries. Existing code requires quantity `> 0`,
+  nonnegative price/cost/adjustments and nonnegative line/net totals; initial confirmation requires
+  positive net sales while a confirmed edit may reach zero.
+- **RP-NOW-02:** whether the single initial customer/supplier opening per currency may be negative.
+
+All other recovered-plan questions listed in `docs/recovered-planning/README.md` safely wait for
+their named phase gate. No root Phase 4–10 specification is created or promoted in this step.

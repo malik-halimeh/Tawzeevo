@@ -129,3 +129,32 @@ raw history and the temporary packet remain uncommitted.
 
 Recommended next action only: obtain owner disposition of the existing R-F invoice-formula
 and financial R-P questions, using explicit numerical examples and acceptance boundaries.
+
+## Owner disposition and recovered-planning follow-up — 2026-09-07
+
+The owner subsequently answered the prepared decision packet. Those answers are no longer merely
+`RECOVERED_USER_INTENT — FORMALIZATION_REQUIRED`: their exact approved scope is formalized in
+D-035–D-042. This follow-up does not retroactively change the classifications of the three evidence
+messages above; it records new direct owner decisions made after that evidence-only review.
+
+| Earlier open item | Current disposition |
+|---|---|
+| Manual price / grade | D-035: manual non-catalog unit price is final; no automatic catalog-grade rule. |
+| Discounts / markup / rounding | D-036: fixed whole-line and whole-invoice currency amounts; exact quantity-first Q4 formula. |
+| Displayed due | D-037: immutable revision due snapshot and separately labelled live balance. |
+| Opening events | D-038: one initial event per party/currency; corrections/reversals are immutable. Initial-opening sign remains `REVIEW_REQUIRED`. |
+| Supplier overpayment | D-039: ordinary payment is capped at positive payable; separate explicit prepayment action creates labelled credit. |
+| Overdue | D-040: `Asia/Beirut`, `age_days > threshold`, unset disables. Durable notification cadence safely waits. |
+| Supplier/cost provisioning | D-041: dedicated owner API/UI before Phase 3 completes, linked from Invoice Editor. |
+| Public invoice links | D-042: one active confirmed-invoice link; replace/rotate invalidates old; cancellation revokes; fragment-to-private-header transport. |
+
+The owner also supplied the seven Phase 4–10 guides and their manifest under
+`docs/recovered-planning/`. Their blob identities match the previously inventoried objects, but
+their own manifest describes generated consolidated guides and cites a frozen roadmap not present
+in the repository. They are therefore retained as historical owner planning evidence, not promoted
+to authoritative specifications. The directory README records preserved compatible requirements,
+later supersessions, current questions and safely deferred phase-gate questions.
+
+No later owner instruction changes D-031/D-034: historical invoice profit continues to use its
+immutable sale-time cost snapshot. The recovered Phase 8 later-purchase/latest-cost precedence is
+superseded for historical profit. No application behavior is changed by this reconciliation.

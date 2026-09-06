@@ -1,7 +1,7 @@
 # Source-of-truth governance
 
 Implementation audit baseline: `2248c137e43c6c043725830c1303756da1d210ee`.
-Audit/reconciliation date: 2026-09-06. This document is Tier E audit/navigation material. It does
+Audit/reconciliation date: 2026-09-07. This document is Tier E audit/navigation material. It does
 not approve new product behavior or supersede AGENTS.md. The original continuity audit used
 baseline material only. The later authorized reconciliation inspected exactly eight preserved
 future-guide/manifest paths as supplemental CANDIDATE evidence, not baseline authority.
@@ -31,17 +31,17 @@ decision is needed to continue using AGENTS.md unchanged.
 
 Paths in this inventory are repository-root-relative. Root contracts and implementation sources
 are baseline inputs. New audit/navigation artifacts are Tier E outputs, not files claimed to have
-existed at the implementation baseline. Missing future guides are explicitly identified separately.
+existed at the implementation baseline. Recovered historical guides are explicitly identified separately.
 
 | Tier | Actual sources | Why this authority / limitation applies |
 |---|---|---|
 | A — normative hard constraints | PHASE_01.md exact program requirements; non-negotiable clauses in 00_PROJECT_CONTRACT.md; approved invariant clauses in 04_DECISIONS.md such as D-008/010/011/019/031/034 | AGENTS.md explicitly binds the first two; the ledger explicitly records approved/locked decisions. A hard-constraint clause can be classified A even if its containing ledger is generally B. Do not upgrade untraced summaries. |
-| B — approved product/architecture decisions | 04_DECISIONS.md D-001–D-034; locked technology clauses in 01_TECH_STACK.md; approved architecture clauses in 00_PROJECT_CONTRACT.md | The operating contract names these sources and their order. Approval provenance is the recorded repository ledger/contract, not independently recovered transcripts. |
+| B — approved product/architecture decisions | 04_DECISIONS.md D-001–D-042; locked technology clauses in 01_TECH_STACK.md; approved architecture clauses in 00_PROJECT_CONTRACT.md | The operating contract names these sources and their order. Approval provenance is the recorded repository ledger/contract, not independently recovered transcripts. |
 | C — delivery intent | Current PHASE_03.md; PHASE_02.md; non-program delivery sections of PHASE_01.md; 02_PHASE_INDEX.md | Phase files define milestones, acceptance and gates under higher sources. Mandatory current-phase instructions remain requirements; C does not mean optional. Future phase summaries do not supply missing milestone specifications. |
 | D — implementation evidence | apps/api/tawzeevo_api, apps/api/alembic, apps/operations-web, tests, compose.yaml, render.yaml, package manifests/locks, data/master-catalog | These show what exists and how it is configured. Code/tests/schema cannot independently approve product decisions; a test conflicting with an invariant is a finding, not an override. |
 | E — derived operational state | 03_IMPLEMENTATION_STATUS.md; README files; docs/architecture.md; docs/folder-responsibilities.md; docs/future-phases.md; GUIDE_MANIFEST.md; RUN_TESTS.md; UNIT_TEST_STRATEGY.md; phase evidence and audit documents; AGENT_START_HERE.md | Status and reports are navigation/evidence. Frozen phase reports describe their dated state, not current implementation authority. Proposed test templates are not executed tests. |
 | E — derived contract summaries | docs/contracts/README.md and its 15 linked summaries | Their own index explicitly says they restate root sources and lose conflicts. A sentence is binding only by its traceable higher source; the folder name does not grant independent authority. |
-| E — historical/supporting | IMPLEMENTATION_MASTER_PROMPT.md, CHANGELOG_PLATFORM_ADMIN.md, demo-gallery docs and study HTML | Historical initial instructions/changelogs/learning materials are not a current execution cursor. D-029 governs the demo, not its illustrative future screens. |
+| E — historical/supporting | IMPLEMENTATION_MASTER_PROMPT.md, CHANGELOG_PLATFORM_ADMIN.md, demo-gallery docs, study HTML, and `docs/recovered-planning/` | Historical materials are not a current execution cursor. The recovered Phase 4–10 set is owner-supplied historical planning evidence, not authoritative specifications; its wrapper records compatibility, supersession and deferred gates. D-029 governs the demo, not its illustrative future screens. |
 
 AGENTS.md is the governing operating contract rather than a product-evidence tier. Its milestone,
 approval, safety, and precedence rules remain in force. 05_DESIGN_REFERENCES.md is the designated
@@ -93,22 +93,33 @@ absence here does not remove a requirement.
 | B24 | Future offline protocol, encrypted Drive backup not live DB, scope/provider approvals, analytics currency/timezone gate, forecasting last | 00_PROJECT_CONTRACT.md Offline / Google / Analytics / AI; 02_PHASE_INDEX.md Gates D/F/G; D-017/018 |
 | B25 | One milestone per continuation; explicit phase transitions; immutable applied migrations; tests/evidence before completion; no unauthorized push | AGENTS.md execution/completion/safety rules; PHASE_03.md M |
 | B26 | Synthetic frontend-only removable role gallery; no production role/API/data changes | D-029 |
+| B27 | Manual non-catalog invoice price is final; fixed line/invoice adjustments and the exact Q4 invoice formula | D-035/036 |
+| B28 | Immutable revision due snapshot is distinct from live customer balance | D-037 |
+| B29 | One initial opening per party/currency; later changes use immutable correction/reversal; initial sign remains review-required | D-038 |
+| B30 | Ordinary supplier payment is payable-capped; excess uses a separate labelled prepayment action | D-039 |
+| B31 | Customer overdue uses the `Asia/Beirut` calendar, `age_days > threshold`, and unset disables detection | D-040 |
+| B32 | Dedicated owner supplier/product-cost API/UI is required before Phase 3 completes | D-041 |
+| B33 | One active confirmed-invoice public link; replacement invalidates the old link and cancellation revokes it; fragment/header transport remains | D-042 |
 
 ## Candidate decisions and conflicts
 
-CT-004 and CT-005 in [the register](../audits/AUDIT_REGISTER.md) contain the unapproved
-formula/behavior observations. None is added to 04_DECISIONS.md. Approval must follow the
-existing user-decision process, including exact decision wording and affected scope. Same-tier
-disagreement is left open; implementation evidence is not used as the deciding vote.
+CT-004 and CT-005 in [the register](../audits/AUDIT_REGISTER.md) distinguish resolved decisions
+now recorded as D-035–D-042 from remaining candidates. The remaining zero/sign admission rules,
+initial-opening sign, exact rate-limit constants, durable notification cadence and later-phase gate
+details are not approved merely because code or historical planning contains them. Approval must
+follow the existing user-decision process. Same-tier disagreement is left open; implementation
+evidence is not used as the deciding vote.
 
 The register's narrow reconciliation distinguishes approved facets, ordinary mechanics, and
 material policy questions. Classifying a detail as mechanical does not create a BINDING product
-rule. Missing full formula approval, supplier provisioning, and material public/supplier/overdue
-policy decisions remain explicit. The decision ledger is unchanged.
+rule. Most formula, supplier-provisioning, public-link, overpayment and overdue policy questions
+are now explicitly decided in D-035–D-042. RP-NOW-01 and RP-NOW-02 remain review-required,
+while named future-phase details safely wait for their phase gates.
 
-The preserved future manifest describes generated consolidated guides, cites an absent frozen
+The tracked recovered manifest describes generated consolidated guides, cites an absent frozen
 roadmap, and supplies no independently traceable approval of their added details. All seven
-future guides remain CANDIDATE / REVIEW_REQUIRED, not restored authoritative phase files.
+future guides remain historical CANDIDATE / REVIEW_REQUIRED evidence, not authoritative root
+phase files.
 In particular, the preserved Phase 8 profit-cost precedence cannot supersede D-031/D-034.
 See CT-002's per-file blob/provenance inventory; recovering a file is not approving its contents.
 
