@@ -10,7 +10,8 @@
 | `04_DECISIONS.md` | user-approved decisions only | when needed |
 | `05_DESIGN_REFERENCES.md` | user-provided visual direction | design/UI milestones |
 | `PHASE_01.md` ... `PHASE_03.md` | phase contracts present at the implementation audit baseline | current phase only during implementation |
-| `PHASE_04.md` ... `PHASE_10.md` | absent from baseline; preserved separately per baseline-remediation evidence | obtain approved guides before future implementation; do not restore during audits |
+| `PHASE_04.md` ... `PHASE_10.md` | absent from baseline and current checkout; preserved generated candidates inspected during authorized reconciliation, full approval unverified | resolve CT-002 provenance/conflicts before authoritative restoration or future implementation |
+| `REMAINING_PHASE_GUIDE_MANIFEST.md` | preserved candidate manifest, not restored; explicitly identifies generated consolidated guides and an absent source roadmap | exact blob inventory/provenance result in CT-002; not an approval source |
 | `docs/phase-<number>/` | frozen requirements audit, test report, and safe demo guide for each completed phase | phase completion and review |
 | `IMPLEMENTATION_MASTER_PROMPT.md` | initial implementation prompt | execute once |
 | `README.md` | human setup/run instructions; formerly listed ROOT_GUIDE_README.md is absent | user-facing |

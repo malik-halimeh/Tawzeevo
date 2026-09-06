@@ -31,12 +31,14 @@ The prior [preservation report](docs/phase-3/baseline-remediation.md) identifies
 `docs/Tawzeevo-Python-FastAPI-Study-Journey.html`. They were preserved in local stash
 `9050d544791b5e22d15c2ff1a1acdbd503b40418`.
 
-This audit neither opens nor applies/pops/modifies/drops that stash. A clone does not receive local
-stashes. Do not reconstruct the absent phase specifications from memory or summaries. Before
-future implementation, obtain explicit authorization to recover/review the preserved guides (or
-obtain approved replacements), retain their provenance, and resolve conflicting requirements.
-This is preservation information, not restoration authorization. CT-002 blocks an autonomous
-repository-only continuation all the way through Phase 10.
+The original continuity audit did not open the stash. The subsequent user-authorized narrow
+reconciliation inspected only the seven guides and their manifest, never the study redesign.
+They are legitimate generated planning material, but approval of the complete specifications
+cannot be verified; the manifest's frozen roadmap is absent and Phase 8 contains conflicting
+cost-basis instructions. No file was restored. The stash remains intact; a clone does not receive it.
+Do not reconstruct specifications from memory or treat generated detail as approved. CT-002's
+blob inventory and exact provenance/approval next action are in the register. Detailed approved
+Phase 4–10 specifications are still unavailable in normal version control.
 
 ## Run and verify without hidden history
 
@@ -53,5 +55,7 @@ The next implementation milestone is P3-M6 only after the user authorizes it and
 questions are addressed. Do not advance Phase 3 to COMPLETE from this audit. At eventual phase
 completion, automatically produce the three evidence reports required by AGENTS.md.
 Future phases still require explicit `Start Phase N`, their approved detailed specification and gate.
-For the next task, recommend a focused requirements/decision reconciliation review, not automatic
-implementation or the financial audit.
+The narrow CT-001–CT-005 reconciliation is now complete as documentation work. Read its
+component-level formula matrix and material decision requests in the register. The next action
+is source/owner disposition of those exact requests, not a repeated broad audit, automatic
+implementation, or the financial audit. CT-001 requires no change to existing precedence.

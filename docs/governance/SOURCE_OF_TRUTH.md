@@ -1,9 +1,10 @@
 # Source-of-truth governance
 
 Implementation audit baseline: `2248c137e43c6c043725830c1303756da1d210ee`.
-Audit date: 2026-09-06. This document is Tier E audit/navigation material. It does not approve
-new product behavior or supersede AGENTS.md. Only material present in the baseline was used
-as project evidence; no chat history or excluded stash contents were used.
+Audit/reconciliation date: 2026-09-06. This document is Tier E audit/navigation material. It does
+not approve new product behavior or supersede AGENTS.md. The original continuity audit used
+baseline material only. The later authorized reconciliation inspected exactly eight preserved
+future-guide/manifest paths as supplemental CANDIDATE evidence, not baseline authority.
 
 ## Existing precedence — preserve, do not silently replace
 
@@ -12,15 +13,19 @@ AGENTS.md explicitly orders: (1) exact Phase 1 program requirements in PHASE_01.
 (4) current PHASE_XX.md; (5) 01_TECH_STACK.md; (6) compliant existing implementation;
 (7) mechanical choices. Its no-invention and stop-on-conflict rules govern execution.
 
-The requested A–E taxonomy below classifies evidence and authority; it is not permission to
-silently reorder those sources. A lower tier may never silently override a higher one. A conflict
-within a tier must be recorded, not resolved by the reviewer. Where tier ordering and the existing
-precedence would give different answers, stop the affected decision and record both sources
-(CT-001). Do not claim that naming a document a contract makes it binding.
+The requested A–E taxonomy below is explanatory classification, not a second precedence rule.
+No source may silently override approved authority by invoking a tier label. For example, a
+project-contract clause labelled A does not outrank an approved ledger decision labelled B;
+AGENTS.md still places that decision above the project contract. An actual source conflict must
+be recorded and affected implementation stopped under AGENTS.md, including conflicts within
+one tier. Do not claim that naming a document a contract makes it binding.
 
 The A–E labels do not establish a second, independently effective conflict-resolution order.
 The approved AGENTS.md order remains in force. Any proposal to use tier ordering to change
 that order remains CANDIDATE / REVIEW_REQUIRED; this audit does not reconcile it by fiat.
+CT-001 is reconciled as documentation/provenance only: the continuity version already expressly
+preserved this order, and this wording removes the potential misreading. No precedence-change
+decision is needed to continue using AGENTS.md unchanged.
 
 ## Tier inventory and provenance
 
@@ -96,10 +101,23 @@ formula/behavior observations. None is added to 04_DECISIONS.md. Approval must f
 existing user-decision process, including exact decision wording and affected scope. Same-tier
 disagreement is left open; implementation evidence is not used as the deciding vote.
 
+The register's narrow reconciliation distinguishes approved facets, ordinary mechanics, and
+material policy questions. Classifying a detail as mechanical does not create a BINDING product
+rule. Missing full formula approval, supplier provisioning, and material public/supplier/overdue
+policy decisions remain explicit. The decision ledger is unchanged.
+
+The preserved future manifest describes generated consolidated guides, cites an absent frozen
+roadmap, and supplies no independently traceable approval of their added details. All seven
+future guides remain CANDIDATE / REVIEW_REQUIRED, not restored authoritative phase files.
+In particular, the preserved Phase 8 profit-cost precedence cannot supersede D-031/D-034.
+See CT-002's per-file blob/provenance inventory; recovering a file is not approving its contents.
+
 ## Implementation baseline versus documentation HEAD
 
 The immutable implementation reference remains `2248c137e43c6c043725830c1303756da1d210ee`.
-This audit's documentation commit is identified by Git history (`docs(audit): establish Tawzeevo
-continuity baseline`) and the handoff. Obtain current HEAD using `git rev-parse HEAD`; do not
-substitute it for the implementation reference. A document cannot truthfully embed its own final
-commit hash before that commit exists.
+The original continuity documentation commit is
+`f4bb7fd7f1ba86821b87b6c15b17a7694ed0328b` (`docs(audit): establish Tawzeevo continuity baseline`).
+The later narrow reconciliation is a separate documentation commit identified by Git history
+(`docs(audit): reconcile continuity requirements and decisions`) and its handoff. Obtain current
+HEAD using `git rev-parse HEAD`; do not substitute it for the implementation reference. A document
+cannot truthfully embed its own final commit hash before that commit exists.

@@ -4,6 +4,13 @@ Implementation audit baseline: `2248c137e43c6c043725830c1303756da1d210ee`.
 Audit date: 2026-09-06. Tier E. All reviewer inferences/recommendations are DERIVED / CANDIDATE.
 This is continuity/authority reconstruction, not the financial/security/architecture-hardening audit.
 
+Current disposition: the subsequent narrow requirements/decision reconciliation is complete.
+Its input documentation commit is `f4bb7fd7f1ba86821b87b6c15b17a7694ed0328b`; application
+evidence still refers to the implementation baseline above. Authorized read-only inspection of
+eight preserved future-guide/manifest blobs is explicitly separated from approved authority below.
+The original continuity result was CONDITIONAL PASS; the narrow reconciliation result is PASS
+under its criteria allowing explicit REVIEW_REQUIRED/CANNOT VERIFY dispositions.
+
 ## Register conventions
 
 P0 = immediate catastrophic issue established; P1 = blocks a material continuation/workflow or
@@ -12,6 +19,8 @@ Severity is reviewer triage, not a new product invariant. No P0 was established;
 in this bounded audit is not proof no P0 exists.
 
 Counts: 10 meaningful findings: 0 P0, 3 P1, 7 P2, 0 P3. No findings were created to fill severity buckets.
+These are retained finding severities, not an open-only count. CT-001 is now reconciled as
+documentation-only; the three P1 findings remain open, as do six other P2 findings.
 Each record includes the requested schema, including unknown/not-run fields rather than invented
 independent verification. Source/model attribution is neutral under D-025; no model brand is made
 part of public project authority.
@@ -32,15 +41,15 @@ part of public project authority.
 | Confidence | HIGH for source ordering; MEDIUM for future conflict impact |
 | Source/model | Repository-only continuity reviewer; model identifier not recorded; not product authority. |
 | Origin / Authority | DERIVED / CANDIDATE |
-| Independent verification | Both texts read; no specific current contradictory product decision is asserted here. No second independent reviewer has verified this finding. |
+| Independent verification | Both texts and continuity commit rechecked: SOURCE_OF_TRUTH expressly preserves AGENTS.md and denies an independently effective second order. No current source-order contradiction is established. No second independent reviewer. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | OPEN — preserve existing sources and stop an affected conflict; no replacement precedence approved. |
+| Resolution | RECONCILED — explanatory classification only; wording clarified without changing AGENTS.md precedence. |
 | Resolution rationale | A classification document cannot silently amend the operating contract. |
-| Decision impact | Before using tier labels to settle a conflict, obtain an explicit precedence clarification; do not infer that a ledger-wide or folder-wide label decides it. |
+| Decision impact | No new decision is needed to follow existing precedence. Only a future proposal to replace that order would be CANDIDATE / REVIEW_REQUIRED. Tier labels never settle a conflict independently. |
 | Regression-test reference | N/A — governance provenance, not an application test. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | CANDIDATE / REVIEW_REQUIRED |
+| Status | RECONCILED_DOCUMENTATION_ONLY |
 
 ### CT-002 — Future delivery continuity
 
@@ -50,21 +59,21 @@ part of public project authority.
 | Audited commit | `2248c137e43c6c043725830c1303756da1d210ee` |
 | Area | Future delivery continuity |
 | Claim | A successor with only this baseline cannot safely execute the detailed plan through Phase 10: PHASE_04.md–PHASE_10.md are absent. |
-| Evidence | Baseline git ls-tree/git ls-files; 02_PHASE_INDEX.md lists phase filenames/gates; docs/phase-3/baseline-remediation.md identifies the seven future guides and REMAINING_PHASE_GUIDE_MANIFEST.md among nine preserved exclusions. |
+| Evidence | Baseline inventory and preservation report; later authorized inspection of exactly PHASE_04–10 and their manifest from stash parent 068bb2ec38e66c1143b87d7f766cf38b9d896c2b. The manifest calls them generated consolidated guides and cites an absent frozen roadmap. Per-file blobs, added-detail examples and Phase 8 cost conflict are recorded below. |
 | Affected requirement/invariant | B24/B25; T57; required current-phase specification before implementation. |
 | Severity | P1 |
 | Confidence | HIGH |
 | Source/model | Repository-only continuity reviewer; model identifier not recorded; not product authority. |
 | Origin / Authority | DERIVED / CANDIDATE |
-| Independent verification | Baseline inventory and preservation report checked; stash contents deliberately not opened. No second independent reviewer has verified this finding. |
+| Independent verification | Original continuity pass did not open the stash. This reconciliation read only the eight allowlisted planning/manifest paths; no study content or other stash payload was read. No independent second reviewer or original approval transcript is available. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | OPEN — no guides restored or recreated. |
-| Resolution rationale | Broad roadmap/contract summaries cannot recover exact milestones, acceptance criteria or later approved refinements. |
-| Decision impact | Future-phase implementation must wait for separately authorized recovery/review or approved replacement specifications. A local stash is not transported by clone and is not an audit source. |
+| Resolution | CANNOT VERIFY complete specification authority / REVIEW_REQUIRED. All eight are legitimate planning/provenance material, but none was restored as authoritative; no recovery commit was created. |
+| Resolution rationale | Intended specification status and matching roadmap headings do not prove approval of generated added detail. No accidental application/generated-build payload found. Phase 8's later-cost precedence conflicts with D-031/D-034; missing cited roadmap/ADR provenance remains unresolved. |
+| Decision impact | Supply the cited frozen roadmap/approval provenance, or explicitly review/adopt these exact blob versions with approved corrections, especially Phase 8 cost basis. Then recover only the approved files in a separate specification commit. Do not restore/apply the whole stash. |
 | Regression-test reference | N/A — file-presence/preservation check. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | BLOCKS_FUTURE_IMPLEMENTATION |
+| Status | CANNOT_VERIFY_AUTHORITY / REVIEW_REQUIRED — BLOCKS_FUTURE_IMPLEMENTATION |
 
 ### CT-003 — New-tenant finance workflow
 
@@ -74,7 +83,7 @@ part of public project authority.
 | Audited commit | `2248c137e43c6c043725830c1303756da1d210ee` |
 | Area | New-tenant finance workflow |
 | Claim | Supplier/cost schema and selection work with test fixtures, but the baseline lacks a supported owner-facing or documented CLI path to create supplier identities/cost entries/preferred-supplier defaults. A newly onboarded tenant cannot complete the described normal confirmation flow from setup alone. |
-| Evidence | services/invoice_editor.py::_prepare_cost requires an existing supplier for override; services/invoice_finance.py::_validate_confirmable_costs rejects absent supplier/cost; routes/invoices.py exposes cost-options GET, not cost creation. TenantSupplier has minimum name/tenant fields. InvoiceEditor.tsx shows cost controls only when options exist. cli/seed_demo.py creates no suppliers/costs. test_invoice_editor.py::_catalog and test_supplier_ledger.py::_supplier_context insert prerequisites directly. P3-M5 demo assumes existing supplier IDs. |
+| Evidence | services/invoice_editor.py::_prepare_cost requires an existing supplier even for an override; services/invoice_finance.py::_validate_confirmable_costs rejects absent supplier/cost; routes/invoices.py exposes cost-options GET, not cost creation. InvoiceEditor.tsx shows cost controls only when options exist; seed_demo has no supplier/cost setup. Corrected fixture anchor: _attach_latest_cost and the dedicated cost-prefill test insert prerequisites directly; _catalog itself uses catalog/customer APIs. test_supplier_ledger.py::_supplier_context also inserts directly. |
 | Affected requirement/invariant | D-034; PHASE_03.md B/D/L; T32–T34/T60. |
 | Severity | P1 |
 | Confidence | HIGH for missing surface; MEDIUM for exact intended milestone ownership |
@@ -82,13 +91,13 @@ part of public project authority.
 | Origin / Authority | DERIVED / CANDIDATE |
 | Independent verification | Route, schema, CLI, UI and fixture inventory inspected. No new end-to-end or hosted reproduction performed. No second independent reviewer has verified this finding. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | OPEN — no direct-SQL workaround, API, UI, seed change or spec reinterpretation implemented. |
-| Resolution rationale | Schema-level foundation does not establish a reproducible user workflow; assigning it to Phase 6 automatically would be an undocumented scope decision. |
-| Decision impact | Clarify/confirm the approved minimum Phase 3 provisioning/save-cost workflow and milestone boundary before declaring fresh-tenant finance demonstrable. Preserve complete-cost confirmation checks. |
+| Resolution | PARTIAL overall: minimum schema/selection/override exists, supported fresh-tenant provisioning is MISSING. Existing Phase 3 workflow integration gap confirmed; exact creation surface and individual-milestone attribution remain REVIEW_REQUIRED. No workaround implemented. |
+| Resolution rationale | D-034 plus PHASE_03 B require minimum cost-entry foundation and usable confirmed-line provenance in Phase 3; Phase 6 may append automatically, not supply an explicitly authorized prerequisite deferral. Specific supplier CRUD screen/endpoint placement is not prescribed by a current approved milestone. |
+| Decision impact | Required remediation, when authorized: make the existing tenant-private supplier/cost/preference foundation establishable through a supported authorized workflow and prove fresh-tenant invoice confirmation and explicit new-cost saving without direct fixture writes. Confirm the minimum surface/milestone boundary first; preserve D-034 validation and do not pull full procurement forward. |
 | Regression-test reference | test_invoice_editor.py::test_editor_prefills_latest_tenant_cost_and_keeps_reasoned_override_revision_only; test_financial_schema.py::test_supplier_costs_are_tenant_private_append_only_and_independently_priced. No cold-start provisioning regression found. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | BLOCKS_AFFECTED_WORKFLOW |
+| Status | PARTIAL / MISSING_PROVISIONING — BLOCKS_AFFECTED_WORKFLOW; surface/milestone REVIEW_REQUIRED |
 
 ### CT-004 — Financial formula provenance — no financial audit performed
 
@@ -98,7 +107,7 @@ part of public project authority.
 | Audited commit | `2248c137e43c6c043725830c1303756da1d210ee` |
 | Area | Financial formula provenance — no financial audit performed |
 | Claim | D-030 explicitly locks catalog grade/basis rounding, but an approved complete invoice-adjustment pricing-v1 formula and numerical example set cannot be located in baseline authority. PHASE_03.md requires locked/tested examples; implementation/tests supply additional choices. |
-| Evidence | D-030; PHASE_03.md Gate C/D/N; docs/contracts/pricing.md remains a Phase 1 summary. services/invoice_editor.py::_prepare_items rounds quantity/effective-price products and applies fixed line adjustments; _totals aggregates and applies fixed invoice adjustments. Test test_editor_recalculates_pricing_v1_calculator_adjustments_and_immutable_updates encodes expected values, not independent approval. |
+| Evidence | D-030; PHASE_03 Gate C/A/B/D/E/F/H/I/N; components F01–F15 below distinguish explicit equations, actual code, test assertions and missing provenance. _prepare_items/_totals implement fixed amounts and intermediate rounding. confirm_invoice rejects initial zero net sales, while confirmed edits can reach zero. Tests establish examples, not approval. No recovered future authority supplies the missing formula. |
 | Affected requirement/invariant | B09/B10/B11; T26/T35; no-invention rule for financial formulas. |
 | Severity | P1 |
 | Confidence | HIGH for catalog formula; MEDIUM for missing full invoice provenance |
@@ -106,13 +115,13 @@ part of public project authority.
 | Origin / Authority | DERIVED / CANDIDATE |
 | Independent verification | Tracked normative Markdown searched for pricing-v1/formula/net_sales/discount/Q4; relevant service and test anchors inspected. No chat or study document treated as authority. No second independent reviewer has verified this finding. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | OPEN — existing arithmetic not changed; no formula approved by this audit. |
+| Resolution | CANNOT VERIFY complete approval; component-level PARTIAL provenance. Explicit catalog/ledger/delta/refund contracts remain BINDING through their sources; added invoice units/order/rounding/manual/zero/prior-balance policies remain CANDIDATE / REVIEW_REQUIRED. |
 | Resolution rationale | A plausible implementation and passing example test cannot prove that the complete formula was approved. This finding is provenance, not a claim of arithmetic loss. |
-| Decision impact | Recover approved source or ask a focused product decision on exact adjustment units/order/rounding examples before extending financial behavior. Do not infer percentage discounts or alternative rounding. |
+| Decision impact | Resolve R-F below before an unqualified full financial audit: obtain approved source or explicit disposition of the implemented formula/boundaries, including opening-event policy where unspecified. Do not approve arithmetic from tests, add percentages/taxes, or rewrite the implementation. |
 | Regression-test reference | test_cash_van.py::test_pricing_v1_precedence_rounding_packaging_and_invoice_snapshot; test_invoice_editor.py::test_editor_recalculates_pricing_v1_calculator_adjustments_and_immutable_updates. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | BLOCKS_AFFECTED_DECISION |
+| Status | CANNOT_VERIFY_FULL_FORMULA_AUTHORITY / REVIEW_REQUIRED |
 
 ### CT-005 — Implicit policy / P3-M5 post-hoc review
 
@@ -130,13 +139,13 @@ part of public project authority.
 | Origin / Authority | DERIVED / CANDIDATE |
 | Independent verification | Governing text compared with current implementation and scoped tests. No external or independent reviewer approval inferred. No second independent reviewer has verified this finding. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
-| Resolution | OPEN — no candidate entered into 04_DECISIONS.md and no behavior changed. |
+| Resolution | RECONCILED_CLASSIFICATION — C01–C08 dispositions below separate A approved facets, B ordinary mechanics, C material decisions and E unverifiable intent. No accidental behavior (D) is established merely by missing approval. Material decisions remain open; no decision ledger or behavior changed. |
 | Resolution rationale | An architectural or business-policy choice needs traceable authority; some may prove acceptable mechanical details after review. |
-| Decision impact | Review candidates individually, distinguishing implementation mechanics from externally visible policy. Do not retroactively label all code as approved. |
+| Decision impact | Escalate only material rate/transport/link/lifecycle/supplier/overdue policies. Existing FastAPI rendering, CSP hashing, safe text/WhatsApp formatting and alert-key syntax need no new product decision on current evidence. Future Next.js remains locked; public-contract changes still need review. |
 | Regression-test reference | test_public_invoices.py; test_supplier_ledger.py; InvoiceSharing.test.tsx; PublicInvoicePage.test.ts; overdue tests for C08. |
 | Fix commit | None (no application fix). Documentation-only clarification, if any, is recorded by this audit commit. |
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
-| Status | OPEN_CANDIDATE |
+| Status | PARTIAL_RECONCILIATION / MATERIAL_CANDIDATES_REVIEW_REQUIRED |
 
 ### CT-006 — Stale/duplicate documentation
 
@@ -248,7 +257,7 @@ part of public project authority.
 | Confidence | HIGH for committed diff; LIMITED for pre-remediation uncommitted state |
 | Source/model | Repository-only continuity reviewer; model identifier not recorded; not product authority. |
 | Origin / Authority | DERIVED / CANDIDATE |
-| Independent verification | Exact Git diff and config/guard inspection; no stash parent/untracked payload accessed. Earlier fingerprint assertions are evidence from the report, not independently recreated here. No second independent reviewer has verified this finding. |
+| Independent verification | Original continuity investigation: exact Git diff and config/guard inspection, without stash parent/untracked payload access. The later narrow guide inspection does not reconstruct pre-remediation application history. Earlier fingerprints remain report evidence, not independently recreated. No second independent reviewer. |
 | Disagreement | Not independently assessed; user disposition not yet recorded. |
 | Resolution | OPEN EVIDENCE LIMIT — retain supplied immutable baseline; do not rewrite history or infer additional approval. |
 | Resolution rationale | Practical verification supports the narrow treatment but cannot manufacture a missing historical snapshot. |
@@ -258,10 +267,12 @@ part of public project authority.
 | Verification commit | Implementation evidence at 2248c137e43c6c043725830c1303756da1d210ee; no independent fix-verification commit. |
 | Status | CANNOT_VERIFY_FULL_HISTORY |
 
-## Candidate rules — never binding from this audit
+## Initial continuity candidate inventory — historical, never binding from this audit
 
 All rows are DERIVED / CANDIDATE observations. The general requirement cited may be binding;
 the specific implementation choice is not promoted with it. No row authorizes a change.
+The later C01–C08 disposition table below is the current review status; it resolves some facets
+as ordinary mechanics without deleting the original observation or approving new product rules.
 
 | ID | Existing choice | Governing explicit requirement versus unapproved detail | Evidence and review question |
 |---|---|---|---|
@@ -278,7 +289,7 @@ The fixed invoice-adjustment units/order/rounding in CT-004 are also DERIVED / C
 the explicitly approved D-030 catalog rule. C01–C08 are review questions, not a list of compulsory
 changes. No customer accounts, stock, supplier per-purchase allocations or other new scope is proposed.
 
-## Preservation and scope checks
+## Original continuity preservation and scope checks (historical)
 
 The stash reference `9050d544791b5e22d15c2ff1a1acdbd503b40418` was read only as an object ID.
 No stash content was opened, applied, popped, modified, dropped, or incorporated. Exclusion details
@@ -289,7 +300,7 @@ permitted in this audit commit. Existing phase specifications, decision ledger, 
 application/tests, dependency/configuration files and frozen phase reports are not edited.
 This commit does not start P3-M6 or approve any candidate decision.
 
-## Documentation verification
+## Original continuity documentation verification (historical)
 
 Executed 2026-09-06:
 
@@ -315,7 +326,7 @@ After the documentation commit, the named diff must contain only the nine Markdo
 in the handoff. The implementation reference remains the full SHA above, not the documentation
 HEAD. Use Git history/handoff for the documentation commit ID, avoiding self-reference.
 
-## Final continuity assessment
+## Original continuity assessment (historical)
 
 CONDITIONAL PASS for this documentation handoff: reference, metadata, provenance and scope
 checks pass, and the complete documentation diff has been reviewed. This is not an unqualified
@@ -326,9 +337,220 @@ implicit policy candidates remain review-required. No finding is implemented or 
 Existing architecture/status documents were reused; authoritative history and the implementation
 baseline were not rewritten. No independent second-reviewer or new runtime validation is claimed.
 
-## Next audit recommendation only
+## Narrow reconciliation — 2026-09-06
 
-A focused requirements/decision reconciliation review of CT-001–CT-005, especially the supplier-cost
-cold-start boundary and full invoice-formula provenance. Obtain source/approval rather than implement
-solutions. Resolve access to approved future specifications before future phases. Do not begin the
-financial audit or P3-M6 automatically.
+Scope: CT-001–CT-005 only. Initial HEAD was the clean continuity documentation commit
+`f4bb7fd7f1ba86821b87b6c15b17a7694ed0328b`. Implementation remains
+`2248c137e43c6c043725830c1303756da1d210ee`. No financial invariant, tenant/security, runtime,
+or P3-M6 audit was performed. Static requirements/code/test comparisons below are not new
+runtime test executions or independent approval evidence.
+
+### CT reconciliation and P1 before/after
+
+The exact claims/evidence/severity remain in the individual records above; this table gives their
+current disposition. Classifications and remediation recommendations are DERIVED / CANDIDATE.
+Only explicitly cited approved requirements have EXPLICIT / BINDING authority.
+
+| Item | Governing sources | Classification and current disposition | Before → after |
+|---|---|---|---|
+| CT-001 | AGENTS.md precedence/no-invention; 04_DECISIONS opening rule | Documentation/provenance only. SOURCE_OF_TRUTH already denied a second effective order; wording now makes the ledger-over-project-contract example explicit. No actual policy conflict requiring a decision remains. | P2 candidate → P2 historical finding, RECONCILED_DOCUMENTATION_ONLY |
+| CT-002 | AGENTS.md current-phase gate; 02_PHASE_INDEX; baseline-remediation exclusions | Future-continuity gap + CANNOT VERIFY complete guide approval. Eight real planning blobs found, but no authoritative restoration justified. | P1 missing guides → P1 CANNOT_VERIFY_AUTHORITY / REVIEW_REQUIRED; normal-version-control availability still MISSING |
+| CT-003 | D-034; 00_PROJECT_CONTRACT Suppliers/procurement; PHASE_03 B/D/L/O/P | Implementation integration gap + unresolved surface/milestone attribution. Foundation and fixture-backed overrides exist; fresh-tenant provisioning is missing. | P1 workflow gap → P1 PARTIAL overall / MISSING supported provisioning; remediation not implemented |
+| CT-004 | D-030/031/034; stack Money; PHASE_03 A–I/N | Provenance gap + unresolved product formula/boundary decisions. Approved catalog, ledger, delta, allocation/refund rules are separable from code-only invoice choices. | P1 incomplete provenance → P1 CANNOT VERIFY full approval, exact unresolved components identified |
+| CT-005 | PHASE_03 G/H/J/P3-M5; D-005/006/019; stack Storefront; AGENTS mechanics rule | Mixed approved facets/mechanics/material decisions. Classification complete; material candidates remain review-required, not accidental by assumption. | P2 candidates → P2 scoped material candidates; no blanket approval |
+
+### Controlled future-specification inspection
+
+The baseline-remediation group-E classification supplied the exact eight-path allowlist. Read-only
+Git inspection used the stash commit's parent metadata and explicit paths only. The untracked
+payload parent is `068bb2ec38e66c1143b87d7f766cf38b9d896c2b`; commands had the form
+`git show '9050d544791b5e22d15c2ff1a1acdbd503b40418^3:PHASE_04.md'`, individually for the
+seven phase files and manifest. No blanket stash diff/show/apply/pop/restore was used.
+
+All eight files are legitimate Tawzeevo planning/provenance documents. The seven guides contain
+phase objectives, gates, domain scope, tests, milestones and DoD; their counts match the baseline
+index. No accidental implementation files, generated build output, credentials or unrelated study
+content appear in the inspected documents. Their manifest explicitly calls them newly generated,
+derived, consolidated guides, not verbatim originals. They were intended to act as specifications,
+but intent is not proof of approval for their additional requirements.
+
+The cited `cash-van-production-roadmap-v2.1.1.md` is absent from the baseline and current tracked
+tree. No baseline approval record for these exact generated versions was found. The phase index
+approves broad objectives/counts/gates, not every unpublished body clause. The current task's
+conditional recovery authorization does not itself approve those clauses.
+
+| Exact inspected path | Git blob ID (immutable content reference) | Authority result / evidence needing review |
+|---|---|---|
+| PHASE_04.md | 609a2085048dd9a587eb5c57b28ba769bf62579b | CANNOT VERIFY full approval. Gate D matches; exact 500-change page, 90-day tombstones, 24h lease and AES/DEK/KEK details lack independently recovered normative provenance. |
+| PHASE_05.md | b658be6f3f2231fa189e90725dba9a6a96439d0f | CANNOT VERIFY full approval. Guest/tenant-publication intent matches; exact 10:1 weights, 30-minute dedup, 90-day retention, slug/cancellation/API details are added specifications, not all locked by root summaries. |
+| PHASE_06.md | ef1e59d7a68834861c276ad36f5e6ce4912543f0 | CANNOT VERIFY full approval. Supplier CRUD at P6-M1 is declared in this candidate only; it does not authorize deferring Phase 3 minimum costs. Proposed supplier_product_prices must be reconciled with D-034's existing cost foundation before adoption. |
+| PHASE_07.md | a88d368a10a298e72a9174348c7c0c6a81cc518a | CANNOT VERIFY full approval. Owner/driver and provider gate match roots; ADR-027 reference has no matching routing ADR in baseline (D-027 instead records hosted DB choice); exact terminal task states/nearest-neighbor + 2-opt detail need source/adoption. |
+| PHASE_08.md | 0319e5968a0e3a1dd2f38489c3c1d3d4fb1c4061 | REVIEW_REQUIRED with a concrete conflict: A/J prefer later linked actual purchase, then latest comparable actual_purchase cost for profit. D-031/D-034 require immutable revision-specific sale-time cost, not historical profit recomputed from later purchase/latest prices. The guide does not define a separately approved alternate metric. |
+| PHASE_09.md | ec825132ef407a61ad2cd1032229540bd5efa45f | CANNOT VERIFY full approval. Hardening/pilot intent matches; mandatory password recovery and exact performance targets are not independently sourced by available root summaries. Provider gates do not approve a new deployment today. |
+| PHASE_10.md | 1853a75c73ae17f791fa3459da73bb8194e879e5 | CANNOT VERIFY full approval. Statistical-first/last-phase intent matches D-018/contract; detailed output/evaluation/data-gate requirements are consolidated additions without the cited full source. |
+| REMAINING_PHASE_GUIDE_MANIFEST.md | 73eba6ad075b3492cade9f7b872c8f2630289331 | Provenance description VERIFIED; approval authority CANNOT VERIFY. Its self-description cannot make its derived guides BINDING. |
+
+Recovery result: **zero files restored, zero specification-recovery commits**. Detailed approved
+Phase 4–10 specifications are still not available in normal version control. These files are
+retrievable, not lost; authority is the blocker. Preserve all blobs intact. R-G below states the
+exact next action. No corrective rewrite of the Phase 8 candidate was made or approved here.
+
+### Supplier/cost provisioning — eight required answers
+
+| Question | Evidence-based answer |
+|---|---|
+| 1. Supplier creation already required? | Supplier identities/tenant-private selection are required by D-034 and PHASE_03 B/O P3-M1; full contacts/address/location management is required by the product contract. A particular Phase 3 supplier CRUD screen/endpoint is not specified. |
+| 2. Cost creation/assignment required? | Yes: D-034 defines append-only effective-dated entries, selected/preferred supplier, preload and an explicit save-as-new-entry path; PHASE_03 B requires the minimum cost-entry foundation. Revision-only override is not that saved entry. |
+| 3. Exact phase/milestone? | P3-M1 names supplier/product-cost foundation; P3-M2 requires the real editor; P3-M3 requires confirmation; B/L/P require Phase 3 confirmation/cost behavior. Exact provisioning API/UI/CLI delivery milestone is not individually enumerated: CANNOT VERIFY. The candidate P6-M1 is not current approved scheduling authority. |
+| 4. Expected by P3-M5? | A supported prerequisite path is necessary for the already delivered fresh-tenant confirmation workflow; none exists. This is an integration gap against Phase 3's minimum foundation/usable workflow, not proof that the four explicit P3-M5 public-link acceptance bullets require a new supplier screen. The original P3-M5 test gate is not rerun/reversed by inference. |
+| 5. Missed supported workflow? | None found in production route/service/schema/CLI/UI inventory. Cost-options is GET-only. Invoice requests can select an existing supplier or use a reasoned override; no supplier/cost creation or preferred-supplier-setting mutation exists. Supplier-ledger opening/payment APIs require an existing supplier and do not create one. |
+| 6. Tests inject otherwise unavailable state? | Yes. _attach_latest_cost inserts TenantSupplier/TenantProductCostEntry and sets preferred_supplier_id. The dedicated prefill test does likewise. _supplier_context inserts a supplier directly. Correction to the original audit: _catalog itself creates category/product/customer via supported APIs. |
+| 7. Intentional later-phase prerequisite? | No authoritative deferral found. PHASE_03 B expressly establishes minimum costs now; D-034 says Phase 6 MAY create costs automatically later. A procurement-only path beginning with confirmed demand would not establish the first confirmation's prerequisite. |
+| 8. Contradictory to approved workflow? | Missing-cost rejection conforms to D-034. The absent way to supply that cost makes the fresh-tenant workflow incomplete; PARTIAL overall / MISSING provisioning. Do not weaken confirmation to conceal the gap, invent a direct-SQL setup, or treat the candidate Phase 6 schedule as approval. |
+
+An existing supplier plus a reasoned override can supply snapshot cost without an existing cost
+entry; therefore the narrower indispensable prerequisite is supplier identity, not always an
+existing cost row. Latest-cost preload and explicit save-as-new-default still require cost-entry
+creation. A truly fresh tenant has neither supported path. The UI also hides cost controls when
+cost-options is empty. No new runtime reproduction was needed to classify the missing surfaces;
+full user-flow verification remains unexecuted.
+
+Affected paths: `apps/api/tawzeevo_api/models.py` (existing foundation),
+`apps/api/tawzeevo_api/services/invoice_editor.py` (_prepare_cost/product_cost_options),
+`apps/api/tawzeevo_api/services/invoice_finance.py` (_validate_confirmable_costs/confirm_invoice),
+`apps/api/tawzeevo_api/routes/invoices.py`, `apps/api/tawzeevo_api/schemas/invoice_editor.py`,
+`apps/api/tawzeevo_api/services/supplier_ledger.py`, `apps/api/tawzeevo_api/cli/seed_demo.py`,
+`apps/operations-web/src/components/InvoiceEditor.tsx`, and the existing invoice-editor/supplier
+tests. These are impact/evidence paths, not an approved edit plan. R-S requires a supported
+minimal foundation workflow and a fresh-tenant regression without fixture-created prerequisites;
+it does not require importing full procurement, stock, or a new supplier cost model into Phase 3.
+
+### Invoice-formula provenance matrix
+
+Notation: Q(x) = Decimal quantization to 0.0001 using ROUND_HALF_UP. Source requirements in
+column A are EXPLICIT / BINDING only through the cited roots. Observed equations/details in B
+are DERIVED / CANDIDATE unless A explicitly establishes the same rule. Tests in C are evidence,
+never approval. D identifies the actual provenance difference, not a financial correctness verdict.
+Backend paths below are relative to `apps/api/tawzeevo_api/`; backend tests to `apps/api/tests/`.
+
+Test anchors (all existing; inspected, not rerun):
+
+- E1: `test_cash_van.py::test_pricing_v1_precedence_rounding_packaging_and_invoice_snapshot`.
+- E2: `test_invoice_editor.py::test_editor_recalculates_pricing_v1_calculator_adjustments_and_immutable_updates`.
+- E3: `test_invoice_editor.py::test_editor_rejects_mixed_currency_package_mismatch_and_unsafe_calculator`.
+- E4: `test_invoice_editor.py::test_post_confirmation_revision_posts_exact_delta_and_keeps_old_balance_out_of_sales`.
+- E5: `test_invoice_editor.py::test_confirmation_is_idempotent_assigns_official_number_and_posts_one_charge`.
+- E6: `test_invoice_editor.py::test_receipt_fifo_owner_allocation_partial_multi_obligation_and_reversal_are_immutable`.
+- E7: `test_invoice_editor.py::test_downward_confirmed_edit_releases_excess_allocation_without_mutating_payment`.
+- E8: `test_invoice_editor.py::test_cancellation_preserves_payment_releases_credit_and_refund_ceiling_is_concurrent`.
+- E9: `test_invoice_editor.py::test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal`.
+- E10: `test_supplier_ledger.py::test_supplier_payment_aggregate_balance_replay_reversal_and_currency`.
+- E11: `test_invoice_editor.py::test_editor_prefills_latest_tenant_cost_and_keeps_reasoned_override_revision_only`.
+- E12: `test_invoice_editor.py::test_opening_balance_balance_api_overdue_alert_dedup_and_owner_security`.
+- E13: `test_financial_schema.py::test_invoice_order_cardinality_and_cost_snapshot_survive_later_cost_change`.
+
+| ID / component | A: explicitly approved requirement (EXPLICIT / BINDING) | B: actual implementation | C: test assertions | D: provenance status / unresolved detail |
+|---|---|---|---|---|
+| F01 Precision/currency | 01_TECH_STACK Money; PHASE_03 A: Decimal, NUMERIC(20,4), Q4 HALF_UP, one invoice currency/no FX mixing | services/pricing.py::quantize_money; services/invoice_editor.py::money; schema Decimal fields; mixed-currency checks | E1 tie/counterpart cases; E3 mixed currency rejected | VERIFIED for these explicit rules; exact additional intermediate quantization stages belong to F03/F05/F06, not automatically binding. |
+| F02 Catalog grade/basis price | D-030: explicit grade price first, otherwise normal basis × (1 − percent/100), otherwise normal; round basis then separately round counterpart | services/pricing.py::resolve_product_pricing and derive_counterpart_prices follow that order | E1 precedence/rounding/packaging; E2 12.5000 at 10% → 11.2500 | VERIFIED provenance. No new formula decision needed for D-030 itself. |
+| F03 Calculator/quantity | PHASE_03 D requires calculator-style numbers/operators; A requires Decimal/Q4 | services/invoice_editor.py::_Calculator: Arabic digits, + − * / parentheses/unary signs, standard precedence, local precision 38, Q of final expression; quantity expression Q applied before multiplication; q > 0 | E3 (٢ + ٣)/2 → 2.5000, unsafe expression rejected; E2 1+1 → 2 | PARTIAL: arithmetic grammar is ordinary mechanics, but quantity pre-rounding/positive boundary and full tie examples are DERIVED / CANDIDATE within R-F. Tests do not lock those stages as product truth. |
+| F04 Manual line pricing | PHASE_03 D/L requires manual entry and grade-pricing support; D-030 locks catalog grade prices | schemas/invoice_editor.py::InvoiceEditorItemRequest requires manual price for manual lines and rejects it for catalog lines; _prepare_items uses manual price directly, source NORMAL, no automatic grade discount | E2 manual 3 × 2 = 6 with grade A customer; no dedicated catalog-manual-price rejection assertion cited here | PARTIAL: manual-entry support is binding; caller-specified manual price and no automatic manual grade rule are DERIVED / CANDIDATE semantics. R-F must state whether the manual input is the final effective price. |
+| F05 Line multiplication | PHASE_03 B/D requires quantity, effective unit price, line total and backend recalculation; not an explicit complete stage-by-stage equation | _prepare_items: q_i = calculate_expression(quantity_expression), already Q-rounded; base_i = Q(q_i × effective_unit_price); line_i = Q(base_i − line_discount_i + line_markup_i) | E2 grade-priced base 22.5000, adjusted line 22.2500 | PARTIAL: exact equation/intermediate rounding is DERIVED / CANDIDATE; quantity × unit price is ordinary arithmetic, but exact rounding/order belongs to R-F. |
+| F06 Discounts/markup/totals | PHASE_03 B/D requires line/invoice discounts and markup, subtotal/net sales; D-030 applies only catalog-grade percentages | _totals: subtotal = Q(sum base_i); discount_total = Q(sum line_discount_i + invoice_discount); markup_total likewise; net_sales = Q(subtotal − discount_total + markup_total). Expressions evaluate to absolute currency amounts, not percentages or per-unit adjustments. Grade savings already reduce effective price, not discount_total. | E2 subtotal 28.5000; discount_total 1.5000; markup_total 0.7500; net_sales 27.7500 | CANNOT VERIFY full approval. Fixed amount units, aggregation/order and grade-savings reporting are DERIVED / CANDIDATE; no competing approved full equation located. |
+| F07 Zero/sign boundaries | PHASE_03 defines lifecycle and adjustments but does not explicitly lock these invoice admission boundaries | Quantity > 0; line/invoice discount and markup >= 0; manual price/cost override >= 0; line and invoice totals >= 0. confirm_invoice additionally requires initial net_sales > 0; update_confirmed_invoice can reduce net_sales to 0 | E9 confirms a positive invoice, edits to zero, then cancels with a zero reversal. It does not test initial zero confirmation rejection; no complete boundary matrix found | CANNOT VERIFY full approval. All those exact invoice boundaries are DERIVED / CANDIDATE; signed expressions are allowed internally but negative discount/markup results are rejected. Signed ledger deltas are a different, approved concept (F09). |
+| F08 Old balance/display | PHASE_03 B/D/F/L: prior-balance snapshot/display, total due, old balance not current sales | Draft prior = current customer/currency ledger sum; confirmed-edit prior excludes this invoice's source_type INVOICE entries but retains payment events. amount_due_display = Q(prior + net_sales), persisted at revision acceptance; not recalculated by later payment | E2 prior 5 + net 27.75 = display 32.75; E4 prior stays 10 across invoice revisions, final display 21.75 | PARTIAL: excluding old balance from sales is BINDING; exact display equation, snapshot timing and payment/revision exclusion set are DERIVED / CANDIDATE. Do not confuse this display with current invoice outstanding or live customer debt. |
+| F09 Confirmation/edits | PHASE_03 E: one +net_sales charge; delta = new_net_sales − old_net_sales, one immutable adjustment | services/invoice_finance.py::confirm_invoice/update_confirmed_invoice use those signed effects | E5 one 24.2500 charge; E4 effects 24.2500, −12.5000, 0.0000 | VERIFIED explicit equation provenance, conditional on independently approved net_sales inputs; no concurrency/correctness certification is made here. |
+| F10 Customer balance/opening | 00_PROJECT_CONTRACT Financial truth; PHASE_03 F: balance = sum signed ledger by currency; positive debt/negative credit; opening is a ledger event, not sales | services/customer_ledger.py::create_opening_balance/customer_balances; schemas/customer_ledger.py permits signed nonzero opening events, replay by key; different keys can add more openings | E12 +75 opening/replay/balance; E4 +10 opening; E8 negative credit after cancellation | VERIFIED for sum/sign/old-balance exclusion; repeated positive/negative opening-event admission and zero rejection are DERIVED / CANDIDATE input policy, not independently approved merely because ledger amounts are signed. |
+| F11 Receipts/allocations | PHASE_03 H: positive receipt, negative ledger effect, FIFO or explicit owner allocation, allocations <= payment, remainder credit; outstanding = MAX(0, net_sales − effective allocation) | services/payments.py::record_customer_receipt/_effective_allocation_amounts/_obligations; apply minus reversal, positive outstanding obligations only; reversal appends +original amount; excess allocations released after downward edit | E6 30 allocated; explicit receipt 10 allocates 7 and leaves 3 unallocated; E7 preserves original payment after release | VERIFIED provenance for stated rules. Exact FIFO tie implementation is not a newly approved business rule; invariant execution audit remains later work. |
+| F12 Cancellation/refunds | PHASE_03 I; contract: confirmed cancellation reverses invoice, preserves payments/releases credit; refund separate, 0 < amount <= MAX(0, −balance), same currency/serialized | cancel_invoice appends −current net_sales; record_customer_refund adds +amount; no automatic cash refund | E8 cancelled paid invoice leaves −10 credit, excess/no-credit checks and concurrent refunds; E9 explicit zero reversal | VERIFIED provenance for these equations; test inspection is not a new concurrency run. |
+| F13 Supplier money | D-019; contract Financial truth; PHASE_03 H/P3-M5: payments reduce aggregate payable, immutable/reversible foundation, no purchase allocations | supplier_balances = currency sum; _write_payment_effect emits −payment/+full reversal. Signed nonzero opening events accepted; record_supplier_payment has no payable ceiling, so zero-payable/overpayment can yield negative balance | E10 +20 −7 = 13; reversal → 20, currencies separate/no allocations. No explicit overpayment or negative opening assertion found | PARTIAL: aggregate reduction and compensation are BINDING; opening admission/multiplicity, negative supplier balance meaning and overpayment ceiling/no ceiling remain DERIVED / CANDIDATE (C06). |
+| F14 Cost/profit boundary | D-031/034; PHASE_03 B: tenant-private eligible cost or reasoned revision override; immutable cost/source/currency/package snapshot; no later-cost rewrite of historical profit | _prepare_cost preloads matching basis/currency or accepts override; confirmation requires snapshot. No current profit calculation/report service established by this scope | E11 8.2000 entry → 8.6000 revision-only override; E13 old snapshot survives new cost | VERIFIED snapshot requirement, PARTIAL user provisioning (CT-003). No new profit formula invented. Preserved Phase 8 latest/actual-purchase fallback is conflicting candidate material, not authority for existing invoices. |
+| F15 Overdue | PHASE_03 G: oldest still-unpaid obligation by currency, age > owner X and positive balance → red + deduplicated in-app alert | customer_debts computes date difference, nullable threshold (unset = not overdue), stable read-time key; no persisted delivery/scheduling policy | E12 +75 aged >=40 days triggers red condition and repeated equal alert key | PARTIAL: threshold/comparison/obligation basis are BINDING; day boundary/timezone, unset behavior, notification cadence/dedup lifecycle remain DERIVED / CANDIDATE (C08). |
+
+Concrete implemented example (E2, not an approval record): catalog 12.5 at grade discount 10%
+becomes 11.25; quantity 2 gives 22.5; line discount .5 and markup .25 give 22.25. Manual 3 × 2
+adds 6. Invoice discount 1 and markup .5 produce net sales 27.75. Opening balance 5 changes
+displayed due to 32.75, not sales. Code and this asserted example agree. That agreement does
+not supply missing approval of fixed adjustment units, rounding stages or boundary behavior.
+
+No contrary approved complete invoice equation was located. Missing provenance is not proof
+of wrong arithmetic; it prevents an unqualified assertion that the entire implemented formula is
+the approved formula. There is no tax/VAT, currency conversion, stock valuation, or implemented
+profit-report algorithm to add to this matrix. Payment/allocation/cancellation equations already
+explicitly stated remain usable authority independently of the unresolved invoice input policy.
+
+### C01–C08 policy dispositions
+
+A = already explicit approved facet; B = ordinary implementation detail, no product approval
+needed on current evidence; C = material product/architecture decision requiring approval;
+D = demonstrably accidental behavior; E = cannot verify intent/approval. These are review
+categories, NOT the governance tiers. All classifications are DERIVED / CANDIDATE judgments;
+an A facet is BINDING only through its named existing source. No D classification is established
+merely because a choice lacks approval.
+
+| Candidate | Disposition | Material review scope / escalation |
+|---|---|---|
+| C01 Rate limit | A: rate limiting required (PHASE_03 J). B: lock/hashed client keys/bounded storage mechanics. C: exact 60/IP/60s, 4096 tracked clients/fail-closed admission, one per-process bucket for all /api/v1/public paths, shell + data both consume quota, Retry-After 60. | Security/public integration review must establish accepted service/proxy/rate-limit scope; no new provider requested. Do not label exact constants BINDING from tests. Not a blocker to purely financial equations. |
+| C02 Capability transport | A: random secret/hash-only/no internal-ID authorization/no logs (J). B: internal token parsing/hash mechanics. C: tenant-prefixed bearer token, fragment-to-X-Invoice-Capability header and fixed resource paths are public integration contracts. E: intended tradeoff of clearing fragment/reload behavior cannot be proved. | Review bearer transport/reopen/reload contract before public-security/Phase 5 integration. The observed requirement to reopen the original link after refresh is documented, not called accidental or redesigned. |
+| C03 Public renderer | B: serving the required interim Phase 3 invoice through the existing FastAPI app/template, safe text rendering and computed CSP hash adds no new architecture category. A: Next.js storefront remains locked (D-005/stack beginning Phase 5). | No product decision needed merely to keep this renderer/hash now. Hand-read header/OpenAPI declaration and future frontend reuse are evidence/integration work; C02 governs changes to the public contract. Not approval to replace Next.js storefront. |
+| C04 Multiple links | C: create may issue several active links and is not idempotent; rotation replaces only one selected capability. | Decide active-link cardinality, create retry and rotation/revocation scope before public lifecycle/security acceptance or checkout reuse. No single-link requirement invented. |
+| C05 Sharing lifecycle | A: current representation and privacy ceiling (J), not issuance-time snapshot. C: standalone draft/cancelled issuance/read eligibility and post-cancellation link behavior. | Review those statuses before public acceptance; draft checkout intent in the contract is not blanket approval for every standalone/cancelled invoice. Candidate Phase 5 provisional language does not retroactively approve P3-M5. |
+| C06 Supplier payments/openings | A: aggregate payment reduction and immutable compensating reversal (D-019/PHASE_03 H). B: whole-payment reversal via existing reversal action is consistent compensation, not a demand for partial-reversal UI. C: signed/multiple opening admission, zero-payable/overpayment and negative supplier balance semantics. | Required before unqualified supplier financial audit. Customer refund ceiling must not be copied to suppliers without approval; no supplier-refund feature proposed. |
+| C07 Projection/WhatsApp | A: safe allowlist, normalized phone/summary/URL, EN/AR (J/L). B: current conservative subset, bilingual wording, URL encoding and disabling WhatsApp without a valid phone. | No new product-level approval needed for formatting or omitting unrequired private fields. Future applicable checkout/delivery fields must follow their approved phase. No evidence mandates a phone requirement for link issuance itself; no new field/design request escalated. |
+| C08 Overdue alerts | A: oldest unpaid obligation, owner X, positive balance/age > X, red/dedup (G). B: literal alert-key spelling. C: unset threshold, day/timezone boundary, read-time-only generation and dedup/notification lifecycle. | Resolve day/unset semantics before unqualified debt audit; notification lifecycle before alert/job work. No job runtime/provider chosen. This is P3-M3 behavior, not newly attributed to P3-M5. |
+
+### Exact remaining source/decision requests
+
+These entries are PROPOSED / CANDIDATE requests for disposition, not approved decisions or an
+implementation plan. No new row was added to 04_DECISIONS.md.
+
+- R-G (CT-002): provide the manifest's frozen roadmap and approval provenance for the exact
+  eight blob versions, or explicitly review/adopt them with approved corrections. Phase 8 must
+  use the locked revision cost for historical profit; an alternate metric would need a separate
+  explicit definition/approval. Only after verification/adoption recover the exact approved files
+  in a separate specification commit, leaving the stash and study work intact.
+- R-S (CT-003): confirm the minimum supported Phase 3 supplier/cost/preference provisioning
+  and explicit-save surface and its milestone ownership. The existing requirement is not optional;
+  the surface/scheduling choice is unresolved. No direct fixture/SQL setup may masquerade as a
+  demonstrated owner workflow. Full supplier contacts/procurement need not be pulled forward.
+- R-F (CT-004): provide normative provenance or explicitly disposition F03–F08's quantity/input
+  rounding, manual effective-price/grade handling, fixed line/invoice adjustment amounts and
+  aggregation, grade-discount reporting, zero/sign boundaries, and prior-balance/display timing.
+  Include F10's repeated/signed opening-event admission policy. Approve exact numerical examples
+  and reject/accept boundaries, not merely the name pricing-v1. F01/F02/F09/F11/F12's cited
+  explicit rules do not need to be reinvented. The current test example is a candidate only.
+- R-P (CT-005): disposition C06 supplier signed openings/overpayment/negative balance and C08
+  overdue day/unset/dedup policy for finance/debt acceptance; disposition C01/C02/C04/C05 for
+  later public-security/lifecycle integration. C03/C07 ordinary mechanics are not escalated into
+  new product decisions. Do not broaden this into a redesign.
+
+Before a full financial audit can certify compliance without assumptions, R-F and the supplier
+financial/overdue portions of R-P need authoritative disposition. The audit could later inspect
+explicit subsets while labelling unresolved portions, but cannot call those portions approved.
+R-S additionally blocks fresh-tenant end-to-end finance acceptance, not static examination of
+existing ledger equations. R-G blocks future implementation; it does not block an audit confined
+to approved Phase 3 requirements. CT-001 is no longer a blocker. No permission to start any of
+those audits is granted by this classification.
+
+### Reconciliation self-validation and checkpoint
+
+Executed 2026-09-06, PASS:
+
+- 10 findings each retain all 18 required fields; original severities and 62 trace rows/counts preserved.
+- 15 formula-component rows have consistent columns; 92 explicit Python file/symbol references resolve.
+- All 12 local Markdown link targets in the six edited files exist; heading fragments were not browser-tested.
+- All eight recorded guide/manifest blob IDs match the allowlisted stash paths; zero files restored.
+- The 26 binding-index rows are identical to the continuity commit; source comparison keeps new inferences/candidates separate from approved requirements.
+- Exactly six selected continuity Markdown files changed; complete diff reviewed; whitespace/conflict/unmerged-index checks pass. No source/tests/config/migrations/dependencies, authoritative ledger/specifications, or study-document changes.
+- Initial HEAD and original implementation ancestry are preserved; stash ref/object remains intact. No apply/pop/drop/restore or unrelated stash-content inspection occurred.
+
+The final handoff records the separate commit and post-commit clean-tree/HEAD checks. No runtime
+tests are claimed for this documentation-only task. The original implementation and continuity
+SHAs remain distinct; this document cannot embed its own future commit SHA.
+
+## Current next action only
+
+Obtain source/owner disposition of the narrowly scoped requests R-S, R-F and R-P above, prioritizing
+the full formula and supplier financial semantics before the financial audit. Future specifications
+need the separate R-G provenance/adoption step before future implementation. No larger audit,
+workflow implementation, Graphify installation, financial audit or P3-M6 is started by this task.

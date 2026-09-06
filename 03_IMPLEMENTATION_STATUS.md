@@ -84,6 +84,16 @@ Earlier "Blocking decision: none" / "Contract deviations: none" entries are hist
 claims, not a disposition of newly recorded provenance and cold-start findings. Await the next
 explicit audit/work request; no candidate rule is approved by this status update.
 
+Narrow requirements reconciliation followed continuity commit
+`f4bb7fd7f1ba86821b87b6c15b17a7694ed0328b`. CT-001 is explanatory/no effective precedence
+conflict. CT-002 remains P1: eight preserved planning/manifest files were read under explicit
+authorization, but none qualified for authoritative restoration. CT-003 remains P1/PARTIAL:
+minimum cost/supplier provisioning is missing despite tested snapshot/override behavior.
+CT-004 remains P1/CANNOT VERIFY for complete formula approval; component-level evidence and
+CT-005's material policy requests are recorded in `docs/audits/AUDIT_REGISTER.md`. The narrow
+documentation task passes its stated reconciliation criteria; it does not close product decisions,
+start any larger audit/P3-M6, or change the original implementation baseline or preserved stash.
+
 At milestone start:
 - set milestone status `IN_PROGRESS`.
 
