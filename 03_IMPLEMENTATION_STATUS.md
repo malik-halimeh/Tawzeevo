@@ -67,6 +67,10 @@ TypeScript/ESLint/build and Alembic upgrade/drift checks pass. Required earlier 
 implementation is included; nine future/study paths are safely preserved in a verified local stash.
 The path classification and checkpoint validation are recorded in
 `docs/phase-3/baseline-remediation.md`. P3-M6 remains NOT_STARTED; no production deployment occurred.
+On 2026-09-06, all results were reproduced from implementation checkpoint
+`1097593b00c1773e70d1df783fa6dca4322f3ed5` in a separate clean checkout with fresh locked
+dependencies, no copied `.env`, unchanged locks and a clean post-validation working tree.
+The final checkpoint only adds this documentation evidence; tested runtime content is unchanged.
 
 ## Rules for updating this file
 

@@ -1,6 +1,6 @@
 # P3-M5 baseline remediation and checkpoint boundary
 
-Quality gate: PASS (2026-09-05). Clean-checkout verification follows checkpoint creation.
+Quality gate: PASS (2026-09-05), independently reproduced in a clean checkout on 2026-09-06.
 This is baseline remediation only; P3-M6 remains NOT_STARTED.
 The user authorized this pass after the acceptance gate failed on whole-backend Ruff checks and
 the absence of a complete, clean checkpoint. No application behavior is changed by remediation.
@@ -193,3 +193,58 @@ Existing non-blocking advisories: Vite chunk size and Starlette/httpx deprecatio
 threshold was lowered. These results establish the candidate gate, not P3-M6 completion.
 
 No production database, message sending, deployment, dependency upgrade or Git push is authorized here.
+
+### Clean-checkout reproduction — 2026-09-06
+
+The implementation checkpoint is `1097593b00c1773e70d1df783fa6dca4322f3ed5`,
+`Complete implementation through P3-M5 with guarded migration checks`.
+A separate detached worktree was created from that exact commit. Neither the original `.env`,
+virtual environment, nor `node_modules` was copied. The existing Python interpreter was reused
+only to create a new isolated environment; an import-path check confirmed application imports
+resolved inside the clean checkout.
+
+Dependency installation used these commands, without regenerating either lockfile:
+
+```powershell
+# In the clean checkout's apps/api directory; Python 3.13.2 was already installed.
+uv --system-certs sync --locked --extra dev --python 'C:/Users/malik/Desktop/DigitalHub/Tawzeevo/.venv/Scripts/python.exe' --no-python-downloads
+# In the clean checkout root.
+npm ci
+```
+
+Environment: Windows, Python 3.13.2, Node 22.21.0, npm 11.14.1, PostgreSQL 18.4;
+locked Ruff 0.16.4. `DATABASE_URL` and `TEST_DATABASE_URL` were set only for each test process,
+to the same disposable loopback database. No `.env` or secret file was required. The database
+was restarted with explicit loopback host/test port after the default-port startup failed;
+this was local infrastructure setup, not a migration or application failure.
+
+Exact checks from the clean checkout root:
+
+| Command | Result |
+|---|---|
+| `.\apps\api\.venv\Scripts\python -m ruff check .\apps\api` | PASS |
+| `.\apps\api\.venv\Scripts\python -m ruff format --check .\apps\api` | PASS; 80 files, same two guarded exclusions |
+| `.\apps\api\.venv\Scripts\python -m mypy --config-file .\apps\api\pyproject.toml .\apps\api\tawzeevo_api` | PASS; 52 source files |
+| `.\apps\api\.venv\Scripts\python -m alembic -c .\apps\api\alembic.ini upgrade head` | PASS; 20260827_0011 |
+| `.\apps\api\.venv\Scripts\python -m pytest .\apps\api\tests -q --cov=tawzeevo_api --cov-report=term-missing --cov-fail-under=80` | PASS; 126 passed, 0 failed/skipped, 92.29% coverage; 230.61 seconds |
+| `.\apps\api\.venv\Scripts\python -m alembic -c .\apps\api\alembic.ini check` | PASS; no new upgrade operations |
+| `npm run check` | PASS; ESLint, TypeScript, 34 tests / 5 files, production build / 210 modules |
+| `git diff dac294a542941e9c0f9aab5826160e75fb8301c3 HEAD --check` | PASS; full checkpoint diff |
+| `git status --porcelain=v1`, `git diff --exit-code`, `git diff --cached --exit-code` | PASS; clean working tree and index after installation/checks |
+
+The suite again exercised the migration regressions and both immutable-content guards. No test
+was skipped. Conflict-marker/unmerged-entry scans and introduced skip/TODO/FIXME/HACK inspection
+were clean. Dependency locks were unchanged. Both frontend asset hashes match the original
+candidate build (`index-D3_2u385.js`, `index-BpCvA8Wu.css`).
+
+Non-blocking warnings are recorded rather than suppressed: the existing Vite chunk-size and
+Starlette/httpx deprecation advisories, plus PyJWT's short development-placeholder warning in
+this `.env`-free run (406 total backend warnings). `Settings.validate_production_security`
+already rejects the placeholder and secrets shorter than 32 bytes in production; its tests pass.
+This is not evidence of a production secret defect, and no credentials were examined or changed.
+
+The final checkpoint adds only documentation recording this reproduction. Application, tests,
+migrations, configuration, catalog data and dependency locks must remain identical to the tested
+implementation commit. The final full commit SHA is emitted in the handoff rather than embedded
+in its own contents. The nine-path preservation stash remains intact. P3-M6 and larger audits
+have not started.

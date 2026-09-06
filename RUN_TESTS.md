@@ -341,3 +341,11 @@ is normalized; imports, SQL, comments and all other whitespace remain fingerprin
 - `.\.venv\Scripts\python -m alembic -c .\apps\api\alembic.ini upgrade head` and `.\.venv\Scripts\alembic -c .\apps\api\alembic.ini check` — PASS at 20260827_0011, no drift. Full suite includes migration-from-zero and Phase 2 legacy migration regressions.
 - `npm run check` — PASS, ESLint, TypeScript, 34 tests and production build (210 modules); existing chunk-size advisory only.
 - `git diff --check`, conflict-marker scan and skipped-test/code-marker inspection — PASS. No existing application source or migration was rewritten. Full classification and preserved-work instructions: `docs/phase-3/baseline-remediation.md`.
+
+### 2026-09-06 — Independent clean-checkout reproduction
+
+- Detached checkout of `1097593b00c1773e70d1df783fa6dca4322f3ed5`; fresh backend environment via `uv sync --locked --extra dev`, fresh frontend dependencies via `npm ci`; neither lockfile changed.
+- From that checkout root, `.\apps\api\.venv\Scripts\python -m pytest .\apps\api\tests -q --cov=tawzeevo_api --cov-report=term-missing --cov-fail-under=80` — PASS, 126 tests, 0 skipped/failed, 92.29% coverage, including both migration-content guards and migration regressions.
+- Whole-backend Ruff lint/format, strict mypy (52 files), Alembic upgrade to `20260827_0011` and drift check — PASS using the fresh environment. `npm run check` — PASS, ESLint, TypeScript, 34 tests / 5 files, production build / 210 modules.
+- Full-checkpoint whitespace/conflict/introduced-code-marker checks and post-validation Git cleanliness — PASS. Exact setup/check commands and warning details are in `docs/phase-3/baseline-remediation.md`.
+- Warnings were not suppressed: existing Vite size and Starlette/httpx advisories, plus the clean development environment's short JWT placeholder warning; production settings reject that placeholder and short secrets. No production data or configuration was used.
