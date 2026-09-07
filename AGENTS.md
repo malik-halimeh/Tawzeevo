@@ -207,6 +207,18 @@ At the start of a milestone:
 
 Do not repeatedly reread all phase files.
 
+## Lean continuous assurance
+
+The authority order and milestone protocol above remain controlling. When structural graph evidence
+is used, follow `docs/assurance/GRAPHIFY.md`; Graphify is supplemental and its recorded source SHA
+must match the intended audited commit. Never establish a critical finding from an inferred or
+ambiguous relationship without direct repository evidence.
+
+Use `docs/assurance/ASSURANCE_GATES.md` at milestone and phase checkpoints. After each completed
+milestone commit, and after the material change classes listed in the Graphify policy, run the
+repository refresh script and verify its recorded SHA. The script and generated graph are development
+tooling only and must not be required by the application at runtime.
+
 ## Final authority
 
 If you are uncertain whether something is allowed, **ask before implementing it**.

@@ -38,6 +38,7 @@ pgdata/
 # IDE / OS / temporary files
 .idea/
 .vscode/
+graphify-out/
 .DS_Store
 Thumbs.db
 *.swp

@@ -20,6 +20,9 @@
 | `docs/architecture.md` | reconstructed architecture and current state | system orientation |
 | `docs/TRACEABILITY_MATRIX.md` | requirement evidence and qualified gaps | targeted verification |
 | `docs/audits/AUDIT_REGISTER.md` | findings, resolved provenance and remaining gated decisions | before affected work |
+| `docs/assurance/GRAPHIFY.md` | supplemental structural-evidence policy, freshness record, and refresh workflow | before materially relying on Graphify |
+| `docs/assurance/ASSURANCE_GATES.md` | lean milestone and phase completion checks | milestone and phase checkpoints |
+| `scripts/refresh_graphify.ps1` | rebuild and verify the local structural graph for an explicit Git SHA | required Graphify refresh points |
 
 ## Context rule
 
