@@ -1126,6 +1126,115 @@ def test_receipt_fifo_owner_allocation_partial_multi_obligation_and_reversal_are
         )
 
 
+def test_customer_receipt_retries_one_command_and_a_new_intent_posts_again(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    owner, tenant_id, token = _owner_context(client, session_factory, "payment-intent-replay")
+    _category, product, customer = _catalog(client, tenant_id, token)
+    _attach_latest_cost(session_factory, owner, tenant_id, product["id"])
+    created = client.post(
+        "/api/v1/invoices",
+        params={"tenant_id": tenant_id},
+        headers=_auth(token),
+        json=_confirmable_payload(customer["id"], product["id"]),
+    )
+    assert created.status_code == 201, created.text
+    confirmed = client.post(
+        f"/api/v1/invoices/{created.json()['id']}/confirm",
+        params={"tenant_id": tenant_id},
+        headers=_auth(token),
+        json={"expected_revision_id": created.json()["current_revision_id"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+
+    first_key = str(uuid4())
+    first_intent = {
+        "idempotency_key": first_key,
+        "customer_id": customer["id"],
+        "amount": "10.0000",
+        "currency": "USD",
+        "method": "CASH",
+        "reference": "one physical receipt",
+        "paid_at": datetime.now(UTC).isoformat(),
+    }
+    attempts = [
+        client.post(
+            "/api/v1/payments/customer-receipts",
+            params={"tenant_id": tenant_id},
+            headers=_auth(token),
+            json=first_intent,
+        )
+        for _attempt in range(3)
+    ]
+    assert all(attempt.status_code == 201 for attempt in attempts)
+    assert len({attempt.json()["id"] for attempt in attempts}) == 1
+
+    second_intent = client.post(
+        "/api/v1/payments/customer-receipts",
+        params={"tenant_id": tenant_id},
+        headers=_auth(token),
+        json={**first_intent, "idempotency_key": str(uuid4())},
+    )
+    assert second_intent.status_code == 201, second_intent.text
+    assert second_intent.json()["id"] != attempts[0].json()["id"]
+
+    payment_ids = [attempts[0].json()["id"], second_intent.json()["id"]]
+    with session_factory() as db:
+        payments = list(
+            db.scalars(
+                select(Payment).where(
+                    Payment.tenant_id == tenant_id,
+                    Payment.id.in_(payment_ids),
+                )
+            )
+        )
+        effects = list(
+            db.scalars(
+                select(CustomerLedgerEntry).where(
+                    CustomerLedgerEntry.tenant_id == tenant_id,
+                    CustomerLedgerEntry.source_type == "PAYMENT",
+                    CustomerLedgerEntry.source_id.in_(payment_ids),
+                )
+            )
+        )
+        allocations = list(
+            db.scalars(
+                select(PaymentAllocation).where(
+                    PaymentAllocation.tenant_id == tenant_id,
+                    PaymentAllocation.payment_id.in_(payment_ids),
+                )
+            )
+        )
+        audit_count = db.scalar(
+            select(func.count())
+            .select_from(AuditEvent)
+            .where(
+                AuditEvent.tenant_id == tenant_id,
+                AuditEvent.action == "customer_receipt_recorded",
+                AuditEvent.entity_id.in_(payment_ids),
+            )
+        )
+        assert len(payments) == 2
+        assert len(effects) == 2
+        assert sum((effect.signed_amount for effect in effects), Decimal("0")) == Decimal(
+            "-20.0000"
+        )
+        assert len(allocations) == 2
+        assert sum((allocation.amount for allocation in allocations), Decimal("0")) == Decimal(
+            "20.0000"
+        )
+        assert audit_count == 2
+
+    balance = client.get(
+        f"/api/v1/customer-ledger/customers/{customer['id']}/balances",
+        params={"tenant_id": tenant_id},
+        headers=_auth(token),
+    )
+    assert balance.status_code == 200, balance.text
+    expected_balance = Decimal(confirmed.json()["net_sales"]) - Decimal("20.0000")
+    assert Decimal(balance.json()["balances"][0]["balance"]) == expected_balance
+
+
 def test_cancellation_preserves_payment_releases_credit_and_refund_ceiling_is_concurrent(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:

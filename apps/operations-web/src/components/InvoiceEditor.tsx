@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiBlobRequest, apiRequest } from "../api/client";
@@ -28,6 +28,27 @@ interface AcceptedMatch {
   query: string;
   selected_product_id: string;
   score: string;
+}
+
+interface PendingFinancialIntent {
+  scope: string;
+  payload: Record<string, unknown>;
+}
+
+function financialIntent(
+  pending: PendingFinancialIntent | null,
+  scope: string,
+  fields: Record<string, unknown>,
+): PendingFinancialIntent {
+  if (pending?.scope === scope) return pending;
+  return {
+    scope,
+    payload: {
+      idempotency_key: crypto.randomUUID(),
+      ...fields,
+      paid_at: new Date().toISOString(),
+    },
+  };
 }
 
 interface EditorLine {
@@ -163,6 +184,8 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
+  const pendingReceipt = useRef<PendingFinancialIntent | null>(null);
+  const pendingRefund = useRef<PendingFinancialIntent | null>(null);
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -498,22 +521,27 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
                 amount,
               }))
           : null;
+      const command = financialIntent(
+        pendingReceipt.current,
+        `${tenantId}:${customer.id}:${currency}:CUSTOMER_RECEIPT`,
+        {
+          customer_id: customer.id,
+          amount: receiptAmount,
+          currency,
+          method: receiptMethod || null,
+          reference: receiptReference || null,
+          allocations: selectedAllocations,
+        },
+      );
+      pendingReceipt.current = command;
       const payment = await apiRequest<CustomerPaymentResponse>(
         `/api/v1/payments/customer-receipts?tenant_id=${tenantId}`,
         {
           method: "POST",
-          body: JSON.stringify({
-            idempotency_key: crypto.randomUUID(),
-            customer_id: customer.id,
-            amount: receiptAmount,
-            currency,
-            method: receiptMethod || null,
-            reference: receiptReference || null,
-            paid_at: new Date().toISOString(),
-            allocations: selectedAllocations,
-          }),
+          body: JSON.stringify(command.payload),
         },
       );
+      pendingReceipt.current = null;
       setLastPayment(payment);
       setReceiptAmount("");
       setReceiptReference("");
@@ -560,20 +588,26 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
       return;
     }
     void run(async () => {
+      const command = financialIntent(
+        pendingRefund.current,
+        `${tenantId}:${customer.id}:${currency}:CUSTOMER_REFUND`,
+        {
+          customer_id: customer.id,
+          amount: refundAmount,
+          currency,
+          method: refundMethod || null,
+          reference: null,
+        },
+      );
+      pendingRefund.current = command;
       const refund = await apiRequest<CustomerPaymentResponse>(
         `/api/v1/payments/customer-refunds?tenant_id=${tenantId}`,
         {
           method: "POST",
-          body: JSON.stringify({
-            idempotency_key: crypto.randomUUID(),
-            customer_id: customer.id,
-            amount: refundAmount,
-            currency,
-            method: refundMethod || null,
-            paid_at: new Date().toISOString(),
-          }),
+          body: JSON.stringify(command.payload),
         },
       );
+      pendingRefund.current = null;
       setLastPayment(refund);
       setRefundAmount("");
       await Promise.all([

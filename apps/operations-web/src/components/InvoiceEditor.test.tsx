@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
@@ -342,6 +342,209 @@ test("owner records a selected receipt allocation and can reverse the immutable 
   fireEvent.click(screen.getByRole("button", { name: "Reverse this receipt" }));
   expect(await screen.findByText("Receipt reversal")).toBeInTheDocument();
   expect(requests.some((request) => request.url.includes(`/payments/${paymentId}/reverse`))).toBe(true);
+}, 10_000);
+
+test("lost financial responses retain one command while the next completed intent gets a new command", async () => {
+  const commandIds = [
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  ];
+  vi.stubGlobal("crypto", {
+    randomUUID: vi.fn(() => commandIds.shift() ?? "dddddddd-dddd-4ddd-8ddd-dddddddddddd"),
+  });
+  const receiptRequests: Array<Record<string, unknown>> = [];
+  const refundRequests: Array<Record<string, unknown>> = [];
+  const persisted = new Map<string, Record<string, unknown>>();
+  const persistedRefunds = new Map<string, Record<string, unknown>>();
+  let refreshCount = 0;
+  let paymentEffects = 0;
+  let ledgerEffects = 0;
+  let allocationEffects = 0;
+  let auditEffects = 0;
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/v1/auth/refresh")) {
+        refreshCount += 1;
+        return Promise.resolve(
+          json({ access_token: "refreshed-access-token", token_type: "bearer" }),
+        );
+      }
+      if (url.includes("/customer-ledger/settings")) {
+        return json({ tenant_id: tenantId, customer_overdue_threshold_days: null });
+      }
+      if (url.includes("/customer-ledger/debts")) return json({ debts: [] });
+      if (url.includes("/customers/search")) {
+        return json({
+          customers: [{
+            id: customerId,
+            tenant_id: tenantId,
+            name: "Maya Market",
+            phone: "+96170123456",
+            address: "Hamra",
+            latitude: null,
+            longitude: null,
+            grade: "A",
+            created_at: "2026-08-27T08:00:00Z",
+            updated_at: "2026-08-27T08:00:00Z",
+          }],
+        });
+      }
+      if (url.includes(`/customer-ledger/customers/${customerId}/balances`)) {
+        return json({ customer_id: customerId, customer_name: "Maya Market", balances: [] });
+      }
+      if (url.includes(`/payments/customers/${customerId}/obligations`)) {
+        return json({
+          customer_id: customerId,
+          currency: "USD",
+          obligations: [{
+            target_ledger_entry_id: "77777777-7777-4777-8777-777777777777",
+            source_type: "INVOICE",
+            source_id: "44444444-4444-4444-8444-444444444444",
+            label: "Invoice 2026-000001",
+            effective_at: "2026-08-27T08:00:00Z",
+            original_amount: "50.0000",
+            allocated_amount: "0.0000",
+            outstanding_amount: "50.0000",
+          }],
+        });
+      }
+      if (url.includes("/customer-receipts") && method === "POST") {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as Record<
+          string,
+          unknown
+        >;
+        receiptRequests.push(body);
+        if (receiptRequests.length === 1) return json({}, 401);
+        const commandId = String(body.idempotency_key);
+        let payment = persisted.get(commandId);
+        if (!payment) {
+          paymentEffects += 1;
+          ledgerEffects += 1;
+          allocationEffects += 1;
+          auditEffects += 1;
+          payment = {
+            id: `${paymentEffects}8888888-8888-4888-8888-888888888888`.slice(-36),
+            tenant_id: tenantId,
+            customer_id: customerId,
+            direction: "CUSTOMER_RECEIPT",
+            amount: "10.0000",
+            currency: "USD",
+            method: "CASH",
+            reference: null,
+            paid_at: "2026-08-27T08:00:00Z",
+            recorded_at: "2026-08-27T08:00:01Z",
+            reverses_payment_id: null,
+            notes: null,
+            allocated_amount: "10.0000",
+            unallocated_amount: "0.0000",
+            customer_balance: paymentEffects === 1 ? "40.0000" : "30.0000",
+            available_credit: "0.0000",
+            allocations: [],
+          };
+          persisted.set(commandId, payment);
+        }
+        if (receiptRequests.length === 2 || receiptRequests.length === 3) {
+          throw new TypeError("simulated response loss after commit");
+        }
+        return json(payment, 201);
+      }
+      if (url.includes("/customer-refunds") && method === "POST") {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as Record<
+          string,
+          unknown
+        >;
+        refundRequests.push(body);
+        const commandId = String(body.idempotency_key);
+        let refund = persistedRefunds.get(commandId);
+        if (!refund) {
+          refund = {
+            id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            tenant_id: tenantId,
+            customer_id: customerId,
+            direction: "CUSTOMER_REFUND",
+            amount: "5.0000",
+            currency: "USD",
+            method: "CASH",
+            reference: null,
+            paid_at: "2026-08-27T08:10:00Z",
+            recorded_at: "2026-08-27T08:10:01Z",
+            reverses_payment_id: null,
+            notes: null,
+            allocated_amount: "0.0000",
+            unallocated_amount: "0.0000",
+            customer_balance: "-5.0000",
+            available_credit: "5.0000",
+            allocations: [],
+          };
+          persistedRefunds.set(commandId, refund);
+        }
+        if (refundRequests.length === 1) {
+          throw new TypeError("simulated refund response loss after commit");
+        }
+        return json(refund, 201);
+      }
+      throw new Error(`Unexpected request: ${method} ${url}`);
+    }),
+  );
+
+  render(<InvoiceEditor tenantId={tenantId} />);
+  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  const amount = screen.getByLabelText("Amount received");
+  fireEvent.change(amount, { target: { value: "10.0000" } });
+
+  fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+  await screen.findByText("simulated response loss after commit");
+  expect(amount).toHaveValue(10);
+  fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+  await waitFor(() => expect(receiptRequests).toHaveLength(3));
+  fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+  await screen.findByText("Customer receipt");
+
+  expect(refreshCount).toBe(1);
+  expect(receiptRequests.slice(0, 4).map((request) => request.idempotency_key)).toEqual([
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  ]);
+  expect(receiptRequests.slice(1, 4)).toEqual([
+    receiptRequests[0],
+    receiptRequests[0],
+    receiptRequests[0],
+  ]);
+  expect(paymentEffects).toBe(1);
+  expect(ledgerEffects).toBe(1);
+  expect(allocationEffects).toBe(1);
+  expect(auditEffects).toBe(1);
+
+  fireEvent.change(amount, { target: { value: "10.0000" } });
+  fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+  await waitFor(() => expect(receiptRequests).toHaveLength(5));
+  expect(receiptRequests[4]?.idempotency_key).toBe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+  expect(paymentEffects).toBe(2);
+  expect(ledgerEffects).toBe(2);
+  expect(allocationEffects).toBe(2);
+  expect(auditEffects).toBe(2);
+
+  const refundAmount = screen.getByLabelText("Refund amount");
+  fireEvent.change(refundAmount, { target: { value: "5.0000" } });
+  fireEvent.click(screen.getByRole("button", { name: "Issue credit refund" }));
+  await screen.findByText("simulated refund response loss after commit");
+  expect(refundAmount).toHaveValue(5);
+  fireEvent.click(screen.getByRole("button", { name: "Issue credit refund" }));
+  await waitFor(() => expect(refundRequests).toHaveLength(2));
+  expect(refundRequests.map((request) => request.idempotency_key)).toEqual([
+    "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  ]);
+  expect(persistedRefunds).toHaveLength(1);
 }, 10_000);
 
 test("debt desk marks an overdue customer with text and a non-color alert mark", async () => {
