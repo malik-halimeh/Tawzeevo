@@ -604,3 +604,62 @@ was not inferred from Q2: it was already separately approved in D-038 as at most
 per party/currency, with immutable correction/reversal thereafter. All other recovered-plan
 questions safely wait for their named gates in the now-authoritative root Phase 4–10 specifications.
 No application remediation is authorized by this formalization.
+
+## Deep Phase 3 financial audit — executed 2026-09-07, finalized 2026-09-08
+
+This dated overlay supersedes only financial implementation-review uncertainty above; historical
+continuity evidence and unrelated findings remain intact. See
+[PHASE_3_FINANCIAL_AUDIT.md](PHASE_3_FINANCIAL_AUDIT.md) for complete evidence, finding metadata,
+reproduction procedures and limitations, and the
+[financial invariant catalog](../contracts/financial-invariants.md) for 32 EXPLICIT/BINDING and
+5 CANDIDATE rows. Neither artifact changes approved authority.
+
+AUDIT_BASE_SHA=2248c137e43c6c043725830c1303756da1d210ee
+
+AUDITED_SHA=868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6
+
+GRAPH_SOURCE_SHA=868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6
+
+| Finding | Severity | Independently traced implementation result |
+|---|---|---|
+| FA-001 | P1 | D-038: different commands admit multiple initial openings; correction workflow absent. |
+| FA-002 | P1 | D-039: ordinary supplier payment accepts excess; distinct prepayment absent. |
+| FA-003 | P1 | D-040: UTC date arithmetic disagrees with Beirut overdue boundaries. |
+| FA-004 | P1 | D-041/D-034: supported owner supplier/cost/preference setup absent; manual-line cost UI inaccessible. |
+| FA-005 | P1 | D-042: multiple draft links resolve; cancellation does not revoke access. Financial lifecycle scope only. |
+| FA-006 | P1 | D-043: initial confirmation rejects zero, but a confirmed revision accepts zero net sales. |
+| FA-007 | P0 | Lost receipt response plus actual UI retry changes command identity; real API accepts the second payment. |
+| FA-008 | P1 | Positive opening/reversal obligations raise String.value errors and block receipt selection. |
+| FA-009 | P2 | Identical draft-create command creates separate headers; exact current cross-header key scope remains CANDIDATE. |
+| FA-010 | P2 | Mounted legacy draft creation hardcodes zero prior balance, unlike the modern editor. |
+| FA-011 | P2 | Immutable due snapshot lacks the required snapshot distinction in the UI label. |
+| FA-012 | P2 | Oversized calculator results produce uncontrolled server errors. |
+
+All twelve remain OPEN. Counts: **1 P0, 7 P1, 4 P2, 0 P3**. Result under the requested rubric:
+**NO-GO**, because FA-007 permits duplicate money during a normal lost-response retry. It is
+established by an actual-component diagnostic plus a real PostgreSQL-backed API reproduction,
+not an inferred graph edge or an assertion that production corruption occurred. Independent
+verification and permanent regression coverage are required before closure.
+
+CT-003/R-S now has direct fresh-tenant failure evidence (FA-004); D-041 remains a Phase 3 completion
+requirement, not a claim that a later decision was part of original P3-M5 acceptance. CT-004/R-F
+formula provenance remains resolved by approved decisions; actual mismatches are FA-001/006/010/011
+and calculation robustness FA-012. CT-005/financial R-P contradictions are verified as FA-002/003/005.
+CT-002 remains closed by the prior formalization. No broad security/rate-policy audit is claimed.
+D-031/D-034 historical snapshots remain protected; no profit-report implementation exists to certify.
+
+Existing validation: 126 backend tests passed, 34 frontend tests passed on an isolated rerun, and
+clean disposable database migrations reached 0011. These do not discharge the focused defect probes.
+A suspected edit/payment race was not established: FK locking blocked the receipt in the tested
+interleaving. Wider concurrency/fault windows remain explicitly missing coverage.
+
+Five non-binding questions remain in the catalog: cross-header create-command semantics, draft-cost
+refresh timing, later use of unallocated credit, numbering-year timezone, and signed due versus
+D-043's nonnegative-total wording. None is the sole basis of a P0/P1 finding. No decision was invented.
+
+Application code, business tests, migrations, dependencies, phase specifications and decisions are
+unchanged. The preserved stash was not read or changed. No P3-M6, remediation, deployment, push or
+tenant/security audit began. The separate documentation commit is recorded in the audit handoff.
+
+Next action only: independently verify FA-007, then seek authorization for a bounded remediation
+plan starting with logical payment-retry identity and the confirmed P1 blockers.

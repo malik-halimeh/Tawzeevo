@@ -50,13 +50,13 @@ updated freshness record deliberately; the script never stages or commits.
 ## Freshness record
 
 <!-- GRAPHIFY_STATE_START -->
-GRAPH_SOURCE_SHA=514dee4c53cf066f8ade17bc28fdb282021eb375
-GRAPH_REFRESHED_AT_UTC=2026-09-07T06:10:47Z
+GRAPH_SOURCE_SHA=868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6
+GRAPH_REFRESHED_AT_UTC=2026-09-07T06:18:37Z
 GRAPHIFY_VERSION=0.9.55
 GRAPH_MODE=structural-code-only-no-cluster
 GRAPH_VALIDATION=PASS
-GRAPH_NODES=1398
-GRAPH_EDGES=6782
+GRAPH_NODES=1400
+GRAPH_EDGES=6783
 <!-- GRAPHIFY_STATE_END -->
 
 ## Baseline validation evidence
@@ -66,9 +66,9 @@ then checked directly in the cited source.
 
 | Category | Graphify result | Direct source confirmation |
 |---|---|---|
-| API route | `confirm_invoice_editor()` resolves to the invoice editor route | `apps/api/src/tawzeevo/api/routes/invoice_editor.py` |
-| Service/domain | `confirm_invoice_editor()` calls `confirm_invoice()` through an `EXTRACTED` edge | `apps/api/src/tawzeevo/services/invoice_finance.py` |
-| Repository/database | `set_tenant_scope()` resolves to the tenant repository and its PostgreSQL `set_config` statement | `apps/api/src/tawzeevo/repositories/tenancy.py` |
+| API route | `confirm_invoice_editor()` resolves to the invoice editor route | `apps/api/tawzeevo_api/routes/invoices.py` |
+| Service/domain | `confirm_invoice_editor()` calls `confirm_invoice()` through an `EXTRACTED` edge | `apps/api/tawzeevo_api/services/invoice_finance.py` |
+| Repository/database | `set_tenant_scope()` resolves to the tenant repository and its PostgreSQL `set_config` statement | `apps/api/tawzeevo_api/repositories/tenancy.py` |
 | Financial/invoice | `confirm_invoice()` resolves ledger posting and transaction work | invoice finance service and invoice/customer-ledger models |
 | Test | `test_confirmation_is_idempotent_assigns_official_number_and_posts_one_charge()` resolves its confirmation workflow | `apps/api/tests/test_invoice_editor.py` |
 
