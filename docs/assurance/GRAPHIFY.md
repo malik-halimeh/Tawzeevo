@@ -50,13 +50,13 @@ updated freshness record deliberately; the script never stages or commits.
 ## Freshness record
 
 <!-- GRAPHIFY_STATE_START -->
-GRAPH_SOURCE_SHA=868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6
-GRAPH_REFRESHED_AT_UTC=2026-09-07T06:18:37Z
+GRAPH_SOURCE_SHA=ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd
+GRAPH_REFRESHED_AT_UTC=2026-09-08T17:48:23Z
 GRAPHIFY_VERSION=0.9.55
 GRAPH_MODE=structural-code-only-no-cluster
 GRAPH_VALIDATION=PASS
-GRAPH_NODES=1400
-GRAPH_EDGES=6783
+GRAPH_NODES=1403
+GRAPH_EDGES=6800
 <!-- GRAPHIFY_STATE_END -->
 
 ## Baseline validation evidence
@@ -76,3 +76,27 @@ Structural queries worked for all five categories. Broad natural-language querie
 could be truncated; focused symbol queries and paths were more reliable. Some ORM/test relationships
 were inferred rather than extracted. FastAPI dependency injection, SQLAlchemy runtime behavior, RLS,
 and other dynamic wiring therefore still require source, migration, and test inspection.
+
+### FA-007 material-refresh verification — 2026-09-08
+
+This refresh follows application commit `ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd`.
+Focused navigation returned EXTRACTED paths from `InvoiceEditor()` to both `financialIntent()` and
+`apiRequest()`, and from `create_customer_receipt()` to `record_customer_receipt()`. The affected
+query for `record_customer_receipt()` identified the mounted route and main router. Graphify also
+resolved the new PostgreSQL-backed regression test and its direct helper calls; its ORM model uses
+were marked INFERRED and were therefore treated only as navigation leads.
+
+Direct source review confirmed the complete material path:
+
+```text
+InvoiceEditor recordReceipt / recordRefund
+→ financialIntent stable pending payload
+→ apiRequest (including same-body 401 replay)
+→ routes/payments.py::create_customer_receipt
+→ services/payments.py::record_customer_receipt
+→ Payment + CustomerLedgerEntry + PaymentAllocation + AuditEvent
+```
+
+Graphify does not index the nested `recordReceipt` callback as a standalone node, so the stable-key
+creation, failure retention, successful retirement, ledger/allocation constructors, database
+constraints and both regression tests were verified directly. No absence claim relies on the graph.

@@ -663,3 +663,71 @@ tenant/security audit began. The separate documentation commit is recorded in th
 
 Next action only: independently verify FA-007, then seek authorization for a bounded remediation
 plan starting with logical payment-retry identity and the confirmed P1 blockers.
+
+## FA-007 bounded remediation follow-up — 2026-09-08
+
+**Status: FIXED_PENDING_INDEPENDENT_VERIFICATION.** This section supersedes only FA-007's OPEN
+implementation status above. It does not close FA-007, change its approved financial meaning, or
+alter any other finding.
+
+Independent verification at HEAD `f56750154b4d65bfaf77a12949fce9bdb31fbce6` first retraced the
+authority, component, API, persistence and existing tests without relying on the original finding.
+It reproduced one physical USD 10 receipt as two Payment rows, two ledger effects, two FIFO
+allocations and a `-20.0000` payment-ledger sum when an unobserved committed response was manually
+retried with a new key. Same-key replay returned the original Payment correctly. Classification was
+independently confirmed as P0 under the existing materially-incorrect-money rubric.
+
+The committed pre-fix frontend regression failed for the expected identity reason after its harness
+was valid: the built-in 401 retry preserved A, while two manual retries produced B and C instead of
+A. The production correction is application commit:
+
+APPLICATION_FIX_SHA=ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd
+
+GRAPH_SOURCE_SHA=ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd
+
+`InvoiceEditor.tsx::financialIntent` now owns an exact first-attempt payload and UUID for each
+unresolved tenant/customer/currency/direction command. Receipt and refund handlers retain it across
+transport failures and manual retries. They retire it immediately after an API response is observed,
+before follow-up balance/obligation refreshes, so the next completed form submission receives a new
+UUID. Receipt and refund pending refs are separate, and the scope prevents reuse across tenant,
+customer, currency or direction. Backend idempotency behavior and constraints are unchanged.
+
+Regression evidence:
+
+- `InvoiceEditor.test.tsx::lost financial responses retain one command while the next completed
+  intent gets a new command`: 401 replay plus two lost-response retries all use A and one modeled
+  payment/ledger/allocation/audit effect; a completed second receipt uses B; refund loss/retry uses C.
+- `test_invoice_editor.py::test_customer_receipt_retries_one_command_and_a_new_intent_posts_again`:
+  three real API submissions with A persist one Payment/effect/allocation/audit; B persists the valid
+  second set; payment ledger sum is exactly `-20.0000` for two legitimate USD 10 intents and the
+  customer balance matches confirmed sales minus USD 20.
+
+Final validation at the fix SHA:
+
+- backend: 127 passed, one existing Starlette/httpx deprecation warning, 458.32 seconds;
+- frontend: 35 passed across five files, 19.59 seconds on the isolated full rerun;
+- frontend ESLint, strict TypeScript and production Vite build: PASS (existing chunk-size warning);
+- backend Ruff and strict mypy (52 source files): PASS;
+- Graphify 0.9.55 refresh and check-only: PASS, 1,403 nodes / 6,800 edges;
+- focused EXTRACTED navigation: InvoiceEditor→financialIntent/apiRequest and route→payment service;
+  ledger/allocation persistence and tests were verified directly rather than accepted from inferred edges.
+
+An earlier concurrent frontend run was not accepted as final evidence: the new 401 test mock initially
+returned a synchronous Response incompatible with `refreshAccessToken().then`, and an existing sharing
+test timed out while the full backend suite competed for resources. The mock was corrected; the focused
+test and isolated full frontend suite then passed. No application behavior was changed for that harness fix.
+
+Residual risk: pending identities are component-memory state and do not survive browser reload,
+component destruction or device loss. Durable recovery belongs to the approved Phase 4 offline-command
+design and was not invented here. There is still no full real-browser/network-proxy outage test; the
+current evidence composes an actual React component failure simulation with a real FastAPI/PostgreSQL
+persistence test. An unresolved command deliberately retains its original payload even if fields are
+edited before retry; no new abandon workflow was introduced. These limits require the requested
+post-fix independent verification before closure.
+
+FA-001–FA-006 and FA-008–FA-012 retain their prior statuses. No P3-M6 work, specification/decision
+change, backend-idempotency change, payment-architecture redesign or unrelated remediation occurred.
+
+Next action only: independently verify application commit
+`ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd` against the FA-007 post-fix regression and decide whether
+the in-session remediation may be closed while durable reload/device recovery remains governed by Phase 4.
