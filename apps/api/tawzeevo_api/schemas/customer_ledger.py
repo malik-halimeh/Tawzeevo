@@ -27,6 +27,18 @@ class OpeningBalanceRequest(BaseModel):
         return value
 
 
+class OpeningBalanceCorrectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: UUID
+    corrected_signed_amount: Decimal = Field(
+        max_digits=20,
+        decimal_places=4,
+        description="Corrected signed historical opening; a negative value is historical credit",
+    )
+    reason: str = Field(min_length=1, max_length=500)
+
+
 class CustomerLedgerEntryResponse(BaseModel):
     id: UUID
     tenant_id: UUID
@@ -34,6 +46,7 @@ class CustomerLedgerEntryResponse(BaseModel):
     currency: str
     signed_amount: Decimal
     entry_type: LedgerEntryType
+    reverses_entry_id: UUID | None
     effective_at: datetime
     created_at: datetime
 

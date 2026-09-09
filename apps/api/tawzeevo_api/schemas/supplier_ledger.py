@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from tawzeevo_api.models import PaymentDirection
+from tawzeevo_api.models import PaymentDirection, SupplierLedgerEntryType
 
 
 class SupplierPaymentRequest(BaseModel):
@@ -38,6 +38,18 @@ class SupplierOpeningRequest(BaseModel):
         return value
 
 
+class SupplierOpeningCorrectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: UUID
+    corrected_signed_amount: Decimal = Field(
+        max_digits=20,
+        decimal_places=4,
+        description="Corrected signed historical opening; a negative value is historical credit",
+    )
+    reason: str = Field(min_length=1, max_length=500)
+
+
 class SupplierCurrencyBalance(BaseModel):
     currency: str
     balance: Decimal
@@ -46,6 +58,18 @@ class SupplierCurrencyBalance(BaseModel):
 class SupplierBalancesResponse(BaseModel):
     supplier_id: UUID
     balances: list[SupplierCurrencyBalance]
+
+
+class SupplierLedgerEntryResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    supplier_id: UUID
+    currency: str
+    signed_amount: Decimal
+    entry_type: SupplierLedgerEntryType
+    reverses_entry_id: UUID | None
+    effective_at: datetime
+    created_at: datetime
 
 
 class SupplierPaymentResponse(BaseModel):

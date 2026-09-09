@@ -20,6 +20,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ENUM, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -98,6 +99,7 @@ class InvoiceStatus(StrEnum):
 
 class LedgerEntryType(StrEnum):
     OPENING_BALANCE = "OPENING_BALANCE"
+    OPENING_BALANCE_CORRECTION = "OPENING_BALANCE_CORRECTION"
     INVOICE_CHARGE = "INVOICE_CHARGE"
     INVOICE_ADJUSTMENT = "INVOICE_ADJUSTMENT"
     INVOICE_REVERSAL = "INVOICE_REVERSAL"
@@ -122,6 +124,7 @@ class AllocationKind(StrEnum):
 
 class SupplierLedgerEntryType(StrEnum):
     OPENING_BALANCE = "OPENING_BALANCE"
+    OPENING_BALANCE_CORRECTION = "OPENING_BALANCE_CORRECTION"
     PURCHASE_CHARGE = "PURCHASE_CHARGE"
     PURCHASE_ADJUSTMENT = "PURCHASE_ADJUSTMENT"
     SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT"
@@ -1180,6 +1183,18 @@ class CustomerLedgerEntry(Base):
             "signed_amount <> 0 OR entry_type IN ('INVOICE_ADJUSTMENT', 'INVOICE_REVERSAL')",
             name="ck_customer_ledger_amount_nonzero",
         ),
+        CheckConstraint(
+            "entry_type <> 'OPENING_BALANCE_CORRECTION' OR reverses_entry_id IS NOT NULL",
+            name="ck_customer_ledger_opening_correction_link",
+        ),
+        Index(
+            "uq_customer_ledger_one_opening",
+            "tenant_id",
+            "customer_id",
+            "currency",
+            unique=True,
+            postgresql_where=text("entry_type = 'OPENING_BALANCE'"),
+        ),
         Index(
             "ix_customer_ledger_balance",
             "tenant_id",
@@ -1359,6 +1374,18 @@ class SupplierLedgerEntry(Base):
             "tenant_id", "reverses_entry_id", name="uq_supplier_ledger_single_reversal"
         ),
         CheckConstraint("signed_amount <> 0", name="ck_supplier_ledger_amount_nonzero"),
+        CheckConstraint(
+            "entry_type <> 'OPENING_BALANCE_CORRECTION' OR reverses_entry_id IS NOT NULL",
+            name="ck_supplier_ledger_opening_correction_link",
+        ),
+        Index(
+            "uq_supplier_ledger_one_opening",
+            "tenant_id",
+            "supplier_id",
+            "currency",
+            unique=True,
+            postgresql_where=text("entry_type = 'OPENING_BALANCE'"),
+        ),
         Index(
             "ix_supplier_ledger_balance",
             "tenant_id",

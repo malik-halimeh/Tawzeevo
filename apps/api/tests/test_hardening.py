@@ -189,7 +189,7 @@ def test_migrations_build_a_new_database_from_zero(test_engine: Engine) -> None:
         with target_engine.connect() as connection:
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("20260827_0011")
+            ).scalar_one() == ("20260909_0012")
         assert {
             "users",
             "auth_sessions",

@@ -12,9 +12,11 @@ from tawzeevo_api.schemas.customer_ledger import (
     CustomerLedgerEntryResponse,
     FinancialSettingsRequest,
     FinancialSettingsResponse,
+    OpeningBalanceCorrectionRequest,
     OpeningBalanceRequest,
 )
 from tawzeevo_api.services.customer_ledger import (
+    correct_opening_balance,
     create_opening_balance,
     customer_balances,
     customer_debts,
@@ -39,6 +41,26 @@ def record_opening_balance(
         db,
         context.tenant.id,
         context.membership.user_id,
+        request,
+    )
+
+
+@customer_ledger_router.post(
+    "/opening-balances/{entry_id}/correct",
+    response_model=CustomerLedgerEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def correct_customer_opening_balance(
+    entry_id: UUID,
+    request: OpeningBalanceCorrectionRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> CustomerLedgerEntryResponse:
+    return correct_opening_balance(
+        db,
+        context.tenant.id,
+        context.membership.user_id,
+        entry_id,
         request,
     )
 

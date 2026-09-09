@@ -26,6 +26,7 @@ from tawzeevo_api.schemas.customer_ledger import (
     CustomerDebtResponse,
     CustomerLedgerEntryResponse,
     FinancialSettingsResponse,
+    OpeningBalanceCorrectionRequest,
     OpeningBalanceRequest,
 )
 from tawzeevo_api.services.cash_van import get_customer
@@ -40,6 +41,7 @@ def _entry_response(entry: CustomerLedgerEntry) -> CustomerLedgerEntryResponse:
         currency=entry.currency,
         signed_amount=money(entry.signed_amount),
         entry_type=entry.entry_type,
+        reverses_entry_id=entry.reverses_entry_id,
         effective_at=entry.effective_at,
         created_at=entry.created_at,
     )
@@ -51,7 +53,13 @@ def create_opening_balance(
     actor_user_id: UUID,
     request: OpeningBalanceRequest,
 ) -> CustomerLedgerEntryResponse:
-    get_customer(db, tenant_id, request.customer_id)
+    customer = db.scalar(
+        select(Customer)
+        .where(Customer.tenant_id == tenant_id, Customer.id == request.customer_id)
+        .with_for_update()
+    )
+    if customer is None:
+        raise AppError(404, "CUSTOMER_NOT_FOUND", "Customer was not found")
     replay = db.scalar(
         select(CustomerLedgerEntry).where(
             CustomerLedgerEntry.tenant_id == tenant_id,
@@ -72,6 +80,21 @@ def create_opening_balance(
                 "Idempotency key was already used for a different ledger effect",
             )
         return _entry_response(replay)
+    existing_opening = db.scalar(
+        select(CustomerLedgerEntry.id).where(
+            CustomerLedgerEntry.tenant_id == tenant_id,
+            CustomerLedgerEntry.customer_id == request.customer_id,
+            CustomerLedgerEntry.currency == request.currency,
+            CustomerLedgerEntry.entry_type == LedgerEntryType.OPENING_BALANCE,
+        )
+    )
+    if existing_opening is not None:
+        raise AppError(
+            409,
+            "OPENING_BALANCE_ALREADY_EXISTS",
+            "An initial opening balance already exists for this customer and currency",
+        )
+    classification = "HISTORICAL_CREDIT" if request.signed_amount < 0 else "HISTORICAL_DEBT"
     entry = CustomerLedgerEntry(
         tenant_id=tenant_id,
         customer_id=request.customer_id,
@@ -83,7 +106,10 @@ def create_opening_balance(
         effective_at=request.effective_at,
         actor_user_id=actor_user_id,
         idempotency_key=request.idempotency_key,
-        metadata_json={"note": request.note} if request.note else {},
+        metadata_json={
+            **({"note": request.note} if request.note else {}),
+            "opening_classification": classification,
+        },
     )
     db.add(entry)
     db.add(
@@ -97,12 +123,119 @@ def create_opening_balance(
                 "currency": request.currency,
                 "signed_amount": str(money(request.signed_amount)),
                 "effective_at": request.effective_at.isoformat(),
+                "opening_classification": classification,
             },
         )
     )
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(entry)
     return _entry_response(entry)
+
+
+def correct_opening_balance(
+    db: Session,
+    tenant_id: UUID,
+    actor_user_id: UUID,
+    entry_id: UUID,
+    request: OpeningBalanceCorrectionRequest,
+) -> CustomerLedgerEntryResponse:
+    reason = request.reason.strip()
+    if not reason:
+        raise AppError(422, "CORRECTION_REASON_REQUIRED", "A correction reason is required")
+    original = db.scalar(
+        select(CustomerLedgerEntry)
+        .where(CustomerLedgerEntry.tenant_id == tenant_id, CustomerLedgerEntry.id == entry_id)
+        .with_for_update()
+    )
+    if original is None or original.entry_type != LedgerEntryType.OPENING_BALANCE:
+        raise AppError(404, "OPENING_BALANCE_NOT_FOUND", "Opening balance was not found")
+    replay = db.scalar(
+        select(CustomerLedgerEntry).where(
+            CustomerLedgerEntry.tenant_id == tenant_id,
+            CustomerLedgerEntry.idempotency_key == request.idempotency_key,
+        )
+    )
+    if replay is not None:
+        if (
+            replay.entry_type != LedgerEntryType.OPENING_BALANCE_CORRECTION
+            or replay.reverses_entry_id != original.id
+            or replay.metadata_json.get("reason") != reason
+            or money(Decimal(replay.metadata_json["corrected_signed_amount"]))
+            != money(request.corrected_signed_amount)
+        ):
+            raise AppError(
+                409,
+                "IDEMPOTENCY_KEY_REUSED",
+                "Idempotency key was already used for a different ledger effect",
+            )
+        return _entry_response(replay)
+    existing_correction = db.scalar(
+        select(CustomerLedgerEntry.id).where(
+            CustomerLedgerEntry.tenant_id == tenant_id,
+            CustomerLedgerEntry.reverses_entry_id == original.id,
+        )
+    )
+    if existing_correction is not None:
+        raise AppError(
+            409, "OPENING_BALANCE_ALREADY_CORRECTED", "Opening balance is already corrected"
+        )
+    corrected_amount = money(request.corrected_signed_amount)
+    correction_amount = money(corrected_amount - original.signed_amount)
+    if correction_amount == 0:
+        raise AppError(409, "OPENING_BALANCE_UNCHANGED", "Corrected opening balance is unchanged")
+    corrected_classification = (
+        "REVERSED"
+        if corrected_amount == 0
+        else "HISTORICAL_CREDIT"
+        if corrected_amount < 0
+        else "HISTORICAL_DEBT"
+    )
+    correction = CustomerLedgerEntry(
+        tenant_id=tenant_id,
+        customer_id=original.customer_id,
+        currency=original.currency,
+        signed_amount=correction_amount,
+        entry_type=LedgerEntryType.OPENING_BALANCE_CORRECTION,
+        source_type="OPENING_BALANCE_CORRECTION",
+        source_id=original.id,
+        source_effect_key=f"opening-balance-correction:{original.id}",
+        effective_at=datetime.now(UTC),
+        actor_user_id=actor_user_id,
+        reverses_entry_id=original.id,
+        idempotency_key=request.idempotency_key,
+        metadata_json={
+            "reason": reason,
+            "original_opening_entry_id": str(original.id),
+            "original_signed_amount": str(money(original.signed_amount)),
+            "corrected_signed_amount": str(corrected_amount),
+            "corrected_opening_classification": corrected_classification,
+            "correction_kind": "REVERSAL" if corrected_amount == 0 else "CORRECTION",
+        },
+    )
+    db.add(correction)
+    db.flush()
+    db.add(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            action="customer_opening_balance_corrected",
+            entity_type="customer_ledger_entry",
+            entity_id=correction.id,
+            details={
+                "customer_id": str(original.customer_id),
+                "currency": original.currency,
+                "original_opening_entry_id": str(original.id),
+                "original_signed_amount": str(money(original.signed_amount)),
+                "corrected_signed_amount": str(corrected_amount),
+                "corrected_opening_classification": corrected_classification,
+                "correction_kind": "REVERSAL" if corrected_amount == 0 else "CORRECTION",
+                "reason": reason,
+            },
+        )
+    )
+    commit_and_restore_tenant_scope(db, tenant_id)
+    db.refresh(correction)
+    return _entry_response(correction)
 
 
 def customer_balances(db: Session, tenant_id: UUID, customer_id: UUID) -> CustomerBalancesResponse:

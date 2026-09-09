@@ -21,6 +21,8 @@ from tawzeevo_api.schemas.payments import PaymentReversalRequest
 from tawzeevo_api.schemas.supplier_ledger import (
     SupplierBalancesResponse,
     SupplierCurrencyBalance,
+    SupplierLedgerEntryResponse,
+    SupplierOpeningCorrectionRequest,
     SupplierOpeningRequest,
     SupplierPaymentRequest,
     SupplierPaymentResponse,
@@ -69,6 +71,20 @@ def _conflict() -> AppError:
     return AppError(409, "IDEMPOTENCY_KEY_REUSED", "Key belongs to a different financial command")
 
 
+def _entry_response(entry: SupplierLedgerEntry) -> SupplierLedgerEntryResponse:
+    return SupplierLedgerEntryResponse(
+        id=entry.id,
+        tenant_id=entry.tenant_id,
+        supplier_id=entry.supplier_id,
+        currency=entry.currency,
+        signed_amount=entry.signed_amount,
+        entry_type=entry.entry_type,
+        reverses_entry_id=entry.reverses_entry_id,
+        effective_at=entry.effective_at,
+        created_at=entry.created_at,
+    )
+
+
 def record_supplier_opening(
     db: Session,
     tenant_id: UUID,
@@ -96,6 +112,21 @@ def record_supplier_opening(
         return supplier_balances(db, tenant_id, request.supplier_id)
     if _existing_payment(db, tenant_id, request.idempotency_key) is not None:
         raise _conflict()
+    existing_opening = db.scalar(
+        select(SupplierLedgerEntry.id).where(
+            SupplierLedgerEntry.tenant_id == tenant_id,
+            SupplierLedgerEntry.supplier_id == request.supplier_id,
+            SupplierLedgerEntry.currency == request.currency,
+            SupplierLedgerEntry.entry_type == SupplierLedgerEntryType.OPENING_BALANCE,
+        )
+    )
+    if existing_opening is not None:
+        raise AppError(
+            409,
+            "OPENING_BALANCE_ALREADY_EXISTS",
+            "An initial opening balance already exists for this supplier and currency",
+        )
+    classification = "HISTORICAL_CREDIT" if request.signed_amount < 0 else "HISTORICAL_PAYABLE"
     entry = SupplierLedgerEntry(
         tenant_id=tenant_id,
         supplier_id=request.supplier_id,
@@ -107,7 +138,7 @@ def record_supplier_opening(
         effective_at=request.effective_at,
         actor_user_id=actor,
         idempotency_key=request.idempotency_key,
-        metadata_json={"note": request.note},
+        metadata_json={"note": request.note, "opening_classification": classification},
     )
     db.add(entry)
     db.flush()
@@ -118,11 +149,119 @@ def record_supplier_opening(
             action="supplier_opening_balance_recorded",
             entity_type="supplier_ledger_entry",
             entity_id=entry.id,
-            details={"supplier_id": str(request.supplier_id), "currency": request.currency},
+            details={
+                "supplier_id": str(request.supplier_id),
+                "currency": request.currency,
+                "opening_classification": classification,
+            },
         )
     )
     commit_and_restore_tenant_scope(db, tenant_id)
     return supplier_balances(db, tenant_id, request.supplier_id)
+
+
+def correct_supplier_opening(
+    db: Session,
+    tenant_id: UUID,
+    actor: UUID,
+    entry_id: UUID,
+    request: SupplierOpeningCorrectionRequest,
+) -> SupplierLedgerEntryResponse:
+    reason = request.reason.strip()
+    if not reason:
+        raise AppError(422, "CORRECTION_REASON_REQUIRED", "A correction reason is required")
+    original = db.scalar(
+        select(SupplierLedgerEntry)
+        .where(SupplierLedgerEntry.tenant_id == tenant_id, SupplierLedgerEntry.id == entry_id)
+        .with_for_update()
+    )
+    if original is None or original.entry_type != SupplierLedgerEntryType.OPENING_BALANCE:
+        raise AppError(404, "OPENING_BALANCE_NOT_FOUND", "Opening balance was not found")
+    _supplier(db, tenant_id, original.supplier_id)
+    corrected_amount = request.corrected_signed_amount.quantize(Decimal("0.0001"))
+    replay = db.scalar(
+        select(SupplierLedgerEntry).where(
+            SupplierLedgerEntry.tenant_id == tenant_id,
+            SupplierLedgerEntry.idempotency_key == request.idempotency_key,
+        )
+    )
+    if replay is not None:
+        if (
+            replay.entry_type != SupplierLedgerEntryType.OPENING_BALANCE_CORRECTION
+            or replay.reverses_entry_id != original.id
+            or replay.metadata_json.get("reason") != reason
+            or replay.metadata_json.get("corrected_signed_amount") != str(corrected_amount)
+        ):
+            raise _conflict()
+        return _entry_response(replay)
+    if _existing_payment(db, tenant_id, request.idempotency_key) is not None:
+        raise _conflict()
+    existing_correction = db.scalar(
+        select(SupplierLedgerEntry.id).where(
+            SupplierLedgerEntry.tenant_id == tenant_id,
+            SupplierLedgerEntry.reverses_entry_id == original.id,
+        )
+    )
+    if existing_correction is not None:
+        raise AppError(
+            409, "OPENING_BALANCE_ALREADY_CORRECTED", "Opening balance is already corrected"
+        )
+    correction_amount = (corrected_amount - original.signed_amount).quantize(Decimal("0.0001"))
+    if correction_amount == 0:
+        raise AppError(409, "OPENING_BALANCE_UNCHANGED", "Corrected opening balance is unchanged")
+    corrected_classification = (
+        "REVERSED"
+        if corrected_amount == 0
+        else "HISTORICAL_CREDIT"
+        if corrected_amount < 0
+        else "HISTORICAL_PAYABLE"
+    )
+    correction = SupplierLedgerEntry(
+        tenant_id=tenant_id,
+        supplier_id=original.supplier_id,
+        currency=original.currency,
+        signed_amount=correction_amount,
+        entry_type=SupplierLedgerEntryType.OPENING_BALANCE_CORRECTION,
+        source_type="OPENING_BALANCE_CORRECTION",
+        source_id=original.id,
+        source_effect_key=f"supplier-opening-correction:{original.id}",
+        effective_at=datetime.now(UTC),
+        actor_user_id=actor,
+        reverses_entry_id=original.id,
+        idempotency_key=request.idempotency_key,
+        metadata_json={
+            "reason": reason,
+            "original_opening_entry_id": str(original.id),
+            "original_signed_amount": str(original.signed_amount),
+            "corrected_signed_amount": str(corrected_amount),
+            "corrected_opening_classification": corrected_classification,
+            "correction_kind": "REVERSAL" if corrected_amount == 0 else "CORRECTION",
+        },
+    )
+    db.add(correction)
+    db.flush()
+    db.add(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_user_id=actor,
+            action="supplier_opening_balance_corrected",
+            entity_type="supplier_ledger_entry",
+            entity_id=correction.id,
+            details={
+                "supplier_id": str(original.supplier_id),
+                "currency": original.currency,
+                "original_opening_entry_id": str(original.id),
+                "original_signed_amount": str(original.signed_amount),
+                "corrected_signed_amount": str(corrected_amount),
+                "corrected_opening_classification": corrected_classification,
+                "correction_kind": "REVERSAL" if corrected_amount == 0 else "CORRECTION",
+                "reason": reason,
+            },
+        )
+    )
+    commit_and_restore_tenant_scope(db, tenant_id)
+    db.refresh(correction)
+    return _entry_response(correction)
 
 
 def _write_payment_effect(

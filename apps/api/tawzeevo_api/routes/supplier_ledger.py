@@ -9,11 +9,14 @@ from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.schemas.payments import PaymentReversalRequest
 from tawzeevo_api.schemas.supplier_ledger import (
     SupplierBalancesResponse,
+    SupplierLedgerEntryResponse,
+    SupplierOpeningCorrectionRequest,
     SupplierOpeningRequest,
     SupplierPaymentRequest,
     SupplierPaymentResponse,
 )
 from tawzeevo_api.services.supplier_ledger import (
+    correct_supplier_opening,
     record_supplier_opening,
     record_supplier_payment,
     reverse_supplier_payment,
@@ -42,6 +45,26 @@ def create_opening(
     context: Annotated[TenantContext, Depends(require_tenant_owner)],
 ) -> SupplierBalancesResponse:
     return record_supplier_opening(db, context.tenant.id, context.membership.user_id, request)
+
+
+@supplier_ledger_router.post(
+    "/opening-balances/{entry_id}/correct",
+    response_model=SupplierLedgerEntryResponse,
+    status_code=201,
+)
+def correct_opening(
+    entry_id: UUID,
+    request: SupplierOpeningCorrectionRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> SupplierLedgerEntryResponse:
+    return correct_supplier_opening(
+        db,
+        context.tenant.id,
+        context.membership.user_id,
+        entry_id,
+        request,
+    )
 
 
 @supplier_payments_router.post(
