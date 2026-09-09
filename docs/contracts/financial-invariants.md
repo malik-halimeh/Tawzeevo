@@ -1,6 +1,7 @@
 # Financial invariant catalog
 
-Updated 2026-09-07 for the financial audit through P3-M5. This is a derived catalog, not a
+Updated 2026-09-09 through the bounded FA-001 remediation after the financial audit. This is a
+derived catalog, not a
 specification change. AGENTS.md precedence applies; BINDING rows quote/summarize explicit approved
 root authority. Recommendations and observations do not become requirements.
 
@@ -9,6 +10,10 @@ AUDIT_BASE_SHA=2248c137e43c6c043725830c1303756da1d210ee
 AUDITED_SHA=868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6
 
 GRAPH_SOURCE_SHA=868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6
+
+FA001_REMEDIATION_SHA=431a984898484ab132acb11089ecb6dd3a7e406a
+
+FA001_GRAPH_SOURCE_SHA=431a984898484ab132acb11089ecb6dd3a7e406a
 
 Counts: **32 EXPLICIT/BINDING invariants; 5 CANDIDATE invariants**. A test reference means relevant
 executable coverage, not complete proof of the row. Contrary test assumptions are identified.
@@ -44,7 +49,7 @@ section, accepted under AGENTS.md—not inferred from a passing test or recovere
 | FI-13 | Confirmation atomically appends exactly one +net_sales charge with lifecycle/pointers/audit | EXPLICIT | BINDING | PHASE_03.md E | invoice_finance.py::confirm_invoice | source-effect uniqueness, scoped FKs; one commit | E10 | fault injection before/after commit and same-invoice concurrency | G01 | HIGH; no Order domain yet |
 | FI-14 | Confirmed edit accepts expected predecessor, appends full revision and exact delta once | EXPLICIT | BINDING | PHASE_03.md E; D-011 | invoice_finance.py::update_confirmed_invoice | successor/server-number/command/source-effect uniqueness | E07 | simultaneous same-predecessor commands and lost responses | G01 | HIGH; separate positive-boundary defect |
 | FI-15 | Customer balance is immutable signed ledger sum per currency; old balance is not sales | EXPLICIT | BINDING | 00_PROJECT_CONTRACT.md Financial truth; PHASE_03.md F | customer_ledger.py::customer_balances; payments.py::_customer_balance | immutable rows; currency index | E07/E12/E06 | full event-sequence reconciliation, obligation-versus-balance distinction | G03 | HIGH |
-| FI-16 | One signed nonzero historical opening per party/currency; corrections are immutable separate events | EXPLICIT | BINDING | D-038 | customer_ledger.py::create_opening_balance; supplier_ledger.py::record_supplier_opening | nonzero and command uniqueness; no party/currency opening uniqueness | E12/E05 (replay only) | second different key/concurrent initial opening; correction/reversal workflow | G04 | HIGH; CONTRADICTED FA-001 |
+| FI-16 | One signed nonzero historical opening per party/currency; corrections are immutable separate events | EXPLICIT | BINDING | D-038 | customer_ledger.py::create_opening_balance/correct_opening_balance; supplier_ledger.py::record_supplier_opening/correct_supplier_opening | partial unique indexes per tenant/party/currency; nonzero; immutable rows; linked correction constraint | E18 plus E12/E05 | independent financial regate | G04 | FIXED_PENDING_FINANCIAL_REGATE FA-001 |
 | FI-17 | Positive immutable receipt atomically posts negative ledger effect and allocations | EXPLICIT | BINDING | PHASE_03.md H | payments.py::record_customer_receipt | positive payment, scoped FKs, immutable triggers, unique effects | E06 | opening→receipt and reversal→next receipt; commit fault boundaries | G03 | HIGH; broken prerequisite FA-008 |
 | FI-18 | Receipt allocations match one target/currency, <= receipt and obligation; FIFO default or owner selection; remainder credit | EXPLICIT | BINDING | PHASE_03.md H | payments.py::_selected_allocations/_obligations | target/currency/customer FKs and positive rows; sums enforced only in service | E06/E13 | standalone obligation eligibility; refunds/reversals; reverse/edit/payment interleavings | G03 | PARTIAL; FA-008 |
 | FI-19 | Receipt reversal appends compensation and reverses effective allocations; original preserved | EXPLICIT | BINDING | PHASE_03.md H/I | payments.py::reverse_customer_receipt | one reversal per payment/allocation/ledger entry; immutability | E06 | reversal followed by obligation query/second receipt; altered-key payloads | G03 | PARTIAL; FA-008 follow-on failure |
@@ -58,7 +63,7 @@ section, accepted under AGENTS.md—not inferred from a passing test or recovere
 | FI-27 | One active confirmed-invoice capability; replacement invalidates prior, cancellation revokes access | EXPLICIT | BINDING | D-042 | public_invoices.py::issue_capability/resolve_public_invoice; invoice_finance.py::cancel_invoice | unique hash/rotation only; no active-per-invoice constraint | E16 (draft assumptions contradict) | confirmed-only, two creates/rotation, cancellation and races | G05 | HIGH; CONTRADICTED FA-005 |
 | FI-28 | Tenant-owned financial rows scoped explicitly and protected by RLS/owner authorization | EXPLICIT | BINDING | PHASE_03.md A/M; 00_PROJECT_CONTRACT.md Multi-tenancy | dependencies.py; financial routes/services; repositories/tenancy.py | forced RLS, composite FKs | E03/E04/E05/E16 | full matrix remains separate tenant/security audit | G01/G03/G04 | HIGH in scoped finance tests; not security certification |
 | FI-29 | At most one invoice header per order; nullable order reference; immutable revisions under it | EXPLICIT | BINDING | D-033; PHASE_03.md B | models.py::Invoice | partial tenant/order unique index | E03 | future real order confirmation transaction, Phase 5 | G01 | HIGH schema; future order integration absent as scheduled |
-| FI-30 | Preserve applied migrations; zero/Phase 2 upgrade validates canonical history | EXPLICIT | BINDING | AGENTS.md Repository safety; PHASE_03.md M | alembic 0008–0011 | migration immutability/content guards and tenant/financial constraints | E03/E17 | deploy-role migration evidence remains CT-009, outside this local audit | none | HIGH local chain |
+| FI-30 | Preserve applied migrations; zero/Phase 2 upgrade validates canonical history | EXPLICIT | BINDING | AGENTS.md Repository safety; PHASE_03.md M | alembic 0008–0012 | migration immutability/content guards and tenant/financial constraints | E03/E17/E18 | deploy-role migration evidence remains CT-009, outside this local audit | none | HIGH local chain |
 | FI-31 | Supplier costs/profit owner-only, never driver or public projection | EXPLICIT | BINDING | D-031/034; PHASE_03.md J | dependencies.py::require_tenant_owner; public_invoices.py::resolve_public_invoice | RLS supplements source-level allowlist | E04/E16 | later driver/analytics projections; broad security audit deferred | G02/G05 | HIGH current scoped projection |
 | FI-32 | Replay of a logical payment must return original result without another financial effect | EXPLICIT | BINDING | PHASE_03.md H; P3-M4 Acceptance; 01_TECH_STACK.md Testing | payments.py::_lock_idempotency_key/_existing_payment; InvoiceEditor.tsx::recordReceipt/recordRefund | tenant/key uniqueness only; UI changes key on retry | E06; diagnostics P09/P12 | real lost-response UI→API receipt/refund E2E and persisted pending-command policy | G03 | HIGH; end-to-end CONTRADICTED FA-007 |
 
@@ -100,6 +105,7 @@ Do not run the truncating fixture against the hosted application database.
 | E15 | apps/operations-web/src/components/InvoiceEditor.test.tsx (three tests; mocked fetch/constant randomUUID) |
 | E16 | apps/api/tests/test_public_invoices.py (seven tests); apps/operations-web/src/components/InvoiceSharing.test.tsx; apps/operations-web/src/components/PublicInvoicePage.test.ts |
 | E17 | apps/api/tests/test_immutable_migration_files.py |
+| E18 | apps/api/tests/test_opening_balances.py (customer/supplier uniqueness, signed values, correction/reversal, database enforcement, concurrency and tenant scope); apps/api/tests/test_hardening.py::test_migrations_build_a_new_database_from_zero |
 
 ## Historical-cost boundary retained
 

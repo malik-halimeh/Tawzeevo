@@ -857,3 +857,74 @@ After closure, the financial audit has **0 open P0, 7 open P1 and 4 open P2 find
 disposition is **CONDITIONAL GO** under the audit rubric because FA-001–FA-006 and FA-008 remain
 confirmed P1 blockers for their affected workflows and Phase-3 completion. This closure does not
 authorize their remediation or begin P3-M6.
+
+## FA-001 bounded remediation follow-up — 2026-09-09
+
+**Status: FIXED_PENDING_FINANCIAL_REGATE.** This section supersedes only FA-001's earlier
+`OPEN / NOT REMEDIATED` implementation status. The original audit remains the immutable record of
+the defect at audited SHA `868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6`. No other finding is
+reclassified, the overall financial audit is not marked GO, and P3-M6 remains NOT_STARTED.
+
+Authority and checkpoints:
+
+- D-038 in `04_DECISIONS.md` and FI-16 in `docs/contracts/financial-invariants.md`;
+- requested starting SHA `6ad1c2048cb65457c49fc20878b75ced662833ab`;
+- application remediation `431a984898484ab132acb11089ecb6dd3a7e406a`;
+- Graphify source SHA `431a984898484ab132acb11089ecb6dd3a7e406a`.
+
+Root cause was confirmed. Customer and supplier opening services relied on command-key replay and
+nonzero checks but had no tenant/party/currency initial-opening constraint. The supplier row lock
+serialized requests yet still admitted a later opening with a distinct key. No supported opening
+correction/reversal route existed.
+
+The remediation adds `OPENING_BALANCE_CORRECTION` to both ledgers and owner-only customer/supplier
+correction endpoints. A correction preserves the original, posts the exact immutable delta needed
+to reach the requested signed target, links to the original through `source_id` and
+`reverses_entry_id`, records original/corrected values, sign classification, reason and correction
+kind, and creates a tenant-scoped audit event. A zero target is an explicit reversal. A second
+initial opening remains forbidden after correction. Negative openings are labelled
+`HISTORICAL_CREDIT`; positive customer and supplier values are labelled `HISTORICAL_DEBT` and
+`HISTORICAL_PAYABLE` respectively.
+
+Customer and supplier creation lock the party row, replay the same command, and reject a distinct
+command after the first opening. Migration `20260909_0012` adds partial unique indexes on
+`(tenant_id, customer_id, currency)` and `(tenant_id, supplier_id, currency)` for only
+`OPENING_BALANCE`, plus correction-link checks. The indexes are the final concurrent-write guard;
+application checks provide deterministic 409 responses in the supported path. Existing immutable
+ledger triggers were preserved.
+
+Migration safety was exercised on fresh databases from zero, through downgrade/upgrade, and with
+pre-0012 duplicate groups. Customer duplicates and a separate supplier-only duplicate case each
+aborted at revision 0011 with all rows preserved. Migration 0012 never deletes, updates or chooses
+between historical financial rows. The database reachable through the repository's current
+configuration had no financial tables, so it contained no duplicate groups to reconcile. If a
+deployment database triggers the preflight, migration must stop pending a separate owner-approved
+data reconciliation decision; this task does not rewrite immutable history.
+
+Test-first evidence: before the fix, distinct-key customer and supplier duplicates and concurrent
+customer creation failed the regression expectations because both openings were accepted; the
+tenant-scope case passed. Final `test_opening_balances.py` covers customer/supplier duplicates,
+different currencies, positive/negative/zero values, immutable originals, linked correction and
+reversal deltas, balances, audit provenance, replay, database-level duplicate rejection, concurrent
+customer and supplier attempts, and tenant-scoped independence.
+
+Final validation against the application commit:
+
+- focused ledger/invoice/schema regression set: 30 passed;
+- complete backend suite: 131 passed, 92.28% coverage;
+- Ruff lint and formatting plus strict mypy over 52 source files: PASS;
+- migration from zero, downgrade/upgrade, `alembic check`, customer duplicate abort and supplier
+  duplicate abort: PASS;
+- repository web check: ESLint and TypeScript PASS, 46 Vitest tests PASS, production Vite build PASS
+  with the existing chunk-size advisory;
+- Graphify refresh and check-only: PASS at the application SHA; focused customer/supplier paths
+  resolved, with critical conclusions verified directly.
+
+FA-008 remains unchanged. Its future remediation must explicitly treat
+`OPENING_BALANCE_CORRECTION` together with the original opening when constructing customer
+obligations, including positive corrections, negative corrections and zero-target reversals.
+`payments.py::_obligations` was not modified here.
+
+Current financial-audit state after this remediation is **0 open P0, 6 open P1, 4 open P2**, plus
+FA-001 awaiting financial regate. Recommended next action only: perform an independent narrow
+financial regate of FA-001 against D-038/FI-16 before closing it; do not begin P3-M6.

@@ -50,13 +50,13 @@ updated freshness record deliberately; the script never stages or commits.
 ## Freshness record
 
 <!-- GRAPHIFY_STATE_START -->
-GRAPH_SOURCE_SHA=7c6b46a895bd26fc93426942ce70b627acd771ac
-GRAPH_REFRESHED_AT_UTC=2026-09-09T05:23:25Z
+GRAPH_SOURCE_SHA=431a984898484ab132acb11089ecb6dd3a7e406a
+GRAPH_REFRESHED_AT_UTC=2026-09-09T13:44:02Z
 GRAPHIFY_VERSION=0.9.55
 GRAPH_MODE=structural-code-only-no-cluster
 GRAPH_VALIDATION=PASS
-GRAPH_NODES=1412
-GRAPH_EDGES=6825
+GRAPH_NODES=2562
+GRAPH_EDGES=8086
 <!-- GRAPHIFY_STATE_END -->
 
 ## Baseline validation evidence
@@ -106,3 +106,15 @@ InvoiceEditor recordReceipt / recordRefund
 Graphify does not index the nested `recordReceipt` callback as a standalone node, so the stable-key
 creation, failure retention, successful retirement, ledger/allocation constructors, database
 constraints and both regression tests were verified directly. No absence claim relies on the graph.
+
+### FA-001 material-refresh verification — 2026-09-09
+
+This refresh follows application commit `431a984898484ab132acb11089ecb6dd3a7e406a`.
+Refresh and check-only both passed with Graphify 0.9.55, 2,562 nodes and 8,086 edges. Focused
+`explain` results resolved extracted route-to-service calls for customer and supplier opening
+creation and correction, plus extracted ledger and audit constructors in both correction services.
+
+Direct review of D-038, the models, migration 0012, routes, schemas, services and PostgreSQL-backed
+tests established the invariant. Graphify did not establish database uniqueness, row-lock behavior,
+migration abort semantics, immutable-trigger behavior or resulting balances; those conclusions use
+the directly inspected source, migration execution and regression tests.

@@ -110,6 +110,14 @@ limitations are recorded in the FA-007 follow-up in `docs/audits/AUDIT_REGISTER.
 post-remediation verification against D-044 classified the fix `VERIFIED_FIXED`; FA-007 is CLOSED.
 This is not P3-M6; its status remains NOT_STARTED.
 
+FA-001 bounded remediation (2026-09-09): D-038/FI-16 now have application and database enforcement
+at `431a984898484ab132acb11089ecb6dd3a7e406a`. Customer and supplier openings are unique per
+tenant/party/currency, signed nonzero historical credits are explicitly classified, and later
+changes use linked immutable correction/reversal entries. Migration 0012 aborts without rewriting
+history when duplicate initial openings exist. Full backend, frontend, static, migration and
+Graphify checks pass. FA-001 is `FIXED_PENDING_FINANCIAL_REGATE`; no other finding changed and
+P3-M6 remains NOT_STARTED.
+
 At milestone start:
 - set milestone status `IN_PROGRESS`.
 
