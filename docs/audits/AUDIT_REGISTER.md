@@ -807,3 +807,9 @@ use the same tab, membership, tenant, customer, currency and direction; the firs
 until observed success. Broader restart-safe offline command recovery remains Phase 4 under D-044.
 No other finding was remediated or reclassified. Next action: independent narrow FA-007 verification
 against D-044 and this extension; do not start P3-M6 or claim Phase 3 completion.
+
+Application extension checkpoint: `7c6b46a895bd26fc93426942ce70b627acd771ac`.
+Final `npm run check` on 2026-09-09: PASS, 46 tests, 32.05 seconds for Vitest; build 211 modules.
+Graphify refresh and check-only both PASS against that exact SHA: version 0.9.55, 1,412 nodes,
+6,825 edges. No critical conclusion relies on graph inference. This follow-up documentation commit
+does not change the tested application. Nothing was pushed or deployed.

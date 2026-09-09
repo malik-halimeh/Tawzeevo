@@ -50,16 +50,22 @@ updated freshness record deliberately; the script never stages or commits.
 ## Freshness record
 
 <!-- GRAPHIFY_STATE_START -->
-GRAPH_SOURCE_SHA=ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd
-GRAPH_REFRESHED_AT_UTC=2026-09-08T17:48:23Z
+GRAPH_SOURCE_SHA=7c6b46a895bd26fc93426942ce70b627acd771ac
+GRAPH_REFRESHED_AT_UTC=2026-09-09T05:23:25Z
 GRAPHIFY_VERSION=0.9.55
 GRAPH_MODE=structural-code-only-no-cluster
 GRAPH_VALIDATION=PASS
-GRAPH_NODES=1403
-GRAPH_EDGES=6800
+GRAPH_NODES=1412
+GRAPH_EDGES=6825
 <!-- GRAPHIFY_STATE_END -->
 
 ## Baseline validation evidence
+
+FA-007 D-044 extension checkpoint (2026-09-09): the current freshness record refers to
+`7c6b46a895bd26fc93426942ce70b627acd771ac`. Refresh and check-only both passed. Direct review of
+`api/financialIntent.ts`, the receipt/refund callers, their tests and unchanged backend replay path
+establishes the recovery behavior; graph structure remains supplemental. Earlier evidence below
+describes its historical checkpoints and does not substitute for the new reload/remount tests.
 
 The graph above was built from a clean checkout at the recorded SHA. Each representative result was
 then checked directly in the cited source.
