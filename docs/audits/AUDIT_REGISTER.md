@@ -813,3 +813,47 @@ Final `npm run check` on 2026-09-09: PASS, 46 tests, 32.05 seconds for Vitest; b
 Graphify refresh and check-only both PASS against that exact SHA: version 0.9.55, 1,412 nodes,
 6,825 edges. No critical conclusion relies on graph inference. This follow-up documentation commit
 does not change the tested application. Nothing was pushed or deployed.
+
+## FA-007 independent post-remediation verification — 2026-09-09
+
+**Status: CLOSED — VERIFIED_FIXED against D-044.** This closure supersedes only FA-007's earlier
+`OPEN` and `FIXED_PENDING_INDEPENDENT_VERIFICATION` statuses. The dated original audit remains an
+immutable record of the defect as it existed at its audited SHA. FA-001–FA-006 and FA-008–FA-012
+retain their prior statuses; P3-M6 remains NOT_STARTED.
+
+Authority and checkpoints verified directly from Git:
+
+- D-044 in `04_DECISIONS.md`, introduced by decision commit
+  `6d6523c68b89b9edc5445a5456a0a61850ca5d44`;
+- application remediation `7c6b46a895bd26fc93426942ce70b627acd771ac`;
+- documentation HEAD examined by the independent verifier
+  `2bde746370b0a4945bf172e61f2565af0d2cf938`.
+
+Independent source and test review established that the exact pending receipt/refund payload and
+idempotency key are saved synchronously before send, survive ordinary same-tab document reload and
+component remount, remain isolated by tenant/membership/customer/currency/direction, and are retired
+only after a definitive response observed by a mounted component. Matching-key retirement prevents
+a late response from deleting a newer active command. Unavailable, corrupt or unreadable storage
+blocks submission rather than issuing an unprotected command; failed retirement preserves replay.
+
+Executed verification:
+
+- focused frontend financial-intent/component suite: 15 passed;
+- focused real PostgreSQL suite: 3 passed, 14 deselected;
+- actual in-app browser document reload for one receipt and one refund: exact UUID, timestamp and
+  payload reused after simulated commit plus lost response, with one modeled effect each;
+- independent real PostgreSQL refund probe: four same-key submissions produced one Payment, one
+  `+5.0000` ledger effect, one audit event and no allocations; a new key produced exactly one new
+  refund/effect set;
+- backend replay source and constraints were unchanged; repeated receipt replay retained one
+  Payment, ledger effect, allocation set and audit effect.
+
+The browser harness models the lost response while the PostgreSQL checks independently prove durable
+financial effects. Together with direct source inspection, this adequately proves D-044 without
+requiring the Phase-4 outbox/offline lifecycle. Total device/storage loss remains outside the approved
+Phase-3 boundary. No remaining failure was identified inside D-044, so FA-007 may be closed.
+
+After closure, the financial audit has **0 open P0, 7 open P1 and 4 open P2 findings**. Its current
+disposition is **CONDITIONAL GO** under the audit rubric because FA-001–FA-006 and FA-008 remain
+confirmed P1 blockers for their affected workflows and Phase-3 completion. This closure does not
+authorize their remediation or begin P3-M6.

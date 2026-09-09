@@ -106,8 +106,9 @@ FA-007 online-recovery extension (2026-09-09): owner decision D-044 requires ord
 reload/remount safety now, while the full offline/outbox lifecycle remains Phase 4. The bounded
 test-first extension persists exact pending receipt/refund payloads before send, preserves commands
 when responses arrive after unmount, and retires them only on observed success. Validation and
-limitations are recorded in the FA-007 follow-up in `docs/audits/AUDIT_REGISTER.md`. FA-007 remains
-FIXED_PENDING_INDEPENDENT_VERIFICATION. This is not P3-M6; its status remains NOT_STARTED.
+limitations are recorded in the FA-007 follow-up in `docs/audits/AUDIT_REGISTER.md`. Independent
+post-remediation verification against D-044 classified the fix `VERIFIED_FIXED`; FA-007 is CLOSED.
+This is not P3-M6; its status remains NOT_STARTED.
 
 At milestone start:
 - set milestone status `IN_PROGRESS`.
