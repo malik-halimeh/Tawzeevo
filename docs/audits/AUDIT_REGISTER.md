@@ -731,3 +731,79 @@ change, backend-idempotency change, payment-architecture redesign or unrelated r
 Next action only: independently verify application commit
 `ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd` against the FA-007 post-fix regression and decide whether
 the in-session remediation may be closed while durable reload/device recovery remains governed by Phase 4.
+
+## FA-007 online reload/remount extension — 2026-09-09
+
+**Status: FIXED_PENDING_INDEPENDENT_VERIFICATION.** D-044 was recorded before this extension and
+committed separately as `6d6523c`. The owner explicitly requires ordinary same-browser online
+receipt/refund recovery across reload/remount in Phase 3. This supersedes the preceding report's
+blanket deferral of component destruction/reload to Phase 4. Full offline/outbox processing and
+total device/storage loss are outside this bounded remediation. P3-M6 remains NOT_STARTED.
+
+Relevant subsystem maturity: M2 (established typed API, scoped payment services and PostgreSQL
+replay constraints with deterministic validation). Task class A0 (financial-command identity and
+asynchronous lifecycle correctness); implemented and reviewed directly, without delegation.
+
+Implementation:
+
+- `src/api/financialIntent.ts` stores the exact first-attempt UUID/payload synchronously in
+  `sessionStorage` before sending. The key includes tenant, authenticated membership, customer,
+  currency and receipt/refund direction. Separate keys preserve interleaved unresolved scopes.
+- `InvoiceEditor` retrieves this identity for manual retries, including after a real page reload
+  or remount. Original amount, method, reference, paid_at and allocations remain unchanged even
+  if fields are edited. No background dispatch, outbox states, device registry, sync protocol,
+  IndexedDB/Dexie, dependency, backend API, migration or financial formula was added or changed.
+- Success retires only the matching identity before subsequent read refreshes. A late successful
+  response to an unmounted component does not retire it because the owner was not shown success.
+  An old response cannot delete a newer command. Receipt/refund identities remain separate.
+- Unavailable storage, unreadable records or invalid stored shape block submission instead of
+  falling back to a new UUID. Failed retirement retains a replayable command. Errors are EN/AR.
+  Stored data contains only the pending command and scope, no authentication credentials; the
+  backend still validates session, membership, authorization and all financial rules.
+
+Test-first evidence (2026-09-08, with final harness checks on 2026-09-09):
+
+- The extended actual-component lost-response regression first failed on remount: expected
+  A/A/A/A, observed A/A/B/C. The mounted case passed. Both now pass, including a genuine second
+  receipt and refund response-loss/remount retry.
+  The extended multi-remount scenario has a 20-second test budget: a full-suite run exceeded its
+  original 10-second budget on the development machine. No assertion was removed or weakened.
+- Separate receipt and refund regressions first failed when successful responses arrived after
+  unmount (new UUID and timestamp on retry). Both pass after the mounted-lifecycle guard.
+- Six storage tests cover discarding all module memory while retaining session storage, exact
+  first payload despite edited fields, repeated replay, successful retirement/new identity,
+  late retirement, interleaved scopes/directions, read/write failure, corrupt/mismatched records
+  and removal failure. Two actual-component storage-failure cases verify zero financial POSTs.
+- Existing PostgreSQL integration tests pass: three retries return one Payment; the separately
+  keyed genuine receipt creates another set. Persisted Payment/ledger/allocation/audit counts
+  and monetary sums are checked. Receipt replay/reversal and refund credit-concurrency tests
+  also pass. Backend replay protections are unchanged.
+- Actual in-app browser document reloads were exercised using the real InvoiceEditor and an
+  ignored, synthetic fetch harness: USD 10 receipt (2026-09-08) and USD 5 refund (2026-09-09),
+  simulated commit then lost response, reload, reselect customer/re-enter amount, retry. Each
+  retained the exact UUID, timestamp and payload; each had one modeled effect and displayed
+  success. This is browser reload evidence, not a live API/network-proxy outage test. Financial
+  persistence evidence comes from the separate real PostgreSQL tests above.
+
+Reproduction commands:
+
+```powershell
+npm run check
+npm run test --workspace=@tawzeevo/operations-web -- src/components/InvoiceEditor.test.tsx src/api/financialIntent.test.ts
+# Set DATABASE_URL and TEST_DATABASE_URL only to a migrated, explicitly disposable local database.
+./.venv/Scripts/python -m pytest apps/api/tests/test_invoice_editor.py -k 'customer_receipt_retries_one_command or receipt_fifo_owner_allocation or cancellation_preserves_payment_releases_credit' -q --disable-warnings
+```
+
+PostgreSQL checks ran against the disposable local cluster on 127.0.0.1:55439, database
+`fa007_final_verification`, migration head `20260827_0011`: **3 passed**, 14 deselected, one existing
+Starlette/httpx warning. The full frontend suite has **46 passing tests**; ESLint, strict TypeScript
+and production build pass (existing Vite chunk-size advisory). Application checkpoint and Graphify
+source verification are recorded in `docs/assurance/GRAPHIFY.md` after the implementation commit.
+
+Boundary: session storage survives ordinary reload/remount in the same tab/browser session.
+There is no cross-tab/device deduplication, browser-session-close recovery, automatic replay,
+offline queue, abandon-command workflow or guarantee after storage deletion/device loss. To retry,
+use the same tab, membership, tenant, customer, currency and direction; the first payload is reused
+until observed success. Broader restart-safe offline command recovery remains Phase 4 under D-044.
+No other finding was remediated or reclassified. Next action: independent narrow FA-007 verification
+against D-044 and this extension; do not start P3-M6 or claim Phase 3 completion.

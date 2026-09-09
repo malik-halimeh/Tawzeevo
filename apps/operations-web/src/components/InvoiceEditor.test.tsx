@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
@@ -22,12 +22,14 @@ function requestUrl(input: RequestInfo | URL): string {
 }
 
 beforeEach(async () => {
+  sessionStorage.clear();
   await i18n.changeLanguage("en");
   vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") });
 });
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -187,7 +189,7 @@ test("owner confirms an ambiguous suggestion, saves a draft, and confirms its of
     }),
   );
 
-  render(<InvoiceEditor tenantId={tenantId} />);
+  render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
   fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
   fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
   await screen.findByRole("button", { name: /Maya Market/ });
@@ -315,7 +317,7 @@ test("owner records a selected receipt allocation and can reverse the immutable 
     }),
   );
 
-  render(<InvoiceEditor tenantId={tenantId} />);
+  render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
   fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
   fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
   fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
@@ -344,7 +346,7 @@ test("owner records a selected receipt allocation and can reverse the immutable 
   expect(requests.some((request) => request.url.includes(`/payments/${paymentId}/reverse`))).toBe(true);
 }, 10_000);
 
-test("lost financial responses retain one command while the next completed intent gets a new command", async () => {
+test.each([false, true])("lost financial responses retain one command while the next completed intent gets a new command (remount: %s)", async (remount) => {
   const commandIds = [
     "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -492,18 +494,32 @@ test("lost financial responses retain one command while the next completed inten
     }),
   );
 
-  render(<InvoiceEditor tenantId={tenantId} />);
-  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
-  fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
-  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
-  const amount = screen.getByLabelText("Amount received");
+  const mountCustomer = async () => {
+    render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
+    fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  };
+  const remountCustomer = async () => {
+    if (!remount) return;
+    cleanup();
+    await mountCustomer();
+  };
+  await mountCustomer();
+  let amount = screen.getByLabelText("Amount received");
   fireEvent.change(amount, { target: { value: "10.0000" } });
 
   fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
   await screen.findByText("simulated response loss after commit");
   expect(amount).toHaveValue(10);
+  await remountCustomer();
+  amount = screen.getByLabelText("Amount received");
+  fireEvent.change(amount, { target: { value: "10.0000" } });
   fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
   await waitFor(() => expect(receiptRequests).toHaveLength(3));
+  await remountCustomer();
+  amount = screen.getByLabelText("Amount received");
+  fireEvent.change(amount, { target: { value: "10.0000" } });
   fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
   await screen.findByText("Customer receipt");
 
@@ -524,6 +540,8 @@ test("lost financial responses retain one command while the next completed inten
   expect(allocationEffects).toBe(1);
   expect(auditEffects).toBe(1);
 
+  await remountCustomer();
+  amount = screen.getByLabelText("Amount received");
   fireEvent.change(amount, { target: { value: "10.0000" } });
   fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
   await waitFor(() => expect(receiptRequests).toHaveLength(5));
@@ -538,6 +556,8 @@ test("lost financial responses retain one command while the next completed inten
   fireEvent.click(screen.getByRole("button", { name: "Issue credit refund" }));
   await screen.findByText("simulated refund response loss after commit");
   expect(refundAmount).toHaveValue(5);
+  await remountCustomer();
+  fireEvent.change(screen.getByLabelText("Refund amount"), { target: { value: "5.0000" } });
   fireEvent.click(screen.getByRole("button", { name: "Issue credit refund" }));
   await waitFor(() => expect(refundRequests).toHaveLength(2));
   expect(refundRequests.map((request) => request.idempotency_key)).toEqual([
@@ -545,7 +565,75 @@ test("lost financial responses retain one command while the next completed inten
     "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
   ]);
   expect(persistedRefunds).toHaveLength(1);
-}, 10_000);
+}, 20_000);
+
+test.each([
+  ["Amount received", "Record receipt", "customer-receipts", "CUSTOMER_RECEIPT"],
+  ["Refund amount", "Issue credit refund", "customer-refunds", "CUSTOMER_REFUND"],
+])("%s retains identity when a successful response arrives after unmount", async (label, button, path, direction) => {
+  let sequence = 0;
+  vi.stubGlobal("crypto", { randomUUID: () => `${++sequence}aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa` });
+  const requests: Record<string, unknown>[] = [];
+  let finishFirst!: (response: Response) => void;
+  const payment = { id: "88888888-8888-4888-8888-888888888888", direction, amount: "10.0000", currency: "USD", allocations: [], customer_balance: "0", available_credit: "0" };
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = requestUrl(input);
+    if (url.includes(`/${path}`) && init?.method === "POST") {
+      requests.push(JSON.parse(typeof init.body === "string" ? init.body : "{}") as Record<string, unknown>);
+      if (requests.length === 1) return new Promise<Response>((resolve) => { finishFirst = resolve; });
+      return json(payment, 201);
+    }
+    if (url.includes("/customer-ledger/settings")) return json({ customer_overdue_threshold_days: null });
+    if (url.includes("/customer-ledger/debts")) return json({ debts: [] });
+    if (url.includes("/customers/search")) return json({ customers: [{ id: customerId, name: "Maya Market", phone: "+96170123456" }] });
+    if (url.includes("/balances")) return json({ balances: [] });
+    if (url.includes("/obligations")) return json({ obligations: [] });
+    throw new Error(`Unexpected request: ${url}`);
+  }));
+  const submit = async () => {
+    render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
+    fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+    fireEvent.change(screen.getByLabelText(label), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: button }));
+  };
+  await submit();
+  await waitFor(() => expect(requests).toHaveLength(1));
+  cleanup();
+  await act(async () => {
+    finishFirst(json(payment, 201));
+    await Promise.resolve();
+  });
+  await submit();
+  await waitFor(() => expect(requests).toHaveLength(2));
+  expect(requests[1]).toEqual(requests[0]);
+});
+
+test.each(["getItem", "setItem"] as const)("receipt and refund send nothing when session storage %s fails", async (method) => {
+  const posts: string[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = requestUrl(input);
+    if (init?.method === "POST") { posts.push(url); return json({}); }
+    if (url.includes("/customer-ledger/settings")) return json({ customer_overdue_threshold_days: null });
+    if (url.includes("/customer-ledger/debts")) return json({ debts: [] });
+    if (url.includes("/customers/search")) return json({ customers: [{ id: customerId, name: "Maya Market", phone: "+96170123456" }] });
+    if (url.includes("/balances")) return json({ balances: [] });
+    if (url.includes("/obligations")) return json({ obligations: [] });
+    throw new Error(`Unexpected request: ${url}`);
+  }));
+  render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
+  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  vi.spyOn(Storage.prototype, method).mockImplementation(() => { throw new Error("storage unavailable"); });
+  for (const [label, button] of [["Amount received", "Record receipt"], ["Refund amount", "Issue credit refund"]]) {
+    fireEvent.change(screen.getByLabelText(label!), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: button! }));
+    await screen.findByText(/pending payment could not be safely recovered or saved/);
+    expect(posts).toEqual([]);
+  }
+});
 
 test("debt desk marks an overdue customer with text and a non-color alert mark", async () => {
   vi.stubGlobal(
@@ -576,7 +664,7 @@ test("debt desk marks an overdue customer with text and a non-color alert mark",
       throw new Error(`Unexpected request: ${url}`);
     }),
   );
-  const { container } = render(<InvoiceEditor tenantId={tenantId} />);
+  const { container } = render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
   expect(await screen.findByText("Overdue · 40 days old")).toBeInTheDocument();
   expect(screen.getByText("75.0000 USD")).toBeInTheDocument();
   expect(container.querySelector(".debt-row.is-overdue .debt-alert-mark")).toHaveTextContent("!");

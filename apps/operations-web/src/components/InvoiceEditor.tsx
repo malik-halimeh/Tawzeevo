@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiBlobRequest, apiRequest } from "../api/client";
+import { financialIntent, retireFinancialIntent } from "../api/financialIntent";
 import type {
   BarcodeLookupResponse,
   Customer,
@@ -28,27 +29,6 @@ interface AcceptedMatch {
   query: string;
   selected_product_id: string;
   score: string;
-}
-
-interface PendingFinancialIntent {
-  scope: string;
-  payload: Record<string, unknown>;
-}
-
-function financialIntent(
-  pending: PendingFinancialIntent | null,
-  scope: string,
-  fields: Record<string, unknown>,
-): PendingFinancialIntent {
-  if (pending?.scope === scope) return pending;
-  return {
-    scope,
-    payload: {
-      idempotency_key: crypto.randomUUID(),
-      ...fields,
-      paid_at: new Date().toISOString(),
-    },
-  };
 }
 
 interface EditorLine {
@@ -143,7 +123,7 @@ function InvoiceLineImage({ url, name }: { url: string; name: string }) {
   return source ? <img alt={name} className="invoice-line-image" src={source} /> : null;
 }
 
-export function InvoiceEditor({ tenantId }: { tenantId: string }) {
+export function InvoiceEditor({ tenantId, membershipId }: { tenantId: string; membershipId: string }) {
   const { t } = useTranslation();
   const [customerPhone, setCustomerPhone] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -184,8 +164,12 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
-  const pendingReceipt = useRef<PendingFinancialIntent | null>(null);
-  const pendingRefund = useRef<PendingFinancialIntent | null>(null);
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -522,8 +506,7 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
               }))
           : null;
       const command = financialIntent(
-        pendingReceipt.current,
-        `${tenantId}:${customer.id}:${currency}:CUSTOMER_RECEIPT`,
+        `${tenantId}:${membershipId}:${customer.id}:${currency}:CUSTOMER_RECEIPT`,
         {
           customer_id: customer.id,
           amount: receiptAmount,
@@ -533,7 +516,6 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
           allocations: selectedAllocations,
         },
       );
-      pendingReceipt.current = command;
       const payment = await apiRequest<CustomerPaymentResponse>(
         `/api/v1/payments/customer-receipts?tenant_id=${tenantId}`,
         {
@@ -541,7 +523,9 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
           body: JSON.stringify(command.payload),
         },
       );
-      pendingReceipt.current = null;
+      // A response arriving after navigation was not presented to the owner. Preserve it for replay.
+      if (!mounted.current) return;
+      retireFinancialIntent(command);
       setLastPayment(payment);
       setReceiptAmount("");
       setReceiptReference("");
@@ -589,8 +573,7 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
     }
     void run(async () => {
       const command = financialIntent(
-        pendingRefund.current,
-        `${tenantId}:${customer.id}:${currency}:CUSTOMER_REFUND`,
+        `${tenantId}:${membershipId}:${customer.id}:${currency}:CUSTOMER_REFUND`,
         {
           customer_id: customer.id,
           amount: refundAmount,
@@ -599,7 +582,6 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
           reference: null,
         },
       );
-      pendingRefund.current = command;
       const refund = await apiRequest<CustomerPaymentResponse>(
         `/api/v1/payments/customer-refunds?tenant_id=${tenantId}`,
         {
@@ -607,7 +589,8 @@ export function InvoiceEditor({ tenantId }: { tenantId: string }) {
           body: JSON.stringify(command.payload),
         },
       );
-      pendingRefund.current = null;
+      if (!mounted.current) return;
+      retireFinancialIntent(command);
       setLastPayment(refund);
       setRefundAmount("");
       await Promise.all([

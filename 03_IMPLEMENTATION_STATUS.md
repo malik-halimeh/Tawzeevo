@@ -102,6 +102,13 @@ identify application mismatches still requiring later audit/remediation. No appl
 changed, P3-M6 was not started, and the next recommended work is the separately authorized
 financial audit—not automatic remediation.
 
+FA-007 online-recovery extension (2026-09-09): owner decision D-044 requires ordinary same-browser
+reload/remount safety now, while the full offline/outbox lifecycle remains Phase 4. The bounded
+test-first extension persists exact pending receipt/refund payloads before send, preserves commands
+when responses arrive after unmount, and retires them only on observed success. Validation and
+limitations are recorded in the FA-007 follow-up in `docs/audits/AUDIT_REGISTER.md`. FA-007 remains
+FIXED_PENDING_INDEPENDENT_VERIFICATION. This is not P3-M6; its status remains NOT_STARTED.
+
 At milestone start:
 - set milestone status `IN_PROGRESS`.
 

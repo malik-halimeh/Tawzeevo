@@ -678,7 +678,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
               </div>
             </div>
           ) : (
-            <InvoiceEditor tenantId={context.tenant_id} />
+            <InvoiceEditor tenantId={context.tenant_id} membershipId={context.membership_id} />
           )}
         </>
       ) : null}
