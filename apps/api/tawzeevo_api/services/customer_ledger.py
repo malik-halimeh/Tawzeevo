@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -31,6 +33,63 @@ from tawzeevo_api.schemas.customer_ledger import (
 )
 from tawzeevo_api.services.cash_van import get_customer
 from tawzeevo_api.services.invoice_editor import money
+
+
+@dataclass(frozen=True)
+class OpeningObligationPosition:
+    target: CustomerLedgerEntry
+    original_amount: Decimal
+    allocated_amount: Decimal
+    outstanding_amount: Decimal
+
+
+def opening_obligation_positions(
+    entries: list[CustomerLedgerEntry],
+    allocated_by_target: Mapping[UUID, Decimal],
+) -> list[OpeningObligationPosition]:
+    openings = [entry for entry in entries if entry.entry_type == LedgerEntryType.OPENING_BALANCE]
+    corrections_by_opening: dict[UUID, list[CustomerLedgerEntry]] = defaultdict(list)
+    for entry in entries:
+        if (
+            entry.entry_type == LedgerEntryType.OPENING_BALANCE_CORRECTION
+            and entry.reverses_entry_id is not None
+        ):
+            corrections_by_opening[entry.reverses_entry_id].append(entry)
+
+    positions: list[OpeningObligationPosition] = []
+    for opening in openings:
+        position_entries = (opening, *corrections_by_opening.get(opening.id, []))
+        original_amount = money(
+            sum((entry.signed_amount for entry in position_entries), Decimal("0"))
+        )
+        allocated_amount = money(
+            sum(
+                (allocated_by_target.get(entry.id, Decimal("0")) for entry in position_entries),
+                Decimal("0"),
+            )
+        )
+        outstanding_amount = money(original_amount - allocated_amount)
+        if original_amount > 0 and outstanding_amount > 0:
+            positions.append(
+                OpeningObligationPosition(
+                    target=opening,
+                    original_amount=original_amount,
+                    allocated_amount=allocated_amount,
+                    outstanding_amount=outstanding_amount,
+                )
+            )
+    return positions
+
+
+def standalone_customer_debt_entries(
+    entries: list[CustomerLedgerEntry],
+) -> list[CustomerLedgerEntry]:
+    return [
+        entry
+        for entry in entries
+        if entry.entry_type == LedgerEntryType.AUTHORIZED_MANUAL_ADJUSTMENT
+        and entry.signed_amount > 0
+    ]
 
 
 def _entry_response(entry: CustomerLedgerEntry) -> CustomerLedgerEntryResponse:
@@ -364,12 +423,12 @@ def customer_debts(
             continue
 
         invoice_groups: dict[UUID, list[CustomerLedgerEntry]] = defaultdict(list)
-        standalone: list[CustomerLedgerEntry] = []
+        non_invoice_entries: list[CustomerLedgerEntry] = []
         for entry in currency_entries:
             if entry.source_type == "INVOICE" and entry.source_id is not None:
                 invoice_groups[entry.source_id].append(entry)
-            elif entry.signed_amount > 0:
-                standalone.append(entry)
+            else:
+                non_invoice_entries.append(entry)
 
         obligation_dates: list[datetime] = []
         for invoice_entries in invoice_groups.values():
@@ -384,7 +443,9 @@ def customer_debts(
             )
             if money(canonical_amount - allocated) > 0:
                 obligation_dates.append(min(entry.effective_at for entry in invoice_entries))
-        for entry in standalone:
+        for position in opening_obligation_positions(non_invoice_entries, allocation_totals):
+            obligation_dates.append(position.target.effective_at)
+        for entry in standalone_customer_debt_entries(non_invoice_entries):
             if money(entry.signed_amount - allocation_totals.get(entry.id, Decimal("0"))) > 0:
                 obligation_dates.append(entry.effective_at)
 

@@ -349,3 +349,43 @@ is normalized; imports, SQL, comments and all other whitespace remain fingerprin
 - Whole-backend Ruff lint/format, strict mypy (52 files), Alembic upgrade to `20260827_0011` and drift check — PASS using the fresh environment. `npm run check` — PASS, ESLint, TypeScript, 34 tests / 5 files, production build / 210 modules.
 - Full-checkpoint whitespace/conflict/introduced-code-marker checks and post-validation Git cleanliness — PASS. Exact setup/check commands and warning details are in `docs/phase-3/baseline-remediation.md`.
 - Warnings were not suppressed: existing Vite size and Starlette/httpx advisories, plus the clean development environment's short JWT placeholder warning; production settings reject that placeholder and short secrets. No production data or configuration was used.
+
+## FA-008 — Individual regression ledger (2026-09-10)
+
+These PostgreSQL-backed cases require `DATABASE_URL` and `TEST_DATABASE_URL` to name the same
+disposable migrated database. The suite truncates data and must never target shared or production
+data.
+
+| Formal test case | Exact command | Behavior | Last run |
+|---|---|---|---|
+| `test_opening_obligation_uses_combined_signed_economic_position[positive-opening]` | `.\.venv\Scripts\python.exe -m pytest "apps/api/tests/test_fa008_obligations.py::test_opening_obligation_uses_combined_signed_economic_position[positive-opening]" -q` | A +10 opening is one +10 historical obligation and the ORM runtime type is string-backed. | PASS / 2026-09-10 |
+| `test_opening_obligation_uses_combined_signed_economic_position[negative-opening]` | `.\.venv\Scripts\python.exe -m pytest "apps/api/tests/test_fa008_obligations.py::test_opening_obligation_uses_combined_signed_economic_position[negative-opening]" -q` | A -10 opening remains credit and creates no debt obligation. | PASS / 2026-09-10 |
+| `test_opening_obligation_uses_combined_signed_economic_position[positive-corrected-up]` | `.\.venv\Scripts\python.exe -m pytest "apps/api/tests/test_fa008_obligations.py::test_opening_obligation_uses_combined_signed_economic_position[positive-corrected-up]" -q` | +10 corrected by +2 is one +12 obligation targeted to the original immutable opening. | PASS / 2026-09-10 |
+| `test_opening_obligation_uses_combined_signed_economic_position[positive-reversed-to-zero]` | `.\.venv\Scripts\python.exe -m pytest "apps/api/tests/test_fa008_obligations.py::test_opening_obligation_uses_combined_signed_economic_position[positive-reversed-to-zero]" -q` | +20 corrected by -20 has zero position and no opening obligation. | PASS / 2026-09-10 |
+| `test_opening_obligation_uses_combined_signed_economic_position[negative-remains-credit]` | `.\.venv\Scripts\python.exe -m pytest "apps/api/tests/test_fa008_obligations.py::test_opening_obligation_uses_combined_signed_economic_position[negative-remains-credit]" -q` | -10 corrected by +5 remains -5 credit and creates no debt obligation. | PASS / 2026-09-10 |
+| `test_opening_obligation_uses_combined_signed_economic_position[credit-crosses-into-debt]` | `.\.venv\Scripts\python.exe -m pytest "apps/api/tests/test_fa008_obligations.py::test_opening_obligation_uses_combined_signed_economic_position[credit-crosses-into-debt]" -q` | -10 corrected by +15 becomes one +5 obligation dated and targeted to the original opening, not a +15 correction obligation. | PASS / 2026-09-10 |
+| `test_receipt_allocates_once_to_effective_opening_and_updates_balance_and_debt` | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa008_obligations.py::test_receipt_allocates_once_to_effective_opening_and_updates_balance_and_debt -q` | A receipt allocates once against a corrected opening and reconciles allocation, balance, remaining obligation and debt age. | PASS / 2026-09-10 |
+| `test_corrected_opening_and_invoice_remain_distinct_obligations` | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa008_obligations.py::test_corrected_opening_and_invoice_remain_distinct_obligations -q` | One net opening obligation coexists deterministically with the ordinary invoice obligation. | PASS / 2026-09-10 |
+| `test_receipt_reversal_restores_opening_without_creating_a_reversal_obligation` | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa008_obligations.py::test_receipt_reversal_restores_opening_without_creating_a_reversal_obligation -q` | Reversal restores the original obligation through allocation history, does not create a compensating-row obligation, and permits the corrected receipt. | PASS / 2026-09-10 |
+| `test_refund_compensation_is_not_an_allocatable_customer_obligation` | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa008_obligations.py::test_refund_compensation_is_not_an_allocatable_customer_obligation -q` | A positive refund ledger effect reduces credit but is not independently allocatable debt. | PASS / 2026-09-10 |
+| `test_opening_obligations_are_isolated_by_tenant_and_currency` | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa008_obligations.py::test_opening_obligations_are_isolated_by_tenant_and_currency -q` | Opening/correction positions remain isolated by tenant and currency and cross-tenant lookup is denied. | PASS / 2026-09-10 |
+
+### 2026-09-10 — FA-008 focused regression run
+
+- Command: `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa008_obligations.py -q --tb=short`
+- Result: `PASS`
+- Counts: `11 passed, 0 failed/skipped; one existing Starlette/httpx deprecation warning`
+- Environment: `fresh disposable PostgreSQL 18 cluster on loopback, migrated from zero through 20260909_0012`
+
+### 2026-09-10 — FA-008 application validation
+
+- Focused FA-008: `11 passed`, no failures/skips.
+- Preserved FA-001 opening plus existing invoice/payment/allocation/debt tests: `21 passed`, no
+  failures/skips.
+- Full backend: `142 passed`, no failures/skips, `92.41%` statement coverage; the existing
+  Starlette/httpx deprecation warning remains non-blocking.
+- Whole-backend Ruff lint: PASS.
+- Whole-backend Ruff formatting check: PASS, 83 files.
+- Strict mypy: PASS, 52 source files.
+- Alembic drift check at `20260909_0012`: PASS, no new upgrade operations.
+- Frontend checks: not run because FA-008 changed no frontend source, API schema, or frontend behavior.

@@ -32,6 +32,10 @@ from tawzeevo_api.schemas.payments import (
     PaymentAllocationResponse,
     PaymentReversalRequest,
 )
+from tawzeevo_api.services.customer_ledger import (
+    opening_obligation_positions,
+    standalone_customer_debt_entries,
+)
 from tawzeevo_api.services.invoice_editor import money
 
 
@@ -147,12 +151,12 @@ def _obligations(
         )
     )
     invoice_groups: dict[UUID, list[CustomerLedgerEntry]] = defaultdict(list)
-    standalone: list[CustomerLedgerEntry] = []
+    non_invoice_entries: list[CustomerLedgerEntry] = []
     for entry in entries:
         if entry.source_type == "INVOICE" and entry.source_id is not None:
             invoice_groups[entry.source_id].append(entry)
-        elif entry.signed_amount > 0:
-            standalone.append(entry)
+        else:
+            non_invoice_entries.append(entry)
 
     invoice_ids = list(invoice_groups)
     invoice_numbers = (
@@ -195,7 +199,17 @@ def _obligations(
                     label=f"Invoice {number}" if number else "Invoice",
                 )
             )
-    for entry in standalone:
+    for position in opening_obligation_positions(non_invoice_entries, allocated_by_target):
+        obligations.append(
+            _Obligation(
+                target=position.target,
+                original_amount=position.original_amount,
+                allocated_amount=position.allocated_amount,
+                outstanding_amount=position.outstanding_amount,
+                label="Opening Balance",
+            )
+        )
+    for entry in standalone_customer_debt_entries(non_invoice_entries):
         allocated = allocated_by_target.get(entry.id, Decimal("0.0000"))
         outstanding = money(entry.signed_amount - allocated)
         if outstanding > 0:
@@ -205,7 +219,7 @@ def _obligations(
                     original_amount=money(entry.signed_amount),
                     allocated_amount=money(allocated),
                     outstanding_amount=outstanding,
-                    label=entry.entry_type.value.replace("_", " ").title(),
+                    label="Authorized Manual Adjustment",
                 )
             )
     obligations.sort(
