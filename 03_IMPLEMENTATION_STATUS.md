@@ -115,8 +115,9 @@ at `431a984898484ab132acb11089ecb6dd3a7e406a`. Customer and supplier openings ar
 tenant/party/currency, signed nonzero historical credits are explicitly classified, and later
 changes use linked immutable correction/reversal entries. Migration 0012 aborts without rewriting
 history when duplicate initial openings exist. Full backend, frontend, static, migration and
-Graphify checks pass. FA-001 is `FIXED_PENDING_FINANCIAL_REGATE`; no other finding changed and
-P3-M6 remains NOT_STARTED.
+Graphify checks pass. Independent financial verification supplied on 2026-09-10 classifies FA-001
+as `CLOSED — VERIFIED_FIXED` against D-038/FI-16; no FA-001 application behavior changed during
+closure, no other finding changed, and P3-M6 remains NOT_STARTED.
 
 At milestone start:
 - set milestone status `IN_PROGRESS`.

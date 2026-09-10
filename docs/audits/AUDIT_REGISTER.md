@@ -928,3 +928,20 @@ obligations, including positive corrections, negative corrections and zero-targe
 Current financial-audit state after this remediation is **0 open P0, 6 open P1, 4 open P2**, plus
 FA-001 awaiting financial regate. Recommended next action only: perform an independent narrow
 financial regate of FA-001 against D-038/FI-16 before closing it; do not begin P3-M6.
+
+## FA-001 independent financial regate closure — 2026-09-10
+
+**Status: CLOSED — VERIFIED_FIXED against D-038/FI-16.** The owner supplied the independent
+verification result at repository HEAD `b50696ade61f167311a64b6f57a5e2e5fd11f08f`. This closure
+supersedes only FA-001's `FIXED_PENDING_FINANCIAL_REGATE` status. The original finding and the full
+bounded-remediation evidence above remain preserved as the historical and verification trail.
+
+The verified application remediation remains
+`431a984898484ab132acb11089ecb6dd3a7e406a`, with matching Graphify source SHA
+`431a984898484ab132acb11089ecb6dd3a7e406a`. No FA-001 application behavior changes accompany this
+closure. FA-002 and all other findings retain their prior status, the overall financial audit is not
+marked GO, and P3-M6 remains NOT_STARTED.
+
+After closure, the financial audit has **0 open P0, 6 open P1 and 4 open P2 findings**. Recommended
+next action only: remediate the separately authorized FA-008 scope; do not begin another finding or
+P3-M6.
