@@ -50,22 +50,22 @@ updated freshness record deliberately; the script never stages or commits.
 ## Freshness record
 
 <!-- GRAPHIFY_STATE_START -->
-GRAPH_SOURCE_SHA=431a984898484ab132acb11089ecb6dd3a7e406a
-GRAPH_REFRESHED_AT_UTC=2026-09-09T13:44:02Z
+GRAPH_SOURCE_SHA=65b571488fc05247fad6f405f8d5733b597d98ef
+GRAPH_REFRESHED_AT_UTC=2026-09-10T11:55:51Z
 GRAPHIFY_VERSION=0.9.55
 GRAPH_MODE=structural-code-only-no-cluster
 GRAPH_VALIDATION=PASS
-GRAPH_NODES=2562
-GRAPH_EDGES=8086
+GRAPH_NODES=2577
+GRAPH_EDGES=8180
 <!-- GRAPHIFY_STATE_END -->
 
 ## Baseline validation evidence
 
-FA-007 D-044 extension checkpoint (2026-09-09): the current freshness record refers to
-`7c6b46a895bd26fc93426942ce70b627acd771ac`. Refresh and check-only both passed. Direct review of
-`api/financialIntent.ts`, the receipt/refund callers, their tests and unchanged backend replay path
-establishes the recovery behavior; graph structure remains supplemental. Earlier evidence below
-describes its historical checkpoints and does not substitute for the new reload/remount tests.
+FA-008 obligation-remediation checkpoint (2026-09-10): the current freshness record refers to
+`65b571488fc05247fad6f405f8d5733b597d98ef`. Refresh and check-only both passed. Direct review of
+the opening/correction, obligation, receipt/allocation, debt and balance paths plus PostgreSQL-backed
+regressions establishes the behavior; graph structure remains supplemental. Earlier evidence below
+describes historical checkpoints and does not substitute for the current direct proof.
 
 The graph above was built from a clean checkout at the recorded SHA. Each representative result was
 then checked directly in the cited source.
@@ -82,6 +82,29 @@ Structural queries worked for all five categories. Broad natural-language querie
 could be truncated; focused symbol queries and paths were more reliable. Some ORM/test relationships
 were inferred rather than extracted. FastAPI dependency injection, SQLAlchemy runtime behavior, RLS,
 and other dynamic wiring therefore still require source, migration, and test inspection.
+
+### FA-008 material-refresh verification — 2026-09-10
+
+This refresh follows application commit `65b571488fc05247fad6f405f8d5733b597d98ef`.
+Refresh and check-only passed with Graphify 0.9.55, 2,577 nodes and 8,180 edges. Focused paths
+resolved these extracted relationships:
+
+- `correct_customer_opening_balance()` → `correct_opening_balance()`;
+- `record_customer_receipt()` → `_selected_allocations()` → `_obligations()` →
+  `opening_obligation_positions()`;
+- `record_customer_receipt()` → `PaymentAllocation` and `CustomerLedgerEntry` (model uses include
+  inferred edges and were verified directly);
+- `record_customer_receipt()` → `commit_and_restore_tenant_scope()`;
+- `record_customer_receipt()` → `_payment_response()` → `_customer_balance()`;
+- `customer_obligations()` → `_obligations()` → `opening_obligation_positions()`; and
+- `customer_debts()` → `opening_obligation_positions()`.
+
+Direct source and test review confirmed that immutable opening/correction rows are combined before
+the signed position is interpreted; invoice groups retain their existing canonical aggregation;
+receipt reversals and refunds are not standalone obligations; allocations continue to target the
+original opening row; and tenant/currency filters remain explicit. Graphify does not prove Decimal
+results, ORM runtime string values, transactionality, allocation conservation, RLS, or database
+history immutability, so those conclusions rely on source, schema and the executed PostgreSQL suite.
 
 ### FA-007 material-refresh verification — 2026-09-08
 

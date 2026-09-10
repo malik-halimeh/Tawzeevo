@@ -119,6 +119,16 @@ Graphify checks pass. Independent financial verification supplied on 2026-09-10 
 as `CLOSED — VERIFIED_FIXED` against D-038/FI-16; no FA-001 application behavior changed during
 closure, no other finding changed, and P3-M6 remains NOT_STARTED.
 
+FA-008 bounded remediation (2026-09-10): application commit
+`65b571488fc05247fad6f405f8d5733b597d98ef` interprets customer obligations by approved economic
+origin. Opening plus its optional correction is one signed historical position targeted to the
+original immutable opening; invoice aggregation remains unchanged; receipt reversals and refunds
+are not independent obligations. The string-backed ledger type no longer has an enum-only
+dereference in the obligation path. Eleven focused PostgreSQL regressions, the preserved opening and
+payment/debt suites, 142 backend tests, Ruff, formatting, strict mypy, Alembic drift and Graphify
+refresh/check-only pass. FA-008 is `FIXED_PENDING_FINANCIAL_REGATE`; FA-001 remains CLOSED, other
+findings are unchanged, the overall audit is not GO, and P3-M6 remains NOT_STARTED.
+
 At milestone start:
 - set milestone status `IN_PROGRESS`.
 

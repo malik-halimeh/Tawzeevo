@@ -945,3 +945,81 @@ marked GO, and P3-M6 remains NOT_STARTED.
 After closure, the financial audit has **0 open P0, 6 open P1 and 4 open P2 findings**. Recommended
 next action only: remediate the separately authorized FA-008 scope; do not begin another finding or
 P3-M6.
+
+## FA-008 bounded remediation follow-up — 2026-09-10
+
+**Status: FIXED_PENDING_FINANCIAL_REGATE.** This section supersedes only FA-008's earlier
+`OPEN / NOT REMEDIATED` implementation status. The original audit remains the immutable record of
+the defect at audited SHA `868bf1c5d4d49e755c74a6dd2c75a9a78f6ca6e6`. FA-001 remains CLOSED;
+FA-002 and every other finding retain their prior status; the overall financial audit is not marked
+GO; and P3-M6 remains NOT_STARTED.
+
+Authority and checkpoints:
+
+- PHASE_03.md F/G/H and FI-17/FI-18/FI-19/FI-25;
+- D-038 opening/correction semantics preserved from verified FA-001;
+- FA-001 closure commit `5e797e5ad8ec8077528ece48affd6f06d76542d9`;
+- FA-008 application remediation `65b571488fc05247fad6f405f8d5733b597d98ef`;
+- Graphify source SHA `65b571488fc05247fad6f405f8d5733b597d98ef`.
+
+The audited root cause was confirmed and sharpened. `CustomerLedgerEntry.entry_type` is mapped to
+`String(50)`, so persisted ORM values are plain strings even though the annotation names the
+`LedgerEntryType` string enum. `_obligations` called `.value` on that runtime string. It also treated
+every positive non-invoice ledger entry as a standalone obligation, so positive opening corrections,
+customer-receipt reversals and refunds could be admitted by row sign instead of economic origin.
+`customer_debts` used the same broad positive-row rule for obligation dates.
+
+The remediation introduces one shared opening-position interpretation for obligation listing,
+receipt allocation and debt age. It groups the immutable initial opening with its optional linked
+correction, sums the signed amounts and any allocations across those rows, interprets the combined
+position, and uses the original opening row as the stable allocation target and historical date.
+Only a positive outstanding combined position becomes an opening obligation. Invoice charge,
+adjustment and reversal rows continue to be aggregated by invoice exactly as before. The explicitly
+modeled positive `AUTHORIZED_MANUAL_ADJUSTMENT` remains eligible; customer payments, receipt
+reversals and refunds are not standalone obligations. The enum-only label dereference was removed;
+no second runtime representation layer was added.
+
+Exact signed results:
+
+| Immutable history | Effective opening position | Allocatable opening obligation |
+|---|---:|---:|
+| +10 | +10 | one +10, target = original opening |
+| -10 | -10 | none; historical credit |
+| +10 then +2 correction | +12 | one +12, not +10 plus +2 |
+| +20 then -20 correction | 0 | none |
+| -10 then +5 correction | -5 | none; historical credit |
+| -10 then +15 correction | +5 | one +5, not +15 |
+
+Receipt proof records 7 against a +10/+2 corrected opening: exactly one allocation targets the
+original opening, allocated amount is 7, customer balance is +5, and one +5 obligation/debt remains
+at the original historical date. A receipt reversal restores that original obligation without
+creating a separate reversal obligation; a corrected second receipt settles it once. A refund made
+against historical credit remains a compensating positive ledger effect and creates no obligation.
+
+Invoice interaction proof preserves the ordinary invoice path: a +12 effective opening and a
++24.2500 confirmed invoice produce exactly two ordered obligations, one for the opening and one for
+the invoice. Tenant/currency proof independently produces tenant-one USD +12 and EUR +5 obligations,
+tenant-two USD zero obligations after reversal, and denies cross-tenant lookup.
+
+No ledger, opening, correction, payment, invoice, or allocation history is mutated. No model,
+schema, database constraint, migration, API schema, frontend source, approved decision, or FA-001
+opening/correction rule changed. No migration was required.
+
+Regression and validation evidence:
+
+- new `test_fa008_obligations.py`: 11 passed, covering all six signed positions, ORM plain-string
+  runtime, receipt/allocation/balance/debt, invoice coexistence, receipt reversal, refund
+  compensation and tenant/currency isolation;
+- preserved FA-001 opening plus existing invoice/payment/allocation/debt suite: 21 passed;
+- full backend: 142 passed, no failures/skips, 92.41% statement coverage;
+- whole-backend Ruff lint and formatting: PASS (83 files);
+- strict mypy: PASS (52 source files);
+- Alembic drift: PASS at `20260909_0012`, no new upgrade operations;
+- frontend checks not run because no frontend source, API schema or frontend behavior changed;
+- Graphify refresh and check-only: PASS at the exact application SHA with version 0.9.55, 2,577
+  nodes and 8,180 edges; representative extracted paths were verified directly in source/tests.
+
+Current financial-audit state is **0 open P0, 5 open P1 and 4 open P2 findings**, plus FA-008
+awaiting narrow financial regate. Recommended next action only: independently regate FA-008 against
+PHASE_03 F/G/H, FI-17/FI-18/FI-19/FI-25 and preserved D-038 semantics; do not start another finding
+or P3-M6.

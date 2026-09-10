@@ -1,7 +1,7 @@
 # Financial invariant catalog
 
-Updated 2026-09-10 through the independently verified FA-001 closure after the financial audit. This is a
-derived catalog, not a
+Updated 2026-09-10 through the independently verified FA-001 closure and bounded FA-008
+remediation after the financial audit. This is a derived catalog, not a
 specification change. AGENTS.md precedence applies; BINDING rows quote/summarize explicit approved
 root authority. Recommendations and observations do not become requirements.
 
@@ -16,6 +16,10 @@ FA001_REMEDIATION_SHA=431a984898484ab132acb11089ecb6dd3a7e406a
 FA001_GRAPH_SOURCE_SHA=431a984898484ab132acb11089ecb6dd3a7e406a
 
 FA001_CLOSURE_BASE_SHA=b50696ade61f167311a64b6f57a5e2e5fd11f08f
+
+FA008_REMEDIATION_SHA=65b571488fc05247fad6f405f8d5733b597d98ef
+
+FA008_GRAPH_SOURCE_SHA=65b571488fc05247fad6f405f8d5733b597d98ef
 
 Counts: **32 EXPLICIT/BINDING invariants; 5 CANDIDATE invariants**. A test reference means relevant
 executable coverage, not complete proof of the row. Contrary test assumptions are identified.
@@ -52,9 +56,9 @@ section, accepted under AGENTS.md—not inferred from a passing test or recovere
 | FI-14 | Confirmed edit accepts expected predecessor, appends full revision and exact delta once | EXPLICIT | BINDING | PHASE_03.md E; D-011 | invoice_finance.py::update_confirmed_invoice | successor/server-number/command/source-effect uniqueness | E07 | simultaneous same-predecessor commands and lost responses | G01 | HIGH; separate positive-boundary defect |
 | FI-15 | Customer balance is immutable signed ledger sum per currency; old balance is not sales | EXPLICIT | BINDING | 00_PROJECT_CONTRACT.md Financial truth; PHASE_03.md F | customer_ledger.py::customer_balances; payments.py::_customer_balance | immutable rows; currency index | E07/E12/E06 | full event-sequence reconciliation, obligation-versus-balance distinction | G03 | HIGH |
 | FI-16 | One signed nonzero historical opening per party/currency; corrections are immutable separate events | EXPLICIT | BINDING | D-038 | customer_ledger.py::create_opening_balance/correct_opening_balance; supplier_ledger.py::record_supplier_opening/correct_supplier_opening | partial unique indexes per tenant/party/currency; nonzero; immutable rows; linked correction constraint | E18 plus E12/E05 | none in the verified FA-001 scope | G04 | VERIFIED_FIXED; FA-001 CLOSED |
-| FI-17 | Positive immutable receipt atomically posts negative ledger effect and allocations | EXPLICIT | BINDING | PHASE_03.md H | payments.py::record_customer_receipt | positive payment, scoped FKs, immutable triggers, unique effects | E06 | opening→receipt and reversal→next receipt; commit fault boundaries | G03 | HIGH; broken prerequisite FA-008 |
-| FI-18 | Receipt allocations match one target/currency, <= receipt and obligation; FIFO default or owner selection; remainder credit | EXPLICIT | BINDING | PHASE_03.md H | payments.py::_selected_allocations/_obligations | target/currency/customer FKs and positive rows; sums enforced only in service | E06/E13 | standalone obligation eligibility; refunds/reversals; reverse/edit/payment interleavings | G03 | PARTIAL; FA-008 |
-| FI-19 | Receipt reversal appends compensation and reverses effective allocations; original preserved | EXPLICIT | BINDING | PHASE_03.md H/I | payments.py::reverse_customer_receipt | one reversal per payment/allocation/ledger entry; immutability | E06 | reversal followed by obligation query/second receipt; altered-key payloads | G03 | PARTIAL; FA-008 follow-on failure |
+| FI-17 | Positive immutable receipt atomically posts negative ledger effect and allocations | EXPLICIT | BINDING | PHASE_03.md H | payments.py::record_customer_receipt | positive payment, scoped FKs, immutable triggers, unique effects | E06/E19 | commit fault boundaries | G03 | FIXED_PENDING_FINANCIAL_REGATE FA-008 |
+| FI-18 | Receipt allocations match one target/currency, <= receipt and obligation; FIFO default or owner selection; remainder credit | EXPLICIT | BINDING | PHASE_03.md H | payments.py::_selected_allocations/_obligations; customer_ledger.py::opening_obligation_positions | target/currency/customer FKs and positive rows; sums enforced only in service | E06/E13/E19 | broader reverse/edit/payment interleavings | G03 | FIXED_PENDING_FINANCIAL_REGATE FA-008 |
+| FI-19 | Receipt reversal appends compensation and reverses effective allocations; original preserved | EXPLICIT | BINDING | PHASE_03.md H/I | payments.py::reverse_customer_receipt | one reversal per payment/allocation/ledger entry; immutability | E06/E19 | broader altered-key and concurrent reversal/payment interleavings | G03 | FIXED_PENDING_FINANCIAL_REGATE FA-008 |
 | FI-20 | Downward edit releases excess allocations as credit; upward edit preserves allocations/increases outstanding | EXPLICIT | BINDING | PHASE_03.md E/H | invoice_finance.py::_reconcile_excess_allocations | immutable reversal/replacement rows; uniqueness | E07/E13; diagnostic P11 | receipt/edit both orderings; reversal/edit concurrency; no fixture-only ledger bypass | G01/G03 | HIGH for tested release; wider interleavings missing |
 | FI-21 | Draft cancellation no invented effect; confirmed cancellation reverses current value/releases allocations, preserves payments; no automatic refund | EXPLICIT | BINDING | PHASE_03.md I | invoice_finance.py::cancel_invoice | source-effect and reversal uniqueness; immutable originals | E08/E14 | cancel/payment and cancel/revision races; token revocation D-042 | G01/G05 | HIGH ledger paths; sharing defect separate |
 | FI-22 | Refund same currency, 0<amount<=MAX(0,-balance); serialize/recompute credit; never new debt | EXPLICIT | BINDING | PHASE_03.md I; 00_PROJECT_CONTRACT.md Financial truth | payments.py::record_customer_refund | customer FOR UPDATE plus advisory key; positive immutable payment | E14 | refund vs opening/receipt reversal/edit; lost-response refund retry | G03 | HIGH backend ceiling; UI retry FA-007 |
@@ -108,6 +112,7 @@ Do not run the truncating fixture against the hosted application database.
 | E16 | apps/api/tests/test_public_invoices.py (seven tests); apps/operations-web/src/components/InvoiceSharing.test.tsx; apps/operations-web/src/components/PublicInvoicePage.test.ts |
 | E17 | apps/api/tests/test_immutable_migration_files.py |
 | E18 | apps/api/tests/test_opening_balances.py (customer/supplier uniqueness, signed values, correction/reversal, database enforcement, concurrency and tenant scope); apps/api/tests/test_hardening.py::test_migrations_build_a_new_database_from_zero |
+| E19 | apps/api/tests/test_fa008_obligations.py (six signed opening/correction positions, ORM string runtime, receipt allocation/balance/debt, invoice coexistence, receipt reversal, refund compensation, tenant/currency isolation) |
 
 ## Historical-cost boundary retained
 
