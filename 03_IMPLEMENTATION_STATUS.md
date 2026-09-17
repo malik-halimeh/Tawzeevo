@@ -6,12 +6,12 @@
 
 - Current workstream: `Phase 3 — Production Financial Core`
 - Current phase: `3`
-- Current phase status: `IN_PROGRESS`
+- Current phase status: `COMPLETE`
 - Current milestone: `P3-M6 — Financial hardening and phase freeze`
-- Current milestone status: `IN_PROGRESS`
-- Last completed milestone: `P3-M5`
-- Next required user command: `continue`
-- Blocking decision: `none for P3-M6; FA-009 waits for the owner (see OWNER_ACTIONS.md)`
+- Current milestone status: `COMPLETE`
+- Last completed milestone: `P3-M6`
+- Next required user command: `Start Phase 5` (owner-chosen order, pending D-045) or `Start Phase 4`
+- Blocking decision: `none for Phase 3; FA-009 and the Phase 5/4 gate items wait for the owner (see OWNER_ACTIONS.md)`
 
 The user explicitly authorized `Start Phase 3`. Phase 2 is complete and its requirements audit,
 test report, and demo guide are frozen under `docs/phase-2`. Gate C verification confirms the Phase 2
@@ -36,7 +36,7 @@ immutable confirmed-line cost provenance. P3-M5 is complete; P3-M6 remains not s
 |---|---|---|
 | 1 | COMPLETE | DoD PASSED |
 | 2 | COMPLETE | Definition of Done PASSED; P2-M1 through P2-M5 complete |
-| 3 | IN_PROGRESS | Gate C and P3-M1 through P3-M5 PASSED; FA-002..006/008/010..012 fixed 2026-09-17; P3-M6 IN_PROGRESS |
+| 3 | COMPLETE | Definition of Done PASSED 2026-09-17; P3-M1 through P3-M6 complete; evidence in `docs/phase-3/` |
 | 4 | LOCKED | Gate D |
 | 5 | LOCKED | Gate E |
 | 6 | LOCKED | Phase 5 DoD |
@@ -56,6 +56,17 @@ immutable confirmed-line cost provenance. P3-M5 is complete; P3-M6 remains not s
 - Contract deviations: none. Public limiting is explicitly per-process, not distributed; hosting/proxy telemetry and full phase-wide E2E/accessibility/reconciliation audits remain P3-M6 work. No production deployment performed.
 
 ## Latest completed milestone summary
+
+P3-M6 (2026-09-17) froze Phase 3: full backend regression (161 tests, 93% coverage), frontend
+checks (49 tests, lint, types, build), Alembic drift and from-zero/Phase 2 migration checks, RLS and
+public-capability sweeps, a real-browser Playwright E2E of the critical owner flow (sign-in, supplier
+cost setup, invoice by barcode, confirm, receipt, private link privacy, Arabic/RTL, cancellation
+revoking the link), OpenAPI/docs reconciliation, and the three phase evidence files
+(`docs/phase-3/requirements-audit.md`, `test-report.md`, `demo-guide.md`). Phase 3 is COMPLETE.
+Phase 4 and Phase 5 remain LOCKED until the owner records their gate decisions and issues
+`Start Phase N`.
+
+### Previous (P3-M5)
 
 P3-M5 delivers 90-day owner-managed private invoice links, a restricted current-invoice customer view, EN/AR WhatsApp sharing controls, and tenant-private aggregate supplier payable/payment/reversal services. Tests cover invalid/internal-ID access, token lifecycle and rotation races, projection privacy, log safety, forced RLS, supplier replay/reversal concurrency, and UI interactions. Demo and operational boundaries are in `docs/phase-3/p3-m5.md`. P3-M6 is next; Phase 3 is not yet complete.
 
