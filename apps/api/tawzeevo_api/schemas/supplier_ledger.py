@@ -85,6 +85,7 @@ class SupplierPaymentResponse(BaseModel):
     reference: str | None
     notes: str | None
     reverses_payment_id: UUID | None
+    prepayment: bool = False
 
     @field_serializer("paid_at")
     def serialize_paid_at(self, value: datetime) -> str:

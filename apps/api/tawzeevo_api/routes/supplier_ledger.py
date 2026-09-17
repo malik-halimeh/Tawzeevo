@@ -79,6 +79,20 @@ def create_payment(
 
 
 @supplier_payments_router.post(
+    "/supplier-prepayments", response_model=SupplierPaymentResponse, status_code=201
+)
+def create_prepayment(
+    request: SupplierPaymentRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> SupplierPaymentResponse:
+    """Record explicit supplier credit (D-039); never capped by the current payable."""
+    return record_supplier_payment(
+        db, context.tenant.id, context.membership.user_id, request, prepayment=True
+    )
+
+
+@supplier_payments_router.post(
     "/supplier-payments/{payment_id}/reverse",
     response_model=SupplierPaymentResponse,
     status_code=201,

@@ -25,6 +25,22 @@ def _supplier_context(client, session_factory):
     return owner, tenant, token, supplier_id
 
 
+def _payable(client, tenant, token, supplier, currency="USD", amount="10.0000"):
+    """Give the supplier a positive payable so ordinary payments are allowed (D-039)."""
+    response = client.post(
+        f"/api/v1/supplier-ledger/opening-balances?tenant_id={tenant}",
+        headers=_auth(token),
+        json={
+            "idempotency_key": str(uuid4()),
+            "supplier_id": supplier,
+            "currency": currency,
+            "signed_amount": amount,
+            "effective_at": datetime.now(UTC).isoformat(),
+        },
+    )
+    assert response.status_code == 201, response.text
+
+
 def test_supplier_payment_aggregate_balance_replay_reversal_and_currency(client, session_factory):
     _, tenant, token, supplier = _supplier_context(client, session_factory)
     headers = _auth(token)
@@ -109,6 +125,7 @@ def test_supplier_payment_aggregate_balance_replay_reversal_and_currency(client,
 
 def test_supplier_cross_tenant_rejected_and_reversal_serialized(client, session_factory):
     owner, tenant, token, supplier = _supplier_context(client, session_factory)
+    _payable(client, tenant, token, supplier)
     _, other, other_token = _owner_context(client, session_factory, "supplier-other")
     payload = {
         "idempotency_key": str(uuid4()),
@@ -159,7 +176,8 @@ def test_supplier_cross_tenant_rejected_and_reversal_serialized(client, session_
         assert sorted(executor.map(lambda _: reverse(), range(2))) == [201, 409]
     with session_factory() as db:
         rows = list(db.scalars(select(SupplierLedgerEntry)))
-        assert len(rows) == 2 and sum(row.signed_amount for row in rows) == Decimal("0")
+        # opening payable (+10) plus one payment and exactly one reversal that cancel out
+        assert len(rows) == 3 and sum(row.signed_amount for row in rows) == Decimal("10")
 
 
 def test_supplier_payment_schema_rejects_allocations_and_naive_timestamps(client, session_factory):
@@ -189,6 +207,7 @@ def test_supplier_ledger_forced_rls_hides_other_tenant_and_rejects_insert(
     test_engine,
 ):
     owner, tenant, token, supplier = _supplier_context(client, session_factory)
+    _payable(client, tenant, token, supplier)
     payload = {
         "idempotency_key": str(uuid4()),
         "supplier_id": supplier,
@@ -213,7 +232,8 @@ def test_supplier_ledger_forced_rls_hides_other_tenant_and_rejects_insert(
             connection.execute(
                 text("SELECT set_config('app.current_tenant_id', :id, true)"), {"id": tenant}
             )
-            assert len(list(connection.execute(select(SupplierLedgerEntry.id)))) == 1
+            # opening payable entry plus the payment entry are visible to the owning tenant
+            assert len(list(connection.execute(select(SupplierLedgerEntry.id)))) == 2
             assert len(list(connection.execute(select(Payment.id)))) == 1
             connection.execute(
                 text("SELECT set_config('app.current_tenant_id', :id, true)"), {"id": str(uuid4())}

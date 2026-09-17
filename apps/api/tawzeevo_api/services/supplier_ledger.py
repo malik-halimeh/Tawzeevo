@@ -67,6 +67,32 @@ def supplier_balances(db: Session, tenant_id: UUID, supplier_id: UUID) -> Suppli
     )
 
 
+def _currency_balance(db: Session, tenant_id: UUID, supplier_id: UUID, currency: str) -> Decimal:
+    total = db.scalar(
+        select(func.coalesce(func.sum(SupplierLedgerEntry.signed_amount), 0)).where(
+            SupplierLedgerEntry.tenant_id == tenant_id,
+            SupplierLedgerEntry.supplier_id == supplier_id,
+            SupplierLedgerEntry.currency == currency,
+        )
+    )
+    return Decimal(total or 0)
+
+
+def _is_prepayment(db: Session, payment: Payment) -> bool:
+    entry_type = db.scalar(
+        select(SupplierLedgerEntry.entry_type).where(
+            SupplierLedgerEntry.tenant_id == payment.tenant_id,
+            SupplierLedgerEntry.source_effect_key == f"supplier-payment:{payment.id}",
+        )
+    )
+    return entry_type == SupplierLedgerEntryType.SUPPLIER_PREPAYMENT
+
+
+def _payment_response(db: Session, payment: Payment) -> SupplierPaymentResponse:
+    response = SupplierPaymentResponse.model_validate(payment)
+    return response.model_copy(update={"prepayment": _is_prepayment(db, payment)})
+
+
 def _conflict() -> AppError:
     return AppError(409, "IDEMPOTENCY_KEY_REUSED", "Key belongs to a different financial command")
 
@@ -265,7 +291,12 @@ def correct_supplier_opening(
 
 
 def _write_payment_effect(
-    db: Session, payment: Payment, actor: UUID, original: Payment | None = None
+    db: Session,
+    payment: Payment,
+    actor: UUID,
+    original: Payment | None = None,
+    *,
+    prepayment: bool = False,
 ) -> None:
     db.add(payment)
     db.flush()
@@ -290,6 +321,8 @@ def _write_payment_effect(
             entry_type=(
                 SupplierLedgerEntryType.SUPPLIER_PAYMENT_REVERSAL
                 if original
+                else SupplierLedgerEntryType.SUPPLIER_PREPAYMENT
+                if prepayment
                 else SupplierLedgerEntryType.SUPPLIER_PAYMENT
             ),
             source_type="PAYMENT",
@@ -305,7 +338,13 @@ def _write_payment_effect(
         AuditEvent(
             tenant_id=payment.tenant_id,
             actor_user_id=actor,
-            action="supplier_payment_reversed" if original else "supplier_payment_recorded",
+            action=(
+                "supplier_payment_reversed"
+                if original
+                else "supplier_prepayment_recorded"
+                if prepayment
+                else "supplier_payment_recorded"
+            ),
             entity_type="payment",
             entity_id=payment.id,
             details={"supplier_id": str(payment.supplier_id), "currency": payment.currency},
@@ -319,25 +358,49 @@ def record_supplier_payment(
     tenant_id: UUID,
     actor: UUID,
     request: SupplierPaymentRequest,
+    *,
+    prepayment: bool = False,
 ) -> SupplierPaymentResponse:
+    """Record an ordinary supplier payment or, when ``prepayment`` is set, explicit supplier credit.
+
+    D-039: an ordinary payment may not exceed the supplier's current positive payable in that
+    currency. Excess money must be recorded through the separate prepayment action so that the
+    resulting credit is clearly labelled. Both remain immutable aggregate effects.
+    """
     _lock_idempotency_key(db, request.idempotency_key)
     _supplier(db, tenant_id, request.supplier_id)
     prior = _existing_payment(db, tenant_id, request.idempotency_key)
     if prior is not None:
-        if prior.direction != PaymentDirection.SUPPLIER_PAYMENT or any(
-            getattr(prior, field) != getattr(request, field)
-            for field in (
-                "supplier_id",
-                "currency",
-                "amount",
-                "paid_at",
-                "method",
-                "reference",
-                "notes",
+        if (
+            prior.direction != PaymentDirection.SUPPLIER_PAYMENT
+            or _is_prepayment(db, prior) != prepayment
+            or any(
+                getattr(prior, field) != getattr(request, field)
+                for field in (
+                    "supplier_id",
+                    "currency",
+                    "amount",
+                    "paid_at",
+                    "method",
+                    "reference",
+                    "notes",
+                )
             )
         ):
             raise _conflict()
-        return SupplierPaymentResponse.model_validate(prior)
+        return _payment_response(db, prior)
+    if not prepayment:
+        payable = max(
+            Decimal("0"), _currency_balance(db, tenant_id, request.supplier_id, request.currency)
+        )
+        if request.amount > payable:
+            raise AppError(
+                409,
+                "SUPPLIER_PAYMENT_EXCEEDS_PAYABLE",
+                "An ordinary supplier payment cannot exceed the current payable of "
+                f"{payable.quantize(Decimal('0.0001'))} {request.currency}; record the excess "
+                "as an explicit supplier prepayment",
+            )
     if (
         db.scalar(
             select(SupplierLedgerEntry.id).where(
@@ -354,8 +417,8 @@ def record_supplier_payment(
         direction=PaymentDirection.SUPPLIER_PAYMENT,
         **request.model_dump(),
     )
-    _write_payment_effect(db, payment, actor)
-    return SupplierPaymentResponse.model_validate(payment)
+    _write_payment_effect(db, payment, actor, prepayment=prepayment)
+    return _payment_response(db, payment)
 
 
 def reverse_supplier_payment(
@@ -384,7 +447,7 @@ def reverse_supplier_payment(
             or prior.notes != reason
         ):
             raise _conflict()
-        return SupplierPaymentResponse.model_validate(prior)
+        return _payment_response(db, prior)
     if (
         db.scalar(
             select(Payment.id).where(
@@ -419,4 +482,4 @@ def reverse_supplier_payment(
         idempotency_key=request.idempotency_key,
     )
     _write_payment_effect(db, reversal, actor, original)
-    return SupplierPaymentResponse.model_validate(reversal)
+    return _payment_response(db, reversal)
