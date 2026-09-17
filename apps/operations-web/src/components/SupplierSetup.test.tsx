@@ -21,7 +21,7 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
   const bodies: Record<string, unknown>[] = [];
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = input instanceof Request ? input.url : input.toString();
-    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
+    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : undefined;
     if (body) bodies.push(body);
     if (path.includes("/tenants/tenant/products")) return Promise.resolve(Response.json({ products: [product] }));
     if (path.endsWith("/api/v1/suppliers?tenant_id=tenant") && init?.method === "POST") {
