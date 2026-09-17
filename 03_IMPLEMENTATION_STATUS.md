@@ -8,10 +8,10 @@
 - Current phase: `3`
 - Current phase status: `IN_PROGRESS`
 - Current milestone: `P3-M6 — Financial hardening and phase freeze`
-- Current milestone status: `NOT_STARTED`
+- Current milestone status: `IN_PROGRESS`
 - Last completed milestone: `P3-M5`
 - Next required user command: `continue`
-- Blocking decision: `none`
+- Blocking decision: `none for P3-M6; FA-009 waits for the owner (see OWNER_ACTIONS.md)`
 
 The user explicitly authorized `Start Phase 3`. Phase 2 is complete and its requirements audit,
 test report, and demo guide are frozen under `docs/phase-2`. Gate C verification confirms the Phase 2
@@ -36,7 +36,7 @@ immutable confirmed-line cost provenance. P3-M5 is complete; P3-M6 remains not s
 |---|---|---|
 | 1 | COMPLETE | DoD PASSED |
 | 2 | COMPLETE | Definition of Done PASSED; P2-M1 through P2-M5 complete |
-| 3 | IN_PROGRESS | Gate C and P3-M1 through P3-M5 PASSED; P3-M6 not started |
+| 3 | IN_PROGRESS | Gate C and P3-M1 through P3-M5 PASSED; FA-002..006/008/010..012 fixed 2026-09-17; P3-M6 IN_PROGRESS |
 | 4 | LOCKED | Gate D |
 | 5 | LOCKED | Gate E |
 | 6 | LOCKED | Phase 5 DoD |
@@ -128,6 +128,13 @@ dereference in the obligation path. Eleven focused PostgreSQL regressions, the p
 payment/debt suites, 142 backend tests, Ruff, formatting, strict mypy, Alembic drift and Graphify
 refresh/check-only pass. FA-008 is `FIXED_PENDING_FINANCIAL_REGATE`; FA-001 remains CLOSED, other
 findings are unchanged, the overall audit is not GO, and P3-M6 remains NOT_STARTED.
+
+Sprint 1 remediation batch (2026-09-17): FA-002, FA-003, FA-004, FA-005, FA-006, FA-010, FA-011 and
+FA-012 are fixed with permanent regressions and FA-008 is closed after regate; see the dated section
+in `docs/audits/AUDIT_REGISTER.md`. HEAD `4bdbd88a9b719bedc94f1949278a816a9917666e`: 161 backend tests / 93% coverage, 49 frontend
+tests, Ruff, strict mypy, ESLint, strict TypeScript, Vite build and Graphify refresh all PASS. New
+API group `/api/v1/suppliers` and `/api/v1/payments/supplier-prepayments`; no migration added.
+P3-M6 hardening/freeze is now IN_PROGRESS. FA-009 remains open pending an owner decision.
 
 At milestone start:
 - set milestone status `IN_PROGRESS`.

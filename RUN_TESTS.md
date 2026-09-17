@@ -389,3 +389,29 @@ data.
 - Strict mypy: PASS, 52 source files.
 - Alembic drift check at `20260909_0012`: PASS, no new upgrade operations.
 - Frontend checks: not run because FA-008 changed no frontend source, API schema, or frontend behavior.
+
+
+## Sprint 1 remediation — regression ledger (2026-09-17)
+
+PostgreSQL-backed cases require `DATABASE_URL` and `TEST_DATABASE_URL` to name the same disposable
+migrated database (this run: fresh PostgreSQL 18 cluster on 127.0.0.1:55439, migrated from zero to
+`20260909_0012`). Application HEAD `4bdbd88a9b719bedc94f1949278a816a9917666e`.
+
+| Finding | Exact command | Behavior | Result |
+|---|---|---|---|
+| FA-003 | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa003_overdue_calendar.py -q` | Beirut-calendar overdue age; 4 of 5 cases failed before the fix | PASS (5) |
+| FA-006 | `.\.venv\Scripts\python.exe -m pytest "apps/api/tests/test_invoice_editor.py::test_confirmed_revision_rejects_zero_net_sales_and_cancellation_compensates" -q` | Zero/negative confirmed edit rejected, smallest positive accepted, cancellation compensates; failed before the fix | PASS |
+| FA-002 | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa002_supplier_payment_cap.py apps/api/tests/test_supplier_ledger.py -q` | Payable cap, prepayment credit, replay, reversal, concurrent race | PASS (6) |
+| FA-005 | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa005_capability_lifecycle.py apps/api/tests/test_public_invoices.py -q` | Confirmed-only, single active link, cancellation revokes, concurrent issue | PASS (9) |
+| FA-004 | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa004_supplier_setup.py -q` | Fresh owner provisions supplier/cost via API and confirms catalog + manual invoices; tenant-private, owner-only | PASS (2) |
+| FA-004 UI | `npm run test --workspace=@tawzeevo/operations-web -- src/components/SupplierSetup.test.tsx` | Supplier creation, cost append, preferred supplier, Arabic labels | PASS (2) |
+| FA-011 | `npm run test --workspace=@tawzeevo/operations-web -- src/components/InvoiceEditor.test.tsx` | Snapshot label distinct in EN/AR | PASS |
+| FA-010 | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa010_legacy_draft_parity.py -q` | Legacy/editor prior-balance and due parity; 2 of 3 failed before the fix | PASS (3) |
+| FA-012 | `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa012_money_range.py -q` | Overflow -> 400, no partial rows, max value accepted; 4 of 5 failed before the fix | PASS (5) |
+
+### 2026-09-17 — Sprint 1 full validation
+
+- Full backend: `.\.venv\Scripts\python.exe -m pytest apps/api/tests -q --cov=tawzeevo_api` -> `161 passed`, `93%` statement coverage, one existing Starlette/httpx deprecation warning.
+- Whole-backend Ruff lint and format check: PASS. Strict mypy: PASS (55 source files).
+- Frontend `npm run check`: ESLint PASS, strict TypeScript PASS, Vitest `49 passed` (7 files), production build PASS (212 modules).
+- Graphify refresh + validation at HEAD: PASS (0.9.55, 2,673 nodes, 8,710 edges).

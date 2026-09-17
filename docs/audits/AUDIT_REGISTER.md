@@ -1023,3 +1023,33 @@ Current financial-audit state is **0 open P0, 5 open P1 and 4 open P2 findings**
 awaiting narrow financial regate. Recommended next action only: independently regate FA-008 against
 PHASE_03 F/G/H, FI-17/FI-18/FI-19/FI-25 and preserved D-038 semantics; do not start another finding
 or P3-M6.
+
+
+## Sprint 1 bounded remediation batch — 2026-09-17
+
+**Scope:** owner-authorized batch closure of the remaining Phase 3 financial findings so that P3-M6
+can start. Each finding was fixed test-first as its own commit; every commit passed whole-backend
+Ruff/format, strict mypy and the touched suites; the frontend passed ESLint, strict TypeScript,
+Vitest and the production build. Final regression at HEAD `4bdbd88a9b719bedc94f1949278a816a9917666e`: **161 backend tests passed
+(93% statement coverage)** on a disposable PostgreSQL 18 cluster migrated from zero to
+`20260909_0012`; **49 frontend tests passed**; Graphify refreshed and validated at the same SHA.
+No migration was added; no applied migration was edited; nothing was pushed.
+
+| Finding | Status | Commit | Summary of the fix |
+|---|---|---|---|
+| FA-008 | **CLOSED — VERIFIED_FIXED** | (regate only) | Source review of `opening_obligation_positions`, `_obligations`, `customer_debts` against FI-17/18/19/25 and D-038; 11 focused + full suite green. |
+| FA-003 | **CLOSED — FIXED** | `2364dba` | `customer_debts` converts both instants to `Asia/Beirut` before the day difference (D-040); midnight/DST/threshold/unset/session-timezone tests. |
+| FA-006 | **CLOSED — FIXED** | `3f362bd` | `update_confirmed_invoice` rejects zero/negative `net_sales` with the confirm-path code (D-043); rejected edits persist nothing; old zero-value test replaced. |
+| FA-002 | **CLOSED — FIXED** | `89fc4d3` | Ordinary supplier payment capped at current positive payable under the supplier lock (`SUPPLIER_PAYMENT_EXCEEDS_PAYABLE`); new `POST /api/v1/payments/supplier-prepayments` posts `SUPPLIER_PREPAYMENT` labelled credit; action-specific replay; reversals unchanged (D-039). |
+| FA-005 | **CLOSED — FIXED** | `8036748` | Links only for CONFIRMED invoices; issuing/rotating revokes all earlier active links under the invoice lock; `cancel_invoice` revokes atomically with audit; resolver refuses non-confirmed; UI shows sharing only when confirmed (D-042). |
+| FA-004 | **CLOSED — FIXED** | `5810b62`, `6523cfe` | New owner-only `/api/v1/suppliers` group (suppliers list/create/rename; product cost entries list/append; preferred supplier set/clear; audited), new "Suppliers & costs" workspace tab (EN/AR), editor manual-line supplier/cost controls and a setup link when a line has no eligible cost (D-041/D-034). Fresh-tenant confirmation proven without fixtures. |
+| FA-011 | **CLOSED — FIXED** | `06b0e3d` | Tally label "Due at this revision (snapshot)" EN/AR with explanatory note; live balance remains in the settlement desk (D-037). |
+| FA-010 | **CLOSED — FIXED** | `223a3af` | Legacy tenant-nested draft route stores the real per-currency prior balance and `prior + net_sales` due display (D-037); parity proven for debt/credit/zero. |
+| FA-012 | **CLOSED — FIXED** | `4bdbd88` | `stored_money()` guards calculator results and every monetary stage against the NUMERIC(20,4) range -> 400 `AMOUNT_OUT_OF_RANGE`; largest representable value still accepted. |
+| FA-009 | **OPEN — DECISION REQUIRED** | — | Cross-header create-command idempotency scope is a CANDIDATE (C-F01); not implemented pending the owner's choice recorded in `OWNER_ACTIONS.md`. |
+
+Financial-audit state after this batch: **0 open P0, 0 open P1, 1 open P2 (FA-009, gated on an
+owner decision)**. Under the audit rubric the remaining blocker set for Phase 3 completion is empty;
+P3-M6 (hardening/freeze) may proceed. Independent regate of this batch is recommended but is not a
+prerequisite for starting P3-M6 because every fix carries a permanent regression test and the full
+suite is green. This section supersedes only the per-finding statuses above.
