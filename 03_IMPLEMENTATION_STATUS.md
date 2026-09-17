@@ -10,8 +10,8 @@
 - Current milestone: `P3-M6 — Financial hardening and phase freeze`
 - Current milestone status: `COMPLETE`
 - Last completed milestone: `P3-M6`
-- Next required user command: `Start Phase 5` (owner-chosen order, pending D-045) or `Start Phase 4`
-- Blocking decision: `none for Phase 3; FA-009 and the Phase 5/4 gate items wait for the owner (see OWNER_ACTIONS.md)`
+- Next required user command: `Start Phase 4` (owner confirmed the normal phase order on 2026-09-17)
+- Blocking decision: `none for Phase 3 (FA-009 closed by D-045); Gate D items C1–C6 in OWNER_ACTIONS.md must be recorded before P4-M1`
 
 The user explicitly authorized `Start Phase 3`. Phase 2 is complete and its requirements audit,
 test report, and demo guide are frozen under `docs/phase-2`. Gate C verification confirms the Phase 2
@@ -63,6 +63,7 @@ public-capability sweeps, a real-browser Playwright E2E of the critical owner fl
 cost setup, invoice by barcode, confirm, receipt, private link privacy, Arabic/RTL, cancellation
 revoking the link), OpenAPI/docs reconciliation, and the three phase evidence files
 (`docs/phase-3/requirements-audit.md`, `test-report.md`, `demo-guide.md`). Phase 3 is COMPLETE.
+FA-009 was closed afterwards under D-045 (migration `20260917_0013`, head now `20260917_0013`).
 Phase 4 and Phase 5 remain LOCKED until the owner records their gate decisions and issues
 `Start Phase N`.
 

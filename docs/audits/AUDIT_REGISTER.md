@@ -1053,3 +1053,17 @@ owner decision)**. Under the audit rubric the remaining blocker set for Phase 3 
 P3-M6 (hardening/freeze) may proceed. Independent regate of this batch is recommended but is not a
 prerequisite for starting P3-M6 because every fix carries a permanent regression test and the full
 suite is green. This section supersedes only the per-finding statuses above.
+
+## FA-009 closure — 2026-09-17
+
+**Status: CLOSED — FIXED under D-045.** The owner chose option 1 (one invoice header per tenant
+create command). `create_editor_draft` now takes a transaction advisory lock on the command, returns
+the original header when the same command is replayed with the same customer, currency and line
+identities, and rejects a different request under the same command with `409 IDEMPOTENCY_CONFLICT`.
+Migration `20260917_0013` adds the partial unique index `uq_invoice_revisions_create_command`
+on `(tenant_id, client_command_id) WHERE predecessor_revision_id IS NULL` after a duplicate
+preflight that aborts without rewriting history. The operations client keeps one create command
+until the server acknowledges the header (`InvoiceEditor.tsx::createCommandRef`). Tests:
+`test_fa009_create_command.py` (replay, conflict, concurrent same command, tenant scope) and
+`InvoiceEditor.test.tsx` (failed save retries with the same command). Financial audit state:
+**0 open findings**. The five C-F candidates remain non-binding notes.

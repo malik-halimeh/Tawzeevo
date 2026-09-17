@@ -415,3 +415,9 @@ migrated database (this run: fresh PostgreSQL 18 cluster on 127.0.0.1:55439, mig
 - Whole-backend Ruff lint and format check: PASS. Strict mypy: PASS (55 source files).
 - Frontend `npm run check`: ESLint PASS, strict TypeScript PASS, Vitest `49 passed` (7 files), production build PASS (212 modules).
 - Graphify refresh + validation at HEAD: PASS (0.9.55, 2,673 nodes, 8,710 edges).
+
+### 2026-09-17 — FA-009 closure (D-045)
+
+- `.\.venv\Scripts\python.exe -m pytest apps/api/tests/test_fa009_create_command.py -q` -> `3 passed` (replay returns the same header, conflicting request 409, concurrent same command yields one header, tenant-scoped commands).
+- `npm run test --workspace=@tawzeevo/operations-web -- src/components/InvoiceEditor.test.tsx` -> `11 passed` including the failed-save-retries-with-same-command case.
+- Migration `20260917_0013` applied from `0012`; `alembic check` PASS; from-zero migration test updated to the new head.
