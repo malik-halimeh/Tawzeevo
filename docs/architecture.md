@@ -53,12 +53,12 @@ EN/AR; some invoice-link translations live inline in the component and public HT
 | Draft/edit | Customer/catalog/calculator/parser inputs -> server pricing/cost resolution -> immutable revision/items -> current header pointer. Legacy tenant-nested draft routes adapt to this schema, not a second invoice engine. |
 | Confirm/edit | Invoice/current predecessor locks -> complete cost requirement -> server tenant/year number + one charge; later confirmed edit adds revision and ledger delta, reconciling excess allocations. |
 | Receipt/cancel/refund | Immutable receipt + ledger effect + allocations; corrections append compensating rows. Cancellation preserves payments; refund separately locks/rechecks available credit. PHASE_03.md H/I is authority. |
-| Public invoice | Owner issues -> hash + safe audit -> one-time URL -> browser fragment to header -> token + active tenant check -> current revision allowlist. No account login, debt history, supplier cost or profit. |
-| Supplier foundation | Existing tenant supplier -> opening payable/payment/reversal -> per-currency aggregate. No purchase allocation/procurement. Supplier/cost provisioning is a cold-start gap (CT-003). |
-| Debt display | Read computes positive per-currency debt, oldest unpaid age, threshold flag and stable alert key. UI displays it; no job worker or persistent notification queue. Cadence/timezone provenance needs review (CT-005). |
+| Public invoice | Owner issues for a CONFIRMED invoice only; at most one active link (issuing/rotating revokes earlier links; cancellation revokes) -> hash + safe audit -> one-time URL -> browser fragment to header -> token + active tenant + confirmed check -> current revision allowlist (D-042). No account login, debt history, supplier cost or profit. |
+| Supplier foundation | Owner creates suppliers and appends effective-dated product costs through `/api/v1/suppliers` (D-041); preferred supplier preloads invoice entry. Opening payable -> ordinary payment capped at payable (D-039) or explicit prepayment credit -> compensating reversal, per-currency aggregate. No purchase allocation/procurement. |
+| Debt display | Read computes positive per-currency debt, oldest unpaid age on the Asia/Beirut calendar (D-040), threshold flag and stable alert key. UI displays it; no job worker or persistent notification queue (cadence remains a later operational policy). |
 
-Finance APIs use `?tenant_id=...` with /api/v1/invoices, /payments, /customer-ledger and
-/supplier-ledger groups. Catalog APIs remain nested under /api/v1/tenants/{tenant_id}.
+Finance APIs use `?tenant_id=...` with /api/v1/invoices, /payments, /customer-ledger,
+/supplier-ledger and /suppliers groups. Catalog APIs remain nested under /api/v1/tenants/{tenant_id}.
 /api/v1/tenant-contexts discovers the caller's active memberships. Blanket tenant-nested wording
 in the older API summary is not an accurate route map now. Public HTML is /api/v1/public/invoice;
 its /data endpoint reads the secret header manually. OpenAPI describes the header but does not
@@ -78,7 +78,7 @@ commit_and_restore_tenant_scope restores scope for post-commit reads.
 | Membership/audit | tenant_memberships, tenant_invitations, audit_events; invitations have schema but no flow; internal membership lifecycle service is not an HTTP management API |
 | Global master identity | master_categories, master_products, master_barcodes, master_product_images, master_catalog_imports, master_product_sources; not tenant commercial pricing |
 | Tenant customer/catalog | customers, categories, tenant_products, tenant_barcodes, tenant_grade_discounts, product_grade_prices, tenant_product_images |
-| Tenant costs | tenant_suppliers (minimum identity/name), append-only tenant_product_cost_entries, preferred supplier reference; no contacts/procurement UI |
+| Tenant costs | tenant_suppliers (identity/name, owner CRUD), append-only tenant_product_cost_entries (owner append), preferred supplier reference; contacts/location and procurement remain Phase 6 |
 | Invoice/history | invoices, invoice_sequences, invoice_revisions, invoice_revision_items; header pointers, revision financial snapshots; nullable order_id uniqueness is reserved, not a live order table |
 | Money/events | customer_ledger_entries, supplier_ledger_entries, payments, payment_allocations, tenant_financial_settings; balances computed per currency |
 | Public sharing | public_invoice_capabilities; mutable expiry/revocation/rotation metadata, hash-only secret, tenant/invoice composite relationship |

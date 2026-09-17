@@ -34,7 +34,8 @@ sync, procurement, delivery routing, analytics, or forecasting as implemented.
 - Immutable customer receipts with FIFO or owner-selected allocation, partial/multi-obligation settlement, compensating receipt reversal, and unallocated credit
 - Draft/confirmed cancellation accounting that preserves revisions and payments, plus serialized customer-credit refunds that cannot create debt
 - Owner-managed invoice links with expiry, replacement, revocation, a restricted EN/AR customer view, and WhatsApp sharing
-- Tenant-private supplier opening balances, aggregate payments, and compensating reversals, without per-purchase allocation
+- Tenant-private supplier opening balances, payable-capped aggregate payments, explicit supplier prepayments, and compensating reversals, without per-purchase allocation
+- Owner supplier and product-cost setup (create/rename suppliers, append effective-dated costs, choose the preferred supplier) feeding invoice cost provenance
 - English/Arabic operations UI with LTR/RTL, protected routes, accessible forms, and platform dashboards
 - Safe administrator bootstrap and synthetic owner-scoped demo seeding
 
