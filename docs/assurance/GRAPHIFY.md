@@ -50,13 +50,13 @@ updated freshness record deliberately; the script never stages or commits.
 ## Freshness record
 
 <!-- GRAPHIFY_STATE_START -->
-GRAPH_SOURCE_SHA=4bdbd88a9b719bedc94f1949278a816a9917666e
-GRAPH_REFRESHED_AT_UTC=2026-09-17T02:25:54Z
+GRAPH_SOURCE_SHA=3f7c32126a2fe42e7c03a2cf80c3ae65f79c8355
+GRAPH_REFRESHED_AT_UTC=2026-09-17T03:19:40Z
 GRAPHIFY_VERSION=0.9.55
 GRAPH_MODE=structural-code-only-no-cluster
 GRAPH_VALIDATION=PASS
-GRAPH_NODES=2673
-GRAPH_EDGES=8710
+GRAPH_NODES=2679
+GRAPH_EDGES=8716
 <!-- GRAPHIFY_STATE_END -->
 
 ## Baseline validation evidence
@@ -83,21 +83,21 @@ could be truncated; focused symbol queries and paths were more reliable. Some OR
 were inferred rather than extracted. FastAPI dependency injection, SQLAlchemy runtime behavior, RLS,
 and other dynamic wiring therefore still require source, migration, and test inspection.
 
-### FA-008 material-refresh verification â€” 2026-09-10
+### FA-008 material-refresh verification Ã¢â‚¬â€ 2026-09-10
 
 This refresh follows application commit `65b571488fc05247fad6f405f8d5733b597d98ef`.
 Refresh and check-only passed with Graphify 0.9.55, 2,577 nodes and 8,180 edges. Focused paths
 resolved these extracted relationships:
 
-- `correct_customer_opening_balance()` â†’ `correct_opening_balance()`;
-- `record_customer_receipt()` â†’ `_selected_allocations()` â†’ `_obligations()` â†’
+- `correct_customer_opening_balance()` Ã¢â€ â€™ `correct_opening_balance()`;
+- `record_customer_receipt()` Ã¢â€ â€™ `_selected_allocations()` Ã¢â€ â€™ `_obligations()` Ã¢â€ â€™
   `opening_obligation_positions()`;
-- `record_customer_receipt()` â†’ `PaymentAllocation` and `CustomerLedgerEntry` (model uses include
+- `record_customer_receipt()` Ã¢â€ â€™ `PaymentAllocation` and `CustomerLedgerEntry` (model uses include
   inferred edges and were verified directly);
-- `record_customer_receipt()` â†’ `commit_and_restore_tenant_scope()`;
-- `record_customer_receipt()` â†’ `_payment_response()` â†’ `_customer_balance()`;
-- `customer_obligations()` â†’ `_obligations()` â†’ `opening_obligation_positions()`; and
-- `customer_debts()` â†’ `opening_obligation_positions()`.
+- `record_customer_receipt()` Ã¢â€ â€™ `commit_and_restore_tenant_scope()`;
+- `record_customer_receipt()` Ã¢â€ â€™ `_payment_response()` Ã¢â€ â€™ `_customer_balance()`;
+- `customer_obligations()` Ã¢â€ â€™ `_obligations()` Ã¢â€ â€™ `opening_obligation_positions()`; and
+- `customer_debts()` Ã¢â€ â€™ `opening_obligation_positions()`.
 
 Direct source and test review confirmed that immutable opening/correction rows are combined before
 the signed position is interpreted; invoice groups retain their existing canonical aggregation;
@@ -106,7 +106,7 @@ original opening row; and tenant/currency filters remain explicit. Graphify does
 results, ORM runtime string values, transactionality, allocation conservation, RLS, or database
 history immutability, so those conclusions rely on source, schema and the executed PostgreSQL suite.
 
-### FA-007 material-refresh verification â€” 2026-09-08
+### FA-007 material-refresh verification Ã¢â‚¬â€ 2026-09-08
 
 This refresh follows application commit `ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd`.
 Focused navigation returned EXTRACTED paths from `InvoiceEditor()` to both `financialIntent()` and
@@ -119,18 +119,18 @@ Direct source review confirmed the complete material path:
 
 ```text
 InvoiceEditor recordReceipt / recordRefund
-â†’ financialIntent stable pending payload
-â†’ apiRequest (including same-body 401 replay)
-â†’ routes/payments.py::create_customer_receipt
-â†’ services/payments.py::record_customer_receipt
-â†’ Payment + CustomerLedgerEntry + PaymentAllocation + AuditEvent
+Ã¢â€ â€™ financialIntent stable pending payload
+Ã¢â€ â€™ apiRequest (including same-body 401 replay)
+Ã¢â€ â€™ routes/payments.py::create_customer_receipt
+Ã¢â€ â€™ services/payments.py::record_customer_receipt
+Ã¢â€ â€™ Payment + CustomerLedgerEntry + PaymentAllocation + AuditEvent
 ```
 
 Graphify does not index the nested `recordReceipt` callback as a standalone node, so the stable-key
 creation, failure retention, successful retirement, ledger/allocation constructors, database
 constraints and both regression tests were verified directly. No absence claim relies on the graph.
 
-### FA-001 material-refresh verification â€” 2026-09-09
+### FA-001 material-refresh verification Ã¢â‚¬â€ 2026-09-09
 
 This refresh follows application commit `431a984898484ab132acb11089ecb6dd3a7e406a`.
 Refresh and check-only both passed with Graphify 0.9.55, 2,562 nodes and 8,086 edges. Focused
