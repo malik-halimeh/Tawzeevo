@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -33,6 +34,16 @@ from tawzeevo_api.schemas.customer_ledger import (
 )
 from tawzeevo_api.services.cash_van import get_customer
 from tawzeevo_api.services.invoice_editor import money
+
+# D-040: overdue age is a calendar-day difference on the Asia/Beirut calendar, independent of
+# the server clock zone or the database session time zone. Instants are stored in UTC.
+OVERDUE_CALENDAR = ZoneInfo("Asia/Beirut")
+
+
+def overdue_calendar_date(value: datetime) -> date:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(OVERDUE_CALENDAR).date()
 
 
 @dataclass(frozen=True)
@@ -450,7 +461,11 @@ def customer_debts(
                 obligation_dates.append(entry.effective_at)
 
         oldest = min(obligation_dates) if obligation_dates else None
-        age_days = max(0, (now.date() - oldest.date()).days) if oldest is not None else None
+        age_days = (
+            max(0, (overdue_calendar_date(now) - overdue_calendar_date(oldest)).days)
+            if oldest is not None
+            else None
+        )
         is_overdue = (
             threshold is not None and age_days is not None and age_days > threshold and balance > 0
         )

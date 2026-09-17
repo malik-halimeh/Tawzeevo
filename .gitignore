@@ -45,3 +45,6 @@ Thumbs.db
 *.tmp
 .tmp/
 *.log
+
+# Owner-supplied planning documents (never published)
+docs/documents/
