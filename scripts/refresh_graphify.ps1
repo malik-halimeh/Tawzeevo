@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$policyPath = Join-Path $repositoryRoot 'docs\assurance\GRAPHIFY.md'
+$policyPath = Join-Path $repositoryRoot 'private\docs\assurance\GRAPHIFY.md'
 $graphPath = Join-Path $repositoryRoot 'graphify-out\graph.json'
 
 function Invoke-GraphifyText {
