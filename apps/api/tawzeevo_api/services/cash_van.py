@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from tawzeevo_api.models import (
     BarcodePackageLevel,
     Category,
     Customer,
+    CustomerLedgerEntry,
     Invoice,
     InvoiceRevision,
     InvoiceRevisionItem,
@@ -700,6 +701,20 @@ def create_draft_invoice(
             )
         )
 
+    # D-037: the due snapshot is prior balance plus net sales at the time the revision is saved,
+    # exactly as the production editor computes it; the legacy route must not hardcode zero.
+    prior_balance = _money(
+        Decimal(
+            db.scalar(
+                select(func.coalesce(func.sum(CustomerLedgerEntry.signed_amount), 0)).where(
+                    CustomerLedgerEntry.tenant_id == tenant_id,
+                    CustomerLedgerEntry.customer_id == customer.id,
+                    CustomerLedgerEntry.currency == currency,
+                )
+            )
+            or 0
+        )
+    )
     invoice_id = uuid4()
     revision_id = uuid4()
     invoice = Invoice(
@@ -727,12 +742,12 @@ def create_draft_invoice(
             "address": customer.address,
             "grade": str(customer.grade) if customer.grade is not None else None,
         },
-        prior_balance_snapshot=Decimal("0.0000"),
+        prior_balance_snapshot=prior_balance,
         subtotal=_money(subtotal),
         discount_total=Decimal("0.0000"),
         markup_total=Decimal("0.0000"),
         net_sales=_money(subtotal),
-        amount_due_display=_money(subtotal),
+        amount_due_display=_money(prior_balance + subtotal),
     )
     db.add(revision)
     for line_number, (
