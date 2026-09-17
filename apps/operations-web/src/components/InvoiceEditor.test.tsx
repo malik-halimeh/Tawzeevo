@@ -669,3 +669,15 @@ test("debt desk marks an overdue customer with text and a non-color alert mark",
   expect(screen.getByText("75.0000 USD")).toBeInTheDocument();
   expect(container.querySelector(".debt-row.is-overdue .debt-alert-mark")).toHaveTextContent("!");
 });
+
+
+test("the immutable due snapshot is labelled distinctly from the live balance (FA-011 / D-037)", async () => {
+  await i18n.changeLanguage("en");
+  expect(i18n.t("invoiceEditor.totalDue")).toBe("Due at this revision (snapshot)");
+  expect(i18n.t("invoiceEditor.totalDueNote")).toContain("never this snapshot");
+  expect(i18n.t("invoiceEditor.customerBalance")).toBe("Customer balance");
+  await i18n.changeLanguage("ar");
+  expect(i18n.t("invoiceEditor.totalDue")).toBe("المستحق عند هذه المراجعة (لقطة)");
+  expect(i18n.t("invoiceEditor.totalDueNote")).toContain("لا هذه اللقطة");
+  await i18n.changeLanguage("en");
+});
