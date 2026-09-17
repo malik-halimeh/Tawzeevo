@@ -1442,9 +1442,10 @@ def test_confirmed_cancellation_matrix_handles_unpaid_and_fully_paid_invoices(
             assert payment.amount == Decimal(receipt_amount)
 
 
-def test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal(
+def test_confirmed_revision_rejects_zero_net_sales_and_cancellation_compensates(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
+    """FA-006 / D-043: a confirmed edit may never reach zero or negative net sales."""
     owner, tenant_id, token = _owner_context(client, session_factory, "cancel-zero")
     _category, product, customer = _catalog(client, tenant_id, token)
     _attach_latest_cost(session_factory, owner, tenant_id, product["id"])
@@ -1461,25 +1462,43 @@ def test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal(
         json={"expected_revision_id": created.json()["current_revision_id"]},
     )
     assert confirmed.status_code == 200, confirmed.text
-    zero_payload = _confirmable_payload(
-        customer["id"],
-        product["id"],
-        predecessor_id=confirmed.json()["current_revision_id"],
-    )
-    zero_payload["invoice_discount_expression"] = "25.25"
-    revised = client.put(
-        f"/api/v1/invoices/{created.json()['id']}",
-        params={"tenant_id": tenant_id},
-        headers=_auth(token),
-        json=zero_payload,
-    )
-    assert revised.status_code == 200, revised.text
-    assert revised.json()["net_sales"] == "0.0000"
+    confirmed_revision = confirmed.json()["current_revision_id"]
+
+    def revise(discount: str) -> object:
+        payload = _confirmable_payload(
+            customer["id"], product["id"], predecessor_id=confirmed_revision
+        )
+        payload["invoice_discount_expression"] = discount
+        return client.put(
+            f"/api/v1/invoices/{created.json()['id']}",
+            params={"tenant_id": tenant_id},
+            headers=_auth(token),
+            json=payload,
+        )
+
+    zero = revise("25.25")
+    assert zero.status_code == 409, zero.text
+    assert zero.json()["detail"]["code"] == "ZERO_VALUE_INVOICE_NOT_CONFIRMABLE"
+    negative = revise("30")
+    assert negative.status_code in (400, 409, 422), negative.text
+    with session_factory() as db:
+        revisions = db.scalar(
+            select(func.count())
+            .select_from(InvoiceRevision)
+            .where(InvoiceRevision.invoice_id == UUID(created.json()["id"]))
+        )
+        assert revisions == 1, "rejected edits must not persist a revision"
+
+    smallest = revise("25.24")
+    assert smallest.status_code == 200, smallest.text
+    assert smallest.json()["net_sales"] == "0.0100"
+    assert smallest.json()["status"] == "CONFIRMED"
+
     cancelled = client.post(
         f"/api/v1/invoices/{created.json()['id']}/cancel",
         params={"tenant_id": tenant_id},
         headers=_auth(token),
-        json={"idempotency_key": str(uuid4()), "reason": "Zero-value closure"},
+        json={"idempotency_key": str(uuid4()), "reason": "Closure through reversal"},
     )
     assert cancelled.status_code == 200, cancelled.text
     with session_factory() as db:
@@ -1491,4 +1510,4 @@ def test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal(
         )
         assert reversal is not None
         assert reversal.entry_type == LedgerEntryType.INVOICE_REVERSAL
-        assert reversal.signed_amount == Decimal("0.0000")
+        assert reversal.signed_amount == Decimal("-0.0100")

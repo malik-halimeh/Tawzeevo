@@ -488,6 +488,14 @@ def update_confirmed_invoice(
     subtotal, discount_total, markup_total, net_sales = _totals(
         items, request.invoice_discount_expression, request.invoice_markup_expression
     )
+    if money(net_sales) <= 0:
+        # D-043: every confirmed revision keeps strictly positive net sales. A zero economic
+        # effect must go through cancellation/reversal, never a zero-value confirmed revision.
+        raise AppError(
+            409,
+            "ZERO_VALUE_INVOICE_NOT_CONFIRMABLE",
+            "A confirmed invoice revision must keep a positive net sales value",
+        )
     prior_balance = _balance_excluding_invoice(
         db, tenant_id, customer.id, request.currency, invoice.id
     )
