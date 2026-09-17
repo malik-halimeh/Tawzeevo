@@ -57,11 +57,23 @@ Do not use this file to invent decisions.
 | D-047 | Tenant storefront routing uses `https://<platform>/<tenant-slug>/…`. A slug is 3–50 lowercase ASCII letters, digits or hyphens, globally unique, never authorization, with reserved platform names rejected. A rename keeps a redirect from the previous slug and is audited. Approved 2026-09-17 (Gate E B2). | LOCKED |
 | D-048 | Recommendation signal weights: valid purchase = 10, pseudonymous view = 1; cancelled or non-valid sales never count. Approved 2026-09-17 (Gate E B3). | LOCKED |
 | D-049 | Phase 5 notifications: exactly one in-app owner notification per accepted checkout; delivery reminders are transactional job records with tenant-local date semantics and UTC execution; no SMS/email/push provider is introduced without a separate decision. Approved 2026-09-17 (Gate E B6). | LOCKED |
+| D-050 | Storefront view de-duplication window is 24 hours: the same pseudonymous session viewing the same product again within 24 hours counts as one view. Purchases are never de-duplicated. Approved 2026-09-18 (Gate E B4). | LOCKED |
+| D-051 | Raw anonymous interaction rows are kept 90 days, then rolled up into monthly per-product counts (session ids dropped) by a scheduled job; purchase history is financial history and is kept. Approved 2026-09-18 (Gate E B5). | LOCKED |
+| D-052 | Sync pull page size is 500 change records per page (tunable operational constant, not a protocol change). Approved 2026-09-18 (Gate D C1). | LOCKED |
+| D-053 | Tombstones are retained at least 90 days and longer while an active, non-retired device still needs them; a device whose cursor predates retention re-bootstraps (`410 SYNC_REBOOTSTRAP_REQUIRED`). Approved 2026-09-18 (Gate D C2). | LOCKED |
+| D-054 | Offline lease is 24 hours; a registered device unseen for 90 days is retired and must re-bootstrap. The lease is never API authentication. Approved 2026-09-18 (Gate D C3). | LOCKED |
+| D-055 | Google backup uses the `drive.file` OAuth scope only, with one app-created folder per tenant named `Tawzeevo Backup – <business name>` in the connected owner's Drive. No broader scope. Approved 2026-09-18 (Gate D C4). | LOCKED |
+| D-056 | Backups run daily; retention keeps 30 daily and 12 monthly encrypted backups per tenant. Approved 2026-09-18 (Gate D C5). | LOCKED |
+| D-057 | Per-tenant data keys are wrapped by an environment master key stored as a hosting-provider secret (one per environment), with the master key also kept in the owner's password manager; rotation follows a documented runbook. A cloud KMS may replace this by a later decision. Approved 2026-09-18 (Gate D C6). | LOCKED |
+| D-058 | Procurement lists use `OPEN → PARTIALLY_PURCHASED → COMPLETE / CANCELLED`; remaining quantities may be carried forward to the next list; an owner may waive a line with a reason; nothing is silently dropped. Approved 2026-09-18 (Phase 6 D1). | LOCKED |
+| D-059 | Supplier quotes and actual purchases are recorded on the existing tenant product-cost entry table with source types `QUOTE` and `ACTUAL_PURCHASE`; invoice entry preloads the latest actual purchase, then the latest quote, then manual; historical invoice snapshots are never rewritten. Approved 2026-09-18 (Phase 6 D2). | LOCKED |
+| D-060 | Online routing/geocoding uses a provider chain behind one adapter: OpenRouteService first; Google Maps Platform as fallback only when its key is configured; otherwise the offline stop-order heuristic (nearest neighbour + 2-opt + manual reorder). Core delivery never depends on a provider. Approved 2026-09-18 (Gate F E1). | LOCKED |
+| D-061 | Customer location precedence: an operator-confirmed location always wins; among unconfirmed readings GPS with accuracy better than 50 m beats geocoded beats manual; a worse reading never silently replaces a better one. Approved 2026-09-18 (Gate F E3). | LOCKED |
 
 ## Pending decisions
 
-Open owner questions with explanations are tracked in `OWNER_ACTIONS.md` (Gate E B4/B5, Gate D C1–C6,
-later gates). Phase-specific `REVIEW_REQUIRED` items remain at their named gates and are not silently
+Open owner questions with explanations are tracked in the owner's private action file (Gate F E2,
+Phase 8–10 proposals). Phase-specific `REVIEW_REQUIRED` items remain at their named gates and are not silently
 approved by this statement.
 
 ## Implementation procedure for a new decision

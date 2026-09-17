@@ -48,3 +48,6 @@ Thumbs.db
 
 # Owner-supplied planning documents (never published)
 docs/documents/
+
+# Working documents kept out of the public repository (owner decision A3, 2026-09-18)
+private/
