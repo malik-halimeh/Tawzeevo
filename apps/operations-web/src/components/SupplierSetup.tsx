@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from "../api/types";
 import { ErrorState } from "./Ui";
+import { SupplierLedgerPanel } from "./SupplierLedgerPanel";
 
 export interface Supplier {
   id: string;
@@ -223,6 +224,7 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
           ) : null}
         </article>
       </div>
+      <SupplierLedgerPanel tenantId={tenantId} suppliers={suppliers} />
     </section>
   );
 }

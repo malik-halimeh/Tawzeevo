@@ -50,9 +50,10 @@ private invoice sharing. Use synthetic data only.
 ### 5. Suppliers and supplier payments
 
 1. In **Suppliers & costs**, append a second cost entry and show that the first one is preserved.
-2. Using Swagger (`/docs`): record a supplier opening payable, then an ordinary payment larger
-   than the payable (refused with `SUPPLIER_PAYMENT_EXCEEDS_PAYABLE`), then an explicit
-   prepayment (accepted, labelled `SUPPLIER_PREPAYMENT`). Reverse it and show the balance return.
+2. In the **Supplier payable and payments** desk on the same tab: record an opening payable of 20,
+   then try an ordinary payment of 25 (refused: it cannot exceed the payable), then record the
+   same 25 as a prepayment (accepted and shown as −5 supplier credit). Reverse it with a reason
+   and show the balance return to 20.
 
 ### 6. Private invoice sharing
 

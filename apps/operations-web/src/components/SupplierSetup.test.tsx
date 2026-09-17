@@ -45,11 +45,11 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
   fireEvent.change(screen.getByLabelText("Supplier name"), { target: { value: "Bekaa Wholesale" } });
   fireEvent.click(screen.getByRole("button", { name: "Add supplier" }));
   expect(await screen.findByText("Supplier created.")).toBeInTheDocument();
-  expect(screen.getByText("Bekaa Wholesale")).toBeInTheDocument();
+  expect(screen.getAllByText("Bekaa Wholesale").length).toBeGreaterThan(0);
 
   fireEvent.change(screen.getByLabelText("Product"), { target: { value: "product-1" } });
   expect(await screen.findByText("No cost entries for this product yet.")).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("Supplier"), { target: { value: "supplier-1" } });
+  fireEvent.change(screen.getAllByLabelText("Supplier")[0]!, { target: { value: "supplier-1" } });
   fireEvent.change(screen.getByLabelText("Unit cost (USD)"), { target: { value: "8" } });
   fireEvent.click(screen.getByRole("button", { name: "Save new cost entry" }));
   await waitFor(() => expect(screen.getByText("Cost entry saved. The invoice editor will preload it.")).toBeInTheDocument());

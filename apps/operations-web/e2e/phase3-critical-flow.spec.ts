@@ -51,11 +51,25 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await expect(page.getByText("Supplier created.")).toBeVisible();
   await page.getByRole("combobox", { name: "Product", exact: true }).selectOption({ label: "Cedar Sparkling Water · 12.5000 USD" });
   await expect(page.getByText("No cost entries for this product yet.")).toBeVisible();
-  await page.getByRole("combobox", { name: "Supplier", exact: true }).selectOption({ label: "Bekaa Wholesale" });
+  await page.getByRole("combobox", { name: "Supplier", exact: true }).first().selectOption({ label: "Bekaa Wholesale" });
   await page.getByRole("spinbutton", { name: "Unit cost (USD)" }).fill("8");
   await page.getByRole("button", { name: "Save new cost entry" }).click();
   await expect(page.getByText("Cost entry saved. The invoice editor will preload it.")).toBeVisible();
   await expect(page.getByText("Bekaa Wholesale · preferred")).toBeVisible();
+
+  // ----- Browser: supplier ledger desk (D-039 cap and explicit prepayment) -----
+  const ledger = page.getByRole("article", { name: "Supplier payable and payments" });
+  await ledger.getByRole("combobox", { name: "Supplier", exact: true }).selectOption({ label: "Bekaa Wholesale" });
+  await ledger.getByRole("spinbutton", { name: /Opening payable/ }).fill("20");
+  await ledger.getByRole("button", { name: "Record opening" }).click();
+  await expect(ledger.getByText("Supplier opening balance recorded.")).toBeVisible();
+  await expect(ledger.getByText("20.0000")).toBeVisible();
+  await ledger.getByRole("spinbutton", { name: "Payment amount" }).fill("25");
+  await ledger.getByRole("button", { name: "Record payment", exact: true }).click();
+  await expect(ledger.getByText(/cannot exceed the current payable/)).toBeVisible();
+  await ledger.getByRole("button", { name: "Record as prepayment" }).click();
+  await expect(ledger.getByText("Supplier prepayment recorded as credit.")).toBeVisible();
+  await expect(ledger.getByText("-5.0000")).toBeVisible();
 
   // ----- Browser: invoice create -> confirm -----
   await page.getByRole("tab", { name: "Invoices" }).click();
@@ -104,7 +118,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   const debts = balances.debts as Array<Record<string, unknown>>;
   // After cancellation the 12.5 charge is reversed and the 5 receipt remains as credit: no positive debt.
   expect(debts).toHaveLength(0);
-  const ledger = await json(await api.get(`/api/v1/customer-ledger/customers/${customerId}/balances?tenant_id=${tenantId}`, { headers: owner }));
-  expect(ledger.balances).toEqual([{ currency: "USD", balance: "-5.0000" }]);
+  const customerLedger = await json(await api.get(`/api/v1/customer-ledger/customers/${customerId}/balances?tenant_id=${tenantId}`, { headers: owner }));
+  expect(customerLedger.balances).toEqual([{ currency: "USD", balance: "-5.0000" }]);
   await api.dispose();
 });
