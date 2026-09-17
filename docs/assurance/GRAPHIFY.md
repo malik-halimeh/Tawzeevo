@@ -50,13 +50,13 @@ updated freshness record deliberately; the script never stages or commits.
 ## Freshness record
 
 <!-- GRAPHIFY_STATE_START -->
-GRAPH_SOURCE_SHA=e6786543eaba17297253ccf0b316bf4168383531
-GRAPH_REFRESHED_AT_UTC=2026-09-17T03:54:31Z
+GRAPH_SOURCE_SHA=64fd8cd4451d33fd5a962a88573ebd3b2f63de05
+GRAPH_REFRESHED_AT_UTC=2026-09-17T12:27:20Z
 GRAPHIFY_VERSION=0.9.55
 GRAPH_MODE=structural-code-only-no-cluster
 GRAPH_VALIDATION=PASS
-GRAPH_NODES=2683
-GRAPH_EDGES=8746
+GRAPH_NODES=2695
+GRAPH_EDGES=8807
 <!-- GRAPHIFY_STATE_END -->
 
 ## Baseline validation evidence
@@ -83,21 +83,21 @@ could be truncated; focused symbol queries and paths were more reliable. Some OR
 were inferred rather than extracted. FastAPI dependency injection, SQLAlchemy runtime behavior, RLS,
 and other dynamic wiring therefore still require source, migration, and test inspection.
 
-### FA-008 material-refresh verification ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 2026-09-10
+### FA-008 material-refresh verification ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 2026-09-10
 
 This refresh follows application commit `65b571488fc05247fad6f405f8d5733b597d98ef`.
 Refresh and check-only passed with Graphify 0.9.55, 2,577 nodes and 8,180 edges. Focused paths
 resolved these extracted relationships:
 
-- `correct_customer_opening_balance()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `correct_opening_balance()`;
-- `record_customer_receipt()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `_selected_allocations()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `_obligations()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢
+- `correct_customer_opening_balance()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `correct_opening_balance()`;
+- `record_customer_receipt()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `_selected_allocations()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `_obligations()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢
   `opening_obligation_positions()`;
-- `record_customer_receipt()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `PaymentAllocation` and `CustomerLedgerEntry` (model uses include
+- `record_customer_receipt()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `PaymentAllocation` and `CustomerLedgerEntry` (model uses include
   inferred edges and were verified directly);
-- `record_customer_receipt()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `commit_and_restore_tenant_scope()`;
-- `record_customer_receipt()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `_payment_response()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `_customer_balance()`;
-- `customer_obligations()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `_obligations()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `opening_obligation_positions()`; and
-- `customer_debts()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `opening_obligation_positions()`.
+- `record_customer_receipt()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `commit_and_restore_tenant_scope()`;
+- `record_customer_receipt()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `_payment_response()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `_customer_balance()`;
+- `customer_obligations()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `_obligations()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `opening_obligation_positions()`; and
+- `customer_debts()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `opening_obligation_positions()`.
 
 Direct source and test review confirmed that immutable opening/correction rows are combined before
 the signed position is interpreted; invoice groups retain their existing canonical aggregation;
@@ -106,7 +106,7 @@ original opening row; and tenant/currency filters remain explicit. Graphify does
 results, ORM runtime string values, transactionality, allocation conservation, RLS, or database
 history immutability, so those conclusions rely on source, schema and the executed PostgreSQL suite.
 
-### FA-007 material-refresh verification ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 2026-09-08
+### FA-007 material-refresh verification ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 2026-09-08
 
 This refresh follows application commit `ac9bbdb9b10f1dd09010bf4c1bd2ab56e44d85fd`.
 Focused navigation returned EXTRACTED paths from `InvoiceEditor()` to both `financialIntent()` and
@@ -119,18 +119,18 @@ Direct source review confirmed the complete material path:
 
 ```text
 InvoiceEditor recordReceipt / recordRefund
-ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ financialIntent stable pending payload
-ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ apiRequest (including same-body 401 replay)
-ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ routes/payments.py::create_customer_receipt
-ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ services/payments.py::record_customer_receipt
-ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Payment + CustomerLedgerEntry + PaymentAllocation + AuditEvent
+ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ financialIntent stable pending payload
+ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ apiRequest (including same-body 401 replay)
+ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ routes/payments.py::create_customer_receipt
+ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ services/payments.py::record_customer_receipt
+ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Payment + CustomerLedgerEntry + PaymentAllocation + AuditEvent
 ```
 
 Graphify does not index the nested `recordReceipt` callback as a standalone node, so the stable-key
 creation, failure retention, successful retirement, ledger/allocation constructors, database
 constraints and both regression tests were verified directly. No absence claim relies on the graph.
 
-### FA-001 material-refresh verification ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 2026-09-09
+### FA-001 material-refresh verification ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 2026-09-09
 
 This refresh follows application commit `431a984898484ab132acb11089ecb6dd3a7e406a`.
 Refresh and check-only both passed with Graphify 0.9.55, 2,562 nodes and 8,086 edges. Focused
