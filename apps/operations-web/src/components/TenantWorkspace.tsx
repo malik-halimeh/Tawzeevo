@@ -21,6 +21,7 @@ import type {
 } from "../api/types";
 import { ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { InvoiceEditor } from "./InvoiceEditor";
+import { SupplierSetup } from "./SupplierSetup";
 
 const grades: CustomerGrade[] = ["A+", "A", "B+", "B"];
 
@@ -323,7 +324,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const queryClient = useQueryClient();
   const [tenantId, setTenantId] = useState(contexts[0]?.tenant_id ?? "");
   const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
-  const [view, setView] = useState<"customers" | "categories" | "products" | "invoices">("customers");
+  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "invoices">("customers");
   const [phoneSearch, setPhoneSearch] = useState("");
   const [matches, setMatches] = useState<Customer[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(emptyCustomer);
@@ -581,6 +582,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <button aria-selected={view === "customers"} onClick={() => setView("customers")} role="tab" type="button">{t("tenantWorkspace.customers")}</button>
             <button aria-selected={view === "categories"} onClick={() => setView("categories")} role="tab" type="button">{t("tenantWorkspace.categories")}</button>
             <button aria-selected={view === "products"} onClick={() => setView("products")} role="tab" type="button">{t("tenantWorkspace.products")}</button>
+            <button aria-selected={view === "suppliers"} onClick={() => setView("suppliers")} role="tab" type="button">{t("supplierSetup.tab")}</button>
             <button aria-selected={view === "invoices"} onClick={() => setView("invoices")} role="tab" type="button">{t("invoiceEditor.tab")}</button>
           </div>
           {requestError ? <ErrorState error={requestError} /> : null}
@@ -677,8 +679,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 </article>
               </div>
             </div>
+          ) : view === "suppliers" ? (
+            <SupplierSetup tenantId={context.tenant_id} />
           ) : (
-            <InvoiceEditor tenantId={context.tenant_id} membershipId={context.membership_id} />
+            <InvoiceEditor tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={() => setView("suppliers")} />
           )}
         </>
       ) : null}

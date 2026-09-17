@@ -20,6 +20,7 @@ from tawzeevo_api.routes.payments import payments_router
 from tawzeevo_api.routes.platform import platform_router, tenant_applications_router
 from tawzeevo_api.routes.public_invoices import capabilities_router, public_invoices_router
 from tawzeevo_api.routes.supplier_ledger import supplier_ledger_router, supplier_payments_router
+from tawzeevo_api.routes.suppliers import suppliers_router
 from tawzeevo_api.routes.users import stats_router, users_router
 
 settings = get_settings()
@@ -88,6 +89,7 @@ app.include_router(capabilities_router)
 app.include_router(public_invoices_router)
 app.include_router(supplier_ledger_router)
 app.include_router(supplier_payments_router)
+app.include_router(suppliers_router)
 app.add_middleware(PublicInvoicePrivacyMiddleware)
 
 

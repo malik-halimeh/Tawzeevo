@@ -24,6 +24,7 @@ import type {
 } from "../api/types";
 import { ErrorState, SuccessNotice } from "./Ui";
 import { InvoiceSharing } from "./InvoiceSharing";
+import type { Supplier } from "./SupplierSetup";
 
 interface AcceptedMatch {
   query: string;
@@ -123,7 +124,7 @@ function InvoiceLineImage({ url, name }: { url: string; name: string }) {
   return source ? <img alt={name} className="invoice-line-image" src={source} /> : null;
 }
 
-export function InvoiceEditor({ tenantId, membershipId }: { tenantId: string; membershipId: string }) {
+export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: () => void }) {
   const { t } = useTranslation();
   const [customerPhone, setCustomerPhone] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -163,6 +164,7 @@ export function InvoiceEditor({ tenantId, membershipId }: { tenantId: string; me
   const [lastPayment, setLastPayment] = useState<CustomerPaymentResponse>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [notice, setNotice] = useState<string>();
   const mounted = useRef(false);
 
@@ -246,6 +248,12 @@ export function InvoiceEditor({ tenantId, membershipId }: { tenantId: string; me
   const changeLine = (key: string, changes: Partial<EditorLine>) => {
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...changes } : line)));
   };
+
+  useEffect(() => {
+    apiRequest<{ suppliers: Supplier[] }>(`/api/v1/suppliers?tenant_id=${tenantId}`)
+      .then((response) => setSuppliers(response.suppliers))
+      .catch(() => setSuppliers([]));
+  }, [tenantId]);
 
   const loadCostOptions = async (line: EditorLine) => {
     if (!line.productId) return;
@@ -733,6 +741,8 @@ export function InvoiceEditor({ tenantId, membershipId }: { tenantId: string; me
                 <label className="field"><span>{t("invoiceEditor.lineDiscount")}</span><input dir="ltr" value={line.lineDiscount} onChange={(event) => changeLine(line.key, { lineDiscount: event.target.value })} /></label>
                 <label className="field"><span>{t("invoiceEditor.lineMarkup")}</span><input dir="ltr" value={line.lineMarkup} onChange={(event) => changeLine(line.key, { lineMarkup: event.target.value })} /></label>
                 {line.costOptions.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.supplierCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value })}><option value="">—</option>{line.costOptions.map((option) => <option key={option.supplier_id} value={option.supplier_id}>{option.supplier_name} · {option.unit_cost ?? "—"} {option.currency}{option.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
+                {!line.productId && suppliers.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.manualLineCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value || undefined })}><option value="">—</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
+                {(line.productId ? !line.costOptions.some((option) => option.unit_cost !== null) : suppliers.length === 0) && !line.costOverride ? <p className="cost-missing" role="note">{t("invoiceEditor.costMissing")}{onOpenSupplierSetup ? <> <button className="text-button" onClick={onOpenSupplierSetup} type="button">{t("invoiceEditor.openSupplierSetup")}</button></> : null}</p> : null}
                 <button className="text-button danger-link remove-line" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))} type="button">{t("common.remove")}</button>
               </article>
             ))}
