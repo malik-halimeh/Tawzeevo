@@ -681,3 +681,40 @@ test("the immutable due snapshot is labelled distinctly from the live balance (F
   expect(i18n.t("invoiceEditor.totalDueNote")).toContain("لا هذه اللقطة");
   await i18n.changeLanguage("en");
 });
+
+
+test("a failed draft save retries with the same create command and a new invoice gets a new one (FA-009 / D-045)", async () => {
+  await i18n.changeLanguage("en");
+  const commands: string[] = [];
+  let attempts = 0;
+  let sequence = 0;
+  vi.stubGlobal("crypto", { randomUUID: () => `${String(++sequence).padStart(8, "0")}-aaaa-4aaa-8aaa-aaaaaaaaaaaa` });
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    const method = init?.method ?? "GET";
+    if (url.includes("/customers/search")) return Promise.resolve(Response.json({ customers: [{ id: customerId, tenant_id: tenantId, name: "Maya Market", phone: "+96170123456", phone_raw: "+96170123456", address: null, latitude: null, longitude: null, grade: "A", created_at: "", updated_at: "" }] }));
+    if (url.includes("/suppliers")) return Promise.resolve(Response.json({ suppliers: [] }));
+    if (url.includes("/customer-ledger/") || url.includes("/obligations") || url.includes("/history")) return Promise.resolve(Response.json({ debts: [], balances: [], obligations: [], revisions: [], settings: { customer_overdue_threshold_days: null }, customer_overdue_threshold_days: null }));
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") {
+      const payload = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as { client_command_id: string };
+      commands.push(payload.client_command_id);
+      attempts += 1;
+      if (attempts === 1) return Promise.reject(new TypeError("Failed to fetch"));
+      return Promise.resolve(Response.json({ id: "invoice-1", tenant_id: tenantId, status: "DRAFT", official_invoice_number: null, confirmed_at: null, customer_id: customerId, customer_snapshot: {}, current_revision_id: "rev-1", server_revision_number: 1, pricing_version: "pricing-v1", currency: "USD", prior_balance: "0.0000", subtotal: "3.0000", discount_total: "0.0000", markup_total: "0.0000", net_sales: "3.0000", total_due: "3.0000", items: [] }, { status: 201 }));
+    }
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: url } }, { status: 404 }));
+  }));
+  render(<InvoiceEditor tenantId={tenantId} membershipId="membership" />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Phone" }), { target: { value: "+96170123456" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  fireEvent.change(screen.getByPlaceholderText("Item name"), { target: { value: "Ice" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price" }), { target: { value: "3" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add manual line" }));
+  fireEvent.click(screen.getByRole("button", { name: "Calculate and save draft" }));
+  await waitFor(() => expect(attempts).toBe(1));
+  fireEvent.click(await screen.findByRole("button", { name: "Calculate and save draft" }));
+  await waitFor(() => expect(attempts).toBe(2));
+  expect(commands[0]).toBe(commands[1]);
+  expect(await screen.findByText("Draft invoice created from the server calculation.")).toBeInTheDocument();
+});

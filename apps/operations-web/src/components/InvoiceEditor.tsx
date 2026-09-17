@@ -165,6 +165,9 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // D-045: one create command per unsaved invoice. It survives failed attempts and is only replaced
+  // once the server has acknowledged the header, so a retry can never create a second draft.
+  const createCommandRef = useRef<string | undefined>(undefined);
   const [notice, setNotice] = useState<string>();
   const mounted = useRef(false);
 
@@ -378,8 +381,9 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
       return;
     }
     void run(async () => {
+      if (!saved && !createCommandRef.current) createCommandRef.current = crypto.randomUUID();
       const payload = {
-        client_command_id: crypto.randomUUID(),
+        client_command_id: saved ? crypto.randomUUID() : createCommandRef.current,
         expected_predecessor_revision_id: saved?.current_revision_id ?? null,
         customer_id: customer.id,
         currency,
@@ -410,6 +414,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
         { method: saved ? "PUT" : "POST", body: JSON.stringify(payload) },
       );
       setSaved(result);
+      createCommandRef.current = undefined;
       await loadHistory(result.id);
       await Promise.all([
         loadDebtDesk(),

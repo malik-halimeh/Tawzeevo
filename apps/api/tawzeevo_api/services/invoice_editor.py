@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -882,6 +882,45 @@ def _totals(
     )
 
 
+def _existing_create_command(
+    db: Session, tenant_id: UUID, client_command_id: UUID
+) -> InvoiceRevision | None:
+    return db.scalar(
+        select(InvoiceRevision).where(
+            InvoiceRevision.tenant_id == tenant_id,
+            InvoiceRevision.client_command_id == client_command_id,
+            InvoiceRevision.predecessor_revision_id.is_(None),
+        )
+    )
+
+
+def _create_command_matches(
+    db: Session,
+    tenant_id: UUID,
+    revision: InvoiceRevision,
+    customer_id: UUID,
+    currency: str,
+    items: list[_PreparedItem],
+) -> bool:
+    """A replay is the same logical request when customer, currency and line identities match."""
+    if revision.customer_id != customer_id or revision.currency != currency:
+        return False
+    stored = list(
+        db.scalars(
+            select(InvoiceRevisionItem)
+            .where(
+                InvoiceRevisionItem.tenant_id == tenant_id,
+                InvoiceRevisionItem.invoice_revision_id == revision.id,
+            )
+            .order_by(InvoiceRevisionItem.line_number)
+        )
+    )
+    return [(row.tenant_product_id, row.product_name, money(row.quantity)) for row in stored] == [
+        (item.product.id if item.product else None, item.name, money(item.quantity))
+        for item in items
+    ]
+
+
 def create_editor_draft(
     db: Session,
     tenant_id: UUID,
@@ -892,10 +931,30 @@ def create_editor_draft(
 ) -> InvoiceEditorResponse:
     if request.expected_predecessor_revision_id is not None:
         raise AppError(400, "PREDECESSOR_NOT_ALLOWED", "A new invoice has no predecessor")
+    # D-045: the create command is identified per tenant. Serialize same-command requests and
+    # return the original header on replay; a different request under the same command conflicts.
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_key)"),
+        {"lock_key": request.client_command_id.int & ((1 << 63) - 1)},
+    )
     customer = get_customer(db, tenant_id, request.customer_id)
     items = _prepare_items(
         db, tenant_id, customer, request.currency, request.items, fuzzy_threshold
     )
+    existing = _existing_create_command(db, tenant_id, request.client_command_id)
+    if existing is not None:
+        if not _create_command_matches(
+            db, tenant_id, existing, customer.id, request.currency, items
+        ):
+            raise AppError(
+                409,
+                "IDEMPOTENCY_CONFLICT",
+                "This create command was already used for a different invoice request",
+            )
+        invoice = db.get(Invoice, existing.invoice_id)
+        if invoice is None:
+            raise AppError(404, "INVOICE_NOT_FOUND", "Invoice was not found")
+        return _editor_response(db, tenant_id, invoice)
     subtotal, discount_total, markup_total, net_sales = _totals(
         items, request.invoice_discount_expression, request.invoice_markup_expression
     )

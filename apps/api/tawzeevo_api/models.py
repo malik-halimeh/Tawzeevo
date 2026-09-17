@@ -985,6 +985,13 @@ class InvoiceRevision(Base):
             name="uq_invoice_revisions_server_number",
         ),
         Index(
+            "uq_invoice_revisions_create_command",
+            "tenant_id",
+            "client_command_id",
+            unique=True,
+            postgresql_where=text("predecessor_revision_id IS NULL"),
+        ),
+        Index(
             "ix_invoice_revisions_one_successor",
             "tenant_id",
             "invoice_id",
