@@ -22,6 +22,7 @@ from tawzeevo_api.models import (
     InvoiceStatus,
     LedgerEntryType,
     PaymentAllocation,
+    PublicInvoiceCapability,
 )
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
 from tawzeevo_api.schemas.invoice_editor import (
@@ -293,6 +294,27 @@ def cancel_invoice(
     invoice.status = InvoiceStatus.CANCELLED
     invoice.cancelled_at = cancelled_at
     invoice.updated_by_user_id = actor_user_id
+    # D-042: cancellation revokes public access in the same transaction.
+    for cap in db.scalars(
+        select(PublicInvoiceCapability)
+        .where(
+            PublicInvoiceCapability.tenant_id == tenant_id,
+            PublicInvoiceCapability.invoice_id == invoice.id,
+            PublicInvoiceCapability.revoked_at.is_(None),
+        )
+        .with_for_update()
+    ):
+        cap.revoked_at = cancelled_at
+        db.add(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_user_id=actor_user_id,
+                action="invoice_capability_revoked",
+                entity_type="public_invoice_capability",
+                entity_id=cap.id,
+                details={"invoice_id": str(invoice.id), "reason": "invoice_cancelled"},
+            )
+        )
     db.add(
         AuditEvent(
             tenant_id=tenant_id,

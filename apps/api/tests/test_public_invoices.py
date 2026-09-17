@@ -7,7 +7,14 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session, sessionmaker
-from test_invoice_editor import _auth, _catalog, _draft_payload, _login, _owner_context
+from test_invoice_editor import (
+    _attach_latest_cost,
+    _auth,
+    _catalog,
+    _confirmable_payload,
+    _login,
+    _owner_context,
+)
 
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
@@ -26,12 +33,20 @@ from tawzeevo_api.services.public_invoices import issue_capability, resolve_publ
 def _invoice(client: TestClient, session_factory: sessionmaker[Session], suffix: str = "public"):
     owner, tenant, token = _owner_context(client, session_factory, suffix)
     _, product, customer = _catalog(client, tenant, token)
-    payload = _draft_payload(customer["id"], product["id"])
+    _attach_latest_cost(session_factory, owner, tenant, product["id"])
+    payload = _confirmable_payload(customer["id"], product["id"])
     response = client.post(
         f"/api/v1/invoices?tenant_id={tenant}", headers=_auth(token), json=payload
     )
     assert response.status_code == 201, response.text
-    invoice = response.json()
+    # D-042: only a confirmed invoice can be shared, so the fixture confirms it first.
+    confirmed = client.post(
+        f"/api/v1/invoices/{response.json()['id']}/confirm?tenant_id={tenant}",
+        headers=_auth(token),
+        json={"expected_revision_id": response.json()["current_revision_id"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    invoice = confirmed.json()
     path = f"/api/v1/invoices/{invoice['id']}/capabilities"
     issued = client.post(f"{path}?tenant_id={tenant}", headers=_auth(token))
     assert issued.status_code == 201, issued.text

@@ -15,6 +15,7 @@ from tawzeevo_api.models import (
     AuditEvent,
     Invoice,
     InvoiceRevisionItem,
+    InvoiceStatus,
     PublicInvoiceCapability,
     Tenant,
     TenantStatus,
@@ -74,6 +75,11 @@ def issue_capability(
     rotate_id: UUID | None = None,
 ) -> IssuedCapabilityResponse:
     invoice = _locked_invoice(db, tenant_id, invoice_id)
+    # D-042: only a confirmed invoice is a shareable financial document.
+    if invoice.status is not InvoiceStatus.CONFIRMED:
+        raise AppError(
+            409, "INVOICE_NOT_CONFIRMED", "Only a confirmed invoice can be shared publicly"
+        )
     revision = _revision(db, tenant_id, invoice)
     now = datetime.now(UTC)
     if rotate_id is not None:
@@ -82,6 +88,9 @@ def issue_capability(
             raise AppError(409, "CAPABILITY_REVOKED", "This link has already been revoked")
         old.revoked_at = now
         _audit(db, old, actor, "invoice_capability_rotated")
+    # D-042: at most one active link per invoice; issuing replaces every earlier active link.
+    for replaced in revoke_active_capabilities(db, tenant_id, invoice_id, now):
+        _audit(db, replaced, actor, "invoice_capability_replaced")
     # Tenant is only a lookup hint. The 256-bit random secret authorizes exactly one invoice.
     raw = f"{tenant_id.hex}.{secrets.token_urlsafe(32)}"
     cap = PublicInvoiceCapability(
@@ -114,6 +123,25 @@ def issue_capability(
         customer_phone=phone,
         summary=summary,
     )
+
+
+def revoke_active_capabilities(
+    db: Session, tenant_id: UUID, invoice_id: UUID, now: datetime
+) -> list[PublicInvoiceCapability]:
+    """Revoke every still-active link of one invoice. Caller holds the invoice row lock."""
+    revoked: list[PublicInvoiceCapability] = []
+    for cap in db.scalars(
+        select(PublicInvoiceCapability)
+        .where(
+            PublicInvoiceCapability.tenant_id == tenant_id,
+            PublicInvoiceCapability.invoice_id == invoice_id,
+            PublicInvoiceCapability.revoked_at.is_(None),
+        )
+        .with_for_update()
+    ):
+        cap.revoked_at = now
+        revoked.append(cap)
+    return revoked
 
 
 def _owned_capability(
@@ -176,7 +204,8 @@ def resolve_public_invoice(db: Session, raw: str) -> PublicInvoiceResponse:
             Invoice.id == cap.invoice_id,
         )
     )
-    if invoice is None:
+    if invoice is None or invoice.status is not InvoiceStatus.CONFIRMED:
+        # Cancellation revokes links atomically; this is the defensive second guard.
         raise _unavailable()
     revision = _revision(db, tenant_id, invoice)
     items = list(

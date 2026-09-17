@@ -759,7 +759,7 @@ export function InvoiceEditor({ tenantId, membershipId }: { tenantId: string; me
           {history?.revisions.length ? <section className="invoice-history" aria-label={t("invoiceEditor.revisionHistory")}><h4>{t("invoiceEditor.revisionHistory")}</h4>{history.revisions.map((revision) => <article className={revision.is_current ? "is-current" : ""} key={revision.current_revision_id}><div><strong>R{revision.server_revision_number}</strong>{revision.is_current ? <span>{t("invoiceEditor.currentRevision")}</span> : null}</div><time dateTime={revision.revision_created_at}>{new Date(revision.revision_created_at).toLocaleString()}</time><bdi dir="ltr">{money(revision.net_sales, revision.currency)}</bdi>{revision.ledger_delta !== null ? <small dir="ltr">Δ {money(revision.ledger_delta, revision.currency)}</small> : null}</article>)}</section> : null}
         </aside>
       </div>
-      {saved ? <InvoiceSharing key={saved.id} tenantId={tenantId} invoiceId={saved.id} /> : null}
+      {saved?.status === "CONFIRMED" ? <InvoiceSharing key={saved.id} tenantId={tenantId} invoiceId={saved.id} /> : saved ? <p className="backend-note">{t("invoiceEditor.sharingAfterConfirmation")}</p> : null}
 
       <section className="settlement-desk" aria-labelledby="settlement-desk-title">
         <header>
