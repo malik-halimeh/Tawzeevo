@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -176,7 +177,7 @@ def test_migrations_build_a_new_database_from_zero(test_engine: Engine) -> None:
     )
     target_url = test_engine.url.set(database=database_name)
     target_engine = create_engine(target_url, pool_pre_ping=True)
-    config_path = __file__.replace("tests\\test_hardening.py", "alembic.ini")
+    config_path = str(Path(__file__).resolve().parent.parent / "alembic.ini")
     config = Config(config_path)
     config.set_main_option(
         "sqlalchemy.url",

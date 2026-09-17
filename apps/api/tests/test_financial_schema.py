@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -390,7 +391,7 @@ def test_phase2_draft_rows_upgrade_to_revisions_and_round_trip(
     admin_engine = create_engine(test_engine.url, isolation_level="AUTOCOMMIT")
     target_url = test_engine.url.set(database=database_name)
     target_engine = create_engine(target_url)
-    config_path = __file__.replace("tests\\test_financial_schema.py", "alembic.ini")
+    config_path = str(Path(__file__).resolve().parent.parent / "alembic.ini")
     config = Config(config_path)
     config.set_main_option(
         "sqlalchemy.url", target_url.render_as_string(hide_password=False).replace("%", "%%")
