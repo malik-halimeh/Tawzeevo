@@ -18,11 +18,14 @@ from tawzeevo_api.models import (
     TenantBarcode,
     TenantMembership,
     TenantProduct,
+    TenantProductCostEntry,
     TenantRole,
     TenantStatus,
+    TenantSupplier,
     User,
 )
 from tawzeevo_api.security import hash_password
+from tawzeevo_api.services.invoice_finance import confirm_invoice
 
 
 def create_owner_tenant(session_factory: sessionmaker[Session]) -> tuple[User, Tenant]:
@@ -95,6 +98,21 @@ def test_demo_seed_creates_one_real_slice_and_rejects_replay(
         barcode = db.scalar(select(TenantBarcode))
         assert product is not None and product.currency == "USD"
         assert barcode is not None and barcode.barcode == seed_demo.DEMO_BARCODE
+        supplier = db.scalar(select(TenantSupplier))
+        cost = db.scalar(select(TenantProductCostEntry))
+        assert supplier is not None and cost is not None
+        assert product.preferred_supplier_id == supplier.id
+        assert cost.supplier_id == supplier.id and str(cost.unit_cost) == "1.7500"
+        assert cost.currency == "USD"
+    # The seeded draft is confirmable through the normal owner workflow (D-034 cost snapshot).
+    with session_factory() as db:
+        invoice = db.scalar(select(Invoice))
+        assert invoice is not None
+        confirmed = confirm_invoice(
+            db, tenant.id, owner.id, invoice.id, invoice.current_revision_id
+        )
+        assert confirmed.status == "CONFIRMED"
+        assert confirmed.official_invoice_number is not None
 
     assert seed_demo.main(session_factory) == 1
     with session_factory() as db:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -22,7 +23,9 @@ from tawzeevo_api.models import (
     ProductPriceBasis,
     TenantBarcode,
     TenantProduct,
+    TenantProductCostEntry,
     TenantRole,
+    TenantSupplier,
     User,
 )
 from tawzeevo_api.phone import InvalidPhoneNumberError, normalize_phone
@@ -120,6 +123,27 @@ def seed_demo_data(
     )
     db.add(product)
     db.flush()
+    # D-041/D-034: a demo supplier with one effective-dated cost so the seeded draft can be
+    # confirmed through the normal owner workflow (confirmation snapshots line cost provenance).
+    supplier = TenantSupplier(tenant_id=tenant_id, name="Demo supplier")
+    db.add(supplier)
+    db.flush()
+    product.preferred_supplier_id = supplier.id
+    cost_entry = TenantProductCostEntry(
+        tenant_id=tenant_id,
+        tenant_product_id=product.id,
+        supplier_id=supplier.id,
+        unit_cost=Decimal("1.7500"),
+        currency=normalized_currency,
+        cost_basis=ProductPriceBasis.PIECE,
+        pieces_per_box=product.pieces_per_box,
+        effective_at=datetime.now(UTC),
+        source_type="MANUAL",
+        notes="Synthetic demo cost",
+        created_by_user_id=owner.id,
+    )
+    db.add(cost_entry)
+    db.flush()
     db.add(
         TenantBarcode(
             tenant_id=tenant_id,
@@ -182,6 +206,13 @@ def seed_demo_data(
             line_discount=Decimal("0.0000"),
             line_markup=Decimal("0.0000"),
             line_total=subtotal,
+            supplier_id=supplier.id,
+            product_cost_entry_id=cost_entry.id,
+            unit_cost=cost_entry.unit_cost,
+            cost_currency=cost_entry.currency,
+            cost_basis=cost_entry.cost_basis,
+            cost_pieces_per_box=cost_entry.pieces_per_box,
+            cost_source_type=cost_entry.source_type,
         )
     )
     db.commit()
