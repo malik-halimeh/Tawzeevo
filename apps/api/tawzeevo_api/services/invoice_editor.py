@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import ROUND_HALF_UP, Decimal, DivisionByZero, InvalidOperation, localcontext
+from decimal import ROUND_HALF_UP, Decimal, DivisionByZero, InvalidOperation, Overflow, localcontext
 from difflib import SequenceMatcher
 from typing import Literal
 from uuid import UUID, uuid4
@@ -55,8 +55,29 @@ _DIGIT_TRANSLATION = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "
 _ARABIC_NORMALIZATION = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ؤ": "و", "ئ": "ي"})
 
 
+# Largest magnitude representable by the authoritative NUMERIC(20,4) money columns.
+MONEY_LIMIT = Decimal("10000000000000000")  # 10^16, i.e. 16 integer digits
+
+
 def money(value: Decimal) -> Decimal:
     return value.quantize(MONEY_SCALE, rounding=ROUND_HALF_UP)
+
+
+def stored_money(value: Decimal) -> Decimal:
+    """Quantize an authoritative monetary stage and reject values NUMERIC(20,4) cannot store.
+
+    A calculator or line/invoice stage that overflows is a validation error for the owner, not an
+    internal failure. Rounding stays Q4 ROUND_HALF_UP; only representability is enforced.
+    """
+    try:
+        with localcontext() as context:
+            context.prec = 60
+            quantized = money(value)
+    except (InvalidOperation, Overflow) as exc:
+        raise AppError(400, "AMOUNT_OUT_OF_RANGE", "Amount is too large to be stored") from exc
+    if abs(quantized) >= MONEY_LIMIT:
+        raise AppError(400, "AMOUNT_OUT_OF_RANGE", "Amount is too large to be stored")
+    return quantized
 
 
 class _Calculator:
@@ -89,13 +110,13 @@ class _Calculator:
             with localcontext() as context:
                 context.prec = 38
                 result = self._expression()
-        except (DivisionByZero, InvalidOperation, ZeroDivisionError) as exc:
+        except (DivisionByZero, InvalidOperation, Overflow, ZeroDivisionError) as exc:
             raise AppError(
                 400, "INVALID_CALCULATOR_EXPRESSION", "Expression cannot be calculated"
             ) from exc
         if self.index != len(self.tokens):
             raise AppError(400, "INVALID_CALCULATOR_EXPRESSION", "Expression is invalid")
-        return money(result)
+        return stored_money(result)
 
     def _expression(self) -> Decimal:
         value = self._term()
@@ -630,8 +651,8 @@ def _prepare_items(
             }
             media = {"images": []}
             pieces = requested.pieces_per_box
-        base_total = money(effective_price * quantity)
-        line_total = money(base_total - line_discount + line_markup)
+        base_total = stored_money(effective_price * quantity)
+        line_total = stored_money(base_total - line_discount + line_markup)
         if line_total < 0:
             raise AppError(400, "NEGATIVE_LINE_TOTAL", "Line discount exceeds the line value")
         cost = _prepare_cost(db, tenant_id, product, requested, currency, requested.price_basis)
@@ -841,16 +862,16 @@ def _editor_response(db: Session, tenant_id: UUID, invoice: Invoice) -> InvoiceE
 def _totals(
     items: list[_PreparedItem], discount_expression: str, markup_expression: str
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    subtotal = money(sum((item.base_total for item in items), ZERO))
+    subtotal = stored_money(sum((item.base_total for item in items), ZERO))
     invoice_discount = calculate_expression(discount_expression)
     invoice_markup = calculate_expression(markup_expression)
     if invoice_discount < 0 or invoice_markup < 0:
         raise AppError(400, "INVALID_INVOICE_ADJUSTMENT", "Adjustments cannot be negative")
     line_discounts = sum((item.line_discount for item in items), ZERO)
     line_markups = sum((item.line_markup for item in items), ZERO)
-    discount_total = money(line_discounts + invoice_discount)
-    markup_total = money(line_markups + invoice_markup)
-    net_sales = money(subtotal - discount_total + markup_total)
+    discount_total = stored_money(line_discounts + invoice_discount)
+    markup_total = stored_money(line_markups + invoice_markup)
+    net_sales = stored_money(subtotal - discount_total + markup_total)
     if net_sales < 0:
         raise AppError(400, "NEGATIVE_INVOICE_TOTAL", "Invoice discount exceeds invoice value")
     return (
@@ -906,7 +927,7 @@ def create_editor_draft(
         discount_total=discount_total,
         markup_total=markup_total,
         net_sales=net_sales,
-        amount_due_display=money(prior_balance + net_sales),
+        amount_due_display=stored_money(prior_balance + net_sales),
         created_by_user_id=actor_user_id,
         reason=request.reason,
     )
@@ -985,7 +1006,7 @@ def update_editor_draft(
         discount_total=discount_total,
         markup_total=markup_total,
         net_sales=net_sales,
-        amount_due_display=money(prior_balance + net_sales),
+        amount_due_display=stored_money(prior_balance + net_sales),
         created_by_user_id=actor_user_id,
         reason=request.reason,
     )

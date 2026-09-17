@@ -41,6 +41,7 @@ from tawzeevo_api.services.invoice_editor import (
     _totals,
     _write_revision_items,
     money,
+    stored_money,
     update_editor_draft,
 )
 
@@ -538,7 +539,7 @@ def update_confirmed_invoice(
         discount_total=discount_total,
         markup_total=markup_total,
         net_sales=net_sales,
-        amount_due_display=money(prior_balance + net_sales),
+        amount_due_display=stored_money(prior_balance + net_sales),
         created_by_user_id=actor_user_id,
         reason=request.reason,
     )
