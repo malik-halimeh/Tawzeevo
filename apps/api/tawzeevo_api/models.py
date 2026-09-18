@@ -7,12 +7,14 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Identity,
     Index,
     Integer,
     Numeric,
@@ -354,6 +356,9 @@ class Customer(TimestampMixin, Base):
     latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
     grade: Mapped[CustomerGrade | None] = mapped_column(customer_grade_enum)
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
 
     __table_args__ = (
         UniqueConstraint("id", "tenant_id", name="uq_customers_id_tenant"),
@@ -441,6 +446,9 @@ class Category(TimestampMixin, Base):
         Boolean, default=True, server_default="true", nullable=False
     )
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
 
     __table_args__ = (
         UniqueConstraint("id", "tenant_id", name="uq_categories_id_tenant"),
@@ -564,6 +572,9 @@ class TenantProduct(TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     price_basis: Mapped[ProductPriceBasis] = mapped_column(product_price_basis_enum, nullable=False)
     pieces_per_box: Mapped[int | None] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -1443,5 +1454,105 @@ class PublicInvoiceCapability(TimestampMixin, Base):
         ),
         CheckConstraint(
             "length(token_sha256) = 64", name="ck_public_invoice_capabilities_hash_length"
+        ),
+    )
+
+
+class SyncDevice(Base):
+    __tablename__ = "sync_devices"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    membership_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="CASCADE"), nullable=False
+    )
+    device_installation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    protocol_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    app_schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_acknowledged_change_seq: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0"), default=0
+    )
+    lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(String(80))
+
+    __table_args__ = (
+        UniqueConstraint("id", "tenant_id", name="uq_sync_devices_id_tenant"),
+        Index(
+            "uq_sync_devices_active_installation",
+            "tenant_id",
+            "user_id",
+            "device_installation_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+
+class SyncChange(Base):
+    __tablename__ = "sync_changes"
+
+    change_seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    entity_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    operation: Mapped[str] = mapped_column(String(10), nullable=False)
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    operation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    device_installation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("operation IN ('upsert', 'delete')", name="ck_sync_changes_operation"),
+        Index("ix_sync_changes_tenant_seq", "tenant_id", "change_seq"),
+        Index("ix_sync_changes_tenant_entity", "tenant_id", "entity_type", "entity_id"),
+    )
+
+
+class SyncOperation(Base):
+    __tablename__ = "sync_operations"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    device_installation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    operation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    operation_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    result: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('applied', 'rejected', 'conflict')", name="ck_sync_operations_status"
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "device_installation_id",
+            "operation_id",
+            name="uq_sync_operations_command",
         ),
     )

@@ -4,13 +4,13 @@
 
 ## Current execution
 
-- Current workstream: `Phase 3 — Production Financial Core`
-- Current phase: `3`
-- Current phase status: `COMPLETE`
-- Current milestone: `P3-M6 — Financial hardening and phase freeze`
-- Current milestone status: `COMPLETE`
+- Current workstream: `Phase 4 — Offline-First Operations, Synchronization, Encrypted Backup`
+- Current phase: `4`
+- Current phase status: `IN_PROGRESS`
+- Current milestone: `P4-M1 — PWA local schema, device registry, bootstrap foundation`
+- Current milestone status: `IN_PROGRESS`
 - Last completed milestone: `P3-M6`
-- Next required user command: `Start Phase 4` (owner confirmed the normal phase order on 2026-09-17)
+- Next required user command: `continue`
 - Blocking decision: `none for Phase 3 (FA-009 closed by D-045); Gate D items C1–C6 in OWNER_ACTIONS.md must be recorded before P4-M1`
 
 The user explicitly authorized `Start Phase 3`. Phase 2 is complete and its requirements audit,
@@ -37,8 +37,8 @@ immutable confirmed-line cost provenance. P3-M5 is complete; P3-M6 remains not s
 | 1 | COMPLETE | DoD PASSED |
 | 2 | COMPLETE | Definition of Done PASSED; P2-M1 through P2-M5 complete |
 | 3 | COMPLETE | Definition of Done PASSED 2026-09-17; P3-M1 through P3-M6 complete; evidence in `docs/phase-3/` |
-| 4 | LOCKED | Gate D |
-| 5 | LOCKED | Gate E |
+| 4 | IN_PROGRESS | Gate D decisions D-052–D-057 recorded 2026-09-18; owner issued `Start Phase 4` |
+| 5 | AUTHORIZED | Gate E decisions D-046–D-049, D-051, D-062 recorded; owner issued `Start Phase 5`; begins after Phase 4 DoD |
 | 6 | LOCKED | Phase 5 DoD |
 | 7 | LOCKED | Gate F |
 | 8 | LOCKED | Gate G |

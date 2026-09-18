@@ -363,9 +363,18 @@ def product_response(
     )
 
 
-def create_product(
-    db: Session, tenant_id: UUID, request: TenantProductCreateRequest
+def build_product(
+    db: Session,
+    tenant_id: UUID,
+    request: TenantProductCreateRequest,
+    *,
+    product_id: UUID | None = None,
 ) -> TenantProduct:
+    """Validate and stage a tenant product plus its barcode without committing.
+
+    The sync push path reuses this so the domain rows, the idempotency record and the change
+    records commit in one transaction; `create_product` remains the committing API path.
+    """
     get_category(db, tenant_id, request.category_id, active_only=True)
     master_product = (
         db.get(MasterProduct, request.master_product_id)
@@ -421,6 +430,8 @@ def create_product(
         price_basis=request.price_basis,
         pieces_per_box=request.pieces_per_box,
     )
+    if product_id is not None:
+        product.id = product_id
     db.add(product)
     db.flush()
     if master_barcode is None:
@@ -432,6 +443,13 @@ def create_product(
                 package_level=request.barcode_package_level,
             )
         )
+    return product
+
+
+def create_product(
+    db: Session, tenant_id: UUID, request: TenantProductCreateRequest
+) -> TenantProduct:
+    product = build_product(db, tenant_id, request)
     try:
         commit_and_restore_tenant_scope(db, tenant_id)
     except IntegrityError as exc:

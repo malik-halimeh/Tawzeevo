@@ -25,6 +25,7 @@ import type {
 import { ErrorState, SuccessNotice } from "./Ui";
 import { InvoiceSharing } from "./InvoiceSharing";
 import type { Supplier } from "./SupplierSetup";
+import { searchLocalCustomers } from "../offline/sync";
 
 interface AcceptedMatch {
   query: string;
@@ -279,11 +280,19 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   const searchCustomers = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
-      const response = await apiRequest<CustomerSearchResponse>(
-        `/api/v1/tenants/${tenantId}/customers/search?phone=${encodeURIComponent(customerPhone)}`,
-      );
-      setCustomers(response.customers);
-      setNotice(t("invoiceEditor.customerMatches", { count: response.customers.length }));
+      try {
+        const response = await apiRequest<CustomerSearchResponse>(
+          `/api/v1/tenants/${tenantId}/customers/search?phone=${encodeURIComponent(customerPhone)}`,
+        );
+        setCustomers(response.customers);
+        setNotice(t("invoiceEditor.customerMatches", { count: response.customers.length }));
+      } catch (problem) {
+        // Network failure (offline): fall back to the local projection downloaded for this device.
+        if (!(problem instanceof TypeError)) throw problem;
+        const local = await searchLocalCustomers(tenantId, membershipId, customerPhone);
+        setCustomers(local.map((row) => ({ ...row, phone_raw: row.phone_raw ?? row.phone, latitude: row.latitude, longitude: row.longitude, grade: row.grade })) as unknown as Customer[]);
+        setNotice(t("invoiceEditor.offlineMatches", { count: local.length }));
+      }
     });
   };
 

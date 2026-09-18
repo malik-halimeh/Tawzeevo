@@ -21,7 +21,9 @@ from tawzeevo_api.routes.platform import platform_router, tenant_applications_ro
 from tawzeevo_api.routes.public_invoices import capabilities_router, public_invoices_router
 from tawzeevo_api.routes.supplier_ledger import supplier_ledger_router, supplier_payments_router
 from tawzeevo_api.routes.suppliers import suppliers_router
+from tawzeevo_api.routes.sync import sync_router
 from tawzeevo_api.routes.users import stats_router, users_router
+from tawzeevo_api.services.sync_changes import register_change_tracking
 
 settings = get_settings()
 install_capability_log_redaction()
@@ -90,6 +92,8 @@ app.include_router(public_invoices_router)
 app.include_router(supplier_ledger_router)
 app.include_router(supplier_payments_router)
 app.include_router(suppliers_router)
+app.include_router(sync_router)
+register_change_tracking()
 app.add_middleware(PublicInvoicePrivacyMiddleware)
 
 
