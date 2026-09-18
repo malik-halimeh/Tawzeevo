@@ -59,8 +59,10 @@ class PushOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     operation_id: UUID
-    entity_type: Literal["customer", "category", "tenant_product"]
-    operation_type: Literal["create", "update", "archive"]
+    entity_type: Literal["customer", "category", "tenant_product", "invoice", "payment"]
+    operation_type: Literal[
+        "create", "update", "archive", "confirm", "cancel", "receipt", "refund", "reverse"
+    ]
     entity_id: UUID
     expected_version: int | None = Field(default=None, ge=1)
     payload: dict[str, Any] = Field(default_factory=dict)

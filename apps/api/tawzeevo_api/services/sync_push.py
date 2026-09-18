@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from tawzeevo_api.config import get_settings
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
     Category,
@@ -37,6 +38,12 @@ from tawzeevo_api.schemas.cash_van import (
     TenantProductCreateRequest,
     TenantProductUpdateRequest,
 )
+from tawzeevo_api.schemas.invoice_editor import InvoiceCancelRequest, InvoiceEditorDraftRequest
+from tawzeevo_api.schemas.payments import (
+    CustomerReceiptRequest,
+    CustomerRefundRequest,
+    PaymentReversalRequest,
+)
 from tawzeevo_api.schemas.sync import (
     ConflictEnvelope,
     PushError,
@@ -47,6 +54,17 @@ from tawzeevo_api.schemas.sync import (
 )
 from tawzeevo_api.services import sync_changes
 from tawzeevo_api.services.cash_van import build_product, get_category, get_customer, get_product
+from tawzeevo_api.services.invoice_editor import create_editor_draft, update_editor_draft
+from tawzeevo_api.services.invoice_finance import (
+    cancel_invoice,
+    confirm_invoice,
+    update_confirmed_invoice,
+)
+from tawzeevo_api.services.payments import (
+    record_customer_receipt,
+    record_customer_refund,
+    reverse_customer_receipt,
+)
 from tawzeevo_api.services.pricing import list_product_grade_prices
 from tawzeevo_api.services.sync import active_device, high_water
 from tawzeevo_api.services.sync_changes import PROJECTIONS, PROTOCOL_VERSION
@@ -218,6 +236,133 @@ _APPLIERS: dict[str, Callable[[Session, UUID, PushOperation], Any]] = {
 }
 
 
+# ---------------------------------------------------------------------------------------------
+# Financial commands (PHASE_04.md D/I). These reuse the Phase 3 services unchanged: the same
+# idempotency keys, ledger effects and server-only official numbering apply. The services commit
+# themselves, so the idempotency record is staged BEFORE the call and completed afterwards; the
+# financial services' own replay protection keeps a crash between the two commits harmless.
+# ---------------------------------------------------------------------------------------------
+
+FINANCIAL_TYPES = {"invoice", "payment"}
+
+
+def _financial_payload(operation: PushOperation) -> dict[str, Any]:
+    payload = dict(operation.payload)
+    # The device's operation id is the financial command identity when it did not send one.
+    if operation.entity_type == "invoice" and operation.operation_type in {"create", "update"}:
+        payload.setdefault("client_command_id", str(operation.operation_id))
+    if operation.entity_type == "invoice" and operation.operation_type == "cancel":
+        payload.setdefault("idempotency_key", str(operation.operation_id))
+    if operation.entity_type == "payment":
+        payload.setdefault("idempotency_key", str(operation.operation_id))
+    payload.pop("confirmed", None)
+    return payload
+
+
+def _apply_financial(
+    db: Session, tenant_id: UUID, actor: UUID, operation: PushOperation
+) -> dict[str, Any]:
+    payload = _financial_payload(operation)
+    threshold = get_settings().invoice_fuzzy_match_threshold
+    kind = (operation.entity_type, operation.operation_type)
+    response: Any
+    if kind == ("invoice", "create"):
+        request = InvoiceEditorDraftRequest.model_validate(payload)
+        response = create_editor_draft(db, tenant_id, actor, request, fuzzy_threshold=threshold)
+    elif kind == ("invoice", "update"):
+        request = InvoiceEditorDraftRequest.model_validate(payload)
+        if operation.payload.get("confirmed"):
+            response = update_confirmed_invoice(
+                db, tenant_id, actor, operation.entity_id, request, fuzzy_threshold=threshold
+            )
+        else:
+            response = update_editor_draft(
+                db, tenant_id, actor, operation.entity_id, request, fuzzy_threshold=threshold
+            )
+    elif kind == ("invoice", "confirm"):
+        expected = payload.get("expected_revision_id")
+        if not expected:
+            raise AppError(400, "EXPECTED_REVISION_REQUIRED", "Confirmation needs the revision")
+        response = confirm_invoice(db, tenant_id, actor, operation.entity_id, UUID(str(expected)))
+    elif kind == ("invoice", "cancel"):
+        response = cancel_invoice(
+            db, tenant_id, actor, operation.entity_id, InvoiceCancelRequest.model_validate(payload)
+        )
+    elif kind == ("payment", "receipt"):
+        response = record_customer_receipt(
+            db, tenant_id, actor, CustomerReceiptRequest.model_validate(payload)
+        )
+    elif kind == ("payment", "refund"):
+        response = record_customer_refund(
+            db, tenant_id, actor, CustomerRefundRequest.model_validate(payload)
+        )
+    elif kind == ("payment", "reverse"):
+        response = reverse_customer_receipt(
+            db,
+            tenant_id,
+            actor,
+            operation.entity_id,
+            PaymentReversalRequest.model_validate(payload),
+        )
+    else:
+        raise AppError(400, "UNSUPPORTED_OPERATION", "Unsupported financial operation")
+    projection: dict[str, Any] = json.loads(response.model_dump_json())
+    return projection
+
+
+def _apply_financial_op(
+    db: Session, tenant_id: UUID, actor: UUID, request: PushRequest, operation: PushOperation
+) -> PushResult:
+    fingerprint = _fingerprint(operation)
+    staged = SyncOperation(
+        tenant_id=tenant_id,
+        device_installation_id=request.device_installation_id,
+        operation_id=operation.operation_id,
+        entity_type=operation.entity_type,
+        operation_type=operation.operation_type,
+        status="applied",
+        result={},
+        request_fingerprint=fingerprint,
+    )
+    db.add(staged)
+    db.flush()
+    staged_id = staged.id
+    sync_changes.set_operation_context(db, operation.operation_id, request.device_installation_id)
+    try:
+        try:
+            projection = _apply_financial(db, tenant_id, actor, operation)
+        except ValidationError as exc:
+            raise AppError(422, "VALIDATION_ERROR", exc.errors()[0].get("msg", "invalid")) from exc
+        result = PushResult(
+            operation_id=operation.operation_id,
+            status="applied",
+            entity_type=operation.entity_type,
+            entity_id=UUID(str(projection.get("id", operation.entity_id))),
+            version=None,
+            projection=projection,
+        )
+        record = db.get(SyncOperation, staged_id)
+        if record is not None:
+            record.result = json.loads(result.model_dump_json())
+        commit_and_restore_tenant_scope(db, tenant_id)
+        return result
+    except AppError as error:
+        db.rollback()
+        result = PushResult(
+            operation_id=operation.operation_id,
+            status="rejected",
+            entity_type=operation.entity_type,
+            entity_id=operation.entity_id,
+            error=PushError(code=error.code, message=error.message),
+        )
+        _lock(db, operation.operation_id)
+        _record(db, tenant_id, request, operation, result, fingerprint)
+        commit_and_restore_tenant_scope(db, tenant_id)
+        return result
+    finally:
+        sync_changes.set_operation_context(db, None, None)
+
+
 def _stored_result(record: SyncOperation) -> PushResult:
     return PushResult.model_validate({**record.result, "replayed": True})
 
@@ -245,7 +390,7 @@ def _record(
 
 
 def _apply_one(
-    db: Session, tenant_id: UUID, request: PushRequest, operation: PushOperation
+    db: Session, tenant_id: UUID, actor: UUID, request: PushRequest, operation: PushOperation
 ) -> PushResult:
     _lock(db, operation.operation_id)
     fingerprint = _fingerprint(operation)
@@ -272,6 +417,8 @@ def _apply_one(
         db.rollback()
         return _stored_result(existing)
 
+    if operation.entity_type in FINANCIAL_TYPES:
+        return _apply_financial_op(db, tenant_id, actor, request, operation)
     sync_changes.set_operation_context(db, operation.operation_id, request.device_installation_id)
     try:
         try:
@@ -336,5 +483,8 @@ def push_operations(
         raise AppError(409, "SYNC_PROTOCOL_MISMATCH", "Unsupported sync protocol version")
     active_device(db, tenant_id, membership, request.device_installation_id)
     commit_and_restore_tenant_scope(db, tenant_id)
-    results = [_apply_one(db, tenant_id, request, operation) for operation in request.operations]
+    results = [
+        _apply_one(db, tenant_id, membership.user_id, request, operation)
+        for operation in request.operations
+    ]
     return PushResponse(results=results, high_water_change_seq=high_water(db, tenant_id))
