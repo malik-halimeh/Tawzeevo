@@ -14,6 +14,7 @@ from tawzeevo_api.repositories.tenancy import (
     count_usable_owners,
     get_scoped_membership,
 )
+from tawzeevo_api.services.sync import revoke_membership_devices
 
 
 def _user_for_update(db: Session, user_id: UUID) -> User:
@@ -179,6 +180,8 @@ def revoke_membership(db: Session, tenant_id: UUID, membership_id: UUID) -> Tena
     _protect_last_active_owner(db, tenant, membership, remains_active_owner=False)
     membership.is_active = False
     membership.revoked_at = datetime.now(UTC)
+    # PHASE_04.md J: a revoked membership loses its registered sync devices in the same transaction.
+    revoke_membership_devices(db, tenant_id, membership.id, "MEMBERSHIP_REVOKED")
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(membership)
     return membership

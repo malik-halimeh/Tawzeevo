@@ -30,6 +30,7 @@ from tawzeevo_api.schemas.platform import (
     TenantApplicationReviewRequest,
     TenantResponse,
 )
+from tawzeevo_api.services.sync import revoke_tenant_devices
 
 
 def _set_platform_audit_scope(db: Session) -> None:
@@ -295,6 +296,8 @@ def suspend_tenant(
     if tenant.status is not TenantStatus.ACTIVE:
         raise AppError(409, "TENANT_NOT_ACTIVE", "Only an active tenant can be suspended")
     tenant.status = TenantStatus.SUSPENDED
+    # PHASE_04.md B: suspension revokes every registered sync device server-side immediately.
+    revoke_tenant_devices(db, tenant.id, "TENANT_SUSPENDED")
     tenant.suspension_reason = request.reason
     tenant.suspended_at = datetime.now(UTC)
     _audit_tenant_change(

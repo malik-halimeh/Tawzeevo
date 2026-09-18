@@ -106,3 +106,23 @@ class PushResult(BaseModel):
 class PushResponse(BaseModel):
     results: list[PushResult]
     high_water_change_seq: int
+
+
+class ChangeRecord(BaseModel):
+    change_seq: int
+    entity_type: str
+    entity_id: UUID
+    operation: Literal["upsert", "delete"]
+    version: int
+    payload: dict[str, Any]
+    operation_id: UUID | None
+    device_installation_id: UUID | None
+    occurred_at: datetime
+
+
+class PullResponse(BaseModel):
+    changes: list[ChangeRecord]
+    next_cursor: int
+    high_water_change_seq: int
+    has_more: bool
+    protocol_version: int

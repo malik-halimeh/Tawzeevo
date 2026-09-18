@@ -230,6 +230,9 @@ class Tenant(TimestampMixin, Base):
     access_until: Mapped[date | None] = mapped_column(Date)
     grace_until: Mapped[date | None] = mapped_column(Date)
     suspension_reason: Mapped[SuspensionReason | None] = mapped_column(suspension_reason_enum)
+    sync_retention_floor: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0"), default=0
+    )
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

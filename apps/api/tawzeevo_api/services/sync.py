@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.errors import AppError
@@ -26,6 +26,7 @@ from tawzeevo_api.models import (
     Payment,
     SyncChange,
     SyncDevice,
+    Tenant,
     TenantBarcode,
     TenantMembership,
     TenantProduct,
@@ -34,7 +35,9 @@ from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.schemas.sync import (
     BootstrapRequest,
     BootstrapResponse,
+    ChangeRecord,
     DeviceResponse,
+    PullResponse,
     SnapshotPageResponse,
 )
 from tawzeevo_api.services import sync_changes
@@ -227,3 +230,100 @@ def revoke_membership_devices(
         device.revoked_reason = reason
         count += 1
     return count
+
+
+def pull_changes(
+    db: Session,
+    tenant_id: UUID,
+    membership: TenantMembership,
+    device_installation_id: UUID,
+    cursor: int,
+    page_size: int,
+) -> PullResponse:
+    """Ordered change records after `cursor` (PHASE_04.md F pull; D-052/D-053).
+
+    The cursor is also the device's acknowledgement: everything at or below it was applied.
+    A cursor below the tenant's retention floor cannot be served incrementally.
+    """
+    device = active_device(db, tenant_id, membership, device_installation_id)
+    tenant = db.get(Tenant, tenant_id)
+    floor = int(tenant.sync_retention_floor) if tenant is not None else 0
+    if cursor < floor:
+        commit_and_restore_tenant_scope(db, tenant_id)
+        raise AppError(
+            410,
+            "SYNC_REBOOTSTRAP_REQUIRED",
+            "This device is older than the retained change history; bootstrap again",
+        )
+    page_size = max(1, min(page_size, PULL_PAGE_SIZE))
+    rows = list(
+        db.scalars(
+            select(SyncChange)
+            .where(SyncChange.tenant_id == tenant_id, SyncChange.change_seq > cursor)
+            .order_by(SyncChange.change_seq.asc())
+            .limit(page_size + 1)
+        )
+    )
+    has_more = len(rows) > page_size
+    rows = rows[:page_size]
+    if cursor > device.last_acknowledged_change_seq:
+        device.last_acknowledged_change_seq = cursor
+    water = high_water(db, tenant_id)
+    commit_and_restore_tenant_scope(db, tenant_id)
+    return PullResponse(
+        changes=[
+            ChangeRecord(
+                change_seq=row.change_seq,
+                entity_type=row.entity_type,
+                entity_id=row.entity_id,
+                operation="delete" if row.operation == "delete" else "upsert",
+                version=row.version,
+                payload=row.payload,
+                operation_id=row.operation_id,
+                device_installation_id=row.device_installation_id,
+                occurred_at=row.occurred_at,
+            )
+            for row in rows
+        ],
+        next_cursor=rows[-1].change_seq if rows else cursor,
+        high_water_change_seq=water,
+        has_more=has_more,
+        protocol_version=PROTOCOL_VERSION,
+    )
+
+
+def purge_sync_changes(db: Session, tenant_id: UUID, *, now: datetime | None = None) -> int:
+    """Delete change records older than the retention window that no active device still needs.
+
+    D-053: tombstones are kept at least 90 days and longer while an active, non-retired device
+    has not acknowledged past them. The tenant's retention floor records the highest purged
+    sequence so stale devices are told to re-bootstrap instead of silently missing deletions.
+    """
+    now = now or datetime.now(UTC)
+    cutoff = now - TOMBSTONE_RETENTION
+    tenant = db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise AppError(404, "TENANT_NOT_FOUND", "Tenant was not found")
+    slowest = db.scalar(
+        select(func.min(SyncDevice.last_acknowledged_change_seq)).where(
+            SyncDevice.tenant_id == tenant_id,
+            SyncDevice.revoked_at.is_(None),
+            SyncDevice.last_seen_at >= now - DEVICE_RETIREMENT,
+        )
+    )
+    purgeable = select(SyncChange.change_seq).where(
+        SyncChange.tenant_id == tenant_id, SyncChange.occurred_at < cutoff
+    )
+    if slowest is not None:
+        purgeable = purgeable.where(SyncChange.change_seq <= int(slowest))
+    seqs = list(db.scalars(purgeable))
+    if not seqs:
+        return 0
+    highest = max(seqs)
+    db.execute(
+        delete(SyncChange).where(SyncChange.tenant_id == tenant_id, SyncChange.change_seq.in_(seqs))
+    )
+    if highest > int(tenant.sync_retention_floor):
+        tenant.sync_retention_floor = highest
+    commit_and_restore_tenant_scope(db, tenant_id)
+    return len(seqs)
