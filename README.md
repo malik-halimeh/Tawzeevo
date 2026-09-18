@@ -14,20 +14,19 @@ the storefront lets customers order as guests without an account.
 | 2 | Customers, categories, master/tenant catalog, barcodes, grades, pricing, media, catalog import | Complete |
 | 3 | Invoices, immutable revisions, official numbering, customer ledger, payments and allocations, refunds, cancellation, overdue debt, supplier costs and payables, private invoice links | Complete |
 | 4 | Offline-first operations with exactly-once synchronization and encrypted Google Drive backup | Complete |
-| 5 | Public bilingual storefront with guest checkout, owner order review, recommendations, featured products | Next |
-| 6 | Supplier price history, demand-driven procurement, supplier debt | Planned |
+| 5 | Public bilingual storefront, personalized customer links, guest checkout, owner order review, recommendations, featured products | Complete |
+| 6 | Supplier price history, demand-driven procurement, supplier debt | Next |
 | 7 | Delivery tasks, owner/driver assignment, locations, route assistance | Planned |
 | 8 | Analytics, customer lifetime statistics, tenant branding | Planned |
 | 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Planned |
 | 10 | Seasonal best-product forecasting (statistical, optional) | Planned |
 
-### What the next phase delivers (Phase 5)
+### What the next phase delivers (Phase 6)
 
-Each approved business gets a public, bilingual storefront on its own address showing only the
-products it explicitly published, at public prices. Guests browse, search and place an order without
-an account; the owner reviews the order, links or creates the customer, sets the delivery date and
-confirms it through the same invoice engine, or declines it. Featured campaigns and simple
-recommendations are computed from real storefront interactions, never from stock.
+Suppliers become first-class: effective-dated purchase price history per product and supplier,
+procurement suggestions derived from confirmed customer demand (never from stock levels), purchase
+records with received quantities, and supplier debt with the same append-only ledger discipline the
+customer ledger already follows.
 
 ## Key capabilities
 
@@ -62,6 +61,15 @@ recommendations are computed from real storefront interactions, never from stock
 - Server-authoritative identifiers: official invoice numbers, revision numbers and change sequence numbers are never produced on the device; a queued invoice shows a clearly pending reference
 - Ordered incremental pull with tombstones, resumable bootstrap, device leases and retirement, and server-side revocation on membership revoke or business suspension
 - Encrypted disaster-recovery backup to the owner's own Google Drive (`drive.file` scope, one app folder per business): AES-256-GCM with per-business keys wrapped by an environment master key, daily/monthly retention, owner restore drills, and a platform-only import into an empty recovery tenant
+
+**Storefront**
+
+- One public, bilingual, mobile-first storefront per business at `/<slug>` showing only explicitly published products at current prices; slug renames keep old addresses working through audited redirects
+- Personalized customer links: owner-issued, stored as hashes, one active per customer, replaced or revoked atomically; they show the customer's own prices and never act as an account or as financial authority
+- Guest checkout without an account: one order per idempotency key, an immutable contact snapshot, a server-priced draft invoice and a short-lived provisional order page that reveals nothing private
+- Owner order inbox: explicit customer linking (existing or created from the order), re-pricing, confirmation through the invoice engine, decline, delivery date with reminder records, and customer cancellation requests decided by the owner
+- Recommendations and featured campaigns computed from pseudonymous, per-shop interactions (purchase 10, view 1; 30-minute view window; 90-day raw retention with monthly rollups) — never from stock
+- Public catalog responses are cacheable; every personalized or order page is private, `no-store`, `noindex`; private paths are rate-limited by configurable operational policy
 
 **Product principles**
 
@@ -290,6 +298,8 @@ Executed results for each completed phase are recorded in `docs/phase-1/test-rep
 - [`docs/phase-3/requirements-audit.md`](docs/phase-3/requirements-audit.md) — requirement-to-code/test evidence for Phase 3
 - [`docs/phase-4/demo-guide.md`](docs/phase-4/demo-guide.md) — offline work, exactly-once sync, conflicts, revocation and encrypted backup demonstration
 - [`docs/phase-4/requirements-audit.md`](docs/phase-4/requirements-audit.md) — requirement-to-code/test evidence for Phase 4
+- [`docs/phase-5/demo-guide.md`](docs/phase-5/demo-guide.md) — storefront, personalized links, guest checkout and owner review demonstration
+- [`docs/phase-5/requirements-audit.md`](docs/phase-5/requirements-audit.md) — requirement-to-code/test evidence for Phase 5
 - [`docs/runbooks/backup-key-recovery.md`](docs/runbooks/backup-key-recovery.md) — backup keys, master-key rotation and the restore procedure
 - [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
 

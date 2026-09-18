@@ -81,11 +81,11 @@ class PublicInvoiceRateLimiter:
 
 
 class PublicInvoicePrivacyMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, private_limit: int = 60, catalog_limit: int = 600) -> None:
         self.app = app
-        self.limiter = PublicInvoiceRateLimiter()
+        self.limiter = PublicInvoiceRateLimiter(limit=private_limit, window=60)
         # Storefront catalog pages are shareable and image-heavy: a wider, separate budget.
-        self.catalog_limiter = PublicInvoiceRateLimiter(limit=600, window=60)
+        self.catalog_limiter = PublicInvoiceRateLimiter(limit=catalog_limit, window=60)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get("path", "")

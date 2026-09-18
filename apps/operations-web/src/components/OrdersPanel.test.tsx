@@ -19,10 +19,13 @@ test("owner links a suggested customer explicitly, then confirms the order", asy
     calls.push(`${init?.method ?? "GET"} ${path.split("?")[0]}`);
     if (path.includes("/notifications")) return Promise.resolve(Response.json({ notifications: [], unread: 1 }));
     if (path.endsWith("/orders") || path.includes("/orders?")) return Promise.resolve(Response.json({ orders: [order] }));
-    if (path.includes("/invoices/inv1")) return Promise.resolve(Response.json({ id: "inv1", status: "DRAFT", current_revision_id: "rev-1", official_invoice_number: null, net_sales: "8.50", currency: "USD", items: [{ id: "l1", product_name: "Water", quantity: "1", effective_unit_price: "8.50", line_total: "8.50" }] }));
+    const invoice = { id: "inv1", status: "DRAFT", current_revision_id: order.linked_customer_id ? "rev-2" : "rev-1", official_invoice_number: null, net_sales: "8.50", currency: "USD", items: [{ id: "l1", product_name: "Water", quantity: "1", effective_unit_price: "8.50", line_total: "8.50" }] };
     if (path.includes("/link-customer")) { order.linked_customer_id = "c1"; }
-    if (path.includes("/confirm")) { order.status = "CONFIRMED"; order.decided_at = "2026-09-19T01:00:00Z"; }
-    if (path.includes("/orders/o1")) return Promise.resolve(Response.json({ order, candidates: [{ id: "c1", name: "Rami Store", phone: "+96170000001", grade: "A", is_hint: true }], cancellation_requests: [] }));
+    if (path.includes("/confirm")) {
+      expect(JSON.parse(init?.body as string)).toEqual({ expected_revision_id: "rev-2" }); // the re-priced revision, never the stale one
+      order.status = "CONFIRMED"; order.decided_at = "2026-09-19T01:00:00Z";
+    }
+    if (path.includes("/orders/o1")) return Promise.resolve(Response.json({ order, invoice, candidates: [{ id: "c1", name: "Rami Store", phone: "+96170000001", grade: "A", is_hint: true }], cancellation_requests: [] }));
     return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
   }));
 

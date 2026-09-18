@@ -24,6 +24,7 @@ from tawzeevo_api.models import (
     Customer,
     DeliveryReminder,
     Invoice,
+    InvoiceRevision,
     InvoiceRevisionItem,
     InvoiceStatus,
     Order,
@@ -33,6 +34,7 @@ from tawzeevo_api.models import (
 )
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
 from tawzeevo_api.schemas.cash_van import CustomerCreateRequest
+from tawzeevo_api.schemas.checkout import OrderInvoiceLine, OrderInvoiceView
 from tawzeevo_api.schemas.invoice_editor import (
     InvoiceCancelRequest,
     InvoiceEditorDraftRequest,
@@ -57,6 +59,46 @@ def get_order(db: Session, tenant_id: UUID, order_id: UUID) -> Order:
     if order is None or order.tenant_id != tenant_id:
         raise AppError(404, "ORDER_NOT_FOUND", "Order was not found")
     return order
+
+
+def order_invoice_view(db: Session, tenant_id: UUID, order: Order) -> OrderInvoiceView | None:
+    """Current revision of the order's draft/confirmed invoice for the owner's review screen."""
+    invoice = db.get(Invoice, order.invoice_id) if order.invoice_id else None
+    if invoice is None or invoice.tenant_id != tenant_id or invoice.current_revision_id is None:
+        return None
+    revision = db.get(InvoiceRevision, invoice.current_revision_id)
+    if revision is None:
+        return None
+    rows = db.scalars(
+        select(InvoiceRevisionItem)
+        .where(
+            InvoiceRevisionItem.tenant_id == tenant_id,
+            InvoiceRevisionItem.invoice_revision_id == revision.id,
+        )
+        .order_by(InvoiceRevisionItem.line_number)
+    )
+    return OrderInvoiceView(
+        id=invoice.id,
+        status=invoice.status.value,
+        current_revision_id=revision.id,
+        official_invoice_number=invoice.official_invoice_number,
+        currency=revision.currency,
+        subtotal=revision.subtotal,
+        discount_total=revision.discount_total,
+        markup_total=revision.markup_total,
+        net_sales=revision.net_sales,
+        items=[
+            OrderInvoiceLine(
+                id=row.id,
+                product_name=row.product_name,
+                quantity=row.quantity,
+                price_basis=row.price_basis,
+                effective_unit_price=row.effective_unit_price,
+                line_total=row.line_total,
+            )
+            for row in rows
+        ],
+    )
 
 
 def list_orders(db: Session, tenant_id: UUID, status: str | None, limit: int = 100) -> list[Order]:

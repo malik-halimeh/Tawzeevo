@@ -4,19 +4,19 @@
 
 ## Current execution
 
-- Current workstream: `Phase 5 — Linked Bilingual Guest Storefront, Orders, Recommendations, Advertising`
-- Current phase: `5`
-- Current phase status: `IN_PROGRESS`
-- Current milestone: `P5-M6 — Phase 5 freeze`
+- Current workstream: `Phase 6 — Suppliers, Price History, Demand-Driven Procurement, Supplier Debt`
+- Current phase: `6`
+- Current phase status: `NOT_STARTED`
+- Current milestone: `P6-M1`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P5-M5`
-- Next required user command: `continue`
+- Last completed milestone: `P5-M6`
+- Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
-The owner explicitly authorized `Start Phase 4` and `Start Phase 5` on 2026-09-18. Phases 1–4 are
-complete and their requirements audits, test reports and demo guides are frozen under
-`docs/phase-1` … `docs/phase-4`. Gate E decisions (D-046–D-049, D-051, D-062) are recorded, so
-Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6/7 domain work.
+The owner authorized `Start Phase 4` and `Start Phase 5` on 2026-09-18 and, on 2026-09-19, every
+phase up to and including Phase 9 (Phase 10 is not authorized). Phases 1–5 are complete and their
+requirements audits, test reports and demo guides are frozen under `docs/phase-1` … `docs/phase-5`.
+The Phase 6 gate decisions (D-058, D-059) are recorded, so Phase 6 begins with P6-M1.
 
 ## Demo workstream status
 
@@ -36,8 +36,8 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 | 2 | COMPLETE | Definition of Done PASSED; P2-M1 through P2-M5 complete |
 | 3 | COMPLETE | Definition of Done PASSED 2026-09-17; P3-M1 through P3-M6 complete; evidence in `docs/phase-3/` |
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
-| 5 | IN_PROGRESS | Gate E decisions D-046–D-049, D-051, D-062 recorded; owner issued `Start Phase 5`; P5-M1 complete 2026-09-18 |
-| 6 | LOCKED | Phase 5 DoD |
+| 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
+| 6 | NOT_STARTED | Gate decisions D-058, D-059 recorded; owner authorization of 2026-09-19 |
 | 7 | LOCKED | Gate F |
 | 8 | LOCKED | Gate G |
 | 9 | LOCKED | Phases 1–8 DoD |
@@ -45,21 +45,28 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 
 ## Current milestone evidence
 
-- Code areas changed (P5-M5, 2026-09-19): migration `20260919_0021` (`orders.linked_customer_id`, `orders.delivery_date`; `delivery_reminders` one per order with a UTC `due_at`; `order_cancellation_requests` with one pending request per order; owner-notification uniqueness narrowed to `ORDER_RECEIVED` so decision notifications can repeat; RLS everywhere), `services/orders.py` (inbox listing; phone-matched customer candidates with the personalized-link hint marked but never auto-linked; explicit link to an existing customer or one created from the snapshot, which re-prices the draft as a new revision through the Phase 3 editor; confirmation only after a link and only through the Phase 3 confirmation that assigns the official number; decline closes the draft; delivery date only after confirmation, reminder at 09:00 Asia/Beirut stored in UTC; customer cancellation requests through the provisional reference; owner approve → Phase 3 cancellation reversal, order `CANCELLED`, reminder cancelled; reject keeps everything; notification read state), owner routes under `/api/v1/tenants/{id}/orders…` and `/notifications…`, public `POST /api/v1/public/order/cancellation-request`, operations client `OrdersPanel` (Orders tab: inbox with unread count, detail with invoice lines, candidate chips, create-from-snapshot with grade, confirm/decline with note, delivery date form, cancellation decisions; EN/AR), storefront order page shows delivery date and cancellation state and lets the customer ask for cancellation through a proxy route (`/{slug}/order/cancel`)
-- Migrations: head `20260919_0021`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-19): backend `205 passed` (order review `3`: confirm before link refused, link re-prices to the customer grade as a new revision, confirmation assigns the official number and re-confirmation is refused, decline closes the draft, delivery date refused before confirmation and accepted after with a UTC reminder, second cancellation request refused while one is pending, approval reverses through Phase 3 and cancels the reminder, rejection keeps the order, notifications counted and marked read; cross-tenant access 404), ruff/format/mypy PASS; operations client `73 passed` incl. `OrdersPanel` (confirm disabled until the owner links; suggested candidate is a chip, not a default), storefront `5 passed`; lint/types/build PASS for both apps
-- Security/invariants: nothing is linked or confirmed automatically (D-072); the official number, ledger movement and reversal all go through the Phase 3 services; a cancellation request is a request, the owner decides (PHASE_05.md J); provisional pages keep `no-store`/noindex
-- Known defects: none open for P5-M5
+- Code areas changed (P5-M6, 2026-09-19): `tests/test_phase5_freeze.py` (rate limits from settings and separate per surface; link lifecycle safe on context/catalog/checkout; public surfaces carry no private words, correct cache policy, ids alone open nothing), `config.py` + `main.py` (`PUBLIC_PRIVATE_RATE_LIMIT_PER_MINUTE`, `PUBLIC_CATALOG_RATE_LIMIT_PER_MINUTE` per D-076), `schemas/checkout.py::OrderInvoiceView` + `services/orders.py::order_invoice_view` (order detail carries the draft's current revision; the Phase 2 draft read needs a customer), `OrdersPanel.tsx` (uses the detail's invoice; errors survive the automatic refresh), storefront `app/globals.css` (RTL skip-link overflow fix), `e2e/phase5-storefront-flow.spec.ts` (full storefront flow + Arabic phone), `docs/phase-5/*`, README
+- Migrations: head `20260919_0021`; `alembic check` PASS
+- Tests run (2026-09-19): backend `208 passed`, ruff/format/mypy PASS; operations client `73 passed`, storefront `5 passed`, lint/types/build PASS; Playwright `4 passed` (Phase 3, Phase 4, Phase 5 ×2) against the local stack
+- Security/invariants: DoD (PHASE_05.md Q) PASS per `docs/phase-5/requirements-audit.md`; no critical/high storefront/public security defect open
+- Known defects: none open for Phase 5
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P5-M6 (2026-09-19) froze Phase 5: freeze tests for abuse limits, link lifecycle and public leakage,
+configurable rate limits (D-076), the real-browser storefront E2E in English and Arabic on a phone,
+three defects fixed (stale confirm revision, RTL skip-link overflow, hard-coded limits), and the
+Phase 5 evidence documents.
+
+### Previous (P5-M5)
 
 P5-M5 (2026-09-19) delivered owner order review: an order inbox, explicit customer linking (the
 personalized-link hint is a suggestion only) that re-prices the draft, confirmation through the
 Phase 3 confirmation, decline, delivery date with a reminder job, and customer cancellation
 requests decided by the owner with Phase 3 reversal accounting.
 
-### Previous (P5-M4)
+### Earlier (P5-M4)
 
 P5-M4 (2026-09-19) delivered guest checkout: cart and checkout without an account, one RECEIVED
 order per idempotency key with an immutable contact snapshot, a draft invoice and first provisional

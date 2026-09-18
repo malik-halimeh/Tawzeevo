@@ -17,8 +17,9 @@ body { line-height: 1.45; font-size: 16px; }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
 
-.skip-link { position: absolute; inset-inline-start: -999px; top: 0; background: var(--accent); color: var(--accent-ink); padding: 0.5rem 1rem; z-index: 10; }
-.skip-link:focus { inset-inline-start: 0; }
+/* Hidden until focused without an off-canvas offset, which in RTL would widen the page. */
+.skip-link { position: absolute; top: 0; inset-inline-start: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; background: var(--accent); color: var(--accent-ink); padding: 0.5rem 1rem; z-index: 10; }
+.skip-link:focus { width: auto; height: auto; clip-path: none; overflow: visible; }
 
 .shop-header { background: var(--card); border-bottom: 1px solid var(--line); padding: 0.75rem 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; }
 .shop-header h1 { margin: 0; font-size: 1.15rem; }

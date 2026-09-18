@@ -446,6 +446,7 @@ def _detail(db: Session, tenant_id: UUID, order_id: UUID) -> OrderDetailResponse
     rows = ([hint] if hint else []) + candidates
     return OrderDetailResponse(
         order=OrderSummary.model_validate(order),
+        invoice=orders.order_invoice_view(db, tenant_id, order),
         candidates=[
             CustomerCandidate(
                 id=c.id,

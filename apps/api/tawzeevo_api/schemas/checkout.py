@@ -127,8 +127,34 @@ class CustomerCandidate(BaseModel):
     is_hint: bool
 
 
+class OrderInvoiceLine(BaseModel):
+    id: UUID
+    product_name: str
+    quantity: Decimal
+    price_basis: ProductPriceBasis
+    effective_unit_price: Decimal
+    line_total: Decimal
+
+
+class OrderInvoiceView(BaseModel):
+    """The draft behind an order, readable before a customer is linked (the Phase 2 draft read
+    requires a customer). `current_revision_id` is what a confirmation must echo back."""
+
+    id: UUID
+    status: str
+    current_revision_id: UUID
+    official_invoice_number: str | None
+    currency: str
+    subtotal: Decimal
+    discount_total: Decimal
+    markup_total: Decimal
+    net_sales: Decimal
+    items: list[OrderInvoiceLine]
+
+
 class OrderDetailResponse(BaseModel):
     order: OrderSummary
+    invoice: OrderInvoiceView | None
     candidates: list[CustomerCandidate]
     cancellation_requests: list[CancellationRequestResponse]
 

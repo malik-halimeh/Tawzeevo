@@ -149,7 +149,11 @@ app.include_router(platform_backup_router)
 app.include_router(storefront_public_router)
 app.include_router(storefront_owner_router)
 register_change_tracking()
-app.add_middleware(PublicInvoicePrivacyMiddleware)
+app.add_middleware(
+    PublicInvoicePrivacyMiddleware,
+    private_limit=get_settings().public_private_rate_limit_per_minute,
+    catalog_limit=get_settings().public_catalog_rate_limit_per_minute,
+)
 
 
 @app.exception_handler(AppError)

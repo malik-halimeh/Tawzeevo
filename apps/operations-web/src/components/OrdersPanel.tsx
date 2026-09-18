@@ -17,16 +17,15 @@ export interface OrderSummary {
 }
 interface Candidate { id: string; name: string; phone: string; grade: string | null; is_hint: boolean }
 interface CancellationRequest { id: string; order_id: string; status: "PENDING" | "APPROVED" | "REJECTED"; reason: string | null; created_at: string; decided_at: string | null; decision_note: string | null }
-interface OrderDetail { order: OrderSummary; candidates: Candidate[]; cancellation_requests: CancellationRequest[] }
 interface InvoiceLine { id: string; product_name: string; quantity: string; effective_unit_price: string; line_total: string }
 interface InvoiceView { id: string; status: string; current_revision_id: string; official_invoice_number: string | null; net_sales: string; currency: string; items: InvoiceLine[] }
+interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[] }
 
 export function OrdersPanel({ tenantId }: { tenantId: string }) {
   const { t, i18n } = useTranslation();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [unread, setUnread] = useState(0);
   const [selected, setSelected] = useState<OrderDetail>();
-  const [invoice, setInvoice] = useState<InvoiceView>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
@@ -51,12 +50,12 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const open = useCallback(async (orderId: string) => {
-    setError(undefined);
     try {
+      // The detail carries the invoice's current revision, so a confirm click always echoes the
+      // revision produced by the latest link/re-pricing (stale ids are refused by Phase 3).
       const detail = await apiRequest<OrderDetail>(`${base}/orders/${orderId}${q}`);
       setSelected(detail);
       setDeliveryDate(detail.order.delivery_date ?? "");
-      setInvoice(detail.order.invoice_id ? await apiRequest<InvoiceView>(`/api/v1/invoices/${detail.order.invoice_id}${q}`) : undefined);
     } catch (caught) { setError(caught); }
   }, [base, q]);
 
@@ -70,8 +69,8 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
     return t("orders.linked");
   });
   const confirm = () => run(async () => {
-    if (!selected || !invoice) return undefined;
-    await apiRequest(`${base}/orders/${selected.order.id}/confirm${q}`, { method: "POST", body: JSON.stringify({ expected_revision_id: invoice.current_revision_id }) });
+    if (!selected?.invoice) return undefined;
+    await apiRequest(`${base}/orders/${selected.order.id}/confirm${q}`, { method: "POST", body: JSON.stringify({ expected_revision_id: selected.invoice.current_revision_id }) });
     return t("orders.confirmed");
   });
   const decline = () => run(async () => {
@@ -94,6 +93,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
 
   const when = (value: string | null) => (value ? new Date(value).toLocaleString(i18n.language === "ar" ? "ar-LB" : "en-GB") : "—");
   const pending = selected?.cancellation_requests.find((row) => row.status === "PENDING");
+  const invoice = selected?.invoice;
 
   return (
     <section className="orders-panel" aria-labelledby="orders-title">
@@ -109,7 +109,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
           {orders.length === 0 ? <li className="muted">{t("orders.empty")}</li> : null}
           {orders.map((order) => (
             <li className="outbox-row" key={order.id}>
-              <button aria-current={selected?.order.id === order.id ? "true" : undefined} className="text-button" onClick={() => { setNotice(undefined); void open(order.id); }} type="button">
+              <button aria-current={selected?.order.id === order.id ? "true" : undefined} className="text-button" onClick={() => { setError(undefined); setNotice(undefined); void open(order.id); }} type="button">
                 <strong>{order.contact_name}</strong> · {when(order.created_at)}
               </button>
               <span className="status-badge">{t(`orders.status.${order.status}`)}</span>
