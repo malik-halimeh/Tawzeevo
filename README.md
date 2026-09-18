@@ -1,57 +1,86 @@
 # Tawzeevo
 
-For repository-only continuation, start with AGENT_START_HERE.md.
-The continuity audit register records unresolved questions;
-completed milestone claims below do not resolve those findings or authorize P3-M6.
+Tawzeevo is a multi-tenant operations platform for Cash Van distribution businesses, with a linked
+bilingual (English/Arabic) customer storefront. Each business runs its own isolated workspace:
+customers, catalog, pricing, invoicing, payments, debt follow-up and supplier costs, with the
+platform team handling onboarding and access. The operational client is a web/PWA application;
+the storefront lets customers order as guests without an account.
 
-Tawzeevo is a multi-tenant Cash Van operations platform with a linked bilingual customer storefront. This repository is the authoritative monorepo for the platform.
+## Status
 
-Phases 1 and 2 are complete, and Phase 3 milestones P3-M1 through P3-M5 are complete. Tawzeevo includes the FastAPI/PostgreSQL authentication and platform
-foundation, the mandatory English/Arabic React operations client, manual tenant onboarding and
-lifecycle controls, and the tenant-isolated customer, catalog, barcode, grade-pricing, media, and
-production invoice, customer-ledger, payment, allocation, debt, cancellation, and refund foundation.
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Accounts, sessions, platform administration, tenant onboarding, bilingual operations client | Complete |
+| 2 | Customers, categories, master/tenant catalog, barcodes, grades, pricing, media, catalog import | Complete |
+| 3 | Invoices, immutable revisions, official numbering, customer ledger, payments and allocations, refunds, cancellation, overdue debt, supplier costs and payables, private invoice links | Complete |
+| 4 | Offline-first operations with exactly-once synchronization and encrypted Google Drive backup | Next |
+| 5 | Public bilingual storefront with guest checkout, owner order review, recommendations, featured products | Planned |
+| 6 | Supplier price history, demand-driven procurement, supplier debt | Planned |
+| 7 | Delivery tasks, owner/driver assignment, locations, route assistance | Planned |
+| 8 | Analytics, customer lifetime statistics, tenant branding | Planned |
+| 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Planned |
+| 10 | Seasonal best-product forecasting (statistical, optional) | Planned |
 
-Later product areas remain governed future work. Invoice confirmation, official numbering,
-post-confirm revisions, opening balances, overdue debt alerts, immutable receipts, allocations,
-cancellation accounting, credit-limited refunds, private public-invoice links, and WhatsApp sharing are implemented. Tawzeevo also does not yet claim storefront ordering, offline
-sync, procurement, delivery routing, analytics, or forecasting as implemented.
+### What the next phase delivers (Phase 4)
 
-## Implemented capabilities
+Owners will keep working with no internet connection: customers, products, invoice drafts and
+confirmations, and payments are recorded locally on the device and synchronized exactly once when
+the connection returns. Official invoice numbers stay server-assigned, revoked devices can never
+apply queued work, and each business gets an encrypted, restorable backup in its own Google Drive
+folder.
 
-- Public client registration, Argon2id login, short-lived JWT access, rotating refresh sessions, logout, and session revocation
-- Safe profile management plus administrator user creation, filtering, pagination, role changes, and soft deletion
-- Public active-user statistics
-- Client tenant applications plus administrator approval, rejection, access-period management, suspension, and reactivation
-- Last-owner protection and strict separation between platform administration and tenant ownership
-- Tenant-scoped customer, category, barcode-product, and draft-invoice APIs with PostgreSQL row-level security
-- Separate master and tenant catalogs, explicit barcode ownership, known-barcode adoption, and manual missing-product creation
-- Customer grades, backend-authoritative `pricing-v1`, explicit grade prices, percentage discounts, and piece/box derivation
-- Provider-neutral product-image storage with authenticated retrieval and safe JPEG/PNG/WebP re-encoding
-- Versioned, provenance-aware, quality-gated import of the licensed starter Lebanon-market catalog
-- Canonical immutable invoice revision schema, tenant/year numbering state, append-only financial records, and tenant-private supplier-cost snapshot foundation
-- Atomic invoice confirmation, server-assigned official numbers, exact post-confirm ledger deltas, immutable revision history, and allocation release after downward edits
-- Per-currency customer balances, idempotent opening balances, owner-configured overdue thresholds, and deduplicated overdue alerts
-- Immutable customer receipts with FIFO or owner-selected allocation, partial/multi-obligation settlement, compensating receipt reversal, and unallocated credit
-- Draft/confirmed cancellation accounting that preserves revisions and payments, plus serialized customer-credit refunds that cannot create debt
-- Owner-managed invoice links with expiry, replacement, revocation, a restricted EN/AR customer view, and WhatsApp sharing
-- Tenant-private supplier opening balances, payable-capped aggregate payments, explicit supplier prepayments, and compensating reversals, without per-purchase allocation
-- Owner supplier and product-cost setup (create/rename suppliers, append effective-dated costs, choose the preferred supplier) feeding invoice cost provenance
-- English/Arabic operations UI with LTR/RTL, protected routes, accessible forms, and platform dashboards
-- Safe administrator bootstrap and synthetic owner-scoped demo seeding
+## Key capabilities
+
+**Platform and access**
+
+- Registration, Argon2id password hashing, short-lived access tokens with rotating refresh sessions and revocation
+- Platform administration: user management, tenant applications with approval/rejection, access periods, suspension and reactivation without data loss
+- Strict separation between platform administration and business ownership; a business always keeps an active owner
+
+**Customers and catalog**
+
+- Tenant-isolated customers with phone search and duplicate disambiguation (no silent merging), addresses, coordinates and grades (A+, A, B+, B)
+- Master and tenant catalogs with explicit barcode ownership, piece/box packaging and per-tenant prices
+- Backend-authoritative pricing: explicit grade price, otherwise grade percentage discount, otherwise normal price; Decimal arithmetic only
+- Validated, re-encoded product images through a provider-neutral storage layer
+- Licensed (ODbL) Lebanon-market starter catalog import with provenance and quality reporting
+
+**Invoicing and money**
+
+- Invoice editor with barcode, catalog, manual and text-list entry, calculator-style quantities, line and invoice discounts/markups
+- Immutable invoice revisions, server-assigned official numbers (`YYYY-000001` per business and year), auditable post-confirmation edits with exact ledger deltas
+- Append-only customer ledger per currency; opening balances that are never counted as sales; owner-configured overdue threshold on the Lebanon calendar
+- Immutable receipts with automatic (oldest-first) or owner-selected allocation, compensating reversals, credit-limited refunds and cancellation accounting that preserves payment history
+- Supplier and product-cost setup with effective-dated cost history and sale-time cost snapshots on every confirmed line
+- Supplier payables with payable-capped payments, explicit prepayments and reversals (aggregate per currency)
+- Private customer invoice links (hashed secrets, expiry, single active link, revoked on cancellation) and WhatsApp sharing
+
+**Product principles**
+
+- No stock or availability tracking: "published" means visible in the catalog, nothing more
+- Customers never need an account; a phone number is contact data, not identity
+- Every business-owned table carries the business id and is protected by PostgreSQL row-level security
+- Financial history is append-only; corrections are new records, never edits
+
+## Architecture
+
+- **API** — Python 3.13, FastAPI, SQLAlchemy 2, Alembic, Pydantic v2, PostgreSQL 16+ (psycopg 3), OpenAPI documentation at `/docs`
+- **Operations client** — React 19, TypeScript (strict), Vite, React Router, TanStack Query, React Hook Form + Zod, i18next; PWA foundation
+- **Storefront** — Next.js App Router (Phase 5)
+- **Quality** — pytest against real PostgreSQL, Vitest + Testing Library, Playwright end-to-end, Ruff, mypy (strict), ESLint, TypeScript
 
 ## Repository layout
 
-- `apps/api` — FastAPI service, SQLAlchemy models, Alembic migrations, CLIs, and PostgreSQL-backed tests
-- `apps/operations-web` — React/Vite operations client and frontend tests
-- `apps/storefront-web` — documented future storefront boundary; no Phase 1 storefront implementation
-- `packages` — documented shared-package boundaries reserved for later phases
-- `docs/contracts` — approved architecture contracts for current and future work
-- `docs/phase-1` and `docs/phase-2` — frozen test, demo, and requirements evidence for completed phases
-- `data/master-catalog` — attributed ODbL starter catalog snapshot and machine-readable quality report
-- `infra` — local infrastructure guidance
-- `scripts` — repository automation guidance
+- `apps/api` — FastAPI service, models, migrations, CLIs and PostgreSQL-backed tests
+- `apps/operations-web` — React/Vite operations client, component tests and the Playwright end-to-end lane
+- `apps/storefront-web` — storefront application boundary (Phase 5)
+- `packages` — shared package boundaries reserved for later phases
+- `docs/contracts` — architecture and domain contracts
+- `docs/phase-1`, `docs/phase-2`, `docs/phase-3` — requirements evidence, test reports and demonstration guides for completed phases
+- `data/master-catalog` — attributed ODbL starter catalog snapshot and quality report
+- `infra`, `scripts` — infrastructure notes and repository tooling
 
-Detailed ownership is documented in [`docs/folder-responsibilities.md`](docs/folder-responsibilities.md), with the system structure in [`docs/architecture.md`](docs/architecture.md).
+Folder ownership is described in [`docs/folder-responsibilities.md`](docs/folder-responsibilities.md); the system structure in [`docs/architecture.md`](docs/architecture.md).
 
 ## Local setup
 
@@ -212,6 +241,23 @@ No new environment variables are required: `VITE_API_BASE_URL` must point to the
 The API itself serves the customer invoice page; this is not the future storefront/checkout.
 See [P3-M5 implementation and demonstration notes](docs/phase-3/p3-m5.md) for security and supplier-foundation boundaries.
 
+## Share a saved invoice with a customer
+
+1. Start the API and operations client using the setup instructions above, then sign in as the tenant owner.
+2. Open a saved invoice and select **Manage invoice links**, then **Create private link**.
+3. Select **Open customer view** to preview the English/Arabic invoice without a customer login.
+4. Copy the displayed URL or select **Share on WhatsApp**. WhatsApp uses the invoice's normalized customer-phone snapshot; no message is sent automatically. A valid snapshot phone is required.
+5. Share the new link immediately: its secret is shown only when created or replaced and is not recoverable from the link list. **Replace link** creates a new link and revokes the old one; **Revoke link** disables that link.
+
+Anyone holding the link can view that invoice until expiry (90 days), revocation, or tenant suspension.
+The page shows the current invoice revision, not unrelated balances, costs, profit, suppliers, or history.
+It is not an account statement or payment-status page. After the page clears the secret from the
+address bar, reload by reopening the original shared link.
+
+No new environment variables are required: `VITE_API_BASE_URL` must point to the reachable API origin
+(not localhost when sharing remotely). Deploy both existing services and use HTTPS in production.
+The API itself serves the customer invoice page; this is not the future storefront/checkout.
+
 ## Validation
 
 Backend checks require a disposable migrated PostgreSQL database:
@@ -228,27 +274,25 @@ $env:JWT_SECRET = "use-a-local-test-secret-of-at-least-32-bytes"
 npm run check
 ```
 
-The whole-backend Ruff commands remain the quality gate. Two immutable historical migrations
-have exact-path exceptions in `apps/api/pyproject.toml`: `0009` retains its original import order
-(`I001` only), and `0009`/`0010` retain their original formatting. All other selected lint rules
-still apply to both files; every other/new migration retains full lint and format coverage.
-The full test suite fingerprints both historical files (ignoring only Git's LF/CRLF conversion)
-so the exceptions cannot conceal later edits. Do not expand the exceptions or update the hashes
-to bypass a failure. See [baseline remediation evidence](docs/phase-3/baseline-remediation.md).
+Two historical migrations (`0009`, `0010`) keep their original formatting by design and are fingerprinted by the test suite; new migrations follow the full lint and format rules.
 
-The frozen results are in the completed-phase reports:
+A real-browser end-to-end lane (Playwright, Chromium) covers the critical owner flow and runs against a started API and client:
 
-- [`docs/phase-1/test-report.md`](docs/phase-1/test-report.md)
-- [`docs/phase-2/test-report.md`](docs/phase-2/test-report.md)
+```powershell
+npm run e2e --workspace=@tawzeevo/operations-web
+```
 
-## Demonstration and audit
+Executed results for each completed phase are recorded in `docs/phase-1/test-report.md`, `docs/phase-2/test-report.md` and `docs/phase-3/test-report.md`.
 
-- [`docs/demo-role-gallery.md`](docs/demo-role-gallery.md) — isolated public role-gallery walkthrough, boundaries, and teardown checklist
-- [`docs/phase-1/demo-guide.md`](docs/phase-1/demo-guide.md) — setup, safe seeding, and presentation checklist
-- [`docs/phase-1/requirements-audit.md`](docs/phase-1/requirements-audit.md) — evidence for every Phase 1 contract section and Definition of Done item
-- [`docs/phase-2/demo-guide.md`](docs/phase-2/demo-guide.md) — tenant customer, catalog, pricing, media, and barcode presentation workflow
-- [`docs/phase-2/requirements-audit.md`](docs/phase-2/requirements-audit.md) — evidence for every Phase 2 milestone and Definition of Done item
-- [`docs/future-phases.md`](docs/future-phases.md) — contracted sequence without implementation claims
+## Documentation
+
+- [`docs/architecture.md`](docs/architecture.md) — request flows, data model and runtime configuration
+- [`docs/contracts`](docs/contracts) — pricing, financial invariants, tenant isolation, public access, sync protocol and other contracts
+- [`docs/phase-3/demo-guide.md`](docs/phase-3/demo-guide.md) — end-to-end demonstration of the financial core with synthetic data
+- [`docs/phase-3/requirements-audit.md`](docs/phase-3/requirements-audit.md) — requirement-to-code/test evidence for Phase 3
+- [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
+
+## License
 
 No general application-source license has been granted for this repository. The catalog snapshot in
 [`data/master-catalog`](data/master-catalog) is separately attributed and shared under ODbL 1.0.
