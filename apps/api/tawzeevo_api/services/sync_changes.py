@@ -36,7 +36,8 @@ from tawzeevo_api.models import (
 )
 
 PROTOCOL_VERSION = 1
-APP_SCHEMA_VERSION = 1
+# Highest local (IndexedDB) schema the server knows how to serve; the PWA declares its own.
+APP_SCHEMA_VERSION = 2
 
 VERSIONED_TYPES: tuple[type, ...] = (Customer, Category, TenantProduct)
 

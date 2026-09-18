@@ -1210,6 +1210,15 @@ def test_product_image_upload_reencodes_and_scan_returns_tenant_image(
         image = uploaded.json()
         assert image["ownership"] == "TENANT"
         assert image["content_type"] == "image/webp"
+        # A retried upload of the same bytes (lost response) returns the same asset, no duplicate.
+        retried = client.post(
+            f"/api/v1/tenants/{tenant_a}/products/{product['id']}/images",
+            headers=auth(token_a),
+            files={"file": ("product.png", source.getvalue(), "image/png")},
+            data={"alt_text": "Green bottle", "display_order": "2"},
+        )
+        assert retried.status_code == 201, retried.text
+        assert retried.json()["id"] == image["id"]
         assert (image["width"], image["height"]) == (16, 10)
         assert image["alt_text"] == "Green bottle"
 

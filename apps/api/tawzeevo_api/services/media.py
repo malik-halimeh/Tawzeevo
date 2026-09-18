@@ -211,6 +211,17 @@ def upload_tenant_product_image(
     )
     if product_exists is None:
         raise AppError(404, "PRODUCT_NOT_FOUND", "Product was not found")
+    # Idempotent retry (PHASE_04.md K): the same bytes for the same product map to the existing
+    # asset, so a device that lost the upload response never creates a duplicate.
+    duplicate = db.scalar(
+        select(TenantProductImage).where(
+            TenantProductImage.tenant_id == tenant_id,
+            TenantProductImage.tenant_product_id == product_id,
+            TenantProductImage.sha256 == processed.sha256,
+        )
+    )
+    if duplicate is not None:
+        return duplicate
     object_key = f"tenants/{tenant_id}/products/{product_id}/{uuid4()}.webp"
     image = TenantProductImage(
         tenant_id=tenant_id,

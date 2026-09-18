@@ -311,21 +311,27 @@ def _apply_financial(
 
 
 def _apply_financial_op(
-    db: Session, tenant_id: UUID, actor: UUID, request: PushRequest, operation: PushOperation
+    db: Session,
+    tenant_id: UUID,
+    actor: UUID,
+    request: PushRequest,
+    operation: PushOperation,
+    staged: SyncOperation | None = None,
 ) -> PushResult:
     fingerprint = _fingerprint(operation)
-    staged = SyncOperation(
-        tenant_id=tenant_id,
-        device_installation_id=request.device_installation_id,
-        operation_id=operation.operation_id,
-        entity_type=operation.entity_type,
-        operation_type=operation.operation_type,
-        status="applied",
-        result={},
-        request_fingerprint=fingerprint,
-    )
-    db.add(staged)
-    db.flush()
+    if staged is None:
+        staged = SyncOperation(
+            tenant_id=tenant_id,
+            device_installation_id=request.device_installation_id,
+            operation_id=operation.operation_id,
+            entity_type=operation.entity_type,
+            operation_type=operation.operation_type,
+            status="applied",
+            result={},
+            request_fingerprint=fingerprint,
+        )
+        db.add(staged)
+        db.flush()
     staged_id = staged.id
     sync_changes.set_operation_context(db, operation.operation_id, request.device_installation_id)
     try:
@@ -356,7 +362,12 @@ def _apply_financial_op(
             error=PushError(code=error.code, message=error.message),
         )
         _lock(db, operation.operation_id)
-        _record(db, tenant_id, request, operation, result, fingerprint)
+        committed = db.get(SyncOperation, staged_id)
+        if committed is not None:  # staged row survived an earlier commit: complete it
+            committed.status = "rejected"
+            committed.result = json.loads(result.model_dump_json())
+        else:
+            _record(db, tenant_id, request, operation, result, fingerprint)
         commit_and_restore_tenant_scope(db, tenant_id)
         return result
     finally:
@@ -414,6 +425,11 @@ def _apply_one(
                     message="This operation id was already used for a different request",
                 ),
             )
+        if existing.entity_type in FINANCIAL_TYPES and not existing.result:
+            # The financial service committed but the process died before the result was
+            # stored. Re-running is safe: the service replays its own idempotency key and the
+            # same effect is returned, this time recorded.
+            return _apply_financial_op(db, tenant_id, actor, request, operation, existing)
         db.rollback()
         return _stored_result(existing)
 

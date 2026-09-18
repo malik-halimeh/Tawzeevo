@@ -132,6 +132,34 @@ export async function updateCustomerOffline(
   });
 }
 
+/** Create a product locally (barcode included); the server prices and publishes it on push. */
+export async function createProductOffline(
+  tenantId: string,
+  membershipId: string,
+  input: { category_id: string; name: string; barcode: string; barcode_package_level?: "PIECE" | "BOX"; unit_price: string; currency: string; price_basis: "PIECE" | "BOX"; pieces_per_box: number | null; is_published?: boolean; master_product_id?: string | null },
+): Promise<LocalProduct> {
+  const db = openLocalDatabase(tenantId, membershipId);
+  const row: LocalProduct = {
+    id: crypto.randomUUID(),
+    tenant_id: tenantId,
+    category_id: input.category_id,
+    master_product_id: input.master_product_id ?? null,
+    name: input.name,
+    is_published: Boolean(input.is_published),
+    unit_price: input.unit_price,
+    currency: input.currency,
+    price_basis: input.price_basis,
+    pieces_per_box: input.pieces_per_box,
+    version: 1,
+  };
+  await db.transaction("rw", [db.products, db.barcodes, db.outbox], async () => {
+    await db.products.put(row);
+    await db.barcodes.put({ id: crypto.randomUUID(), tenant_id: tenantId, tenant_product_id: row.id, barcode: input.barcode, package_level: input.barcode_package_level ?? "PIECE" });
+    await db.outbox.add(newCommand(tenantId, membershipId, "tenant_product", "create", row.id, null, { ...input }));
+  });
+  return row;
+}
+
 export async function updateProductOffline(
   tenantId: string,
   membershipId: string,
@@ -237,16 +265,20 @@ export async function flushOutbox(tenantId: string, membershipId: string): Promi
       }),
     });
   } catch (error) {
-    const retryable = isNetworkFailure(error);
     const message = error instanceof Error ? error.message : String(error);
+    if (!isNetworkFailure(error)) {
+      // A whole-request refusal (protocol mismatch, expired session, revoked access, bad request)
+      // says nothing about any single command: the work stays pending and the caller decides.
+      await db.outbox.bulkPut(pending.map((row) => ({ ...row, attempts: row.attempts, last_error: message, state: "pending" })));
+      throw error;
+    }
     await db.outbox.bulkPut(pending.map((row) => ({
       ...row,
       attempts: row.attempts + 1,
       last_error: message,
-      state: (retryable && row.attempts + 1 < MAX_ATTEMPTS ? "retryable_failed" : retryable ? "dead_letter" : "rejected"),
+      state: row.attempts + 1 < MAX_ATTEMPTS ? "retryable_failed" : "dead_letter",
     })));
     summary.failed = pending.length;
-    if (!retryable) throw error;
     return summary;
   }
   summary.high_water_change_seq = response.high_water_change_seq;

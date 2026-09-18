@@ -13,21 +13,21 @@ the storefront lets customers order as guests without an account.
 | 1 | Accounts, sessions, platform administration, tenant onboarding, bilingual operations client | Complete |
 | 2 | Customers, categories, master/tenant catalog, barcodes, grades, pricing, media, catalog import | Complete |
 | 3 | Invoices, immutable revisions, official numbering, customer ledger, payments and allocations, refunds, cancellation, overdue debt, supplier costs and payables, private invoice links | Complete |
-| 4 | Offline-first operations with exactly-once synchronization and encrypted Google Drive backup | Next |
-| 5 | Public bilingual storefront with guest checkout, owner order review, recommendations, featured products | Planned |
+| 4 | Offline-first operations with exactly-once synchronization and encrypted Google Drive backup | Complete |
+| 5 | Public bilingual storefront with guest checkout, owner order review, recommendations, featured products | Next |
 | 6 | Supplier price history, demand-driven procurement, supplier debt | Planned |
 | 7 | Delivery tasks, owner/driver assignment, locations, route assistance | Planned |
 | 8 | Analytics, customer lifetime statistics, tenant branding | Planned |
 | 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Planned |
 | 10 | Seasonal best-product forecasting (statistical, optional) | Planned |
 
-### What the next phase delivers (Phase 4)
+### What the next phase delivers (Phase 5)
 
-Owners will keep working with no internet connection: customers, products, invoice drafts and
-confirmations, and payments are recorded locally on the device and synchronized exactly once when
-the connection returns. Official invoice numbers stay server-assigned, revoked devices can never
-apply queued work, and each business gets an encrypted, restorable backup in its own Google Drive
-folder.
+Each approved business gets a public, bilingual storefront on its own address showing only the
+products it explicitly published, at public prices. Guests browse, search and place an order without
+an account; the owner reviews the order, links or creates the customer, sets the delivery date and
+confirms it through the same invoice engine, or declines it. Featured campaigns and simple
+recommendations are computed from real storefront interactions, never from stock.
 
 ## Key capabilities
 
@@ -55,6 +55,14 @@ folder.
 - Supplier payables with payable-capped payments, explicit prepayments and reversals (aggregate per currency)
 - Private customer invoice links (hashed secrets, expiry, single active link, revoked on cancellation) and WhatsApp sharing
 
+**Offline operations and backup**
+
+- Installable operations client: the business is downloaded once per device and stays usable with no connection (customer search, barcode scan, customer and product creation, invoice drafts, confirmations, receipts)
+- Device outbox with exactly-once delivery: every command carries an operation id and request fingerprint; replays return the stored result, conflicts are surfaced for a manual decision, nothing is merged silently
+- Server-authoritative identifiers: official invoice numbers, revision numbers and change sequence numbers are never produced on the device; a queued invoice shows a clearly pending reference
+- Ordered incremental pull with tombstones, resumable bootstrap, device leases and retirement, and server-side revocation on membership revoke or business suspension
+- Encrypted disaster-recovery backup to the owner's own Google Drive (`drive.file` scope, one app folder per business): AES-256-GCM with per-business keys wrapped by an environment master key, daily/monthly retention, owner restore drills, and a platform-only import into an empty recovery tenant
+
 **Product principles**
 
 - No stock or availability tracking: "published" means visible in the catalog, nothing more
@@ -76,7 +84,8 @@ folder.
 - `apps/storefront-web` — storefront application boundary (Phase 5)
 - `packages` — shared package boundaries reserved for later phases
 - `docs/contracts` — architecture and domain contracts
-- `docs/phase-1`, `docs/phase-2`, `docs/phase-3` — requirements evidence, test reports and demonstration guides for completed phases
+- `docs/phase-1` … `docs/phase-4` — requirements evidence, test reports and demonstration guides for completed phases
+- `docs/runbooks` — operational runbooks (backup keys, rotation and restore)
 - `data/master-catalog` — attributed ODbL starter catalog snapshot and quality report
 - `infra`, `scripts` — infrastructure notes and repository tooling
 
@@ -262,13 +271,13 @@ npm run check
 
 Two historical migrations (`0009`, `0010`) keep their original formatting by design and are fingerprinted by the test suite; new migrations follow the full lint and format rules.
 
-A real-browser end-to-end lane (Playwright, Chromium) covers the critical owner flow and runs against a started API and client:
+A real-browser end-to-end lane (Playwright, Chromium) covers the critical owner flow and the offline flow (network emulation off, queue, reconnect, exactly-once sync) and runs against a started API and client:
 
 ```powershell
 npm run e2e --workspace=@tawzeevo/operations-web
 ```
 
-Executed results for each completed phase are recorded in `docs/phase-1/test-report.md`, `docs/phase-2/test-report.md` and `docs/phase-3/test-report.md`.
+Executed results for each completed phase are recorded in `docs/phase-1/test-report.md`, `docs/phase-2/test-report.md`, `docs/phase-3/test-report.md` and `docs/phase-4/test-report.md`.
 
 ## Documentation
 
@@ -276,6 +285,9 @@ Executed results for each completed phase are recorded in `docs/phase-1/test-rep
 - [`docs/contracts`](docs/contracts) — pricing, financial invariants, tenant isolation, public access, sync protocol and other contracts
 - [`docs/phase-3/demo-guide.md`](docs/phase-3/demo-guide.md) — end-to-end demonstration of the financial core with synthetic data
 - [`docs/phase-3/requirements-audit.md`](docs/phase-3/requirements-audit.md) — requirement-to-code/test evidence for Phase 3
+- [`docs/phase-4/demo-guide.md`](docs/phase-4/demo-guide.md) — offline work, exactly-once sync, conflicts, revocation and encrypted backup demonstration
+- [`docs/phase-4/requirements-audit.md`](docs/phase-4/requirements-audit.md) — requirement-to-code/test evidence for Phase 4
+- [`docs/runbooks/backup-key-recovery.md`](docs/runbooks/backup-key-recovery.md) — backup keys, master-key rotation and the restore procedure
 - [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
 
 ## License

@@ -25,17 +25,9 @@ import type {
 import { ErrorState, SuccessNotice } from "./Ui";
 import { InvoiceSharing } from "./InvoiceSharing";
 import type { Supplier } from "./SupplierSetup";
-import { queueInvoiceConfirm, queueInvoiceDraft, queueReceipt } from "../offline/commands";
-import { searchLocalCustomers } from "../offline/sync";
-
-/**
- * Offline queueing only when the browser reports no connection. A request that fails while the
- * browser is online (a lost response after the server committed) keeps the D-044/D-045 stable
- * command so the owner retries the same intent and the server replays it.
- */
-function browserOffline(): boolean {
-  return typeof navigator !== "undefined" && navigator.onLine === false;
-}
+import { queueInvoiceConfirm, queueInvoiceDraft, queueInvoiceUpdate, queueReceipt } from "../offline/commands";
+import { browserOffline } from "../offline/network";
+import { findLocalProductByBarcode, searchLocalCustomers } from "../offline/sync";
 
 interface AcceptedMatch {
   query: string;
@@ -309,9 +301,21 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   const scanBarcode = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
-      const result = await apiRequest<BarcodeLookupResponse>(
-        `/api/v1/tenants/${tenantId}/catalog/barcodes/${encodeURIComponent(barcode)}`,
-      );
+      let result: BarcodeLookupResponse;
+      try {
+        result = await apiRequest<BarcodeLookupResponse>(
+          `/api/v1/tenants/${tenantId}/catalog/barcodes/${encodeURIComponent(barcode)}`,
+        );
+      } catch (problem) {
+        // Offline: the local catalog projection answers; the server still prices the line on save.
+        if (!(problem instanceof TypeError)) throw problem;
+        const local = await findLocalProductByBarcode(tenantId, membershipId, barcode);
+        if (!local) throw new Error(t("invoiceEditor.barcodeNotAdopted"));
+        addLine(scannedLine({ ...local.product, images: [] } as unknown as TenantProduct, local.barcode.barcode, local.barcode.package_level));
+        setBarcode("");
+        setNotice(t("invoiceEditor.itemAddedOffline"));
+        return;
+      }
       if (!result.tenant_product) {
         throw new Error(t("invoiceEditor.barcodeNotAdopted"));
       }
@@ -436,7 +440,25 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
         );
       } catch (problem) {
         // Offline: keep the exact request on this device; it is sent once when the connection returns.
-        if (!(problem instanceof TypeError) || saved || !browserOffline()) throw problem;
+        if (!(problem instanceof TypeError) || !browserOffline()) throw problem;
+        if (saved) {
+          // Offline edit of a known invoice: the predecessor revision travels with the command.
+          try {
+            await queueInvoiceUpdate(tenantId, membershipId, saved.id, {
+              customer_id: payload.customer_id,
+              currency: payload.currency,
+              invoice_discount_expression: payload.invoice_discount_expression,
+              invoice_markup_expression: payload.invoice_markup_expression,
+              items: payload.items,
+              expected_predecessor_revision_id: saved.current_revision_id,
+              confirmed: saved.status === "CONFIRMED",
+            });
+          } catch {
+            throw problem;
+          }
+          setNotice(t("invoiceEditor.updateQueuedOffline"));
+          return;
+        }
         let local;
         try {
           local = await queueInvoiceDraft(tenantId, membershipId, {

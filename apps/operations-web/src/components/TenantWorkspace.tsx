@@ -23,6 +23,8 @@ import { ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { SupplierSetup } from "./SupplierSetup";
 import { CONNECT_RESULT_KEY } from "../backup/connect";
+import { isOfflineFailure } from "../offline/network";
+import { createCustomerOffline, createProductOffline, updateCustomerOffline, updateProductOffline } from "../offline/outbox";
 import { BackupPanel } from "./BackupPanel";
 import { SyncPanel } from "./SyncPanel";
 
@@ -422,10 +424,24 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       const path = editingCustomerId
         ? `/api/v1/tenants/${context.tenant_id}/customers/${editingCustomerId}`
         : `/api/v1/tenants/${context.tenant_id}/customers`;
-      const saved = await apiRequest<Customer>(path, {
-        method: editingCustomerId ? "PUT" : "POST",
-        body: JSON.stringify(payload),
-      });
+      let saved: Customer;
+      try {
+        saved = await apiRequest<Customer>(path, {
+          method: editingCustomerId ? "PUT" : "POST",
+          body: JSON.stringify(payload),
+        });
+      } catch (problem) {
+        // Offline: the row is written on this device with its command and sent once later.
+        if (!isOfflineFailure(problem)) throw problem;
+        const local = editingCustomerId
+          ? await updateCustomerOffline(context.tenant_id, context.membership_id, editingCustomerId, { name: payload.name, phone: payload.phone, address: payload.address, grade: payload.grade })
+          : await createCustomerOffline(context.tenant_id, context.membership_id, { name: payload.name, phone: payload.phone, address: payload.address, grade: payload.grade });
+        setMatches((current) => [...current.filter((item) => item.id !== local.id), { ...local, phone_raw: local.phone_raw ?? local.phone } as unknown as Customer]);
+        setCustomerDraft(emptyCustomer);
+        setEditingCustomerId(undefined);
+        setNotice(t("tenantWorkspace.customerQueuedOffline"));
+        return;
+      }
       setMatches((current) => {
         const withoutSaved = current.filter((item) => item.id !== saved.id);
         return [...withoutSaved, saved];
@@ -531,13 +547,21 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const saveProduct = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
-      await apiRequest<TenantProduct>(`/api/v1/tenants/${context.tenant_id}/products`, {
-        method: "POST",
-        body: JSON.stringify({
-          ...productDraft,
-          pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null,
-        }),
-      });
+      const body = { ...productDraft, pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null };
+      try {
+        await apiRequest<TenantProduct>(`/api/v1/tenants/${context.tenant_id}/products`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      } catch (problem) {
+        if (!isOfflineFailure(problem)) throw problem;
+        await createProductOffline(context.tenant_id, context.membership_id, body);
+        setProductDraft(emptyProduct);
+        setScanBarcode("");
+        setScanResult(undefined);
+        setNotice(t("tenantWorkspace.productQueuedOffline"));
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["tenant-products", context.tenant_id] });
       setProductDraft(emptyProduct);
       setScanBarcode("");
@@ -548,10 +572,17 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
 
   const togglePublication = (product: TenantProduct) => {
     void run(async () => {
-      await apiRequest<TenantProduct>(`/api/v1/tenants/${context.tenant_id}/products/${product.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ is_published: !product.is_published }),
-      });
+      try {
+        await apiRequest<TenantProduct>(`/api/v1/tenants/${context.tenant_id}/products/${product.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ is_published: !product.is_published }),
+        });
+      } catch (problem) {
+        if (!isOfflineFailure(problem)) throw problem;
+        await updateProductOffline(context.tenant_id, context.membership_id, product.id, { is_published: !product.is_published });
+        setNotice(t("tenantWorkspace.productToggleQueuedOffline"));
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["tenant-products", context.tenant_id] });
       setNotice(t(product.is_published ? "tenantWorkspace.productHidden" : "tenantWorkspace.productPublished"));
     });

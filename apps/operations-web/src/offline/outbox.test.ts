@@ -18,7 +18,7 @@ const tenant = "11111111-1111-4111-8111-111111111111";
 const membership = "22222222-2222-4222-8222-222222222222";
 
 type Op = { operation_id: string; entity_type: string; operation_type: string; entity_id: string; expected_version: number | null; payload: Record<string, unknown> };
-type Mode = "applied" | "conflict" | "reject" | "network" | "server-error";
+type Mode = "applied" | "conflict" | "reject" | "network" | "server-error" | "protocol-mismatch";
 
 function installPush(mode: Mode, seen: Op[][]) {
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -29,6 +29,7 @@ function installPush(mode: Mode, seen: Op[][]) {
     seen.push(body.operations);
     if (mode === "network") return Promise.reject(new TypeError("Failed to fetch"));
     if (mode === "server-error") return Promise.resolve(Response.json({ detail: { code: "DOWN", message: "maintenance" } }, { status: 503 }));
+    if (mode === "protocol-mismatch") return Promise.resolve(Response.json({ detail: { code: "SYNC_PROTOCOL_MISMATCH", message: "update the app" } }, { status: 409 }));
     return Promise.resolve(Response.json({
       high_water_change_seq: 99,
       results: body.operations.map((op) => {
@@ -121,5 +122,21 @@ describe("device outbox", () => {
     expect(await retryDeadLetters(tenant, membership)).toBe(1);
     installPush("applied", seen);
     expect((await flushOutbox(tenant, membership)).acknowledged).toBe(1);
+  });
+
+  test("a protocol mismatch blocks sending but keeps every queued command intact", async () => {
+    const seen: Op[][] = [];
+    installPush("protocol-mismatch", seen);
+    const created = await createCustomerOffline(tenant, membership, { name: "Kept Maya", phone: "+96170123456" });
+    await updateCustomerOffline(tenant, membership, created.id, { address: "Kept St" });
+    await expect(flushOutbox(tenant, membership)).rejects.toMatchObject({ code: "SYNC_PROTOCOL_MISMATCH" });
+    const rows = await listOutbox(tenant, membership);
+    expect(rows.map((row) => row.state)).toEqual(["pending", "pending"]);
+    expect(rows.map((row) => row.attempts)).toEqual([0, 0]);
+    expect(rows[0]?.last_error).toBe("update the app");
+    // The same commands, same ids, go out once the app is updated.
+    installPush("applied", seen);
+    expect(await flushOutbox(tenant, membership)).toMatchObject({ sent: 2, acknowledged: 2 });
+    expect(seen[1]?.map((op) => op.operation_id)).toEqual(rows.map((row) => row.operation_id));
   });
 });

@@ -6,7 +6,7 @@ import Dexie, { type EntityTable } from "dexie";
  * because it is a deduplication identity, never a credential. Access/refresh tokens are never
  * stored here.
  */
-export const LOCAL_SCHEMA_VERSION = 1;
+export const LOCAL_SCHEMA_VERSION = 2;
 export const PROTOCOL_VERSION = 1;
 
 export interface LocalCustomer {
@@ -197,7 +197,9 @@ export class TawzeevoLocalDatabase extends Dexie {
 
   constructor(name: string) {
     super(name);
-    this.version(LOCAL_SCHEMA_VERSION).stores({
+    // Every schema step stays here forever: a device may skip several app releases and must
+    // upgrade through each version without losing queued work (PHASE_04.md N).
+    this.version(1).stores({
       customers: "id, phone, name",
       categories: "id, slug",
       products: "id, category_id, name",
@@ -211,6 +213,26 @@ export class TawzeevoLocalDatabase extends Dexie {
       media: "local_id, state",
       meta: "key",
     });
+    // v2: invoices carry an explicit pending_reference; media stores raw bytes instead of a Blob.
+    this.version(2)
+      .stores({ invoices: "id, customer_id, status, pending_reference" })
+      .upgrade((transaction) =>
+        Promise.all([
+          transaction.table("invoices").toCollection().modify((row: LocalInvoice) => {
+            row.pending_reference ??= null;
+          }),
+          transaction.table("media").toCollection().modify((row: LocalMedia & { blob?: unknown }) => {
+            if (row.bytes === undefined) {
+              // A Blob cannot be read inside the upgrade transaction; the item must be re-picked.
+              delete row.blob;
+              row.bytes = new ArrayBuffer(0);
+              row.state = "failed";
+              row.attempts = Number.MAX_SAFE_INTEGER;
+              row.last_error = "re-pick this image after the update";
+            }
+          }),
+        ]).then(() => undefined),
+      );
   }
 }
 
