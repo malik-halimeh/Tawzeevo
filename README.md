@@ -197,8 +197,11 @@ each terminal to stop the frontend and API; this does not delete or stop the hos
 
 If `/health` works but `/health/database` returns `503`, confirm the Supabase project is running and
 recheck the database URL, password encoding, and pooler mode. If the browser reports `Failed to
-fetch`, confirm the API terminal is running, `VITE_API_BASE_URL` points to port `8000`, and
-`CORS_ALLOWED_ORIGINS` contains `http://localhost:5173`.
+fetch` or a CORS error, confirm the API terminal is running, `VITE_API_BASE_URL` points to port
+`8000`, and the address bar shows `http://localhost:5173`, not `http://127.0.0.1:5173`. The browser
+treats these as different origins and the API only allows the origins listed in
+`CORS_ALLOWED_ORIGINS`, which contains `http://localhost:5173` by default. Opening the app at
+`localhost` is the intended fix; widening `CORS_ALLOWED_ORIGINS` is not needed for local use.
 
 ### Run with local PostgreSQL through Docker Compose
 
