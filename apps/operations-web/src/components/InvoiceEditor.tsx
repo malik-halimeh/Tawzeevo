@@ -25,7 +25,17 @@ import type {
 import { ErrorState, SuccessNotice } from "./Ui";
 import { InvoiceSharing } from "./InvoiceSharing";
 import type { Supplier } from "./SupplierSetup";
+import { queueInvoiceConfirm, queueInvoiceDraft, queueReceipt } from "../offline/commands";
 import { searchLocalCustomers } from "../offline/sync";
+
+/**
+ * Offline queueing only when the browser reports no connection. A request that fails while the
+ * browser is online (a lost response after the server committed) keeps the D-044/D-045 stable
+ * command so the owner retries the same intent and the server replays it.
+ */
+function browserOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
 
 interface AcceptedMatch {
   query: string;
@@ -416,12 +426,34 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
           accepted_fuzzy_match: line.acceptedMatch ?? null,
         })),
       };
-      const result = await apiRequest<InvoiceEditorResponse>(
-        saved
-          ? `/api/v1/invoices/${saved.id}?tenant_id=${tenantId}`
-          : `/api/v1/invoices?tenant_id=${tenantId}`,
-        { method: saved ? "PUT" : "POST", body: JSON.stringify(payload) },
-      );
+      let result: InvoiceEditorResponse;
+      try {
+        result = await apiRequest<InvoiceEditorResponse>(
+          saved
+            ? `/api/v1/invoices/${saved.id}?tenant_id=${tenantId}`
+            : `/api/v1/invoices?tenant_id=${tenantId}`,
+          { method: saved ? "PUT" : "POST", body: JSON.stringify(payload) },
+        );
+      } catch (problem) {
+        // Offline: keep the exact request on this device; it is sent once when the connection returns.
+        if (!(problem instanceof TypeError) || saved || !browserOffline()) throw problem;
+        let local;
+        try {
+          local = await queueInvoiceDraft(tenantId, membershipId, {
+            customer_id: payload.customer_id,
+            currency: payload.currency,
+            invoice_discount_expression: payload.invoice_discount_expression,
+            invoice_markup_expression: payload.invoice_markup_expression,
+            items: payload.items,
+            client_command_id: payload.client_command_id ?? null,
+          });
+        } catch {
+          throw problem; // no local queue available: keep the stable command (D-045) for a manual retry
+        }
+        createCommandRef.current = undefined;
+        setNotice(t("invoiceEditor.queuedOffline", { reference: local.pending_reference ?? "" }));
+        return;
+      }
       setSaved(result);
       createCommandRef.current = undefined;
       await loadHistory(result.id);
@@ -445,13 +477,25 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   const confirmSaved = () => {
     if (!saved) return;
     void run(async () => {
-      const confirmed = await apiRequest<InvoiceEditorResponse>(
-        `/api/v1/invoices/${saved.id}/confirm?tenant_id=${tenantId}`,
-        {
-          method: "POST",
-          body: JSON.stringify({ expected_revision_id: saved.current_revision_id }),
-        },
-      );
+      let confirmed: InvoiceEditorResponse;
+      try {
+        confirmed = await apiRequest<InvoiceEditorResponse>(
+          `/api/v1/invoices/${saved.id}/confirm?tenant_id=${tenantId}`,
+          {
+            method: "POST",
+            body: JSON.stringify({ expected_revision_id: saved.current_revision_id }),
+          },
+        );
+      } catch (problem) {
+        if (!(problem instanceof TypeError) || !browserOffline()) throw problem;
+        try {
+          await queueInvoiceConfirm(tenantId, membershipId, saved.id, saved.current_revision_id);
+        } catch {
+          throw problem;
+        }
+        setNotice(t("invoiceEditor.confirmQueuedOffline"));
+        return;
+      }
       setSaved(confirmed);
       await Promise.all([
         loadHistory(confirmed.id),
@@ -538,13 +582,27 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
           allocations: selectedAllocations,
         },
       );
-      const payment = await apiRequest<CustomerPaymentResponse>(
-        `/api/v1/payments/customer-receipts?tenant_id=${tenantId}`,
-        {
-          method: "POST",
-          body: JSON.stringify(command.payload),
-        },
-      );
+      let payment: CustomerPaymentResponse;
+      try {
+          payment = await apiRequest<CustomerPaymentResponse>(
+          `/api/v1/payments/customer-receipts?tenant_id=${tenantId}`,
+          {
+            method: "POST",
+            body: JSON.stringify(command.payload),
+          },
+        );
+      } catch (problem) {
+        if (!(problem instanceof TypeError) || !browserOffline()) throw problem;
+        const body = command.payload as { idempotency_key: string; customer_id: string; amount: string; currency: string; method?: string | null; reference?: string | null; paid_at: string; allocations?: Record<string, unknown>[] | null };
+        try {
+          await queueReceipt(tenantId, membershipId, body); // same idempotency key: the server replays, never double-charges
+        } catch {
+          throw problem; // no local queue (D-044): keep the intent for a manual retry
+        }
+        retireFinancialIntent(command);
+        setNotice(t("invoiceEditor.receiptQueuedOffline"));
+        return;
+      }
       // A response arriving after navigation was not presented to the owner. Preserve it for replay.
       if (!mounted.current) return;
       retireFinancialIntent(command);

@@ -52,8 +52,8 @@ export interface FlushSummary {
   high_water_change_seq: number | null;
 }
 
-type EntityType = "customer" | "category" | "tenant_product";
-type OperationType = "create" | "update" | "archive";
+type EntityType = "customer" | "category" | "tenant_product" | "invoice" | "payment";
+type OperationType = "create" | "update" | "archive" | "confirm" | "cancel" | "receipt" | "refund" | "reverse";
 
 function newCommand(
   tenantId: string,
@@ -173,6 +173,30 @@ async function applyResult(tenantId: string, membershipId: string, record: Outbo
   const store = storeName ? (db[storeName] as unknown as { put: (row: Record<string, unknown>) => Promise<unknown> }) : null;
   if (result.status === "applied") {
     if (store && result.projection) await store.put(result.projection);
+    if (record.entity_type === "invoice" && result.projection) {
+      // The server assigned the header id and any official number; replace the pending local row.
+      const projection = result.projection as { id: string; tenant_id: string; customer_id: string | null; status: "DRAFT" | "CONFIRMED" | "CANCELLED"; official_invoice_number: string | null; current_revision_id: string; confirmed_at: string | null };
+      await db.transaction("rw", db.invoices, async () => {
+        if (projection.id !== record.entity_id) await db.invoices.delete(record.entity_id);
+        await db.invoices.put({
+          id: projection.id,
+          tenant_id: projection.tenant_id,
+          customer_id: projection.customer_id,
+          status: projection.status,
+          official_invoice_number: projection.official_invoice_number,
+          current_revision_id: projection.current_revision_id,
+          confirmed_revision_id: projection.status === "CONFIRMED" ? projection.current_revision_id : null,
+          confirmed_at: projection.confirmed_at,
+          cancelled_at: projection.status === "CANCELLED" ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+          pending_reference: null,
+        });
+      });
+    }
+    if (record.entity_type === "payment" && result.projection) {
+      const projection = result.projection as { id: string; tenant_id?: string; customer_id: string | null; direction: string; currency: string; amount: string; paid_at: string; reverses_payment_id?: string | null };
+      await db.payments.put({ id: projection.id, tenant_id: projection.tenant_id ?? tenantId, customer_id: projection.customer_id, supplier_id: null, direction: projection.direction, currency: projection.currency, amount: projection.amount, paid_at: projection.paid_at, reverses_payment_id: projection.reverses_payment_id ?? null });
+    }
     return "acknowledged";
   }
   if (result.status === "conflict") {

@@ -70,6 +70,8 @@ export interface LocalInvoice {
   confirmed_at: string | null;
   cancelled_at: string | null;
   updated_at: string;
+  /** Set while the header exists only on this device; never an official number. */
+  pending_reference?: string | null;
 }
 
 export interface LocalRevision {
@@ -163,7 +165,8 @@ export interface LocalMedia {
   tenant_id: string;
   entity_type: string;
   entity_id: string;
-  blob: Blob;
+  /** Raw bytes rather than a Blob: some WebViews fail to store Blobs in IndexedDB. */
+  bytes: ArrayBuffer;
   checksum: string;
   content_type: string;
   byte_size: number;

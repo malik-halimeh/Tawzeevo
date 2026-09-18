@@ -7,11 +7,11 @@
 - Current workstream: `Phase 4 — Offline-First Operations, Synchronization, Encrypted Backup`
 - Current phase: `4`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P4-M1 — PWA local schema, device registry, bootstrap foundation`
-- Current milestone status: `IN_PROGRESS`
-- Last completed milestone: `P3-M6`
+- Current milestone: `P4-M5 — Encrypted Google backup (test double until credentials)`
+- Current milestone status: `NOT_STARTED`
+- Last completed milestone: `P4-M4`
 - Next required user command: `continue`
-- Blocking decision: `none for Phase 3 (FA-009 closed by D-045); Gate D items C1–C6 in OWNER_ACTIONS.md must be recorded before P4-M1`
+- Blocking decision: `none; Google OAuth credentials (owner action) are needed only for a live backup run, P4-M5 builds against a test double (D-055–D-057)`
 
 The user explicitly authorized `Start Phase 3`. Phase 2 is complete and its requirements audit,
 test report, and demo guide are frozen under `docs/phase-2`. Gate C verification confirms the Phase 2
@@ -47,15 +47,24 @@ immutable confirmed-line cost provenance. P3-M5 is complete; P3-M6 remains not s
 
 ## Current milestone evidence
 
-- Code areas changed: owner-only capability lifecycle APIs; restricted public invoice API/EN-AR page; privacy middleware/log redaction/rate limiting; WhatsApp/owner sharing controls; immutable supplier opening/payment/reversal APIs; tests and demonstration documentation
-- Migration: none added or modified; existing head `20260827_0011`; from-zero/legacy migration regressions and standalone Alembic drift check PASS
-- Tests run (2026-09-05): backend `124 passed` with `92.29%` statement coverage on disposable PostgreSQL 18; focused public-link/log-safety rerun `7 passed`; frontend `34 passed`. Commands and individual-test ledger: `RUN_TESTS.md`
-- Type/lint/build: application/test Ruff lint and format PASS (68 files); strict mypy PASS (52 source files); ESLint and strict TypeScript PASS; production build PASS (210 modules, existing non-blocking size advisory)
-- Security/invariants: 256-bit secret stored as SHA-256 only; tenant/invoice-scoped validation before business reads; expiry/revocation/rotation; restricted projection, private headers and redacted logs; forced-RLS tests; supplier row locks and idempotent compensating-only payments/reversals; no supplier purchase allocations
-- Known defects: no known P3-M5 functional defect. Baseline-only remediation resolved whole-backend Ruff checks through exact historical migration exceptions guarded by content fingerprints; 0009/0010 were not edited. All other/new migrations retain full selected checks.
-- Contract deviations: none. Public limiting is explicitly per-process, not distributed; hosting/proxy telemetry and full phase-wide E2E/accessibility/reconciliation audits remain P3-M6 work. No production deployment performed.
+- Code areas changed (P4-M1–M4, 2026-09-18): sync device registry, authorized paginated bootstrap, idempotent per-operation push with version conflicts, ordered pull with tombstones and retention floor, server-side device revocation on membership revoke/tenant suspend; offline invoice/payment commands through push reusing the Phase 3 financial services (`services/sync_push.py`); sha256 upload dedupe for image retries (`services/media.py`); PWA local database per tenant membership (Dexie), resumable bootstrap, outbox with exactly-once dispatch and conflict/dead-letter handling, incremental pull and re-bootstrap, offline draft/confirm/receipt queueing in the invoice editor with pending local references, offline media queue (`apps/operations-web/src/offline/`), Offline tab (`SyncPanel.tsx`)
+- Migrations: `20260918_0014_sync_foundation` (sync_devices, sync_changes, sync_operations, entity `version` columns, RLS) and `20260918_0015_sync_retention_floor`; head `20260918_0015`; from-zero upgrade and downgrade verified on disposable PostgreSQL 18
+- Tests run (2026-09-18): backend `181 passed` on disposable PostgreSQL 18 (sync bootstrap 6, push 5, pull 4, financial push 2 added); frontend `66 passed` (sync 4, outbox 4, pull 4, commands 2, media 2 added); Ruff and strict mypy PASS (60 source files); ESLint, strict TypeScript and production build PASS
+- Security/invariants: bootstrap and push require an active membership and a registered device; forced RLS on all sync tables; per-operation transactions with advisory locks and request fingerprints (a replay with a different body is rejected); official invoice numbers and revision numbers are only ever assigned by the server; offline financial commands carry the same idempotency keys as the online editor so a replay never double-charges; offline queueing only when the browser reports no connection (a lost response while online keeps the D-044/D-045 stable command)
+- Known defects: none open for P4-M1–M4. Media bytes are stored as `ArrayBuffer` rather than `Blob` in IndexedDB (some WebViews fail to persist Blobs)
+- Contract deviations: none. Google backup (P4-M5) will run against a test double until the owner supplies OAuth credentials (D-055–D-057)
 
 ## Latest completed milestone summary
+
+P4-M4 (2026-09-18) completed offline financial commands: the invoice editor queues drafts,
+confirmations and receipts on the device when the browser is offline, shows a clearly pending
+local reference (never an official number), and the outbox pushes them once; the server applies
+them through the unchanged Phase 3 services and returns the assigned header id, official number and
+ledger effects, which replace the local rows. P4-M1 (device registry, bootstrap, push), P4-M2
+(outbox) and P4-M3 (ordered pull, tombstones, revocation, re-bootstrap) were completed the same day.
+P4-M5 (encrypted Google backup) and P4-M6 (hardening, offline E2E, phase evidence) remain.
+
+### Previous (P3-M6)
 
 P3-M6 (2026-09-17) froze Phase 3: full backend regression (161 tests, 93% coverage), frontend
 checks (49 tests, lint, types, build), Alembic drift and from-zero/Phase 2 migration checks, RLS and
