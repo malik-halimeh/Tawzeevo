@@ -7,9 +7,9 @@
 - Current workstream: `Phase 5 — Linked Bilingual Guest Storefront, Orders, Recommendations, Advertising`
 - Current phase: `5`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P5-M3 — Personalized customer context (inserted 2026-09-18; checkout becomes P5-M4, owner review P5-M5, freeze P5-M6)`
+- Current milestone: `P5-M4 — Guest checkout, idempotency, provisional representation`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P5-M2`
+- Last completed milestone: `P5-M3`
 - Next required user command: `continue`
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -45,13 +45,22 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 
 ## Current milestone evidence
 
-- Code areas changed (P5-M2, 2026-09-18): owner featured-campaign card in the operations client (`CampaignPanel.tsx`, EN/AR: product, priority, optional window, stop featuring, retained history); `services/storefront_signals.py` (pseudonymous hashed-session views with a 30-minute de-duplication window — D-062; deterministic scores purchase = 10 / view = 1 — D-048; valid purchase = line of the current confirmed revision of a CONFIRMED invoice, cancelled sales drop out; 90-day raw retention rolled into monthly counts — D-051; featured campaigns with 7-day default, `starts_at <= now < ends_at`, priority → newer → id tie-break, retained expired/cancelled records), migration `20260918_0018` (product_interactions, product_interaction_rollups, featured_campaigns; RLS), public `…/catalog/featured`, `…/catalog/recommended`, `…/products/{id}/view`, owner `…/storefront/campaigns` (list/create/cancel, audited), CLI `rollup-views`, storefront featured/recommended sections and the client-side view beacon
-- Migrations: head `20260918_0018`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-18): backend `196 passed` on disposable PostgreSQL 18 (storefront signals `3` added (purchase outweighs nine views, dedupe, unpublished/foreign product 404, hashed session keys, cancelled sale excluded, tie-break by name, limit, tenant isolation; campaign default length, priority/newer ordering, future/expired inactive, backwards interval 422, unpublished never shown, cancel retained, foreign product 404, foreign owner 403; rollup folds 4 old views into `2026-05-01`, keeps fresh rows, idempotent)); operations client `71 passed` (campaign panel 1 added); storefront `4 passed`; lint/types/build PASS for both web apps
-- Known defects: none open
+- Code areas changed (P5-M3, 2026-09-18/19): `services/customer_access.py` (issue/rotate under the customer row lock, revoke, status, policy fields, `resolve_context` → `CustomerContext` with assurance `LINK`), migration `20260918_0019` (`customer_access_links` hash-only with a partial unique "one active per customer" index and RLS; `tenants.customer_access_policy`, `customers.access_policy_override` with check constraints), public `GET /api/v1/public/customer-context` (private header, `no-store`, 60/min budget through the existing middleware), catalog list/detail/featured/recommended personalized through the optional `X-Customer-Capability` header (`private, no-store`, `Vary`), owner endpoints `…/customers/{id}/access-link` (GET/POST/DELETE) and access-policy endpoints (LINK only; others 409 `ACCESS_POLICY_NOT_AVAILABLE`), operations client `CustomerLinkControls` (issue once-shown URL, rotate, revoke, EN/AR), storefront `/{slug}/access#secret` entry (client exchanges the fragment for a first-party HttpOnly SameSite=Lax cookie with a 30-day maximum via `/{slug}/access/session`, fragment stripped), personalized banner with exit, server pages forward the cookie as the header with `no-store`
+- Migrations: head `20260918_0019`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-19): backend customer access `3 passed` (public vs personalized price, explicit grade price and grade change follow the identity without a new link, no grade/debt/history in any public payload, secret absent from logs and stored only as SHA-256, no expiry; rotation kills the old secret atomically, revocation, one active row, Customer A never resolves Customer B, constant 404 for bad secrets, foreign owner 403/404, non-LINK policies 409, audit events; 4 concurrent issuances → exactly one active; suspended business → anonymous, reactivated → personalized); operations client `72 passed`; storefront `5 passed`; lint/types/build PASS; local end-to-end smoke: anonymous 10.00 → cookie exchange → 8.50 with banner → wrong secret 404 → revocation → same cookie shows 10.00, secret never in the API log
+- Security/invariants: link = exact customer, never grade/price/phone in the token; every request re-resolves the secret so rotation/revocation/suspension end contexts immediately (D-075); LINK grants pricing/catalog only — no orders yet (P5-M4 adds the intended-customer hint); financial authority untouched
+- Known defects: none open for P5-M3
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P5-M3 (2026-09-19) established the personalized customer context: owner-issued opaque links
+bound to the exact customer, one active per customer with atomic rotation and revocation, no
+automatic expiry, hash-only storage, assurance `LINK`, current customer pricing on the storefront
+through the identity, a 30-day-maximum HttpOnly cookie re-resolved on every request, and policy
+fields that later assurance levels (Phase 9) will enforce. No OTP, sessions, accounts or providers.
+
+### Previous (P5-M2)
 
 P5-M2 (2026-09-18) added the storefront signals: pseudonymous views de-duplicated per session and
 product within 30 minutes, valid purchases from confirmed non-cancelled sales weighing ten times

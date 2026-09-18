@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import type { PublicStorefront } from "@/lib/catalog";
+import type { CustomerContext } from "@/lib/personal";
+import { PersonalBanner } from "./PersonalBanner";
 import { shopHref } from "@/lib/format";
 import { type Lang, dirFor, otherLang, t } from "@/lib/i18n";
 
@@ -14,12 +16,14 @@ export function ShopFrame({
   lang,
   currentPath,
   query,
+  context,
   children,
 }: {
   shop: PublicStorefront;
   lang: Lang;
   currentPath: string;
   query?: string | undefined;
+  context?: CustomerContext | null | undefined;
   children: ReactNode;
 }) {
   const other = otherLang(lang);
@@ -39,6 +43,7 @@ export function ShopFrame({
         </form>
       </header>
       <main id="content">
+        {context ? <PersonalBanner displayName={context.display_name} lang={lang} slug={shop.slug} /> : null}
         {!shop.accepting_orders ? <p className="notice" role="status">{t(lang, "notAccepting")}</p> : null}
         {children}
       </main>

@@ -40,7 +40,8 @@ from tawzeevo_api.schemas.storefront import (
     SlugResolution,
     StorefrontSettings,
 )
-from tawzeevo_api.services.pricing import derive_counterpart_prices
+from tawzeevo_api.services.customer_access import CustomerContext
+from tawzeevo_api.services.pricing import derive_counterpart_prices, resolve_product_pricing
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$")
 RESERVED_SLUGS = frozenset(
@@ -142,6 +143,8 @@ def storefront_settings(db: Session, tenant: Tenant) -> StorefrontSettings:
         previous_slugs=previous,
         published_products=int(published or 0),
         accepting_orders=tenant.status is TenantStatus.ACTIVE,
+        customer_access_policy=tenant.customer_access_policy,
+        available_policies=["LINK"],
     )
 
 
@@ -228,10 +231,29 @@ def _money(value: Decimal) -> str:
     return f"{value.quantize(Decimal('0.0001')):f}"
 
 
-def _product(db: Session, product: TenantProduct, slug: str, barcode: str | None) -> PublicProduct:
-    piece_price, box_price = derive_counterpart_prices(
-        product.unit_price, product.price_basis, product.pieces_per_box
-    )
+def _product(
+    db: Session,
+    product: TenantProduct,
+    slug: str,
+    barcode: str | None,
+    context: CustomerContext | None = None,
+) -> PublicProduct:
+    if context is not None and context.tenant_id == product.tenant_id:
+        # D-071: the customer's *current* rule (explicit grade price → grade discount → public),
+        # resolved through the customer identity; the grade itself is never exposed.
+        resolved = resolve_product_pricing(db, product.tenant_id, product, context.grade)
+        basis, piece_price, box_price = (
+            resolved.basis_price,
+            resolved.piece_price,
+            resolved.box_price,
+        )
+        pricing = "personalized"
+    else:
+        basis = product.unit_price
+        piece_price, box_price = derive_counterpart_prices(
+            product.unit_price, product.price_basis, product.pieces_per_box
+        )
+        pricing = "public"
     return PublicProduct(
         id=product.id,
         category_id=product.category_id,
@@ -239,7 +261,8 @@ def _product(db: Session, product: TenantProduct, slug: str, barcode: str | None
         name_ar=product.name_ar,
         barcode=barcode,
         currency=product.currency,
-        price=_money(product.unit_price),
+        price=_money(basis),
+        pricing=pricing,
         price_basis=product.price_basis.value,
         packaging=PublicPackaging(
             pieces_per_box=product.pieces_per_box,
@@ -326,6 +349,7 @@ def public_products(
     category_id: UUID | None,
     page: int,
     page_size: int,
+    context: CustomerContext | None = None,
 ) -> PublicProductPage:
     """Deterministic, bounded listing: exact barcode/name first, then prefix, then contains."""
     tenant, _resolution = _public_tenant(db, slug)
@@ -367,7 +391,7 @@ def public_products(
     window = rows[start : start + size]
     barcodes = _primary_barcodes(db, tenant.id, [row.id for row in window])
     return PublicProductPage(
-        items=[_product(db, row, tenant.slug, barcodes.get(row.id)) for row in window],
+        items=[_product(db, row, tenant.slug, barcodes.get(row.id), context) for row in window],
         page=max(page, 1),
         page_size=size,
         total=total,
@@ -375,13 +399,15 @@ def public_products(
     )
 
 
-def public_product(db: Session, slug: str, product_id: UUID) -> PublicProduct:
+def public_product(
+    db: Session, slug: str, product_id: UUID, context: CustomerContext | None = None
+) -> PublicProduct:
     tenant, _resolution = _public_tenant(db, slug)
     product = db.scalar(_published(tenant.id).where(TenantProduct.id == product_id))
     if product is None:
         raise AppError(404, "PRODUCT_NOT_FOUND", "Product was not found")
     barcodes = _primary_barcodes(db, tenant.id, [product.id])
-    return _product(db, product, tenant.slug, barcodes.get(product.id))
+    return _product(db, product, tenant.slug, barcodes.get(product.id), context)
 
 
 def public_image(db: Session, slug: str, kind: str, image_id: UUID) -> tuple[str, str] | None:
@@ -415,7 +441,9 @@ def public_image(db: Session, slug: str, kind: str, image_id: UUID) -> tuple[str
     return None
 
 
-def public_products_by_ids(db: Session, slug: str, product_ids: list[UUID]) -> list[PublicProduct]:
+def public_products_by_ids(
+    db: Session, slug: str, product_ids: list[UUID], context: CustomerContext | None = None
+) -> list[PublicProduct]:
     """Published products in the given order (featured/recommended lists)."""
     tenant, _resolution = _public_tenant(db, slug)
     if not product_ids:
@@ -426,7 +454,7 @@ def public_products_by_ids(db: Session, slug: str, product_ids: list[UUID]) -> l
     }
     barcodes = _primary_barcodes(db, tenant.id, [pid for pid in product_ids if pid in rows])
     return [
-        _product(db, rows[pid], tenant.slug, barcodes.get(pid))
+        _product(db, rows[pid], tenant.slug, barcodes.get(pid), context)
         for pid in product_ids
         if pid in rows
     ]

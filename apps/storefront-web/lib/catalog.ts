@@ -26,6 +26,7 @@ export interface PublicProduct {
   barcode: string | null;
   currency: string;
   price: string;
+  pricing: "public" | "personalized";
   price_basis: "PIECE" | "BOX";
   packaging: { pieces_per_box: number | null; piece_price: string; box_price: string | null };
   images: PublicImage[];
@@ -64,8 +65,11 @@ export function publicApiBase(): string {
   return (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 }
 
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, { next: { revalidate: 60 } });
+async function get<T>(path: string, capability?: string | null): Promise<T> {
+  // Anonymous pages are cached for a minute; personalized responses are never cached (D-075).
+  const response = capability
+    ? await fetch(`${apiBase()}${path}`, { headers: { "X-Customer-Capability": capability }, cache: "no-store" })
+    : await fetch(`${apiBase()}${path}`, { next: { revalidate: 60 } });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { detail?: { code?: string; message?: string } };
     throw new CatalogError(response.status, body.detail?.code ?? "CATALOG_ERROR", body.detail?.message ?? `Catalog request failed (${response.status})`);
@@ -77,18 +81,18 @@ export function fetchStorefront(slug: string): Promise<PublicStorefront> {
   return get<PublicStorefront>(`/api/v1/public/${encodeURIComponent(slug)}/catalog`);
 }
 
-export function fetchProducts(slug: string, options: { query?: string; categoryId?: string; page?: number; pageSize?: number } = {}): Promise<PublicProductPage> {
+export function fetchProducts(slug: string, options: { query?: string; categoryId?: string; page?: number; pageSize?: number; capability?: string | null } = {}): Promise<PublicProductPage> {
   const params = new URLSearchParams();
   if (options.query) params.set("query", options.query);
   if (options.categoryId) params.set("category_id", options.categoryId);
   if (options.page) params.set("page", String(options.page));
   if (options.pageSize) params.set("page_size", String(options.pageSize));
   const suffix = params.size ? `?${params.toString()}` : "";
-  return get<PublicProductPage>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/products${suffix}`);
+  return get<PublicProductPage>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/products${suffix}`, options.capability);
 }
 
-export function fetchProduct(slug: string, productId: string): Promise<PublicProduct> {
-  return get<PublicProduct>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/products/${encodeURIComponent(productId)}`);
+export function fetchProduct(slug: string, productId: string, capability?: string | null): Promise<PublicProduct> {
+  return get<PublicProduct>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/products/${encodeURIComponent(productId)}`, capability);
 }
 
 /** Validates a route slug before any request; the API repeats the check. */
@@ -96,10 +100,10 @@ export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/.test(slug) && slug.length >= 3;
 }
 
-export function fetchFeatured(slug: string): Promise<{ items: PublicProduct[] }> {
-  return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/featured`);
+export function fetchFeatured(slug: string, capability?: string | null): Promise<{ items: PublicProduct[] }> {
+  return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/featured`, capability);
 }
 
-export function fetchRecommended(slug: string, limit = 8): Promise<{ items: PublicProduct[] }> {
-  return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/recommended?limit=${limit}`);
+export function fetchRecommended(slug: string, limit = 8, capability?: string | null): Promise<{ items: PublicProduct[] }> {
+  return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/recommended?limit=${limit}`, capability);
 }

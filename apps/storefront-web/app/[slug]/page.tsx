@@ -6,6 +6,7 @@ import { ShopFrame } from "@/components/ShopFrame";
 import { fetchFeatured, fetchProducts, fetchRecommended } from "@/lib/catalog";
 import { shopHref } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { capabilityFor, resolveContext } from "@/lib/personal";
 import { type SearchParams, loadShop, pageNumber } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<SearchParams> };
@@ -22,13 +23,16 @@ export default async function ShopHome({ params, searchParams }: Props) {
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, "", query);
   const page = pageNumber(query);
+  const capability = await capabilityFor(shop.slug);
+  const context = await resolveContext(capability);
+  const personal = context ? capability : null;
   const [products, featured, recommended] = await Promise.all([
-    fetchProducts(shop.slug, { page }),
-    page === 1 ? fetchFeatured(shop.slug) : Promise.resolve({ items: [] }),
-    page === 1 ? fetchRecommended(shop.slug, 8) : Promise.resolve({ items: [] }),
+    fetchProducts(shop.slug, { page, capability: personal }),
+    page === 1 ? fetchFeatured(shop.slug, personal) : Promise.resolve({ items: [] }),
+    page === 1 ? fetchRecommended(shop.slug, 8, personal) : Promise.resolve({ items: [] }),
   ]);
   return (
-    <ShopFrame currentPath={`/${shop.slug}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
+    <ShopFrame context={context} currentPath={`/${shop.slug}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
       {shop.categories.length > 0 ? (
         <>
           <h2>{t(lang, "categories")}</h2>

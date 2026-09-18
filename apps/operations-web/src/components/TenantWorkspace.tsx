@@ -27,6 +27,7 @@ import { isOfflineFailure } from "../offline/network";
 import { createCustomerOffline, createProductOffline, updateCustomerOffline, updateProductOffline } from "../offline/outbox";
 import { BackupPanel } from "./BackupPanel";
 import { CampaignPanel } from "./CampaignPanel";
+import { CustomerLinkControls } from "./CustomerLinkControls";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
 
@@ -335,6 +336,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
   const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "invoices" | "sync" | "backup">("customers");
   const [backupNotice, setBackupNotice] = useState<string>();
+  const [linkCustomerId, setLinkCustomerId] = useState<string>();
   useEffect(() => {
     // Returning from the Google consent screen: open the backup desk with the outcome.
     try {
@@ -663,6 +665,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                       <div><h4>{customer.name}</h4><bdi dir="ltr">{customer.phone}</bdi></div>
                       <dl><div><dt>{t("tenantWorkspace.address")}</dt><dd>{customer.address ?? "—"}</dd></div><div><dt>{t("tenantWorkspace.grade")}</dt><dd>{customer.grade ?? "—"}</dd></div><div><dt>ID</dt><dd dir="ltr">{customer.id}</dd></div></dl>
                       <button className="text-button" onClick={() => editCustomer(customer)} type="button">{t("common.edit")}</button>
+                      <button aria-expanded={linkCustomerId === customer.id} className="text-button" onClick={() => setLinkCustomerId(linkCustomerId === customer.id ? undefined : customer.id)} type="button">{t("customerLink.toggle")}</button>
+                      {linkCustomerId === customer.id ? <CustomerLinkControls customerId={customer.id} tenantId={context.tenant_id} /> : null}
                     </article>
                   ))}
                 </div>

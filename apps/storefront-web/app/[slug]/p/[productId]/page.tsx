@@ -7,13 +7,14 @@ import { ViewBeacon } from "@/components/ViewBeacon";
 import { CatalogError, type PublicProduct, fetchProduct, publicApiBase } from "@/lib/catalog";
 import { priceLine, productName, secondaryPriceLine, shopHref } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { capabilityFor, resolveContext } from "@/lib/personal";
 import { type SearchParams, loadShop } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string; productId: string }>; searchParams: Promise<SearchParams> };
 
-async function loadProduct(slug: string, productId: string): Promise<PublicProduct> {
+async function loadProduct(slug: string, productId: string, capability: string | null = null): Promise<PublicProduct> {
   try {
-    return await fetchProduct(slug, productId);
+    return await fetchProduct(slug, productId, capability);
   } catch (error) {
     if (error instanceof CatalogError && error.status === 404) notFound();
     throw error;
@@ -31,13 +32,15 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const { slug, productId } = await params;
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, `/p/${productId}`, query);
-  const product = await loadProduct(shop.slug, productId);
+  const capability = await capabilityFor(shop.slug);
+  const context = await resolveContext(capability);
+  const product = await loadProduct(shop.slug, productId, context ? capability : null);
   const category = shop.categories.find((row) => row.id === product.category_id);
   const name = productName(product, lang);
   const image = product.images[0];
   const secondary = secondaryPriceLine(product, lang);
   return (
-    <ShopFrame currentPath={`/${shop.slug}/p/${productId}`} lang={lang} shop={shop}>
+    <ShopFrame context={context} currentPath={`/${shop.slug}/p/${productId}`} lang={lang} shop={shop}>
       <ViewBeacon productId={product.id} slug={shop.slug} />
       <p><Link href={shopHref(shop.slug, lang)}>{t(lang, "backToShop")}</Link></p>
       <article className="product" aria-labelledby="product-name">

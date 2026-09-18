@@ -67,3 +67,6 @@ h2 { font-size: 1.05rem; margin: 1rem 0 0.5rem; }
 .shop-footer { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 2rem 1rem; }
 .empty { background: var(--card); border: 1px dashed var(--line); border-radius: 12px; padding: 2rem 1rem; text-align: center; color: var(--muted); }
 :focus-visible { outline: 3px solid #f0b429; outline-offset: 2px; }
+
+.notice.personal { background: #e6f4ef; color: #0f5140; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; }
+.link-button { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font-size: 0.95rem; cursor: pointer; }

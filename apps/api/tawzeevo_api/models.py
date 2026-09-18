@@ -230,6 +230,10 @@ class Tenant(TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(
         String(50), nullable=False, default=lambda: f"shop-{uuid4().hex[:10]}"
     )
+    # D-072: business default customer access policy; Phase 5 enforces LINK only.
+    customer_access_policy: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="LINK", server_default="LINK"
+    )
     status: Mapped[TenantStatus] = mapped_column(
         tenant_status_enum, default=TenantStatus.ACTIVE, server_default="ACTIVE", nullable=False
     )
@@ -251,6 +255,10 @@ class Tenant(TimestampMixin, Base):
         ),
         CheckConstraint(
             "slug ~ '^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$'", name="ck_tenants_slug_format"
+        ),
+        CheckConstraint(
+            "customer_access_policy IN ('LINK', 'VERIFIED', 'ACCOUNT_REQUIRED')",
+            name="ck_tenants_customer_access_policy",
         ),
         Index("uq_tenants_slug", "slug", unique=True),
     )
@@ -386,11 +394,18 @@ class Customer(TimestampMixin, Base):
     latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
     grade: Mapped[CustomerGrade | None] = mapped_column(customer_grade_enum)
+    # D-072: optional per-customer access policy override (LINK | VERIFIED | ACCOUNT_REQUIRED).
+    access_policy_override: Mapped[str | None] = mapped_column(String(20))
     version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("1"), default=1
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "access_policy_override IS NULL OR access_policy_override IN "
+            "('LINK', 'VERIFIED', 'ACCOUNT_REQUIRED')",
+            name="ck_customers_access_policy_override",
+        ),
         UniqueConstraint("id", "tenant_id", name="uq_customers_id_tenant"),
         Index("ix_customers_tenant_phone", "tenant_id", "phone"),
         CheckConstraint(
@@ -1782,4 +1797,41 @@ class FeaturedCampaign(Base):
     __table_args__ = (
         CheckConstraint("ends_at > starts_at", name="ck_featured_campaigns_interval"),
         Index("ix_featured_campaigns_tenant_window", "tenant_id", "starts_at", "ends_at"),
+    )
+
+
+class CustomerAccessLink(Base):
+    """Owner-issued personalized storefront link (D-071): hash-only, one active per customer."""
+
+    __tablename__ = "customer_access_links"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE"), nullable=False
+    )
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(String(40))
+    rotated_from_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_customer_access_links_tenant_customer", "tenant_id", "customer_id"),
+        Index(
+            "uq_customer_access_links_active",
+            "tenant_id",
+            "customer_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
     )

@@ -44,6 +44,11 @@ const COPY = {
     skipToContent: "Skip to content",
     featured: "Featured this week",
     recommended: "Popular in this shop",
+    personalPrices: "Prices shown for {name}.",
+    personalExit: "Show public prices",
+    linkOpening: "Opening your personalized prices…",
+    linkUnavailableTitle: "This link is not available",
+    linkUnavailableBody: "It may have been replaced or withdrawn by the shop. Ask them for a new link; public prices are still available.",
   },
   ar: {
     storefront: "المتجر",
@@ -74,6 +79,11 @@ const COPY = {
     skipToContent: "انتقل إلى المحتوى",
     featured: "مميّز هذا الأسبوع",
     recommended: "الأكثر رواجاً في هذا المتجر",
+    personalPrices: "الأسعار المعروضة لـ {name}.",
+    personalExit: "عرض الأسعار العامة",
+    linkOpening: "جارٍ فتح أسعارك الخاصة…",
+    linkUnavailableTitle: "هذا الرابط غير متاح",
+    linkUnavailableBody: "ربما استبدله المتجر أو سحبه. اطلب رابطاً جديداً؛ الأسعار العامة ما زالت متاحة.",
   },
 } as const;
 

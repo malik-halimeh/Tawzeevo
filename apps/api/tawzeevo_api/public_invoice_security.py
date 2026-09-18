@@ -78,7 +78,10 @@ class PublicInvoicePrivacyMiddleware:
         public = path.startswith("/api/v1/public/")
         # Private customer links (/api/v1/public/invoice...) get no-store/noindex headers; the
         # per-business storefront catalog is public and cacheable by design (PHASE_05.md C).
-        private_public = public and path.startswith("/api/v1/public/invoice")
+        private_public = public and (
+            path.startswith("/api/v1/public/invoice")
+            or path.startswith("/api/v1/public/customer-context")
+        )
         private_link = path.startswith("/api/v1/invoices/") and "/capabilities" in path
         if scope["type"] != "http" or not (public or private_link):
             await self.app(scope, receive, send)

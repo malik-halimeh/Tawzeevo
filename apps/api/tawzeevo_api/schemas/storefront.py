@@ -17,6 +17,8 @@ class StorefrontSettings(BaseModel):
     previous_slugs: list[str]
     published_products: int
     accepting_orders: bool
+    customer_access_policy: str = "LINK"
+    available_policies: list[str] = ["LINK"]
 
 
 class StorefrontSlugRequest(BaseModel):
@@ -57,6 +59,7 @@ class PublicProduct(BaseModel):
     barcode: str | None
     currency: str
     price: str
+    pricing: str = "public"  # "public" | "personalized" (never the grade or the rule)
     price_basis: str
     packaging: PublicPackaging
     images: list[PublicImage]
@@ -118,3 +121,48 @@ class CampaignResponse(BaseModel):
 
 class CampaignListResponse(BaseModel):
     campaigns: list[CampaignResponse]
+
+
+class CustomerLinkResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    customer_id: UUID
+    created_at: datetime
+    last_used_at: datetime | None
+    revoked_at: datetime | None
+    rotated_from_id: UUID | None
+
+
+class IssuedCustomerLinkResponse(CustomerLinkResponse):
+    """The raw secret is returned exactly once, as a storefront path with a fragment."""
+
+    storefront_path: str
+
+
+class CustomerLinkStatusResponse(BaseModel):
+    active: CustomerLinkResponse | None
+    effective_policy: str
+    policy_override: str | None
+    tenant_policy: str
+    available_policies: list[str]
+
+
+class CustomerPolicyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    override: str | None = Field(default=None, max_length=20)
+
+
+class TenantPolicyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    policy: str = Field(max_length=20)
+
+
+class CustomerContextResponse(BaseModel):
+    """Everything the storefront may know about a personalized visitor: no grade, no history."""
+
+    assurance: str
+    tenant_slug: str
+    display_name: str

@@ -7,7 +7,7 @@ import { dirFor, normalizeLang, otherLang, t } from "./i18n";
 
 const product: PublicProduct = {
   id: "p1", category_id: "c1", name: "Cedar Water", name_ar: "مياه الأرز", barcode: "5280000000012",
-  currency: "USD", price: "12.5000", price_basis: "PIECE",
+  currency: "USD", price: "12.5000", pricing: "public", price_basis: "PIECE",
   packaging: { pieces_per_box: 12, piece_price: "12.5000", box_price: "150.0000" }, images: [],
 };
 

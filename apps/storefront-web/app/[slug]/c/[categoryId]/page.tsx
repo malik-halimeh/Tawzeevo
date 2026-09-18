@@ -7,6 +7,7 @@ import { ShopFrame } from "@/components/ShopFrame";
 import { fetchProducts } from "@/lib/catalog";
 import { shopHref } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { capabilityFor, resolveContext } from "@/lib/personal";
 import { type SearchParams, loadShop, pageNumber } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string; categoryId: string }>; searchParams: Promise<SearchParams> };
@@ -25,9 +26,11 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const category = shop.categories.find((row) => row.id === categoryId);
   if (!category) notFound();
   const page = pageNumber(query);
-  const products = await fetchProducts(shop.slug, { categoryId, page });
+  const capability = await capabilityFor(shop.slug);
+  const context = await resolveContext(capability);
+  const products = await fetchProducts(shop.slug, { categoryId, page, capability: context ? capability : null });
   return (
-    <ShopFrame currentPath={`/${shop.slug}/c/${categoryId}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
+    <ShopFrame context={context} currentPath={`/${shop.slug}/c/${categoryId}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
       <h2>{t(lang, "categories")}</h2>
       <ul className="chips">
         <li><Link href={shopHref(shop.slug, lang)}>{t(lang, "allProducts")}</Link></li>
