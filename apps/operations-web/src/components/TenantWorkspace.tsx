@@ -26,6 +26,7 @@ import { CONNECT_RESULT_KEY } from "../backup/connect";
 import { isOfflineFailure } from "../offline/network";
 import { createCustomerOffline, createProductOffline, updateCustomerOffline, updateProductOffline } from "../offline/outbox";
 import { BackupPanel } from "./BackupPanel";
+import { CampaignPanel } from "./CampaignPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
 
@@ -693,6 +694,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "products" ? (
             <div className="catalog-workspace" role="tabpanel">
               <StorefrontSettings tenantId={context.tenant_id} />
+              <CampaignPanel products={products.data?.products ?? []} tenantId={context.tenant_id} />
               <article className="content-card scan-desk">
                 <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
                 <h3>{t("tenantWorkspace.scanTitle")}</h3>

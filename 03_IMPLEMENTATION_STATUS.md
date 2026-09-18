@@ -7,9 +7,9 @@
 - Current workstream: `Phase 5 — Linked Bilingual Guest Storefront, Orders, Recommendations, Advertising`
 - Current phase: `5`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P5-M2 — Interactions, recommendations, featured campaigns`
-- Current milestone status: `IN_PROGRESS` (backend, public API and storefront sections done; owner campaign UI in the operations client remains)
-- Last completed milestone: `P5-M1`
+- Current milestone: `P5-M3 — Guest checkout, idempotency, provisional representation`
+- Current milestone status: `NOT_STARTED`
+- Last completed milestone: `P5-M2`
 - Next required user command: `continue`
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -45,14 +45,20 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 
 ## Current milestone evidence
 
-- Code areas changed (P5-M2 so far, 2026-09-18): `services/storefront_signals.py` (pseudonymous hashed-session views with a 30-minute de-duplication window — D-062; deterministic scores purchase = 10 / view = 1 — D-048; valid purchase = line of the current confirmed revision of a CONFIRMED invoice, cancelled sales drop out; 90-day raw retention rolled into monthly counts — D-051; featured campaigns with 7-day default, `starts_at <= now < ends_at`, priority → newer → id tie-break, retained expired/cancelled records), migration `20260918_0018` (product_interactions, product_interaction_rollups, featured_campaigns; RLS), public `…/catalog/featured`, `…/catalog/recommended`, `…/products/{id}/view`, owner `…/storefront/campaigns` (list/create/cancel, audited), CLI `rollup-views`, storefront featured/recommended sections and the client-side view beacon
+- Code areas changed (P5-M2, 2026-09-18): owner featured-campaign card in the operations client (`CampaignPanel.tsx`, EN/AR: product, priority, optional window, stop featuring, retained history); `services/storefront_signals.py` (pseudonymous hashed-session views with a 30-minute de-duplication window — D-062; deterministic scores purchase = 10 / view = 1 — D-048; valid purchase = line of the current confirmed revision of a CONFIRMED invoice, cancelled sales drop out; 90-day raw retention rolled into monthly counts — D-051; featured campaigns with 7-day default, `starts_at <= now < ends_at`, priority → newer → id tie-break, retained expired/cancelled records), migration `20260918_0018` (product_interactions, product_interaction_rollups, featured_campaigns; RLS), public `…/catalog/featured`, `…/catalog/recommended`, `…/products/{id}/view`, owner `…/storefront/campaigns` (list/create/cancel, audited), CLI `rollup-views`, storefront featured/recommended sections and the client-side view beacon
 - Migrations: head `20260918_0018`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-18): backend storefront signals `3 passed` (purchase outweighs nine views, dedupe, unpublished/foreign product 404, hashed session keys, cancelled sale excluded, tie-break by name, limit, tenant isolation; campaign default length, priority/newer ordering, future/expired inactive, backwards interval 422, unpublished never shown, cancel retained, foreign product 404, foreign owner 403; rollup folds 4 old views into `2026-05-01`, keeps fresh rows, idempotent); full backend suite result recorded in the freeze commit; storefront `4 passed`, lint/types/build PASS
-- Remaining for P5-M2: owner campaign management card in the operations client (EN/AR), then mark the milestone complete
+- Tests run (2026-09-18): backend `196 passed` on disposable PostgreSQL 18 (storefront signals `3` added (purchase outweighs nine views, dedupe, unpublished/foreign product 404, hashed session keys, cancelled sale excluded, tie-break by name, limit, tenant isolation; campaign default length, priority/newer ordering, future/expired inactive, backwards interval 422, unpublished never shown, cancel retained, foreign product 404, foreign owner 403; rollup folds 4 old views into `2026-05-01`, keeps fresh rows, idempotent)); operations client `71 passed` (campaign panel 1 added); storefront `4 passed`; lint/types/build PASS for both web apps
 - Known defects: none open
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P5-M2 (2026-09-18) added the storefront signals: pseudonymous views de-duplicated per session and
+product within 30 minutes, valid purchases from confirmed non-cancelled sales weighing ten times
+a view, a fixed deterministic ranking, monthly rollups after 90 days, and owner-managed featured
+campaigns (7-day default, priority then newer then id) shown first on the storefront.
+
+### Previous (P5-M1)
 
 P5-M1 (2026-09-18) opened Phase 5: every approved business now has a public address
 (`/<slug>`), an audited rename with a kept redirect, and a bilingual mobile-first storefront that
