@@ -332,7 +332,8 @@ Linked bilingual storefront:
 - product images/prices;
 - guest checkout;
 - mandatory name/phone/address;
-- no verified customer account required.
+- no verified customer account required (optional personalized links D-071 and later optional
+  accounts D-074; accounts are never globally mandatory).
 
 Checkout:
 - creates order;
@@ -529,7 +530,7 @@ Start with explainable statistical baseline before ML/LLM.
 - native mobile app;
 - stock/inventory/warehouses;
 - product availability states;
-- customer account/login requirement;
+- globally mandatory customer account/login (optional accounts are approved future work, D-074);
 - customer delivery tracking;
 - customer self-cancellation;
 - customer-selected delivery date;

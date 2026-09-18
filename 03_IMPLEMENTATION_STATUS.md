@@ -7,7 +7,7 @@
 - Current workstream: `Phase 5 — Linked Bilingual Guest Storefront, Orders, Recommendations, Advertising`
 - Current phase: `5`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P5-M3 — Guest checkout, idempotency, provisional representation`
+- Current milestone: `P5-M3 — Personalized customer context (inserted 2026-09-18; checkout becomes P5-M4, owner review P5-M5, freeze P5-M6)`
 - Current milestone status: `NOT_STARTED`
 - Last completed milestone: `P5-M2`
 - Next required user command: `continue`

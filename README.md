@@ -66,7 +66,7 @@ recommendations are computed from real storefront interactions, never from stock
 **Product principles**
 
 - No stock or availability tracking: "published" means visible in the catalog, nothing more
-- Customers never need an account; a phone number is contact data, not identity
+- Customers are never required to have an account; a phone number is contact data, not identity
 - Every business-owned table carries the business id and is protected by PostgreSQL row-level security
 - Financial history is append-only; corrections are new records, never edits
 

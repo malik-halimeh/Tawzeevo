@@ -107,6 +107,30 @@ Phone alone never reveals private grade/price.
 
 Search is bounded/paginated, deterministic exact/prefix-first.
 
+## C.1 Personalized customer context (D-071, D-072; BRD v1.1 BR-03/BR-08, FDD §4.12)
+
+Reconciled 2026-09-18 from the approved BRD v1.1. An owner may issue a personalized storefront
+link for an existing customer. The link is an opaque capability that resolves to the tenant and the
+exact customer record; the storefront then applies that customer's **current** pricing rule
+(explicit customer/grade price, otherwise grade discount, otherwise public price) through the
+customer identity, so a later grade or price change needs no new link.
+
+Rules:
+- one active link per customer; atomic rotation/reissue; revocation without replacement;
+- no automatic expiry (optional technical `expires_at`, null by default);
+- hash-only persistence; secret carried in the URL fragment and a private header / first-party
+  HttpOnly cookie on the storefront, never in a path, query, referrer or log;
+- assurance `LINK`: personalized pricing, catalog use and order submission for owner review only;
+  never the grade label, debt, payments, prior invoices, cost/profit, profile or security changes;
+- access policy = business default + optional per-customer override (`LINK` | `VERIFIED` |
+  `ACCOUNT_REQUIRED`); Phase 5 stores the fields and enforces `LINK` only; the other values are
+  presented as not yet available and rejected by the API (no lock-out by configuration);
+- invalid/revoked/rotated links fail closed without revealing customer existence; rate limits and
+  tenant isolation as for D-042;
+- suspended/closed business: personalized link resolves to nothing (public catalog rules apply).
+
+Personalized responses are `private, no-store`; anonymous catalog responses stay cacheable.
+
 ---
 
 # D. Product interactions/recommendations
@@ -163,6 +187,10 @@ same key + same semantic request → original result
 same key + different request → 409 IDEMPOTENCY_CONFLICT
 ```
 
+A checkout made through a valid personalized context carries the customer only as an
+**intended-customer hint** (`orders.intended_customer_id`, assurance `LINK`); it never links,
+prices as final, or confirms anything by itself. Owner review (G) resolves the customer.
+
 Atomic checkout:
 - order `RECEIVED`;
 - draft invoice;
@@ -209,7 +237,8 @@ active owner-issued link, replacement invalidates the old link, and cancellation
 Owner receives one in-app notification.
 
 Owner may:
-- review contact snapshot;
+- review contact snapshot and, when present, the intended-customer hint with its assurance level
+  (the hint is a suggestion; linking is an explicit owner act — D-072);
 - disambiguate/link/create customer;
 - apply grade only after authorized linkage;
 - add/remove products;
@@ -317,11 +346,15 @@ Never feature another tenant's product or unadopted master product.
 
 Public groups:
 ```text
-/api/v1/public/{tenant_slug}/catalog
+/api/v1/public/{tenant_slug}/catalog          (optional X-Customer-Capability header → personalized)
 /api/v1/public/{tenant_slug}/checkout
+/api/v1/public/customer-context               (fixed path; capability in the private header)
 /api/v1/public/invoice
 /api/v1/public/invoice/cancellation-request
 ```
+
+Owner: `…/tenants/{id}/customers/{customer_id}/access-link` (issue/rotate, revoke, status) and the
+tenant/customer access-policy fields.
 
 The confirmed-invoice raw capability is carried in the URL fragment in the browser and sent to
 these fixed API paths through the private capability header. It must never appear in an API path,
@@ -347,6 +380,8 @@ Use Next.js App Router + TypeScript:
 - bilingual metadata;
 - mobile cart/checkout;
 - capability invoice page;
+- personalized entry page (`/{slug}/access#<secret>` → first-party HttpOnly cookie, fragment
+  stripped), personalized banner and exit;
 - cancellation request;
 - expired/revoked pages;
 - featured products;
@@ -355,8 +390,9 @@ Use Next.js App Router + TypeScript:
 ## Operations web
 - order inbox;
 - duplicate customer disambiguation;
-- link/create customer;
+- link/create customer (intended-customer hint shown, never auto-linked);
 - grade application;
+- personalized link issue/rotate/revoke per customer;
 - item/quantity edit;
 - confirm;
 - delivery date;
@@ -401,8 +437,20 @@ Zero + Phase 4 upgrade pass.
 - suspended/closed checkout blocked;
 - slug not authorization.
 
+## Personalized customer context (P5-M3)
+- anonymous visitor gets public pricing;
+- valid link gets the customer's current pricing; grade change alters price without a new link;
+- internal grade label, debt, payments, prior invoices never exposed;
+- exact tenant/customer association; Customer A's link never resolves Customer B;
+- rotation invalidates the old link atomically; revocation invalidates; only one active per
+  customer, including under concurrent issuance;
+- suspended/closed tenant: link resolves to nothing;
+- secret never in logs/paths/query; hash-only persistence; failure responses reveal nothing;
+- order via link carries only the intended-customer hint; owner resolution stays authoritative;
+- policy fields stored; non-LINK policies rejected/"not available"; tenant isolation.
+
 ## Checkout
-- no account;
+- no account (a personalized context adds only the intended-customer hint);
 - mandatory fields;
 - invalid rejected;
 - same idempotency intent returns original;
@@ -477,20 +525,37 @@ Acceptance:
 
 STOP.
 
-## P5-M3 — Guest checkout, idempotency, provisional representation
+## P5-M3 — Personalized customer context (inserted 2026-09-18, D-071/D-072)
+Implement the customer access link (one active per customer, atomic rotation, revocation,
+hash-only), the customer-context resolver with assurance `LINK`, server-side personalized pricing
+in the public catalog, the storefront entry/banner/exit, the owner per-customer link controls,
+the access-policy fields (LINK enforced only), rate limiting/log redaction, and the tests in O.
+
+Acceptance:
+- exact-customer resolution and isolation;
+- current pricing follows the customer, never the token;
+- lifecycle (rotate/revoke/one-active) correct under concurrency;
+- no private history/grade leakage; no secrets logged;
+- no OTP, sessions, accounts or providers.
+
+STOP.
+
+## P5-M4 — Guest checkout, idempotency, provisional representation
 After resolving the Gate E presentation contract, implement cart/checkout, snapshot, atomic
-idempotency, RECEIVED order, provisional invoice, safe provisional representation, owner
-notification and public page. Do not issue a D-042 invoice capability before confirmation.
+idempotency, RECEIVED order (with the intended-customer hint when a personalized context is
+present), provisional invoice, safe provisional representation, owner notification and public
+page. Do not issue a D-042 invoice capability before confirmation.
 
 Acceptance:
 - retries no duplicate;
 - phone privacy;
 - security headers/log redaction;
-- immediate provisional view.
+- immediate provisional view;
+- hint carried, never auto-linked.
 
 STOP.
 
-## P5-M4 — Owner review, confirmation, delivery date, cancellation
+## P5-M5 — Owner review, confirmation, delivery date, cancellation
 Implement order inbox, customer link/create/disambiguation, grade, revision edits, confirmation, delivery date/reminders, cancellation request/decision, one-owner/no-driver UX.
 
 Acceptance:
@@ -502,7 +567,7 @@ Acceptance:
 
 STOP.
 
-## P5-M5 — Public security/E2E/accessibility freeze
+## P5-M6 — Public security/E2E/accessibility freeze
 No new scope.
 
 Complete abuse/rate-limit, privacy, token lifecycle, accessibility, EN/AR/RTL, mobile, E2E, migrations/OpenAPI/docs/final audit.
@@ -525,6 +590,8 @@ Mark Phase 5 COMPLETE and STOP. Do not start Phase 6.
 - provisional invoice immediate;
 - D-042 confirmed-invoice capability secure/no-store and one-active-link lifecycle enforced;
 - phone no private history/grade;
+- personalized customer link: exact customer, current pricing, one active, atomic rotation,
+  revocation, no private data, hint-only order attribution (D-071/D-072);
 - owner reviews/edits/confirms;
 - sole owner zero drivers works;
 - delivery date only after confirmation;
@@ -537,6 +604,8 @@ Mark Phase 5 COMPLETE and STOP. Do not start Phase 6.
 - RLS/tenant isolation.
 
 ## Explicit exclusions
-No customer login requirement, customer-selected driver, driver product catalogs, driver referral tracking unless later approved, stock/inventory, customer tracking, Phase 6 procurement, Phase 7 routes, generative recommendations.
+Customer accounts are not globally mandatory for storefront use (optional accounts and OTP
+verification are approved later work under D-073/D-074, not Phase 5); no customer-selected driver, driver product catalogs, driver referral tracking unless later approved, stock/inventory, customer tracking, Phase 6 procurement, Phase 7 routes, generative recommendations.
 
-First milestone to implement: **P5-M1 — Tenant storefront routing + published catalog**
+Milestone order (renumbered 2026-09-18 after P5-M1/P5-M2 completed): P5-M3 personalized customer
+context → P5-M4 guest checkout → P5-M5 owner review → P5-M6 freeze.

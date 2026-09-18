@@ -19,6 +19,10 @@ Analytics must reconcile to canonical invoice revisions, ledgers, payments, supp
 Never fabricate a metric when reliable source data is missing.
 
 ## Start gate — Gate G
+
+Customer attribution rule (D-072, added 2026-09-18): every analytic and lifetime statistic uses
+the authoritative owner-resolved `customer_id` (linked at owner review or invoice creation). A
+storefront `intended_customer_id` hint is never an attribution source.
 Before P8-M1 verify:
 - exact metric definitions;
 - current-value vs event-flow revision treatment;

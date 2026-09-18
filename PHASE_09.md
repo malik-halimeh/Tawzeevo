@@ -273,7 +273,7 @@ No customer tracking.
 Prove system still has no:
 - stock/inventory;
 - product availability state;
-- customer login requirement;
+- globally mandatory customer login (optional accounts under D-074 are allowed);
 - direct customer cancellation;
 - customer-selected delivery date;
 - customer delivery tracking;
@@ -404,7 +404,48 @@ Acceptance:
 
 STOP.
 
-## P9-M5 — Multi-tenant pilot
+## P9-M5 — Customer verification, sessions and delivery providers (added 2026-09-18, D-073)
+Precondition: Gate G decision on the OTP delivery provider(s) and the remembered-browser policy.
+
+Implement customer verification challenges behind a provider-neutral delivery abstraction
+(WhatsApp, SMS, development/test adapter), verified customer sessions (assurance `VERIFIED`) with
+expiry and revocation, OTP brute-force and rate limiting, provider outage behaviour, production
+credentials/templates, abuse controls, observability, and enforcement of the `VERIFIED` access
+policy for businesses/customers that choose it.
+
+Acceptance tests:
+- valid link + valid OTP → verified session; wrong OTP; expired OTP; reused OTP;
+- verification rate limiting and lockout;
+- revoked and expired sessions; order submission after session expiry;
+- remembered vs new browser (if approved);
+- provider outage → safe failure, no lock-in;
+- customer phone change never breaks identity; cross-customer verification attempt fails;
+- tenant suspension and disabled customer;
+- `LINK` policy customers unaffected; `VERIFIED` policy customers cannot proceed on link alone;
+- anonymous public pricing vs verified personalized pricing.
+
+STOP.
+
+## P9-M6 — Customer accounts and history claiming (added 2026-09-18, D-074)
+Precondition: P9-M5 complete; Gate G decision on account identity (email/phone), recovery and
+session lifetime.
+
+Implement optional customer accounts linked to existing tenant customer records (one account may
+link to customer records of several businesses after verification), verified claiming of
+pre-existing history without copying or merging records, the `ACCOUNT_REQUIRED` policy
+enforcement, and account sessions satisfying the required assurance.
+
+Acceptance tests:
+- account claiming requires verification; phone alone never claims history;
+- linking an account to pre-existing customer history keeps the same `customer_id` and rows;
+- ambiguous/duplicate customers are never merged automatically;
+- `ACCOUNT_REQUIRED` enforced; an old link alone remains insufficient; an account session
+  satisfies the policy;
+- tenant isolation across a multi-business account.
+
+STOP.
+
+## P9-M7 — Multi-tenant pilot
 Execute synthetic two-tenant security plus real pilot where available, including one-owner/zero-driver and owner+driver workflows, offline, procurement, analytics, backup.
 
 Acceptance:
@@ -414,7 +455,7 @@ Acceptance:
 
 STOP.
 
-## P9-M6 — Production launch gate audit + freeze
+## P9-M8 — Production launch gate audit + freeze
 No new product scope.
 
 Produce launch/security/migration/restore/performance/observability/CI/pilot/data-lifecycle/risk evidence and run final full regression.
