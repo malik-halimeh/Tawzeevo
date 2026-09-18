@@ -555,3 +555,14 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .invoice-share-record { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding-block: .6rem; }
 .invoice-share-issued { display: grid; gap: .75rem; margin-block-start: 1rem; }
 .invoice-share-issued input { width: 100%; min-width: 0; }
+
+/* Storefront order inbox (P5-M5) */
+.orders-layout { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 18rem) minmax(0, 1fr); margin-block-start: 1.25rem; }
+.orders-layout .outbox-list { align-content: start; }
+.order-detail h5 { margin-block: 1.25rem .35rem; }
+.order-lines { border-collapse: collapse; margin-block: 1rem; width: 100%; }
+.order-lines th, .order-lines td { border-block-end: 1px solid var(--line); padding: .45rem .55rem; text-align: start; }
+.order-actions { display: grid; gap: .8rem; margin-block-start: 1rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; margin: 0; padding: 0; }
+.chips .text-button { border: 1px solid var(--line); border-radius: 999px; padding: .35rem .7rem; }
+@media (max-width: 720px) { .orders-layout { grid-template-columns: minmax(0, 1fr); } }

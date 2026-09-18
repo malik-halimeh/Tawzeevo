@@ -11,10 +11,25 @@ from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.errors import AppError
+from tawzeevo_api.models import Customer
 from tawzeevo_api.routes.cash_van import _storage_dependency
+from tawzeevo_api.schemas.cash_van import CustomerCreateRequest
 from tawzeevo_api.schemas.checkout import (
+    CancellationDecisionRequest,
+    CancellationRequestBody,
+    CancellationRequestResponse,
     CheckoutRequest,
     CheckoutResponse,
+    ConfirmOrderRequest,
+    CustomerCandidate,
+    DeclineOrderRequest,
+    DeliveryDateRequest,
+    LinkCustomerRequest,
+    NotificationListResponse,
+    NotificationResponse,
+    OrderDetailResponse,
+    OrderListResponse,
+    OrderSummary,
     ProvisionalOrderResponse,
 )
 from tawzeevo_api.schemas.storefront import (
@@ -36,7 +51,13 @@ from tawzeevo_api.schemas.storefront import (
     ViewRequest,
     ViewResponse,
 )
-from tawzeevo_api.services import checkout, customer_access, storefront, storefront_signals
+from tawzeevo_api.services import (
+    checkout,
+    customer_access,
+    orders,
+    storefront,
+    storefront_signals,
+)
 from tawzeevo_api.services.media import ObjectStorage
 
 storefront_public_router = APIRouter(prefix="/api/v1/public", tags=["storefront"])
@@ -390,3 +411,187 @@ def read_provisional_order(
     """Fixed path; the provisional reference travels only in the private header (D-046)."""
     response.headers["Cache-Control"] = PRIVATE_CACHE
     return checkout.provisional_order(db, reference)
+
+
+@storefront_public_router.post(
+    "/order/cancellation-request",
+    response_model=CancellationRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def request_order_cancellation(
+    body: CancellationRequestBody,
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    reference: Annotated[str | None, Header(alias="X-Order-Reference")] = None,
+) -> CancellationRequestResponse:
+    """Customer asks; the owner decides (PHASE_05.md J). One pending request per order."""
+    response.headers["Cache-Control"] = PRIVATE_CACHE
+    ref = checkout.resolve_reference(db, reference)
+    return CancellationRequestResponse.model_validate(
+        orders.request_cancellation(db, ref, body.reason)
+    )
+
+
+# ---------------------------------------------------------------------------------------------
+# Owner order review (P5-M5)
+# ---------------------------------------------------------------------------------------------
+
+
+def _detail(db: Session, tenant_id: UUID, order_id: UUID) -> OrderDetailResponse:
+    order = orders.get_order(db, tenant_id, order_id)
+    candidates = orders.candidate_customers(db, tenant_id, order)
+    hint = None
+    if order.intended_customer_id and all(c.id != order.intended_customer_id for c in candidates):
+        hint = db.get(Customer, order.intended_customer_id)
+    rows = ([hint] if hint else []) + candidates
+    return OrderDetailResponse(
+        order=OrderSummary.model_validate(order),
+        candidates=[
+            CustomerCandidate(
+                id=c.id,
+                name=c.name,
+                phone=c.phone,
+                grade=c.grade.value if c.grade else None,
+                is_hint=c.id == order.intended_customer_id,
+            )
+            for c in rows
+        ],
+        cancellation_requests=[
+            CancellationRequestResponse.model_validate(r)
+            for r in orders.list_cancellation_requests(db, tenant_id, order.id)
+        ],
+    )
+
+
+@storefront_owner_router.get("/orders", response_model=OrderListResponse)
+def list_orders(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    status_filter: Annotated[str | None, Query(alias="status", max_length=12)] = None,
+) -> OrderListResponse:
+    rows = orders.list_orders(db, context.tenant.id, status_filter)
+    return OrderListResponse(orders=[OrderSummary.model_validate(row) for row in rows])
+
+
+@storefront_owner_router.get("/orders/{order_id}", response_model=OrderDetailResponse)
+def read_order(
+    order_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> OrderDetailResponse:
+    return _detail(db, context.tenant.id, order_id)
+
+
+@storefront_owner_router.post(
+    "/orders/{order_id}/link-customer", response_model=OrderDetailResponse
+)
+def link_order_customer(
+    order_id: UUID,
+    request: LinkCustomerRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> OrderDetailResponse:
+    """Explicit owner act (D-072): link an existing customer or create one from the snapshot."""
+    create = None
+    if request.create_from_snapshot:
+        order = orders.get_order(db, context.tenant.id, order_id)
+        create = CustomerCreateRequest(
+            name=order.contact_name,
+            phone=order.contact_phone_raw,
+            address=order.contact_address,
+            grade=request.grade,
+        )
+    orders.link_customer(
+        db,
+        context.tenant.id,
+        context.membership.user_id,
+        order_id,
+        customer_id=request.customer_id,
+        create=create,
+        fuzzy_threshold=get_settings().invoice_fuzzy_match_threshold,
+    )
+    return _detail(db, context.tenant.id, order_id)
+
+
+@storefront_owner_router.post("/orders/{order_id}/confirm", response_model=OrderDetailResponse)
+def confirm_order(
+    order_id: UUID,
+    request: ConfirmOrderRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> OrderDetailResponse:
+    orders.confirm_order(
+        db, context.tenant.id, context.membership.user_id, order_id, request.expected_revision_id
+    )
+    return _detail(db, context.tenant.id, order_id)
+
+
+@storefront_owner_router.post("/orders/{order_id}/decline", response_model=OrderDetailResponse)
+def decline_order(
+    order_id: UUID,
+    request: DeclineOrderRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> OrderDetailResponse:
+    orders.decline_order(db, context.tenant.id, context.membership.user_id, order_id, request.note)
+    return _detail(db, context.tenant.id, order_id)
+
+
+@storefront_owner_router.put("/orders/{order_id}/delivery-date", response_model=OrderDetailResponse)
+def set_order_delivery_date(
+    order_id: UUID,
+    request: DeliveryDateRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> OrderDetailResponse:
+    orders.set_delivery_date(
+        db, context.tenant.id, context.membership.user_id, order_id, request.delivery_date
+    )
+    return _detail(db, context.tenant.id, order_id)
+
+
+@storefront_owner_router.post(
+    "/orders/cancellation-requests/{request_id}/decide",
+    response_model=CancellationRequestResponse,
+)
+def decide_order_cancellation(
+    request_id: UUID,
+    request: CancellationDecisionRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> CancellationRequestResponse:
+    row = orders.decide_cancellation(
+        db,
+        context.tenant.id,
+        context.membership.user_id,
+        request_id,
+        approve=request.approve,
+        note=request.note,
+    )
+    return CancellationRequestResponse.model_validate(row)
+
+
+@storefront_owner_router.get("/notifications", response_model=NotificationListResponse)
+def list_owner_notifications(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    unread_only: bool = False,
+) -> NotificationListResponse:
+    rows = orders.list_notifications(db, context.tenant.id, unread_only)
+    unread = len(orders.list_notifications(db, context.tenant.id, True))
+    return NotificationListResponse(
+        notifications=[NotificationResponse.model_validate(row) for row in rows], unread=unread
+    )
+
+
+@storefront_owner_router.post(
+    "/notifications/{notification_id}/read", response_model=NotificationResponse
+)
+def read_owner_notification(
+    notification_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> NotificationResponse:
+    return NotificationResponse.model_validate(
+        orders.mark_notification_read(db, context.tenant.id, notification_id)
+    )

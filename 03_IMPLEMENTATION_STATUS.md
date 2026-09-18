@@ -7,9 +7,9 @@
 - Current workstream: `Phase 5 — Linked Bilingual Guest Storefront, Orders, Recommendations, Advertising`
 - Current phase: `5`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P5-M5 — Owner review, confirmation, delivery date, cancellation`
+- Current milestone: `P5-M6 — Phase 5 freeze`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P5-M4`
+- Last completed milestone: `P5-M5`
 - Next required user command: `continue`
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -45,21 +45,28 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 
 ## Current milestone evidence
 
-- Code areas changed (P5-M4, 2026-09-19): migration `20260919_0020` (`orders` with immutable contact snapshot, `intended_customer_id`/`intended_assurance` hint, `invoice_id`; `checkout_idempotency` keyed by tenant + `Idempotency-Key` with a request fingerprint; `order_access_references` hashed 72-hour provisional references; `owner_notifications` with one-per-order uniqueness; RLS everywhere), `services/checkout.py` (advisory lock per key → replay returns the stored result, different body → 409 `IDEMPOTENCY_CONFLICT`; published-product validation, phone normalization, single currency; RECEIVED order + draft invoice + first provisional revision priced by pricing-v1 through the personalized context when present or a transient guest with no grade; exactly one `ORDER_RECEIVED` notification), public `POST /api/v1/public/{slug}/checkout` and `GET /api/v1/public/order` (reference in the private `X-Order-Reference` header, `no-store`, noindex, 60/min), storefront cart (localStorage per shop), checkout form (name/phone/address/notes), server-side proxy routes that add the HttpOnly personalized cookie as the capability header and pass the browser's idempotency key through, provisional order page (`/{slug}/order#reference`, fragment stripped, sessionStorage revisit), "Add to cart" on cards and product pages, cart link with count; log filter fixed to redact `record.args` in place (uvicorn access lines were being dropped)
-- Migrations: head `20260919_0020`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-19): backend checkout `3 passed` (atomic: 1 order / 1 draft / 1 revision / 1 reference / 1 notification, no customer, no official number; replay returns the same order with `replayed`; conflicting body 409; provisional projection contains no grade/debt/cost/supplier/driver words, `no-store` + noindex; bad references constant 404; mandatory fields, invalid phone, empty cart, unpublished product, missing key → 422; existing customer's phone never links; personalized link → customer price and hint only, invoice still unlinked draft; rotated link at checkout is anonymous; suspended business 409 while provisional pages stay readable); storefront `5 passed`, lint/types/build PASS; local end-to-end: API checkout + replay, provisional page through the storefront proxy, cart buttons rendered
-- Security/invariants: link possession ≠ customer confirmation ≠ financial authority (D-072): a checkout never creates a confirmed invoice, payment or ledger entry; the hint is on the order, the invoice's `customer_id` stays null until the owner links it (P5-M5); provisional references are separate from D-042 links and expire after 72 h
-- Known defects: none open for P5-M4
+- Code areas changed (P5-M5, 2026-09-19): migration `20260919_0021` (`orders.linked_customer_id`, `orders.delivery_date`; `delivery_reminders` one per order with a UTC `due_at`; `order_cancellation_requests` with one pending request per order; owner-notification uniqueness narrowed to `ORDER_RECEIVED` so decision notifications can repeat; RLS everywhere), `services/orders.py` (inbox listing; phone-matched customer candidates with the personalized-link hint marked but never auto-linked; explicit link to an existing customer or one created from the snapshot, which re-prices the draft as a new revision through the Phase 3 editor; confirmation only after a link and only through the Phase 3 confirmation that assigns the official number; decline closes the draft; delivery date only after confirmation, reminder at 09:00 Asia/Beirut stored in UTC; customer cancellation requests through the provisional reference; owner approve → Phase 3 cancellation reversal, order `CANCELLED`, reminder cancelled; reject keeps everything; notification read state), owner routes under `/api/v1/tenants/{id}/orders…` and `/notifications…`, public `POST /api/v1/public/order/cancellation-request`, operations client `OrdersPanel` (Orders tab: inbox with unread count, detail with invoice lines, candidate chips, create-from-snapshot with grade, confirm/decline with note, delivery date form, cancellation decisions; EN/AR), storefront order page shows delivery date and cancellation state and lets the customer ask for cancellation through a proxy route (`/{slug}/order/cancel`)
+- Migrations: head `20260919_0021`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-19): backend `205 passed` (order review `3`: confirm before link refused, link re-prices to the customer grade as a new revision, confirmation assigns the official number and re-confirmation is refused, decline closes the draft, delivery date refused before confirmation and accepted after with a UTC reminder, second cancellation request refused while one is pending, approval reverses through Phase 3 and cancels the reminder, rejection keeps the order, notifications counted and marked read; cross-tenant access 404), ruff/format/mypy PASS; operations client `73 passed` incl. `OrdersPanel` (confirm disabled until the owner links; suggested candidate is a chip, not a default), storefront `5 passed`; lint/types/build PASS for both apps
+- Security/invariants: nothing is linked or confirmed automatically (D-072); the official number, ledger movement and reversal all go through the Phase 3 services; a cancellation request is a request, the owner decides (PHASE_05.md J); provisional pages keep `no-store`/noindex
+- Known defects: none open for P5-M5
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P5-M5 (2026-09-19) delivered owner order review: an order inbox, explicit customer linking (the
+personalized-link hint is a suggestion only) that re-prices the draft, confirmation through the
+Phase 3 confirmation, decline, delivery date with a reminder job, and customer cancellation
+requests decided by the owner with Phase 3 reversal accounting.
+
+### Previous (P5-M4)
 
 P5-M4 (2026-09-19) delivered guest checkout: cart and checkout without an account, one RECEIVED
 order per idempotency key with an immutable contact snapshot, a draft invoice and first provisional
 revision priced by the server, a short-lived provisional order page, one owner notification per
 order, and the intended-customer hint from a personalized link that never becomes financial truth.
 
-### Previous (P5-M3)
+### Earlier (P5-M3)
 
 P5-M3 (2026-09-19) established the personalized customer context: owner-issued opaque links
 bound to the exact customer, one active per customer with atomic rotation and revocation, no

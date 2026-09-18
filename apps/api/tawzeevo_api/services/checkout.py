@@ -32,6 +32,7 @@ from tawzeevo_api.models import (
     InvoiceStatus,
     Order,
     OrderAccessReference,
+    OrderCancellationRequest,
     OwnerNotification,
     Tenant,
     TenantProduct,
@@ -252,10 +253,7 @@ def _unavailable() -> AppError:
     return AppError(404, "ORDER_REFERENCE_UNAVAILABLE", "This order page is not available")
 
 
-def provisional_order(db: Session, raw: str | None) -> ProvisionalOrderResponse:
-    """Customer-safe projection through the provisional reference: contact snapshot, current
-    items/totals, status, later the delivery date and cancellation message. Never debt, history,
-    grades, costs, driver data or other orders (PHASE_05.md F)."""
+def resolve_reference(db: Session, raw: str | None) -> OrderAccessReference:
     if not raw or not TOKEN_PATTERN.fullmatch(raw):
         raise _unavailable()
     tenant_id = UUID(hex=raw[:32])
@@ -270,6 +268,15 @@ def provisional_order(db: Session, raw: str | None) -> ProvisionalOrderResponse:
     )
     if reference is None:
         raise _unavailable()
+    return reference
+
+
+def provisional_order(db: Session, raw: str | None) -> ProvisionalOrderResponse:
+    """Customer-safe projection through the provisional reference: contact snapshot, current
+    items/totals, status, the owner-set delivery date and the cancellation state. Never debt,
+    history, grades, costs, driver data or other orders (PHASE_05.md F)."""
+    reference = resolve_reference(db, raw)
+    tenant_id = reference.tenant_id
     tenant = db.get(Tenant, tenant_id)
     order = db.get(Order, reference.order_id)
     if tenant is None or order is None or tenant.status is TenantStatus.CLOSED:
@@ -315,4 +322,12 @@ def provisional_order(db: Session, raw: str | None) -> ProvisionalOrderResponse:
             for item in items
         ],
         decision_note=order.decision_note,
+        delivery_date=order.delivery_date,
+        cancellation=(
+            db.scalar(
+                select(OrderCancellationRequest.status)
+                .where(OrderCancellationRequest.order_id == order.id)
+                .order_by(OrderCancellationRequest.created_at.desc())
+            )
+        ),
     )

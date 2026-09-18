@@ -1868,6 +1868,11 @@ class Order(Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     decision_note: Mapped[str | None] = mapped_column(String(500))
+    # P5-M5: the owner's explicit customer link and the tenant-local delivery date.
+    linked_customer_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("customers.id", ondelete="SET NULL", name="fk_orders_linked_customer")
+    )
+    delivery_date: Mapped[date | None] = mapped_column(Date)
 
     __table_args__ = (
         CheckConstraint(
@@ -1939,11 +1944,80 @@ class OwnerNotification(Base):
     __table_args__ = (
         Index("ix_owner_notifications_tenant_created", "tenant_id", "created_at"),
         Index(
-            "uq_owner_notifications_order_kind",
+            "uq_owner_notifications_order_received",
             "tenant_id",
             "order_id",
-            "kind",
             unique=True,
-            postgresql_where=text("order_id IS NOT NULL"),
+            postgresql_where=text("order_id IS NOT NULL AND kind = 'ORDER_RECEIVED'"),
+        ),
+    )
+
+
+class DeliveryReminder(Base):
+    """Transactional reminder job for a confirmed order's delivery date (PHASE_05.md I)."""
+
+    __tablename__ = "delivery_reminders"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    order_id: Mapped[UUID] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    delivery_date: Mapped[date] = mapped_column(Date, nullable=False)
+    remind_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="SCHEDULED", server_default="SCHEDULED"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('SCHEDULED', 'SENT', 'CANCELLED')", name="ck_delivery_reminders_status"
+        ),
+        Index("ix_delivery_reminders_due", "status", "remind_at"),
+    )
+
+
+class OrderCancellationRequest(Base):
+    """Customer cancellation *request* (PHASE_05.md J); the owner decides."""
+
+    __tablename__ = "order_cancellation_requests"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    order_id: Mapped[UUID] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="PENDING", server_default="PENDING"
+    )
+    reason: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decision_note: Mapped[str | None] = mapped_column(String(500))
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING', 'APPROVED', 'REJECTED')",
+            name="ck_order_cancellation_requests_status",
+        ),
+        Index("ix_order_cancellation_requests_order", "tenant_id", "order_id"),
+        Index(
+            "uq_order_cancellation_requests_pending",
+            "order_id",
+            unique=True,
+            postgresql_where=text("status = 'PENDING'"),
         ),
     )

@@ -28,6 +28,7 @@ import { createCustomerOffline, createProductOffline, updateCustomerOffline, upd
 import { BackupPanel } from "./BackupPanel";
 import { CampaignPanel } from "./CampaignPanel";
 import { CustomerLinkControls } from "./CustomerLinkControls";
+import { OrdersPanel } from "./OrdersPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
 
@@ -334,7 +335,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const queryClient = useQueryClient();
   const [tenantId, setTenantId] = useState(contexts[0]?.tenant_id ?? "");
   const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
-  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "invoices" | "sync" | "backup">("customers");
+  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "invoices" | "orders" | "sync" | "backup">("customers");
   const [backupNotice, setBackupNotice] = useState<string>();
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
   useEffect(() => {
@@ -635,6 +636,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <button aria-selected={view === "products"} onClick={() => setView("products")} role="tab" type="button">{t("tenantWorkspace.products")}</button>
             <button aria-selected={view === "suppliers"} onClick={() => setView("suppliers")} role="tab" type="button">{t("supplierSetup.tab")}</button>
             <button aria-selected={view === "invoices"} onClick={() => setView("invoices")} role="tab" type="button">{t("invoiceEditor.tab")}</button>
+            <button aria-selected={view === "orders"} onClick={() => setView("orders")} role="tab" type="button">{t("orders.tab")}</button>
             <button aria-selected={view === "sync"} onClick={() => setView("sync")} role="tab" type="button">{t("sync.tab")}</button>
             <button aria-selected={view === "backup"} onClick={() => setView("backup")} role="tab" type="button">{t("backup.tab")}</button>
           </div>
@@ -741,6 +743,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <SyncPanel tenantId={context.tenant_id} membershipId={context.membership_id} />
           ) : view === "backup" ? (
             <BackupPanel tenantId={context.tenant_id} initialNotice={backupNotice} />
+          ) : view === "orders" ? (
+            <OrdersPanel tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup tenantId={context.tenant_id} />
           ) : (

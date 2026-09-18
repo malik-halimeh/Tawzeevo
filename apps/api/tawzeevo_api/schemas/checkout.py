@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -73,3 +73,109 @@ class ProvisionalOrderResponse(BaseModel):
     net_sales: Decimal
     items: list[ProvisionalItem]
     decision_note: str | None
+    delivery_date: date | None = None
+    cancellation: str | None = None  # PENDING | APPROVED | REJECTED of the latest request
+
+
+class CancellationRequestBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class CancellationRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    order_id: UUID
+    status: str
+    reason: str | None
+    created_at: datetime
+    decided_at: datetime | None
+    decision_note: str | None
+
+
+class OrderSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    status: str
+    contact_name: str
+    contact_phone: str
+    contact_address: str
+    notes: str | None
+    currency: str
+    intended_customer_id: UUID | None
+    intended_assurance: str | None
+    linked_customer_id: UUID | None
+    invoice_id: UUID | None
+    delivery_date: date | None
+    decision_note: str | None
+    created_at: datetime
+    decided_at: datetime | None
+
+
+class OrderListResponse(BaseModel):
+    orders: list[OrderSummary]
+
+
+class CustomerCandidate(BaseModel):
+    id: UUID
+    name: str
+    phone: str
+    grade: str | None
+    is_hint: bool
+
+
+class OrderDetailResponse(BaseModel):
+    order: OrderSummary
+    candidates: list[CustomerCandidate]
+    cancellation_requests: list[CancellationRequestResponse]
+
+
+class LinkCustomerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    customer_id: UUID | None = None
+    create_from_snapshot: bool = False
+    grade: str | None = Field(default=None, max_length=2)
+
+
+class ConfirmOrderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision_id: UUID
+
+
+class DeclineOrderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: str | None = Field(default=None, max_length=500)
+
+
+class DeliveryDateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    delivery_date: date
+
+
+class CancellationDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approve: bool
+    note: str | None = Field(default=None, max_length=500)
+
+
+class NotificationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    kind: str
+    order_id: UUID | None
+    created_at: datetime
+    read_at: datetime | None
+
+
+class NotificationListResponse(BaseModel):
+    notifications: list[NotificationResponse]
+    unread: int

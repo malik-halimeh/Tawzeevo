@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { money, shopHref } from "@/lib/format";
 import { type Lang, t } from "@/lib/i18n";
@@ -11,6 +11,7 @@ interface ProvisionalOrder {
   business_name: string; status: string; contact_name: string; contact_phone: string; contact_address: string; notes: string | null;
   currency: string; created_at: string; invoice_status: string | null; official_number: string | null;
   subtotal: string; discount: string; markup: string; net_sales: string; items: ProvisionalItem[]; decision_note: string | null;
+  delivery_date: string | null; cancellation: "PENDING" | "APPROVED" | "REJECTED" | null;
 }
 
 const KEY = (slug: string) => `tawzeevo.order-ref.${slug}`;
@@ -23,6 +24,24 @@ const KEY = (slug: string) => `tawzeevo.order-ref.${slug}`;
 export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
   const [order, setOrder] = useState<ProvisionalOrder>();
   const [state, setState] = useState<"loading" | "missing">("loading");
+  const referenceRef = useRef("");
+  const [reason, setReason] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [askResult, setAskResult] = useState<string>();
+
+  const requestCancellation = () => {
+    const reference = referenceRef.current;
+    if (!reference) return;
+    setAsking(true);
+    fetch(`/${slug}/order/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference, reason: reason.trim() || null }) })
+      .then(async (response) => {
+        if (!response.ok) { setAskResult(t(lang, "cancelFailed")); return; }
+        setAskResult(t(lang, "cancelRequested"));
+        setOrder((current) => (current ? { ...current, cancellation: "PENDING" } : current));
+      })
+      .catch(() => setAskResult(t(lang, "cancelFailed")))
+      .finally(() => setAsking(false));
+  };
 
   useEffect(() => {
     let reference = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
@@ -31,6 +50,7 @@ export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
       if (reference) sessionStorage.setItem(KEY(slug), reference);
       else reference = sessionStorage.getItem(KEY(slug)) ?? "";
     } catch { /* no storage: the fragment alone must do */ }
+    referenceRef.current = reference;
     const load = async () => {
       if (!reference) return null;
       const response = await fetch(`/${slug}/order/view`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference }) });
@@ -70,7 +90,18 @@ export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
         </tbody>
         <tfoot><tr><th colSpan={3}>{t(lang, "total")}</th><th dir="ltr">{money(order.net_sales, order.currency)}</th></tr></tfoot>
       </table>
+      {order.delivery_date ? <p className="notice" role="status">{t(lang, "deliveryOn", { date: order.delivery_date })}</p> : null}
       {order.decision_note ? <p className="notice">{order.decision_note}</p> : null}
+      {order.cancellation === "PENDING" ? <p className="notice" role="status">{t(lang, "cancelPending")}</p> : null}
+      {order.cancellation === "REJECTED" ? <p className="muted">{t(lang, "cancelRejected")}</p> : null}
+      {(order.status === "RECEIVED" || order.status === "CONFIRMED") && order.cancellation !== "PENDING" ? (
+        <div className="checkout-form">
+          <label>{t(lang, "cancelReason")}<input maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+          <button className="link-button" disabled={asking} onClick={requestCancellation} type="button">{t(lang, "requestCancel")}</button>
+          {askResult ? <p className="muted" role="status">{askResult}</p> : null}
+          <p className="muted">{t(lang, "cancelNote")}</p>
+        </div>
+      ) : null}
       <p className="muted">{t(lang, "orderProvisionalNote")}</p>
       <p><Link href={shopHref(slug, lang)}>{t(lang, "backToShop")}</Link></p>
     </article>
