@@ -135,7 +135,7 @@ def test_connect_backup_verify_and_status(client, session_factory, monkeypatch):
     manifest = backup["manifest"]
     assert manifest["encryption"]["algorithm"] == "AES-256-GCM"
     assert manifest["encryption"]["kek_id"] == "kek-test-1"
-    assert manifest["migration_version"] == "20260918_0018"
+    assert manifest["migration_version"] == "20260918_0019"
     assert manifest["counts"] == _row_counts(session_factory, tenant)
     assert manifest["counts"]["invoices"] == 1 and manifest["counts"]["payments"] == 1
     # The Drive file holds ciphertext only: no customer name, phone or invoice number in clear.
