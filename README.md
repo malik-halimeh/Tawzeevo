@@ -241,23 +241,6 @@ No new environment variables are required: `VITE_API_BASE_URL` must point to the
 The API itself serves the customer invoice page; this is not the future storefront/checkout.
 See [P3-M5 implementation and demonstration notes](docs/phase-3/p3-m5.md) for security and supplier-foundation boundaries.
 
-## Share a saved invoice with a customer
-
-1. Start the API and operations client using the setup instructions above, then sign in as the tenant owner.
-2. Open a saved invoice and select **Manage invoice links**, then **Create private link**.
-3. Select **Open customer view** to preview the English/Arabic invoice without a customer login.
-4. Copy the displayed URL or select **Share on WhatsApp**. WhatsApp uses the invoice's normalized customer-phone snapshot; no message is sent automatically. A valid snapshot phone is required.
-5. Share the new link immediately: its secret is shown only when created or replaced and is not recoverable from the link list. **Replace link** creates a new link and revokes the old one; **Revoke link** disables that link.
-
-Anyone holding the link can view that invoice until expiry (90 days), revocation, or tenant suspension.
-The page shows the current invoice revision, not unrelated balances, costs, profit, suppliers, or history.
-It is not an account statement or payment-status page. After the page clears the secret from the
-address bar, reload by reopening the original shared link.
-
-No new environment variables are required: `VITE_API_BASE_URL` must point to the reachable API origin
-(not localhost when sharing remotely). Deploy both existing services and use HTTPS in production.
-The API itself serves the customer invoice page; this is not the future storefront/checkout.
-
 ## Validation
 
 Backend checks require a disposable migrated PostgreSQL database:
