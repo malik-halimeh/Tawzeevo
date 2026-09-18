@@ -87,7 +87,7 @@ Do not use this file to invent decisions.
 | D-077 | Password recovery is mandatory before launch (Phase 9 P9-M1): forgot-password e-mail flow with single-use tokens and session invalidation through a transactional e-mail provider on its free tier; the provider is selected when its credentials exist. Approved 2026-09-18 (Gate G1). | LOCKED |
 | D-078 | Performance targets accepted as specified: phone/barcode lookup p95 < 250 ms, CRUD < 400 ms, storefront checkout < 750 ms, sync of 100 operations < 2.5 s, 5xx < 1 % (Phase 9 P9-M3). Approved 2026-09-18 (Gate G2). | LOCKED |
 | D-079 | Background jobs run on an in-process scheduler inside the API for the pilot; a separate worker is a later decision when paying customers exist (Phase 9 P9-M4). Approved 2026-09-18 (Gate G3). | LOCKED |
-| D-080 | Product images move to Cloudflare R2 (S3-compatible object storage) behind the existing provider-neutral storage layer; one staging pair (second Render service set + separate staging database) protects the demo database (Phase 9 P9-M4). Approved 2026-09-18 (Gate G4, G5). | LOCKED |
+| D-080 | Product images move to S3-compatible object storage behind the existing provider-neutral storage layer (Backblaze B2 chosen on 2026-09-18 because it needs no payment card; any S3-compatible bucket works); one staging pair (second Render service set + separate staging database) protects the demo database (Phase 9 P9-M4). Approved 2026-09-18 (Gate G4, G5). | LOCKED |
 
 ## Pending decisions
 
