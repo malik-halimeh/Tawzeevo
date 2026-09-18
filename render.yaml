@@ -6,7 +6,9 @@ services:
     region: frankfurt
     rootDir: apps/api
     buildCommand: pip install .
-    startCommand: uvicorn tawzeevo_api.main:app --host 0.0.0.0 --port $PORT
+    # Migrations run before the API starts so every deploy carries its schema (free plan has no
+    # separate pre-deploy step). Alembic is idempotent: an already-migrated database is a no-op.
+    startCommand: alembic upgrade head && uvicorn tawzeevo_api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
@@ -19,8 +21,22 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
-        value: '["https://tawzeevo-malik-halimeh.onrender.com"]'
+        value: '["https://tawzeevo-malik-halimeh.onrender.com","https://tawzeevo-shop-malik-halimeh.onrender.com"]'
       - key: REFRESH_COOKIE_SECURE
+        value: "true"
+      # Encrypted Google Drive backup (Phase 4). Set the three secrets in the dashboard when the
+      # OAuth client exists; until then the Backup tab reports "not configured".
+      - key: BACKUP_MASTER_KEY
+        sync: false
+      - key: BACKUP_KEK_ID
+        value: kek-prod-1
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        value: https://tawzeevo-malik-halimeh.onrender.com/backup/google/callback
+      - key: BACKUP_SCHEDULER_ENABLED
         value: "true"
 
   - type: web
@@ -34,9 +50,29 @@ services:
         value: 22.22.0
       - key: VITE_API_BASE_URL
         value: https://tawzeevo-api-malik-halimeh.onrender.com
+      - key: VITE_STOREFRONT_BASE_URL
+        value: https://tawzeevo-shop-malik-halimeh.onrender.com
       - key: VITE_DEMO_PREVIEW
         value: "true"
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  # Public per-business storefront (Phase 5): server-rendered Next.js, one address per business.
+  - type: web
+    name: tawzeevo-shop-malik-halimeh
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci && npm run build:storefront
+    startCommand: npm run start --workspace @tawzeevo/storefront-web -- -H 0.0.0.0 -p $PORT
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: API_BASE_URL
+        value: https://tawzeevo-api-malik-halimeh.onrender.com
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://tawzeevo-api-malik-halimeh.onrender.com
