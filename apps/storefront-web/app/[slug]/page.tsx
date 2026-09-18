@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ProductGrid } from "@/components/ProductGrid";
+import { ProductCard, ProductGrid } from "@/components/ProductGrid";
 import { ShopFrame } from "@/components/ShopFrame";
-import { fetchProducts } from "@/lib/catalog";
+import { fetchFeatured, fetchProducts, fetchRecommended } from "@/lib/catalog";
 import { shopHref } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { type SearchParams, loadShop, pageNumber } from "@/lib/shop";
@@ -22,7 +22,11 @@ export default async function ShopHome({ params, searchParams }: Props) {
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, "", query);
   const page = pageNumber(query);
-  const products = await fetchProducts(shop.slug, { page });
+  const [products, featured, recommended] = await Promise.all([
+    fetchProducts(shop.slug, { page }),
+    page === 1 ? fetchFeatured(shop.slug) : Promise.resolve({ items: [] }),
+    page === 1 ? fetchRecommended(shop.slug, 8) : Promise.resolve({ items: [] }),
+  ]);
   return (
     <ShopFrame currentPath={`/${shop.slug}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
       {shop.categories.length > 0 ? (
@@ -37,6 +41,18 @@ export default async function ShopHome({ params, searchParams }: Props) {
             ))}
           </ul>
         </>
+      ) : null}
+      {featured.items.length > 0 ? (
+        <section aria-labelledby="featured-title">
+          <h2 id="featured-title">{t(lang, "featured")}</h2>
+          <ul className="grid">{featured.items.map((product) => <ProductCard key={`f-${product.id}`} lang={lang} product={product} slug={shop.slug} />)}</ul>
+        </section>
+      ) : null}
+      {recommended.items.length > 0 ? (
+        <section aria-labelledby="recommended-title">
+          <h2 id="recommended-title">{t(lang, "recommended")}</h2>
+          <ul className="grid">{recommended.items.map((product) => <ProductCard key={`r-${product.id}`} lang={lang} product={product} slug={shop.slug} />)}</ul>
+        </section>
       ) : null}
       <h2>{t(lang, "allProducts")}</h2>
       <ProductGrid basePath="" emptyKey="noProducts" lang={lang} page={products} slug={shop.slug} />

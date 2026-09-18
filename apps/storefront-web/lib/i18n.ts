@@ -42,6 +42,8 @@ const COPY = {
     productNotFound: "This product is not available in this shop.",
     poweredBy: "Powered by Tawzeevo",
     skipToContent: "Skip to content",
+    featured: "Featured this week",
+    recommended: "Popular in this shop",
   },
   ar: {
     storefront: "المتجر",
@@ -70,6 +72,8 @@ const COPY = {
     productNotFound: "هذا المنتج غير متاح في هذا المتجر.",
     poweredBy: "بدعم من توزيعو",
     skipToContent: "انتقل إلى المحتوى",
+    featured: "مميّز هذا الأسبوع",
+    recommended: "الأكثر رواجاً في هذا المتجر",
   },
 } as const;
 

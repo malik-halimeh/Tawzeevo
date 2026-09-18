@@ -8,7 +8,7 @@
 - Current phase: `5`
 - Current phase status: `IN_PROGRESS`
 - Current milestone: `P5-M2 — Interactions, recommendations, featured campaigns`
-- Current milestone status: `NOT_STARTED`
+- Current milestone status: `IN_PROGRESS` (backend, public API and storefront sections done; owner campaign UI in the operations client remains)
 - Last completed milestone: `P5-M1`
 - Next required user command: `continue`
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
@@ -45,12 +45,12 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 
 ## Current milestone evidence
 
-- Code areas changed (P5-M1, 2026-09-18): tenant storefront slugs with audited rename redirects (`services/storefront.py`, `routes/storefront.py`, `schemas/storefront.py`, migration `20260918_0017`), Arabic product name override (`name_ar`), public catalog API (`/api/v1/public/{slug}/catalog…`, published products of ACTIVE businesses only, public standard price and packaging, deterministic exact/prefix/contains search, bounded pagination, published-only image serving), storefront privacy/rate-limit split in `public_invoice_security.py` (private links keep no-store/noindex; the catalog is cacheable with a wider budget), owner Storefront settings card in the operations client, and the new Next.js 16 App Router storefront (`apps/storefront-web`: shop, category, search and product pages, EN/AR with RTL, mobile-first, permanent redirect from renamed addresses, 404 for unknown/closed shops)
-- Migrations: `20260918_0017_tenant_storefront_slugs` (backfills name-derived unique slugs, `tenant_slug_redirects` with RLS plus a public slug-lookup policy); head `20260918_0017`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-18): backend `193 passed` on disposable PostgreSQL 18 (storefront 5 added: isolation/publication/price/images/no-stock words, deterministic search and pagination, slug rename/redirect/audit/reservation/not-authorization, suspended visible-not-accepting and closed gone, name-derived unique slugs); operations client `70 passed`; storefront `4 passed` (formatting, i18n, links, slug validation) plus ESLint, strict TypeScript and `next build`; manual smoke against the running API: EN and AR (`dir="rtl"`) pages, search, product page, 308 redirect from a renamed slug, 404 for an unknown address
-- Security/invariants: slug is routing identity only (owner endpoints still require the tenant owner); master products never appear alone; unpublished/archived-category products absent; public payload carries no stock/availability/grade/cost/supplier fields (asserted by word scan); images served only for published products of the resolved business; storefront responses get `nosniff` and strict referrer policy; no secret reaches the browser (server components call the API)
-- Known defects: none open for P5-M1
-- Contract deviations: none. Tenant branding foundation is limited to the business name (branding proper is Phase 8); recommendations/featured sections are P5-M2
+- Code areas changed (P5-M2 so far, 2026-09-18): `services/storefront_signals.py` (pseudonymous hashed-session views with a 30-minute de-duplication window — D-062; deterministic scores purchase = 10 / view = 1 — D-048; valid purchase = line of the current confirmed revision of a CONFIRMED invoice, cancelled sales drop out; 90-day raw retention rolled into monthly counts — D-051; featured campaigns with 7-day default, `starts_at <= now < ends_at`, priority → newer → id tie-break, retained expired/cancelled records), migration `20260918_0018` (product_interactions, product_interaction_rollups, featured_campaigns; RLS), public `…/catalog/featured`, `…/catalog/recommended`, `…/products/{id}/view`, owner `…/storefront/campaigns` (list/create/cancel, audited), CLI `rollup-views`, storefront featured/recommended sections and the client-side view beacon
+- Migrations: head `20260918_0018`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-18): backend storefront signals `3 passed` (purchase outweighs nine views, dedupe, unpublished/foreign product 404, hashed session keys, cancelled sale excluded, tie-break by name, limit, tenant isolation; campaign default length, priority/newer ordering, future/expired inactive, backwards interval 422, unpublished never shown, cancel retained, foreign product 404, foreign owner 403; rollup folds 4 old views into `2026-05-01`, keeps fresh rows, idempotent); full backend suite result recorded in the freeze commit; storefront `4 passed`, lint/types/build PASS
+- Remaining for P5-M2: owner campaign management card in the operations client (EN/AR), then mark the milestone complete
+- Known defects: none open
+- Contract deviations: none
 
 ## Latest completed milestone summary
 

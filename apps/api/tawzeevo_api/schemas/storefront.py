@@ -78,3 +78,43 @@ class PublicStorefront(BaseModel):
     categories: list[PublicCategory]
     published_products: int
     generated_at: datetime
+
+
+class ViewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str = Field(min_length=8, max_length=128)
+
+
+class ViewResponse(BaseModel):
+    counted: bool
+
+
+class FeaturedResponse(BaseModel):
+    items: list[PublicProduct]
+
+
+class CampaignRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: UUID
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    priority: int = Field(default=0, ge=0, le=1000)
+
+
+class CampaignResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_product_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    priority: int
+    created_at: datetime
+    cancelled_at: datetime | None
+    active: bool = False
+
+
+class CampaignListResponse(BaseModel):
+    campaigns: list[CampaignResponse]

@@ -413,3 +413,25 @@ def public_image(db: Session, slug: str, kind: str, image_id: UUID) -> tuple[str
         )
         return (master.object_key, master.content_type) if master else None
     return None
+
+
+def public_products_by_ids(db: Session, slug: str, product_ids: list[UUID]) -> list[PublicProduct]:
+    """Published products in the given order (featured/recommended lists)."""
+    tenant, _resolution = _public_tenant(db, slug)
+    if not product_ids:
+        return []
+    rows = {
+        row.id: row
+        for row in db.scalars(_published(tenant.id).where(TenantProduct.id.in_(product_ids)))
+    }
+    barcodes = _primary_barcodes(db, tenant.id, [pid for pid in product_ids if pid in rows])
+    return [
+        _product(db, rows[pid], tenant.slug, barcodes.get(pid))
+        for pid in product_ids
+        if pid in rows
+    ]
+
+
+def public_tenant_id(db: Session, slug: str) -> UUID:
+    tenant, _resolution = _public_tenant(db, slug)
+    return tenant.id

@@ -1708,3 +1708,78 @@ class TenantBackupRestore(Base):
             "status IN ('VERIFIED', 'IMPORTED', 'FAILED')", name="ck_backup_restores_status"
         ),
     )
+
+
+class ProductInteraction(Base):
+    """A pseudonymous storefront view (D-062). Never an identity; session ids are hashed."""
+
+    __tablename__ = "product_interactions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_product_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_products.id", ondelete="CASCADE"), nullable=False
+    )
+    session_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="VIEW")
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('VIEW')", name="ck_product_interactions_kind"),
+        Index(
+            "ix_product_interactions_dedupe",
+            "tenant_id",
+            "tenant_product_id",
+            "session_key",
+            "occurred_at",
+        ),
+        Index("ix_product_interactions_tenant_occurred", "tenant_id", "occurred_at"),
+    )
+
+
+class ProductInteractionRollup(Base):
+    """Monthly view counts after the 90-day raw retention (D-051); no session keys."""
+
+    __tablename__ = "product_interaction_rollups"
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    tenant_product_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_products.id", ondelete="CASCADE"), primary_key=True
+    )
+    month: Mapped[date] = mapped_column(Date, primary_key=True)
+    views: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text("0"))
+
+
+class FeaturedCampaign(Base):
+    """Owner-chosen featured product window (PHASE_05.md K). Advertising, never availability."""
+
+    __tablename__ = "featured_campaigns"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_product_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_products.id", ondelete="CASCADE"), nullable=False
+    )
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    priority: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    created_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("ends_at > starts_at", name="ck_featured_campaigns_interval"),
+        Index("ix_featured_campaigns_tenant_window", "tenant_id", "starts_at", "ends_at"),
+    )

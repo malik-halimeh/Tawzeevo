@@ -17,12 +17,16 @@ from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import SessionLocal
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.services.backup import rotate_master_key, run_due_backups
+from tawzeevo_api.services.storefront_signals import rollup_views
 
 
 def parser() -> argparse.ArgumentParser:
     command = argparse.ArgumentParser(description="Tawzeevo encrypted backup jobs.")
     sub = command.add_subparsers(dest="job", required=True)
     sub.add_parser("run-due", help="Back up every connected tenant that is due.")
+    sub.add_parser(
+        "rollup-views", help="Fold storefront views older than 90 days into monthly counts."
+    )
     rotate = sub.add_parser(
         "rotate-master-key",
         help="Re-wrap tenant keys from BACKUP_MASTER_KEY to BACKUP_MASTER_KEY_NEXT.",
@@ -39,6 +43,8 @@ def main() -> int:
             if arguments.job == "run-due":
                 done = run_due_backups(db, settings=settings)
                 print(f"backups uploaded for {len(done)} tenant(s)")
+            elif arguments.job == "rollup-views":
+                print(f"rolled up {rollup_views(db)} view(s)")
             else:
                 next_key = os.environ.get("BACKUP_MASTER_KEY_NEXT")
                 if not next_key:

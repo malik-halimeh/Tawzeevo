@@ -95,3 +95,11 @@ export function fetchProduct(slug: string, productId: string): Promise<PublicPro
 export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/.test(slug) && slug.length >= 3;
 }
+
+export function fetchFeatured(slug: string): Promise<{ items: PublicProduct[] }> {
+  return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/featured`);
+}
+
+export function fetchRecommended(slug: string, limit = 8): Promise<{ items: PublicProduct[] }> {
+  return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/recommended?limit=${limit}`);
+}
