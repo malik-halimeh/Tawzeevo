@@ -7,9 +7,9 @@
 - Current workstream: `Phase 5 — Linked Bilingual Guest Storefront, Orders, Recommendations, Advertising`
 - Current phase: `5`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P5-M4 — Guest checkout, idempotency, provisional representation`
+- Current milestone: `P5-M5 — Owner review, confirmation, delivery date, cancellation`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P5-M3`
+- Last completed milestone: `P5-M4`
 - Next required user command: `continue`
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -45,14 +45,21 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 
 ## Current milestone evidence
 
-- Code areas changed (P5-M3, 2026-09-18/19): `services/customer_access.py` (issue/rotate under the customer row lock, revoke, status, policy fields, `resolve_context` → `CustomerContext` with assurance `LINK`), migration `20260918_0019` (`customer_access_links` hash-only with a partial unique "one active per customer" index and RLS; `tenants.customer_access_policy`, `customers.access_policy_override` with check constraints), public `GET /api/v1/public/customer-context` (private header, `no-store`, 60/min budget through the existing middleware), catalog list/detail/featured/recommended personalized through the optional `X-Customer-Capability` header (`private, no-store`, `Vary`), owner endpoints `…/customers/{id}/access-link` (GET/POST/DELETE) and access-policy endpoints (LINK only; others 409 `ACCESS_POLICY_NOT_AVAILABLE`), operations client `CustomerLinkControls` (issue once-shown URL, rotate, revoke, EN/AR), storefront `/{slug}/access#secret` entry (client exchanges the fragment for a first-party HttpOnly SameSite=Lax cookie with a 30-day maximum via `/{slug}/access/session`, fragment stripped), personalized banner with exit, server pages forward the cookie as the header with `no-store`
-- Migrations: head `20260918_0019`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-19): backend customer access `3 passed` (public vs personalized price, explicit grade price and grade change follow the identity without a new link, no grade/debt/history in any public payload, secret absent from logs and stored only as SHA-256, no expiry; rotation kills the old secret atomically, revocation, one active row, Customer A never resolves Customer B, constant 404 for bad secrets, foreign owner 403/404, non-LINK policies 409, audit events; 4 concurrent issuances → exactly one active; suspended business → anonymous, reactivated → personalized); operations client `72 passed`; storefront `5 passed`; lint/types/build PASS; local end-to-end smoke: anonymous 10.00 → cookie exchange → 8.50 with banner → wrong secret 404 → revocation → same cookie shows 10.00, secret never in the API log
-- Security/invariants: link = exact customer, never grade/price/phone in the token; every request re-resolves the secret so rotation/revocation/suspension end contexts immediately (D-075); LINK grants pricing/catalog only — no orders yet (P5-M4 adds the intended-customer hint); financial authority untouched
-- Known defects: none open for P5-M3
+- Code areas changed (P5-M4, 2026-09-19): migration `20260919_0020` (`orders` with immutable contact snapshot, `intended_customer_id`/`intended_assurance` hint, `invoice_id`; `checkout_idempotency` keyed by tenant + `Idempotency-Key` with a request fingerprint; `order_access_references` hashed 72-hour provisional references; `owner_notifications` with one-per-order uniqueness; RLS everywhere), `services/checkout.py` (advisory lock per key → replay returns the stored result, different body → 409 `IDEMPOTENCY_CONFLICT`; published-product validation, phone normalization, single currency; RECEIVED order + draft invoice + first provisional revision priced by pricing-v1 through the personalized context when present or a transient guest with no grade; exactly one `ORDER_RECEIVED` notification), public `POST /api/v1/public/{slug}/checkout` and `GET /api/v1/public/order` (reference in the private `X-Order-Reference` header, `no-store`, noindex, 60/min), storefront cart (localStorage per shop), checkout form (name/phone/address/notes), server-side proxy routes that add the HttpOnly personalized cookie as the capability header and pass the browser's idempotency key through, provisional order page (`/{slug}/order#reference`, fragment stripped, sessionStorage revisit), "Add to cart" on cards and product pages, cart link with count; log filter fixed to redact `record.args` in place (uvicorn access lines were being dropped)
+- Migrations: head `20260919_0020`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-19): backend checkout `3 passed` (atomic: 1 order / 1 draft / 1 revision / 1 reference / 1 notification, no customer, no official number; replay returns the same order with `replayed`; conflicting body 409; provisional projection contains no grade/debt/cost/supplier/driver words, `no-store` + noindex; bad references constant 404; mandatory fields, invalid phone, empty cart, unpublished product, missing key → 422; existing customer's phone never links; personalized link → customer price and hint only, invoice still unlinked draft; rotated link at checkout is anonymous; suspended business 409 while provisional pages stay readable); storefront `5 passed`, lint/types/build PASS; local end-to-end: API checkout + replay, provisional page through the storefront proxy, cart buttons rendered
+- Security/invariants: link possession ≠ customer confirmation ≠ financial authority (D-072): a checkout never creates a confirmed invoice, payment or ledger entry; the hint is on the order, the invoice's `customer_id` stays null until the owner links it (P5-M5); provisional references are separate from D-042 links and expire after 72 h
+- Known defects: none open for P5-M4
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P5-M4 (2026-09-19) delivered guest checkout: cart and checkout without an account, one RECEIVED
+order per idempotency key with an immutable contact snapshot, a draft invoice and first provisional
+revision priced by the server, a short-lived provisional order page, one owner notification per
+order, and the intended-customer hint from a personalized link that never becomes financial truth.
+
+### Previous (P5-M3)
 
 P5-M3 (2026-09-19) established the personalized customer context: owner-issued opaque links
 bound to the exact customer, one active per customer with atomic rotation and revocation, no

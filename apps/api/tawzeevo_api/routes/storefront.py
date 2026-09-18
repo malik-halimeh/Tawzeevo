@@ -7,10 +7,16 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
+from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.routes.cash_van import _storage_dependency
+from tawzeevo_api.schemas.checkout import (
+    CheckoutRequest,
+    CheckoutResponse,
+    ProvisionalOrderResponse,
+)
 from tawzeevo_api.schemas.storefront import (
     CampaignListResponse,
     CampaignRequest,
@@ -30,7 +36,7 @@ from tawzeevo_api.schemas.storefront import (
     ViewRequest,
     ViewResponse,
 )
-from tawzeevo_api.services import customer_access, storefront, storefront_signals
+from tawzeevo_api.services import checkout, customer_access, storefront, storefront_signals
 from tawzeevo_api.services.media import ObjectStorage
 
 storefront_public_router = APIRouter(prefix="/api/v1/public", tags=["storefront"])
@@ -343,3 +349,44 @@ def set_tenant_access_policy(
         db, context.tenant, context.membership.user_id, request.policy
     )
     return storefront.storefront_settings(db, context.tenant)
+
+
+# ---------------------------------------------------------------------------------------------
+# Guest checkout and provisional order page (P5-M4; D-046, D-049)
+# ---------------------------------------------------------------------------------------------
+
+
+@storefront_public_router.post(
+    "/{tenant_slug}/checkout", response_model=CheckoutResponse, status_code=status.HTTP_201_CREATED
+)
+def guest_checkout(
+    tenant_slug: str,
+    request: CheckoutRequest,
+    http_request: Request,
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> CheckoutResponse:
+    """One order per Idempotency-Key: a replay returns the original; a different body is 409.
+    A valid personalized capability adds only the intended-customer hint."""
+    response.headers["Cache-Control"] = PRIVATE_CACHE
+    context = customer_access.resolve_context(db, http_request.headers.get(CAPABILITY_HEADER))
+    return checkout.checkout(
+        db,
+        tenant_slug,
+        request,
+        idempotency_key,
+        context,
+        fuzzy_threshold=get_settings().invoice_fuzzy_match_threshold,
+    )
+
+
+@storefront_public_router.get("/order", response_model=ProvisionalOrderResponse)
+def read_provisional_order(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    reference: Annotated[str | None, Header(alias="X-Order-Reference")] = None,
+) -> ProvisionalOrderResponse:
+    """Fixed path; the provisional reference travels only in the private header (D-046)."""
+    response.headers["Cache-Control"] = PRIVATE_CACHE
+    return checkout.provisional_order(db, reference)

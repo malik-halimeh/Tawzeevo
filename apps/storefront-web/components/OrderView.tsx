@@ -1,0 +1,78 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { money, shopHref } from "@/lib/format";
+import { type Lang, t } from "@/lib/i18n";
+
+interface ProvisionalItem { name: string; quantity: string; unit: string; pieces_per_box: number | null; unit_price: string; total: string }
+interface ProvisionalOrder {
+  business_name: string; status: string; contact_name: string; contact_phone: string; contact_address: string; notes: string | null;
+  currency: string; created_at: string; invoice_status: string | null; official_number: string | null;
+  subtotal: string; discount: string; markup: string; net_sales: string; items: ProvisionalItem[]; decision_note: string | null;
+}
+
+const KEY = (slug: string) => `tawzeevo.order-ref.${slug}`;
+
+/**
+ * Provisional order page (D-046): the reference arrives in the URL fragment, is kept in this
+ * browser's sessionStorage for revisits within its lifetime, and is sent only in a private
+ * header through the shop's proxy. It shows the order as submitted — not a confirmed invoice.
+ */
+export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
+  const [order, setOrder] = useState<ProvisionalOrder>();
+  const [state, setState] = useState<"loading" | "missing">("loading");
+
+  useEffect(() => {
+    let reference = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+    if (window.location.hash) history.replaceState(null, "", window.location.pathname + window.location.search);
+    try {
+      if (reference) sessionStorage.setItem(KEY(slug), reference);
+      else reference = sessionStorage.getItem(KEY(slug)) ?? "";
+    } catch { /* no storage: the fragment alone must do */ }
+    const load = async () => {
+      if (!reference) return null;
+      const response = await fetch(`/${slug}/order/view`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference }) });
+      return response.ok ? ((await response.json()) as ProvisionalOrder) : null;
+    };
+    load().then((result) => { if (result) setOrder(result); else setState("missing"); }).catch(() => setState("missing"));
+  }, [slug]);
+
+  if (!order) {
+    return state === "missing"
+      ? <section className="empty" role="alert"><h2>{t(lang, "orderUnavailableTitle")}</h2><p>{t(lang, "orderUnavailableBody")}</p><p><Link href={shopHref(slug, lang)}>{t(lang, "backToShop")}</Link></p></section>
+      : <p className="muted" role="status">{t(lang, "orderLoading")}</p>;
+  }
+  const statusKey = `orderStatus_${order.status}` as "orderStatus_RECEIVED" | "orderStatus_CONFIRMED" | "orderStatus_DECLINED" | "orderStatus_CANCELLED";
+  return (
+    <article className="order" aria-labelledby="order-title">
+      <h2 id="order-title">{t(lang, "orderTitle")}</h2>
+      <p className="notice" role="status">{t(lang, statusKey)}</p>
+      {order.official_number ? <p><strong>{t(lang, "invoiceNumber")}:</strong> <span dir="ltr">{order.official_number}</span></p> : null}
+      <dl className="facts">
+        <dt>{t(lang, "name")}</dt><dd>{order.contact_name}</dd>
+        <dt>{t(lang, "phone")}</dt><dd dir="ltr">{order.contact_phone}</dd>
+        <dt>{t(lang, "address")}</dt><dd>{order.contact_address}</dd>
+        {order.notes ? <><dt>{t(lang, "notes")}</dt><dd>{order.notes}</dd></> : null}
+      </dl>
+      <table className="order-lines">
+        <thead><tr><th>{t(lang, "item")}</th><th>{t(lang, "quantity")}</th><th>{t(lang, "unitPrice")}</th><th>{t(lang, "lineTotal")}</th></tr></thead>
+        <tbody>
+          {order.items.map((item, index) => (
+            <tr key={index}>
+              <td>{item.name}</td>
+              <td dir="ltr">{Number(item.quantity)} {item.unit === "BOX" ? t(lang, "box") : t(lang, "piece")}</td>
+              <td dir="ltr">{money(item.unit_price, order.currency)}</td>
+              <td dir="ltr">{money(item.total, order.currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot><tr><th colSpan={3}>{t(lang, "total")}</th><th dir="ltr">{money(order.net_sales, order.currency)}</th></tr></tfoot>
+      </table>
+      {order.decision_note ? <p className="notice">{order.decision_note}</p> : null}
+      <p className="muted">{t(lang, "orderProvisionalNote")}</p>
+      <p><Link href={shopHref(slug, lang)}>{t(lang, "backToShop")}</Link></p>
+    </article>
+  );
+}

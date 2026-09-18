@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AddToCart } from "@/components/CartControls";
 import { ShopFrame } from "@/components/ShopFrame";
 import { ViewBeacon } from "@/components/ViewBeacon";
 import { CatalogError, type PublicProduct, fetchProduct, publicApiBase } from "@/lib/catalog";
@@ -51,6 +52,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
           <h2 id="product-name">{name}</h2>
           <p className="price">{priceLine(product, lang)}</p>
           {secondary ? <p className="muted">{secondary}</p> : null}
+          {shop.accepting_orders ? <AddToCart lang={lang} product={product} slug={shop.slug} /> : null}
           <dl>
             {category ? <><dt>{t(lang, "categories")}</dt><dd><Link href={shopHref(shop.slug, lang, `/c/${category.id}`)}>{lang === "ar" ? category.name_ar : category.name_en}</Link></dd></> : null}
             {product.barcode ? <><dt>{t(lang, "barcode")}</dt><dd dir="ltr">{product.barcode}</dd></> : null}

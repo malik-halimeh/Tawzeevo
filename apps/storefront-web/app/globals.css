@@ -70,3 +70,22 @@ h2 { font-size: 1.05rem; margin: 1rem 0 0.5rem; }
 
 .notice.personal { background: #e6f4ef; color: #0f5140; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; }
 .link-button { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font-size: 0.95rem; cursor: pointer; }
+
+.card-actions { padding: 0 0.7rem 0.7rem; }
+.add-compact, .add-button { border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); padding: 0.45rem 0.8rem; font-size: 0.95rem; cursor: pointer; }
+.add-button { padding: 0.7rem 1.2rem; font-size: 1rem; margin: 0.5rem 0; }
+.add-compact:disabled, .add-button:disabled { opacity: 0.6; }
+.cart-lines { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: 0.5rem; }
+.cart-lines li { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0.6rem 0.8rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.cart-lines .qty { display: flex; align-items: center; gap: 0.4rem; }
+.cart-lines .qty input { width: 4rem; text-align: center; padding: 0.35rem; border: 1px solid var(--line); border-radius: 6px; }
+.cart-lines .qty button:not(.link-button) { width: 2rem; height: 2rem; border: 1px solid var(--line); background: var(--card); border-radius: 6px; font-size: 1.1rem; }
+.checkout-form { display: grid; gap: 0.6rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; max-width: 560px; }
+.checkout-form label { display: grid; gap: 0.25rem; font-size: 0.95rem; }
+.checkout-form input, .checkout-form textarea { padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: 8px; font-size: 1rem; font-family: inherit; }
+.order .facts { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; margin: 0.75rem 0; }
+.order .facts dt { color: var(--muted); }
+.order .facts dd { margin: 0; }
+.order-lines { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.order-lines th, .order-lines td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); text-align: start; }
+.order-lines tfoot th { border-bottom: 0; }

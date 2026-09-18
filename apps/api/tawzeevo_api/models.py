@@ -1835,3 +1835,115 @@ class CustomerAccessLink(Base):
             postgresql_where=text("revoked_at IS NULL"),
         ),
     )
+
+
+class Order(Base):
+    """Storefront guest order (PHASE_05.md E/G). `intended_customer_id` is a hint (D-072)."""
+
+    __tablename__ = "orders"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="RECEIVED", server_default="RECEIVED"
+    )
+    contact_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    contact_phone: Mapped[str] = mapped_column(String(32), nullable=False)
+    contact_phone_raw: Mapped[str] = mapped_column(String(64), nullable=False)
+    contact_address: Mapped[str] = mapped_column(String(500), nullable=False)
+    notes: Mapped[str | None] = mapped_column(String(1000))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    intended_customer_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("customers.id", ondelete="SET NULL")
+    )
+    intended_assurance: Mapped[str | None] = mapped_column(String(12))
+    invoice_id: Mapped[UUID | None] = mapped_column(ForeignKey("invoices.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decision_note: Mapped[str | None] = mapped_column(String(500))
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('RECEIVED', 'CONFIRMED', 'DECLINED', 'CANCELLED')", name="ck_orders_status"
+        ),
+        CheckConstraint(
+            "intended_assurance IS NULL OR intended_assurance IN ('LINK')",
+            name="ck_orders_intended_assurance",
+        ),
+        Index("ix_orders_tenant_status_created", "tenant_id", "status", "created_at"),
+    )
+
+
+class CheckoutIdempotency(Base):
+    __tablename__ = "checkout_idempotency"
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    idempotency_key: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    order_id: Mapped[UUID] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
+    )
+    response: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class OrderAccessReference(Base):
+    """Short-lived provisional reference bound to one checkout (D-046); never a D-042 link."""
+
+    __tablename__ = "order_access_references"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    order_id: Mapped[UUID] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
+    )
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("ix_order_access_references_order", "tenant_id", "order_id"),)
+
+
+class OwnerNotification(Base):
+    """In-app owner notification; exactly one per accepted checkout (D-049)."""
+
+    __tablename__ = "owner_notifications"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    order_id: Mapped[UUID | None] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_owner_notifications_tenant_created", "tenant_id", "created_at"),
+        Index(
+            "uq_owner_notifications_order_kind",
+            "tenant_id",
+            "order_id",
+            "kind",
+            unique=True,
+            postgresql_where=text("order_id IS NOT NULL"),
+        ),
+    )

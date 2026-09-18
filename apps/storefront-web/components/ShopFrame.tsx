@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import type { PublicStorefront } from "@/lib/catalog";
 import type { CustomerContext } from "@/lib/personal";
+import { CartLink } from "./CartControls";
 import { PersonalBanner } from "./PersonalBanner";
 import { shopHref } from "@/lib/format";
 import { type Lang, dirFor, otherLang, t } from "@/lib/i18n";
@@ -34,6 +35,7 @@ export function ShopFrame({
       <header className="shop-header">
         <h1><Link href={shopHref(shop.slug, lang)}>{shop.name}</Link></h1>
         <nav aria-label={t(lang, "storefront")}>
+          <CartLink lang={lang} slug={shop.slug} />
           <Link className="lang" href={switchHref} hrefLang={other} lang={other}>{t(lang, "language")}</Link>
         </nav>
         <form action={`/${shop.slug}/search`} className="search-form" method="get" role="search">

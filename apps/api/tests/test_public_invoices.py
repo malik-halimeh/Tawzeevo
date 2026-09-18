@@ -278,7 +278,7 @@ def test_public_rate_limit_and_access_log_redaction(client, monkeypatch, caplog)
     monkeypatch.setattr(logger, "propagate", True)
     with caplog.at_level(logging.INFO, logger="uvicorn.access"):
         logger.info("GET /wrong?token=%s", raw)
-    assert raw not in caplog.text and "[invoice-link-redacted]" in caplog.text
+    assert raw not in caplog.text and "[capability-redacted]" in caplog.text
     record = logging.LogRecord("test", logging.INFO, "", 1, "value %s", (raw,), None)
     assert CapabilityLogFilter().filter(record)
     assert raw not in record.getMessage()

@@ -4,6 +4,7 @@ import type { PublicProduct, PublicProductPage } from "@/lib/catalog";
 import { publicApiBase } from "@/lib/catalog";
 import { priceLine, productName, secondaryPriceLine, shopHref } from "@/lib/format";
 import { type Lang, t } from "@/lib/i18n";
+import { AddToCart } from "./CartControls";
 
 export function ProductCard({ slug, product, lang }: { slug: string; product: PublicProduct; lang: Lang }) {
   const image = product.images[0];
@@ -20,6 +21,7 @@ export function ProductCard({ slug, product, lang }: { slug: string; product: Pu
           {secondaryPriceLine(product, lang) ? <span className="sub">{secondaryPriceLine(product, lang)}</span> : null}
         </div>
       </Link>
+      <div className="card-actions"><AddToCart compact lang={lang} product={product} slug={slug} /></div>
     </li>
   );
 }

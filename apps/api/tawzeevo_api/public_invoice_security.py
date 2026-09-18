@@ -23,11 +23,25 @@ _TOKEN_LOG_PATTERN = re.compile(r"[a-fA-F0-9]{32}(?:\.|%2[eE])[A-Za-z0-9_-]{43}"
 _OAUTH_LOG_PATTERN = re.compile(r"(?i)\b(code|state|refresh_token|access_token)=[^&\s\"']+")
 
 
+def _redact(value: str) -> str:
+    return _OAUTH_LOG_PATTERN.sub(
+        r"\1=[redacted]", _TOKEN_LOG_PATTERN.sub("[capability-redacted]", value)
+    )
+
+
 class CapabilityLogFilter(logging.Filter):
+    """Redacts capability secrets and OAuth codes/tokens from log records. Uvicorn's access
+    formatter reads `record.args` positionally, so args are redacted in place, never dropped."""
+
     def filter(self, record: logging.LogRecord) -> bool:
-        message = _TOKEN_LOG_PATTERN.sub("[invoice-link-redacted]", record.getMessage())
-        record.msg = _OAUTH_LOG_PATTERN.sub(r"\1=[redacted]", message)
-        record.args = ()
+        if isinstance(record.msg, str):
+            record.msg = _redact(record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(_redact(a) if isinstance(a, str) else a for a in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {
+                k: _redact(v) if isinstance(v, str) else v for k, v in record.args.items()
+            }
         return True
 
 
@@ -81,6 +95,7 @@ class PublicInvoicePrivacyMiddleware:
         private_public = public and (
             path.startswith("/api/v1/public/invoice")
             or path.startswith("/api/v1/public/customer-context")
+            or path.startswith("/api/v1/public/order")
         )
         private_link = path.startswith("/api/v1/invoices/") and "/capabilities" in path
         if scope["type"] != "http" or not (public or private_link):
