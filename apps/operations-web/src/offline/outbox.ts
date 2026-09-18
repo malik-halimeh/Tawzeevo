@@ -136,7 +136,7 @@ export async function updateCustomerOffline(
 export async function createProductOffline(
   tenantId: string,
   membershipId: string,
-  input: { category_id: string; name: string; barcode: string; barcode_package_level?: "PIECE" | "BOX"; unit_price: string; currency: string; price_basis: "PIECE" | "BOX"; pieces_per_box: number | null; is_published?: boolean; master_product_id?: string | null },
+  input: { category_id: string; name: string; name_ar?: string | null; barcode: string; barcode_package_level?: "PIECE" | "BOX"; unit_price: string; currency: string; price_basis: "PIECE" | "BOX"; pieces_per_box: number | null; is_published?: boolean; master_product_id?: string | null },
 ): Promise<LocalProduct> {
   const db = openLocalDatabase(tenantId, membershipId);
   const row: LocalProduct = {

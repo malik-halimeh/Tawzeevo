@@ -245,6 +245,7 @@ class TenantProductCreateRequest(BaseModel):
     category_id: UUID
     master_product_id: UUID | None = None
     name: str = Field(max_length=200)
+    name_ar: str | None = Field(default=None, max_length=200)
     barcode: str = Field(max_length=64)
     barcode_package_level: BarcodePackageLevel = BarcodePackageLevel.PIECE
     is_published: bool = False
@@ -284,6 +285,7 @@ class TenantProductUpdateRequest(BaseModel):
 
     category_id: UUID | None = None
     name: str | None = Field(default=None, max_length=200)
+    name_ar: str | None = Field(default=None, max_length=200)
     is_published: bool | None = None
     unit_price: Decimal | None = Field(default=None, ge=0, max_digits=20, decimal_places=4)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
@@ -409,6 +411,7 @@ class TenantProductResponse(BaseModel):
     category_id: UUID
     master_product_id: UUID | None
     name: str
+    name_ar: str | None = None
     barcode: str
     barcodes: list[BarcodeResponse]
     images: list[ProductImageResponse]

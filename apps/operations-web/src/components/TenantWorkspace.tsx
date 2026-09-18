@@ -26,6 +26,7 @@ import { CONNECT_RESULT_KEY } from "../backup/connect";
 import { isOfflineFailure } from "../offline/network";
 import { createCustomerOffline, createProductOffline, updateCustomerOffline, updateProductOffline } from "../offline/outbox";
 import { BackupPanel } from "./BackupPanel";
+import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
 
 const grades: CustomerGrade[] = ["A+", "A", "B+", "B"];
@@ -66,6 +67,7 @@ interface ProductDraft {
   category_id: string;
   master_product_id: string | null;
   name: string;
+  name_ar: string;
   barcode: string;
   barcode_package_level: BarcodePackageLevel;
   unit_price: string;
@@ -79,6 +81,7 @@ const emptyProduct: ProductDraft = {
   category_id: "",
   master_product_id: null,
   name: "",
+  name_ar: "",
   barcode: "",
   barcode_package_level: "PIECE",
   unit_price: "",
@@ -547,7 +550,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const saveProduct = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
-      const body = { ...productDraft, pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null };
+      const body = { ...productDraft, name_ar: productDraft.name_ar.trim() || null, pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null };
       try {
         await apiRequest<TenantProduct>(`/api/v1/tenants/${context.tenant_id}/products`, {
           method: "POST",
@@ -689,6 +692,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             </div>
           ) : view === "products" ? (
             <div className="catalog-workspace" role="tabpanel">
+              <StorefrontSettings tenantId={context.tenant_id} />
               <article className="content-card scan-desk">
                 <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
                 <h3>{t("tenantWorkspace.scanTitle")}</h3>
@@ -706,6 +710,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                   <h3>{t("tenantWorkspace.productDetails")}</h3>
                   <form className="form-grid" onSubmit={saveProduct}>
                     <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label>
+                    <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={productDraft.name_ar} onChange={(event) => setProductDraft({ ...productDraft, name_ar: event.target.value })} /></label>
                     <label className="field"><span>{t("tenantWorkspace.category")}</span><select required value={productDraft.category_id} onChange={(event) => setProductDraft({ ...productDraft, category_id: event.target.value })}><option value="">{t("tenantWorkspace.chooseCategory")}</option>{categories.data?.categories.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
                     <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={productDraft.barcode} onChange={(event) => setProductDraft({ ...productDraft, barcode: event.target.value })} /></label>
                     <label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={productDraft.barcode_package_level} onChange={(event) => setProductDraft({ ...productDraft, barcode_package_level: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>

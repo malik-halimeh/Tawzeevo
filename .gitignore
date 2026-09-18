@@ -24,6 +24,8 @@ htmlcov/
 # Node / frontend
 node_modules/
 dist/
+.next/
+next-env.d.ts
 coverage/
 playwright-report/
 test-results/
@@ -51,3 +53,7 @@ docs/documents/
 
 # Working documents kept out of the public repository (owner decision A3, 2026-09-18)
 private/
+
+# Tool-generated agent notes (never committed)
+apps/storefront-web/AGENTS.md
+apps/storefront-web/CLAUDE.md

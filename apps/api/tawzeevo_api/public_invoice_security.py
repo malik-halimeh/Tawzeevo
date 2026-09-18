@@ -15,6 +15,10 @@ PRIVACY_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
 }
+CATALOG_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
 _TOKEN_LOG_PATTERN = re.compile(r"[a-fA-F0-9]{32}(?:\.|%2[eE])[A-Za-z0-9_-]{43}")
 _OAUTH_LOG_PATTERN = re.compile(r"(?i)\b(code|state|refresh_token|access_token)=[^&\s\"']+")
 
@@ -66,16 +70,22 @@ class PublicInvoicePrivacyMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
         self.limiter = PublicInvoiceRateLimiter()
+        # Storefront catalog pages are shareable and image-heavy: a wider, separate budget.
+        self.catalog_limiter = PublicInvoiceRateLimiter(limit=600, window=60)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get("path", "")
         public = path.startswith("/api/v1/public/")
+        # Private customer links (/api/v1/public/invoice...) get no-store/noindex headers; the
+        # per-business storefront catalog is public and cacheable by design (PHASE_05.md C).
+        private_public = public and path.startswith("/api/v1/public/invoice")
         private_link = path.startswith("/api/v1/invoices/") and "/capabilities" in path
         if scope["type"] != "http" or not (public or private_link):
             await self.app(scope, receive, send)
             return
 
         started = False
+        headers = PRIVACY_HEADERS if (private_public or private_link) else CATALOG_HEADERS
 
         async def private_send(message: Message) -> None:
             nonlocal started
@@ -84,15 +94,16 @@ class PublicInvoicePrivacyMiddleware:
                 existing = [
                     (k, v)
                     for k, v in message.get("headers", [])
-                    if k.decode().lower() not in {s.lower() for s in PRIVACY_HEADERS}
+                    if k.decode().lower() not in {s.lower() for s in headers}
                 ]
                 message["headers"] = existing + [
-                    (k.lower().encode(), v.encode()) for k, v in PRIVACY_HEADERS.items()
+                    (k.lower().encode(), v.encode()) for k, v in headers.items()
                 ]
             await send(message)
 
         client = scope.get("client")
-        if public and not self.limiter.allow(client[0] if client else "unknown"):
+        limiter = self.limiter if private_public else self.catalog_limiter
+        if public and not limiter.allow(client[0] if client else "unknown"):
             await JSONResponse(
                 {"detail": {"code": "RATE_LIMITED", "message": "Please try again later"}},
                 status_code=429,
@@ -102,7 +113,7 @@ class PublicInvoicePrivacyMiddleware:
         try:
             await self.app(scope, receive, private_send)
         except Exception:
-            if not public or started:
+            if not private_public or started:
                 raise
             # Do not log request headers or exception objects that could contain a secret.
             logging.getLogger("tawzeevo.public_invoices").error("Public invoice request failed")

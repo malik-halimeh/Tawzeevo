@@ -25,6 +25,7 @@ from tawzeevo_api.routes.invoices import invoices_router
 from tawzeevo_api.routes.payments import payments_router
 from tawzeevo_api.routes.platform import platform_router, tenant_applications_router
 from tawzeevo_api.routes.public_invoices import capabilities_router, public_invoices_router
+from tawzeevo_api.routes.storefront import storefront_owner_router, storefront_public_router
 from tawzeevo_api.routes.supplier_ledger import supplier_ledger_router, supplier_payments_router
 from tawzeevo_api.routes.suppliers import suppliers_router
 from tawzeevo_api.routes.sync import sync_router
@@ -98,6 +99,13 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "storefront",
+        "description": (
+            "Public per-business storefront catalog (published products only, public prices) "
+            "and owner storefront settings."
+        ),
+    },
+    {
         "name": "backup",
         "description": (
             "Owner-only encrypted Google Drive backup: connection, manifests, restore drills."
@@ -138,6 +146,8 @@ app.include_router(suppliers_router)
 app.include_router(sync_router)
 app.include_router(backup_router)
 app.include_router(platform_backup_router)
+app.include_router(storefront_public_router)
+app.include_router(storefront_owner_router)
 register_change_tracking()
 app.add_middleware(PublicInvoicePrivacyMiddleware)
 

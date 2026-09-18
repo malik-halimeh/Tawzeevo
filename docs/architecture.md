@@ -23,8 +23,13 @@ Unauthenticated invoice-link browser (not a storefront)
     -> fragment secret removed from address bar
        -> X-Invoice-Capability -> restricted current-invoice projection
 
+Public storefront (apps/storefront-web, Next.js App Router, server components)
+  /<tenant-slug>[/c/<category>|/p/<product>|/search?q=]
+    -> /api/v1/public/<tenant-slug>/catalog... (published products of an ACTIVE business only,
+       public standard price and packaging, no stock/availability/grade/cost fields)
+       -> slug resolution + tenant RLS scope; renamed slugs answer with a permanent redirect
+
 /demo -> synthetic frontend memory only; no production API/data/auth
-Future Next.js storefront and shared packages -> README placeholders only
 ```
 
 `apps/api/tawzeevo_api/main.py` assembles routes, credentialed explicit-origin CORSMiddleware,

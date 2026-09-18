@@ -333,6 +333,7 @@ def product_response(
         category_id=product.category_id,
         master_product_id=product.master_product_id,
         name=product.name,
+        name_ar=product.name_ar,
         barcode=primary_barcode,
         barcodes=barcode_responses,
         images=[
@@ -424,6 +425,7 @@ def build_product(
         category_id=request.category_id,
         master_product_id=request.master_product_id,
         name=request.name,
+        name_ar=(request.name_ar or "").strip() or None,
         is_published=request.is_published,
         unit_price=_money(request.unit_price),
         currency=request.currency,
@@ -499,6 +501,8 @@ def update_product(
             "PIECES_PER_BOX_REQUIRED",
             "pieces_per_box is required when price_basis is BOX",
         )
+    if "name_ar" in values:
+        values["name_ar"] = (values["name_ar"] or "").strip() or None
     for field_name, value in values.items():
         setattr(product, field_name, value)
     commit_and_restore_tenant_scope(db, tenant_id)

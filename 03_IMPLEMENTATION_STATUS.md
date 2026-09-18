@@ -6,10 +6,10 @@
 
 - Current workstream: `Phase 5 — Linked Bilingual Guest Storefront, Orders, Recommendations, Advertising`
 - Current phase: `5`
-- Current phase status: `AUTHORIZED` (owner issued `Start Phase 5`; Phase 4 froze COMPLETE on 2026-09-18)
-- Current milestone: `P5-M1 — Tenant storefront routing + published catalog (Next.js)`
+- Current phase status: `IN_PROGRESS`
+- Current milestone: `P5-M2 — Interactions, recommendations, featured campaigns`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P4-M6`
+- Last completed milestone: `P5-M1`
 - Next required user command: `continue`
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -36,7 +36,7 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 | 2 | COMPLETE | Definition of Done PASSED; P2-M1 through P2-M5 complete |
 | 3 | COMPLETE | Definition of Done PASSED 2026-09-17; P3-M1 through P3-M6 complete; evidence in `docs/phase-3/` |
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
-| 5 | AUTHORIZED | Gate E decisions D-046–D-049, D-051, D-062 recorded; owner issued `Start Phase 5`; begins after Phase 4 DoD |
+| 5 | IN_PROGRESS | Gate E decisions D-046–D-049, D-051, D-062 recorded; owner issued `Start Phase 5`; P5-M1 complete 2026-09-18 |
 | 6 | LOCKED | Phase 5 DoD |
 | 7 | LOCKED | Gate F |
 | 8 | LOCKED | Gate G |
@@ -45,14 +45,21 @@ Phase 5 begins with P5-M1 without a further gate. Phase 5 must not start Phase 6
 
 ## Current milestone evidence
 
-- Code areas changed (P4-M1–M6, 2026-09-18): hardening (staged financial operation recovery in `sync_push.py`, sha256 image-upload dedupe in `services/media.py`, whole-request refusals keep the outbox pending, IndexedDB schema v2 with upgrade, offline barcode scan and customer/product/invoice-edit fallbacks), offline Playwright E2E, Phase 4 evidence documents; encrypted Google backup (`services/backup*.py`, `routes/backup.py`, `cli/backup_jobs.py`, `docs/runbooks/backup-key-recovery.md`, Backup tab `BackupPanel.tsx`, Google callback page); sync device registry, authorized paginated bootstrap, idempotent per-operation push with version conflicts, ordered pull with tombstones and retention floor, server-side device revocation on membership revoke/tenant suspend; offline invoice/payment commands through push reusing the Phase 3 financial services (`services/sync_push.py`); sha256 upload dedupe for image retries (`services/media.py`); PWA local database per tenant membership (Dexie), resumable bootstrap, outbox with exactly-once dispatch and conflict/dead-letter handling, incremental pull and re-bootstrap, offline draft/confirm/receipt queueing in the invoice editor with pending local references, offline media queue (`apps/operations-web/src/offline/`), Offline tab (`SyncPanel.tsx`)
-- Migrations: `20260918_0014_sync_foundation`, `20260918_0015_sync_retention_floor`, `20260918_0016_backup_connections` (connections, wrapped keys, backups, restores; RLS); head `20260918_0016`; from-zero upgrade and downgrade verified on disposable PostgreSQL 18
-- Tests run (2026-09-18 freeze): backend `188 passed`, 91% coverage on disposable PostgreSQL 18 (sync bootstrap 6, push 5, pull 4, financial push 2, hardening 3, backup 4 added); frontend `70 passed` (sync 4, outbox 5, pull 4, commands 2, media 2, db 2, backup panel 1 added); Playwright E2E `2 passed` (Phase 3 critical flow, Phase 4 offline flow); Alembic drift check PASS; Ruff and strict mypy PASS (60 source files); ESLint, strict TypeScript and production build PASS
-- Security/invariants: bootstrap and push require an active membership and a registered device; forced RLS on all sync tables; per-operation transactions with advisory locks and request fingerprints (a replay with a different body is rejected); official invoice numbers and revision numbers are only ever assigned by the server; offline financial commands carry the same idempotency keys as the online editor so a replay never double-charges; offline queueing only when the browser reports no connection (a lost response while online keeps the D-044/D-045 stable command); backups are AES-256-GCM with per-tenant keys wrapped by an environment master key (D-057), `drive.file` scope only (D-055), 30 daily/12 monthly retention (D-056); tampered files, wrong keys and swapped manifests fail closed; restore drills never touch live rows and the controlled import refuses a non-empty tenant; OAuth codes/tokens redacted from logs
-- Known defects: none open for P4-M1–M4. Media bytes are stored as `ArrayBuffer` rather than `Blob` in IndexedDB (some WebViews fail to persist Blobs)
-- Contract deviations: none. The Google Drive client is exercised only through the in-memory double until the owner supplies an OAuth client; the HTTP client follows the documented Drive v3 endpoints and is not yet run against Google
+- Code areas changed (P5-M1, 2026-09-18): tenant storefront slugs with audited rename redirects (`services/storefront.py`, `routes/storefront.py`, `schemas/storefront.py`, migration `20260918_0017`), Arabic product name override (`name_ar`), public catalog API (`/api/v1/public/{slug}/catalog…`, published products of ACTIVE businesses only, public standard price and packaging, deterministic exact/prefix/contains search, bounded pagination, published-only image serving), storefront privacy/rate-limit split in `public_invoice_security.py` (private links keep no-store/noindex; the catalog is cacheable with a wider budget), owner Storefront settings card in the operations client, and the new Next.js 16 App Router storefront (`apps/storefront-web`: shop, category, search and product pages, EN/AR with RTL, mobile-first, permanent redirect from renamed addresses, 404 for unknown/closed shops)
+- Migrations: `20260918_0017_tenant_storefront_slugs` (backfills name-derived unique slugs, `tenant_slug_redirects` with RLS plus a public slug-lookup policy); head `20260918_0017`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-18): backend `193 passed` on disposable PostgreSQL 18 (storefront 5 added: isolation/publication/price/images/no-stock words, deterministic search and pagination, slug rename/redirect/audit/reservation/not-authorization, suspended visible-not-accepting and closed gone, name-derived unique slugs); operations client `70 passed`; storefront `4 passed` (formatting, i18n, links, slug validation) plus ESLint, strict TypeScript and `next build`; manual smoke against the running API: EN and AR (`dir="rtl"`) pages, search, product page, 308 redirect from a renamed slug, 404 for an unknown address
+- Security/invariants: slug is routing identity only (owner endpoints still require the tenant owner); master products never appear alone; unpublished/archived-category products absent; public payload carries no stock/availability/grade/cost/supplier fields (asserted by word scan); images served only for published products of the resolved business; storefront responses get `nosniff` and strict referrer policy; no secret reaches the browser (server components call the API)
+- Known defects: none open for P5-M1
+- Contract deviations: none. Tenant branding foundation is limited to the business name (branding proper is Phase 8); recommendations/featured sections are P5-M2
 
 ## Latest completed milestone summary
+
+P5-M1 (2026-09-18) opened Phase 5: every approved business now has a public address
+(`/<slug>`), an audited rename with a kept redirect, and a bilingual mobile-first storefront that
+shows only its published assortment at public prices, with deterministic search and pagination.
+No stock or availability concept exists anywhere in the public payload.
+
+### Previous (P4-M6)
 
 P4-M6 (2026-09-18) froze Phase 4: property-style replay (×1/×10/×100) and crash-between-commits
 recovery on the server, device-id-alone denial, protocol-mismatch safety and an explicit IndexedDB

@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "workspaces": [
     "apps/operations-web",
+    "apps/storefront-web",
     "packages/*"
   ],
   "scripts": {
@@ -12,7 +13,12 @@
     "lint:operations": "npm run lint --workspace @tawzeevo/operations-web",
     "test:operations": "npm run test --workspace @tawzeevo/operations-web",
     "typecheck:operations": "npm run typecheck --workspace @tawzeevo/operations-web",
-    "check": "npm run lint:operations && npm run typecheck:operations && npm run test:operations && npm run build:operations"
+    "check": "npm run lint:operations && npm run typecheck:operations && npm run test:operations && npm run build:operations && npm run lint:storefront && npm run typecheck:storefront && npm run test:storefront && npm run build:storefront",
+    "dev:storefront": "npm run dev --workspace @tawzeevo/storefront-web",
+    "build:storefront": "npm run build --workspace @tawzeevo/storefront-web",
+    "lint:storefront": "npm run lint --workspace @tawzeevo/storefront-web",
+    "test:storefront": "npm run test --workspace @tawzeevo/storefront-web",
+    "typecheck:storefront": "npm run typecheck --workspace @tawzeevo/storefront-web"
   },
   "engines": {
     "node": ">=22"

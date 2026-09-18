@@ -225,6 +225,11 @@ class Tenant(TimestampMixin, Base):
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    # Public storefront address (D-047): routing identity only, never authorization. The default
+    # is a random placeholder; approval assigns a name-derived slug through services.storefront.
+    slug: Mapped[str] = mapped_column(
+        String(50), nullable=False, default=lambda: f"shop-{uuid4().hex[:10]}"
+    )
     status: Mapped[TenantStatus] = mapped_column(
         tenant_status_enum, default=TenantStatus.ACTIVE, server_default="ACTIVE", nullable=False
     )
@@ -244,6 +249,27 @@ class Tenant(TimestampMixin, Base):
             "grace_until IS NULL OR access_until IS NULL OR grace_until >= access_until",
             name="ck_tenants_grace_not_before_access",
         ),
+        CheckConstraint(
+            "slug ~ '^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$'", name="ck_tenants_slug_format"
+        ),
+        Index("uq_tenants_slug", "slug", unique=True),
+    )
+
+
+class TenantSlugRedirect(Base):
+    """A previous storefront slug that still resolves to its business (D-047, audited rename)."""
+
+    __tablename__ = "tenant_slug_redirects"
+
+    slug: Mapped[str] = mapped_column(String(50), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    renamed_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
@@ -569,6 +595,7 @@ class TenantProduct(TimestampMixin, Base):
     )
     preferred_supplier_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    name_ar: Mapped[str | None] = mapped_column(String(200))
     is_published: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )

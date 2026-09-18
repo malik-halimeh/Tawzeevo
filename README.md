@@ -80,8 +80,8 @@ recommendations are computed from real storefront interactions, never from stock
 ## Repository layout
 
 - `apps/api` — FastAPI service, models, migrations, CLIs and PostgreSQL-backed tests
+- `apps/storefront-web` — public per-business storefront (Next.js App Router, EN/AR, mobile-first)
 - `apps/operations-web` — React/Vite operations client, component tests and the Playwright end-to-end lane
-- `apps/storefront-web` — storefront application boundary (Phase 5)
 - `packages` — shared package boundaries reserved for later phases
 - `docs/contracts` — architecture and domain contracts
 - `docs/phase-1` … `docs/phase-4` — requirements evidence, test reports and demonstration guides for completed phases
@@ -268,6 +268,9 @@ $env:JWT_SECRET = "use-a-local-test-secret-of-at-least-32-bytes"
 .\.venv\Scripts\alembic -c .\apps\api\alembic.ini check
 npm run check
 ```
+
+The storefront runs separately: `npm run dev:storefront` (port 3000) with `API_BASE_URL` and
+`NEXT_PUBLIC_API_BASE_URL` pointing at the API; a business is reachable at `/<shop-address>`.
 
 Two historical migrations (`0009`, `0010`) keep their original formatting by design and are fingerprinted by the test suite; new migrations follow the full lint and format rules.
 

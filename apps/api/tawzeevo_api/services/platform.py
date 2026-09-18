@@ -30,6 +30,7 @@ from tawzeevo_api.schemas.platform import (
     TenantApplicationReviewRequest,
     TenantResponse,
 )
+from tawzeevo_api.services.storefront import unique_slug
 from tawzeevo_api.services.sync import revoke_tenant_devices
 
 
@@ -137,6 +138,7 @@ def approve_application(
     now = datetime.now(UTC)
     tenant = Tenant(
         name=application.business_name,
+        slug=unique_slug(db, application.business_name),
         status=TenantStatus.ACTIVE,
         access_until=request.access_until,
         grace_until=request.grace_until,
