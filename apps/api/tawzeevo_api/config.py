@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     invoice_fuzzy_match_threshold: Decimal = Field(
         default=Decimal("0.7000"), ge=Decimal("0"), le=Decimal("1")
     )
+    # Encrypted Google backup (PHASE_04.md L; D-055..D-057). The master key wraps every
+    # per-tenant data key and the Drive refresh tokens; it is a hosting secret, never committed.
+    backup_master_key: str | None = None
+    backup_kek_id: str = "kek-local-1"
+    backup_drive_provider: str = "google"  # "memory" is the test double
+    backup_scheduler_enabled: bool = False
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_redirect_uri: str = "http://localhost:5173/backup/google/callback"
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":
@@ -41,6 +50,8 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must contain at least 32 bytes in production")
             if not self.refresh_cookie_secure:
                 raise ValueError("REFRESH_COOKIE_SECURE must be true in production")
+            if self.backup_drive_provider != "google":
+                raise ValueError("BACKUP_DRIVE_PROVIDER must be google in production")
         return self
 
 

@@ -7,6 +7,7 @@ import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { ApplicationsPage } from "./pages/ApplicationsPage";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
 import { ClientHomePage } from "./pages/ClientHomePage";
+import { BackupCallbackPage } from "./pages/BackupCallbackPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PublicStatsPage } from "./pages/PublicStatsPage";
 import { TenantsPage } from "./pages/TenantsPage";
@@ -38,6 +39,7 @@ export function App() {
         <Route element={<AppShell />}>
           <Route element={<ClientRoute />}>
             <Route element={<ClientHomePage />} path="/workspace" />
+            <Route element={<BackupCallbackPage />} path="/backup/google/callback" />
           </Route>
           <Route element={<ProfilePage />} path="/profile" />
           <Route element={<AdminRoute />}>

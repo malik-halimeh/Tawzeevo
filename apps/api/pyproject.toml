@@ -9,8 +9,10 @@ description = "Tawzeevo FastAPI service"
 requires-python = ">=3.13"
 dependencies = [
   "alembic>=1.14,<2",
+  "cryptography>=44,<47",
   "email-validator>=2.2,<3",
   "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
   "phonenumbers>=8.13,<10",
   "pillow>=11,<13",
   "psycopg[binary]>=3.2,<4",

@@ -7,11 +7,11 @@
 - Current workstream: `Phase 4 — Offline-First Operations, Synchronization, Encrypted Backup`
 - Current phase: `4`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P4-M5 — Encrypted Google backup (test double until credentials)`
+- Current milestone: `P4-M6 — Offline property/E2E hardening and freeze`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P4-M4`
+- Last completed milestone: `P4-M5`
 - Next required user command: `continue`
-- Blocking decision: `none; Google OAuth credentials (owner action) are needed only for a live backup run, P4-M5 builds against a test double (D-055–D-057)`
+- Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
 The user explicitly authorized `Start Phase 3`. Phase 2 is complete and its requirements audit,
 test report, and demo guide are frozen under `docs/phase-2`. Gate C verification confirms the Phase 2
@@ -47,14 +47,23 @@ immutable confirmed-line cost provenance. P3-M5 is complete; P3-M6 remains not s
 
 ## Current milestone evidence
 
-- Code areas changed (P4-M1–M4, 2026-09-18): sync device registry, authorized paginated bootstrap, idempotent per-operation push with version conflicts, ordered pull with tombstones and retention floor, server-side device revocation on membership revoke/tenant suspend; offline invoice/payment commands through push reusing the Phase 3 financial services (`services/sync_push.py`); sha256 upload dedupe for image retries (`services/media.py`); PWA local database per tenant membership (Dexie), resumable bootstrap, outbox with exactly-once dispatch and conflict/dead-letter handling, incremental pull and re-bootstrap, offline draft/confirm/receipt queueing in the invoice editor with pending local references, offline media queue (`apps/operations-web/src/offline/`), Offline tab (`SyncPanel.tsx`)
-- Migrations: `20260918_0014_sync_foundation` (sync_devices, sync_changes, sync_operations, entity `version` columns, RLS) and `20260918_0015_sync_retention_floor`; head `20260918_0015`; from-zero upgrade and downgrade verified on disposable PostgreSQL 18
-- Tests run (2026-09-18): backend `181 passed` on disposable PostgreSQL 18 (sync bootstrap 6, push 5, pull 4, financial push 2 added); frontend `66 passed` (sync 4, outbox 4, pull 4, commands 2, media 2 added); Ruff and strict mypy PASS (60 source files); ESLint, strict TypeScript and production build PASS
-- Security/invariants: bootstrap and push require an active membership and a registered device; forced RLS on all sync tables; per-operation transactions with advisory locks and request fingerprints (a replay with a different body is rejected); official invoice numbers and revision numbers are only ever assigned by the server; offline financial commands carry the same idempotency keys as the online editor so a replay never double-charges; offline queueing only when the browser reports no connection (a lost response while online keeps the D-044/D-045 stable command)
+- Code areas changed (P4-M1–M5, 2026-09-18): encrypted Google backup (`services/backup*.py`, `routes/backup.py`, `cli/backup_jobs.py`, `docs/runbooks/backup-key-recovery.md`, Backup tab `BackupPanel.tsx`, Google callback page); sync device registry, authorized paginated bootstrap, idempotent per-operation push with version conflicts, ordered pull with tombstones and retention floor, server-side device revocation on membership revoke/tenant suspend; offline invoice/payment commands through push reusing the Phase 3 financial services (`services/sync_push.py`); sha256 upload dedupe for image retries (`services/media.py`); PWA local database per tenant membership (Dexie), resumable bootstrap, outbox with exactly-once dispatch and conflict/dead-letter handling, incremental pull and re-bootstrap, offline draft/confirm/receipt queueing in the invoice editor with pending local references, offline media queue (`apps/operations-web/src/offline/`), Offline tab (`SyncPanel.tsx`)
+- Migrations: `20260918_0014_sync_foundation`, `20260918_0015_sync_retention_floor`, `20260918_0016_backup_connections` (connections, wrapped keys, backups, restores; RLS); head `20260918_0016`; from-zero upgrade and downgrade verified on disposable PostgreSQL 18
+- Tests run (2026-09-18): backend `185 passed` on disposable PostgreSQL 18 (sync bootstrap 6, push 5, pull 4, financial push 2, backup 4 added); frontend `67 passed` (sync 4, outbox 4, pull 4, commands 2, media 2, backup panel 1 added); Ruff and strict mypy PASS (60 source files); ESLint, strict TypeScript and production build PASS
+- Security/invariants: bootstrap and push require an active membership and a registered device; forced RLS on all sync tables; per-operation transactions with advisory locks and request fingerprints (a replay with a different body is rejected); official invoice numbers and revision numbers are only ever assigned by the server; offline financial commands carry the same idempotency keys as the online editor so a replay never double-charges; offline queueing only when the browser reports no connection (a lost response while online keeps the D-044/D-045 stable command); backups are AES-256-GCM with per-tenant keys wrapped by an environment master key (D-057), `drive.file` scope only (D-055), 30 daily/12 monthly retention (D-056); tampered files, wrong keys and swapped manifests fail closed; restore drills never touch live rows and the controlled import refuses a non-empty tenant; OAuth codes/tokens redacted from logs
 - Known defects: none open for P4-M1–M4. Media bytes are stored as `ArrayBuffer` rather than `Blob` in IndexedDB (some WebViews fail to persist Blobs)
-- Contract deviations: none. Google backup (P4-M5) will run against a test double until the owner supplies OAuth credentials (D-055–D-057)
+- Contract deviations: none. The Google Drive client is exercised only through the in-memory double until the owner supplies an OAuth client; the HTTP client follows the documented Drive v3 endpoints and is not yet run against Google
 
 ## Latest completed milestone summary
+
+P4-M5 (2026-09-18) delivered the encrypted Google Drive backup: owner OAuth connection with the
+narrowest scope and one app folder per business, per-tenant data keys wrapped by an environment
+master key, daily/monthly scheduled backups with a clear-text manifest bound to the ciphertext,
+30/12 retention, owner restore drills (download, checksum, decrypt, reconcile), a platform-only
+controlled import into an empty recovery tenant, master-key rotation, and the key-recovery
+runbook. Only P4-M6 (hardening, offline E2E, evidence, freeze) remains before Phase 4 is COMPLETE.
+
+### Previous (P4-M4)
 
 P4-M4 (2026-09-18) completed offline financial commands: the invoice editor queues drafts,
 confirmations and receipts on the device when the browser is offline, shows a clearly pending

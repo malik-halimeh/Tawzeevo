@@ -16,11 +16,13 @@ PRIVACY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
 }
 _TOKEN_LOG_PATTERN = re.compile(r"[a-fA-F0-9]{32}(?:\.|%2[eE])[A-Za-z0-9_-]{43}")
+_OAUTH_LOG_PATTERN = re.compile(r"(?i)\b(code|state|refresh_token|access_token)=[^&\s\"']+")
 
 
 class CapabilityLogFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = _TOKEN_LOG_PATTERN.sub("[invoice-link-redacted]", record.getMessage())
+        message = _TOKEN_LOG_PATTERN.sub("[invoice-link-redacted]", record.getMessage())
+        record.msg = _OAUTH_LOG_PATTERN.sub(r"\1=[redacted]", message)
         record.args = ()
         return True
 

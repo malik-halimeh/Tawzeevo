@@ -22,6 +22,8 @@ import type {
 import { ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { SupplierSetup } from "./SupplierSetup";
+import { CONNECT_RESULT_KEY } from "../backup/connect";
+import { BackupPanel } from "./BackupPanel";
 import { SyncPanel } from "./SyncPanel";
 
 const grades: CustomerGrade[] = ["A+", "A", "B+", "B"];
@@ -325,7 +327,18 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const queryClient = useQueryClient();
   const [tenantId, setTenantId] = useState(contexts[0]?.tenant_id ?? "");
   const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
-  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "invoices" | "sync">("customers");
+  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "invoices" | "sync" | "backup">("customers");
+  const [backupNotice, setBackupNotice] = useState<string>();
+  useEffect(() => {
+    // Returning from the Google consent screen: open the backup desk with the outcome.
+    try {
+      const raw = sessionStorage.getItem(CONNECT_RESULT_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(CONNECT_RESULT_KEY);
+      const result = JSON.parse(raw) as { tenant_id: string; email: string };
+      if (result.tenant_id === context.tenant_id) { setView("backup"); setBackupNotice(t("backup.connected", { email: result.email })); }
+    } catch { /* nothing to restore */ }
+  }, [context.tenant_id, t]);
   const [phoneSearch, setPhoneSearch] = useState("");
   const [matches, setMatches] = useState<Customer[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(emptyCustomer);
@@ -586,6 +599,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <button aria-selected={view === "suppliers"} onClick={() => setView("suppliers")} role="tab" type="button">{t("supplierSetup.tab")}</button>
             <button aria-selected={view === "invoices"} onClick={() => setView("invoices")} role="tab" type="button">{t("invoiceEditor.tab")}</button>
             <button aria-selected={view === "sync"} onClick={() => setView("sync")} role="tab" type="button">{t("sync.tab")}</button>
+            <button aria-selected={view === "backup"} onClick={() => setView("backup")} role="tab" type="button">{t("backup.tab")}</button>
           </div>
           {requestError ? <ErrorState error={requestError} /> : null}
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
@@ -683,6 +697,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             </div>
           ) : view === "sync" ? (
             <SyncPanel tenantId={context.tenant_id} membershipId={context.membership_id} />
+          ) : view === "backup" ? (
+            <BackupPanel tenantId={context.tenant_id} initialNotice={backupNotice} />
           ) : view === "suppliers" ? (
             <SupplierSetup tenantId={context.tenant_id} />
           ) : (

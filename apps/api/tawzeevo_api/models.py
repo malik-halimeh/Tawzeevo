@@ -17,6 +17,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -1557,5 +1558,126 @@ class SyncOperation(Base):
             "device_installation_id",
             "operation_id",
             name="uq_sync_operations_command",
+        ),
+    )
+
+
+class TenantBackupConnection(Base):
+    """A connected owner Drive folder (D-055). The refresh token is stored wrapped only."""
+
+    __tablename__ = "tenant_backup_connections"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, default="google_drive")
+    account_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    folder_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    folder_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    scopes: Mapped[str] = mapped_column(String(400), nullable=False)
+    wrapped_refresh_token: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    kek_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    connected_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    disconnected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(String(400))
+
+    __table_args__ = (
+        CheckConstraint("provider IN ('google_drive')", name="ck_backup_connections_provider"),
+        Index(
+            "uq_tenant_backup_connections_active",
+            "tenant_id",
+            unique=True,
+            postgresql_where=text("disconnected_at IS NULL"),
+        ),
+    )
+
+
+class TenantBackupKey(Base):
+    """Per-tenant data encryption key, wrapped by the environment master key (D-057)."""
+
+    __tablename__ = "tenant_backup_keys"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    wrapped_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    kek_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TenantBackup(Base):
+    __tablename__ = "tenant_backups"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False)
+    key_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("tenant_backup_keys.id", ondelete="RESTRICT")
+    )
+    file_name: Mapped[str | None] = mapped_column(String(200))
+    remote_file_id: Mapped[str | None] = mapped_column(String(200))
+    byte_size: Mapped[int | None] = mapped_column(BigInteger)
+    checksum: Mapped[str | None] = mapped_column(String(64))
+    manifest: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
+    requested_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    error: Mapped[str | None] = mapped_column(String(400))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('DAILY', 'MONTHLY', 'MANUAL')", name="ck_backups_kind"),
+        CheckConstraint(
+            "status IN ('RUNNING', 'UPLOADED', 'FAILED', 'DELETED')", name="ck_backups_status"
+        ),
+        Index("ix_tenant_backups_tenant_created", "tenant_id", "created_at"),
+    )
+
+
+class TenantBackupRestore(Base):
+    """A restore drill (VERIFY) or a controlled import into an empty tenant (IMPORT)."""
+
+    __tablename__ = "tenant_backup_restores"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    backup_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_backups.id", ondelete="CASCADE"), nullable=False
+    )
+    mode: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False)
+    report: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
+    requested_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("mode IN ('VERIFY', 'IMPORT')", name="ck_backup_restores_mode"),
+        CheckConstraint(
+            "status IN ('VERIFIED', 'IMPORTED', 'FAILED')", name="ck_backup_restores_status"
         ),
     )
