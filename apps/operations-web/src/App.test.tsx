@@ -563,4 +563,39 @@ describe("platform administration flows", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("reactivated with its retained data");
     expect(current.id).toBe(tenant.id);
   });
+
+  test("password recovery: forgot page answers the same for any address; reset page sends the fragment token once", async () => {
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(unauthenticated());
+      if (url.endsWith("/api/v1/auth/password/forgot")) {
+        calls.push({ url, body: JSON.parse(requestBody(init?.body)) as Record<string, unknown> });
+        return Promise.resolve(json({ status: "accepted" }, 202));
+      }
+      if (url.endsWith("/api/v1/auth/password/reset")) {
+        calls.push({ url, body: JSON.parse(requestBody(init?.body)) as Record<string, unknown> });
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderApp("/login");
+    fireEvent.click(screen.getByRole("link", { name: "Forgot your password?" }));
+    fireEvent.change(await screen.findByLabelText("Email"), { target: { value: "nobody@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send me a reset link" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("If that address belongs to an account");
+    expect(calls[0]?.body).toEqual({ email: "nobody@example.com" });
+    expect(calls[0]?.url).not.toContain("nobody"); // the address travels in the body, never the URL
+    cleanup();
+
+    window.location.hash = "#one-time-token-from-the-mail";
+    renderApp("/reset-password");
+    fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "brand new passphrase" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "brand new passphrase" } });
+    fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1]?.body).toEqual({ token: "one-time-token-from-the-mail", password: "brand new passphrase" });
+    expect(await screen.findByRole("status")).toHaveTextContent("Your password was changed");
+    expect(window.location.hash).toBe(""); // the token is dropped from the address bar after use
+  });
 });

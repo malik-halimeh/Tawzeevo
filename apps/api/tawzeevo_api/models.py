@@ -221,6 +221,23 @@ class AuthSession(TimestampMixin, Base):
     user: Mapped[User] = relationship(back_populates="sessions")
 
 
+class PasswordResetToken(Base):
+    """One-time password reset token (D-077): hash only, short expiry, single use."""
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class Tenant(TimestampMixin, Base):
     __tablename__ = "tenants"
 

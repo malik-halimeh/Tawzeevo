@@ -6,10 +6,10 @@
 
 - Current workstream: `Phase 9 — Production hardening, CI/CD, staging, multi-tenant pilot`
 - Current phase: `9`
-- Current phase status: `NOT_STARTED`
-- Current milestone: `P9-M1 — Security matrix and recovery decision`
+- Current phase status: `IN_PROGRESS`
+- Current milestone: `P9-M2 — Database, concurrency, backup/restore, data lifecycle`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P8-M4`
+- Last completed milestone: `P9-M1`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -40,25 +40,32 @@ Phase 9 starts with P9-M1 (D-077 password recovery approved; D-078 targets; D-07
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 7 | COMPLETE | Frozen 2026-09-19 (P7-M4): `docs/phase-7/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 8 | COMPLETE | Gate G decisions D-064–D-070; P8-M1–P8-M4 complete 2026-09-19; `docs/phase-8/{requirements-audit,test-report,demo-guide}.md`; four storefront presentation items (favicon, featured presentation, promotional banners, homepage layout) left for the owner's decision |
-| 9 | LOCKED | Phases 1–8 DoD |
+| 9 | IN_PROGRESS | P9-M1 complete 2026-09-19 (D-077 password recovery live; authorization matrix; login/recovery throttles); owner authorization of 2026-09-19 |
+| 9-old | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P8-M4, 2026-09-19): `AnalyticsPanel.tsx` (customer found by phone through the existing search route — the previous picker called a non-existent listing endpoint), storefront `lib/theme.ts` (business colours applied only when readable: primary needs 4.5:1 on white, ink by luminance) wired in `ShopFrame.tsx`, `e2e/phase8-analytics-branding.spec.ts`, Phase 3 E2E alert locator, `docs/phase-8/*`, README
-- Migrations: none
-- Tests run (2026-09-19): backend **237 passed** (11 min 23 s), ruff/format/mypy clean, `alembic check` clean at `20260919_0027`; operations client **82 passed**, lint/types clean; storefront **9 passed**, lint/types/build clean; Playwright **7 passed** (Phase 3–8 flows, 40 s); measured latency: overview 24 ms, events 16 ms, lifetime 26 ms, branding 15 ms, public stats 71 ms (p50, seeded tenant with 60 confirmed invoices)
-- Security/invariants: dashboard = ledger balances = confirmed invoices (unit and E2E); profit only from snapshots with coverage; owner-only analytics; branding cannot change money; QR only to the same capability page; public stats aggregate and withheld under the D-070 cohort
-- Known defects: none open for Phase 8
-- Contract deviations: PHASE_08.md F storefront items favicon / featured-product presentation / promotional banners / configurable homepage layout not built (no decision defines the design boundaries or promotion approval) — owner decision recorded in `docs/phase-8/requirements-audit.md` § F
+- Code areas changed (P9-M1, 2026-09-19): migration `20260919_0028_password_reset_tokens`; `models.py::PasswordResetToken`; `services/password_reset.py` (D-077: hashed single-use token, 30-minute expiry, newest link supersedes, identical answer for unknown addresses, reset bumps `security_version` and revokes every session, audit events without token or address, mail failure surfaced as 503 rather than faked); `services/mailer.py` (provider by `EMAIL_PROVIDER`: Brevo / Resend / in-memory outbox; production settings require a real provider and an https reset page); `routes/auth.py` (`POST /api/v1/auth/password/forgot` → 202 always, `POST /api/v1/auth/password/reset` → 204; per-IP sliding windows: 10 failed logins / 15 min, 10 recovery calls / 15 min, a successful login clears the failures); `config.py` (`AUTH_FAILED_LOGINS_PER_15_MINUTES`, `AUTH_RESET_REQUESTS_PER_15_MINUTES`, `PASSWORD_RESET_TTL_MINUTES`, `PASSWORD_RESET_URL`, `EMAIL_PROVIDER`, `EMAIL_API_KEY`, `EMAIL_FROM`); operations client `/forgot-password` and `/reset-password` pages (token in the URL fragment, dropped after use; EN/AR); `tests/test_security_matrix.py` (system role × tenant role × 12 resources, all cells; suspension locks owner and driver, reactivation restores)
+- Migrations: `20260919_0028` (applied locally; head assertions updated)
+- Tests run (2026-09-19): backend `test_password_recovery.py` (5), `test_security_matrix.py` (2), `test_auth.py` production-settings guard extended; full backend suite; ruff/format/mypy clean; operations client App test for both recovery pages, lint/types clean; `npm audit --omit=dev`: 0 vulnerabilities; `pip-audit` could not reach PyPI/OSV from this machine (TLS interception) — scheduled for CI in P9-M4
+- Security/invariants: enumeration-safe recovery; secrets never in URLs, logs or audit rows; reset kills sessions and access tokens; matrix confirms owner-only, member and admin-only boundaries and that no denied answer echoes another business's id; platform admin still gets nothing tenant-private
+- Known defects: none open for P9-M1
+- Contract deviations: the exhaustive matrix covers 12 representative resources (every router family) rather than every route; a route added later must be added to `MATRIX`
 
 ## Latest completed milestone summary
+
+P9-M1 (2026-09-19) delivered password recovery per D-077 (hashed one-time tokens, session
+invalidation, Brevo/Resend adapter, EN/AR pages), login and recovery throttles, and the
+authorization matrix suite.
+
+### Previous (P8-M4)
 
 P8-M4 (2026-09-19) froze Phase 8: the reconciliation E2E (dashboard = ledgers = invoices,
 lifetime drilldown, branding on storefront and invoice page), a broken customer picker fixed,
 readable theme tokens, measured latency, and the Phase 8 evidence documents. Phase 8 COMPLETE.
 
-### Previous (P8-M3)
+### Earlier (P8-M3)
 
 P8-M3 (2026-09-19) delivered tenant branding (owner desk, storefront theme/texts/pages, branded
 customer invoice page with a safe QR) and the D-070 public platform aggregates; presentation only.

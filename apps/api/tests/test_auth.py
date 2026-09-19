@@ -303,20 +303,41 @@ def test_openapi_exposes_bearer_authentication(client: TestClient) -> None:
 
 
 def test_production_settings_require_secure_cookie_and_real_secret() -> None:
+    mail = {
+        "email_provider": "brevo",
+        "email_api_key": "xkeysib-test",
+        "password_reset_url": "https://ops.example/reset-password",
+    }
     production = Settings(
         app_env="production",
         jwt_secret="a-production-secret-placeholder-value",
         refresh_cookie_secure=True,
+        **mail,
     )
     assert production.refresh_cookie_secure is True
+    # Password recovery (D-077) needs a real mail provider and an https reset page in production.
+    with pytest.raises(ValidationError):
+        Settings(
+            app_env="production",
+            jwt_secret="a-production-secret-placeholder-value",
+            refresh_cookie_secure=True,
+        )
+    with pytest.raises(ValidationError):
+        Settings(
+            app_env="production",
+            jwt_secret="a-production-secret-placeholder-value",
+            refresh_cookie_secure=True,
+            **{**mail, "password_reset_url": "http://ops.example/reset-password"},
+        )
 
     with pytest.raises(ValidationError):
         Settings(
             app_env="production",
             jwt_secret="a-production-secret-placeholder-value",
             refresh_cookie_secure=False,
+            **mail,
         )
     with pytest.raises(ValidationError):
-        Settings(app_env="production", jwt_secret="change-me", refresh_cookie_secure=True)
+        Settings(app_env="production", jwt_secret="change-me", refresh_cookie_secure=True, **mail)
     with pytest.raises(ValidationError):
-        Settings(app_env="production", jwt_secret="too-short", refresh_cookie_secure=True)
+        Settings(app_env="production", jwt_secret="too-short", refresh_cookie_secure=True, **mail)

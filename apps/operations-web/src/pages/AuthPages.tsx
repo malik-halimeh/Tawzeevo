@@ -112,6 +112,7 @@ export function LoginPage() {
           {isSubmitting ? t("common.signingIn") : t("nav.login")}
         </button>
       </form>
+      <Link className="back-link" to="/forgot-password">{t("recovery.forgotLink")}</Link>
       <Link className="back-link" to="/stats">{t("login.viewStatistics")}</Link>
     </AuthFrame>
   );
@@ -230,6 +231,96 @@ export function RegisterPage() {
           {isSubmitting ? t("common.creatingAccount") : t("register.action")}
         </button>
       </form>
+    </AuthFrame>
+  );
+}
+
+
+/** Password recovery (D-077): the answer is the same whether or not the address exists. */
+export function ForgotPasswordPage() {
+  const { t } = useTranslation();
+  const [requestError, setRequestError] = useState<unknown>();
+  const [sent, setSent] = useState(false);
+  const schema = z.object({ email: z.string().trim().email(t("validation.email")) });
+  const {
+    formState: { errors, isSubmitting },
+    handleSubmit,
+    register,
+  } = useForm<{ email: string }>({ resolver: zodResolver(schema) });
+  const onSubmit = async (values: { email: string }) => {
+    setRequestError(undefined);
+    try {
+      await apiRequest<{ status: string }>("/api/v1/auth/password/forgot", { method: "POST", authenticated: false, body: JSON.stringify(values) });
+      setSent(true);
+    } catch (error) {
+      setRequestError(error);
+    }
+  };
+  return (
+    <AuthFrame eyebrow={t("recovery.eyebrow")} title={t("recovery.title")} intro={t("recovery.intro")}>
+      <div className="form-heading"><h2>{t("recovery.formTitle")}</h2></div>
+      {requestError ? <ErrorState error={requestError} /> : null}
+      {sent ? <div className="notice notice-success" role="status">{t("recovery.sent")}</div> : (
+        <form className="form-stack" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+          <label className="field">
+            <span>{t("fields.email")}</span>
+            <input autoComplete="email" type="email" {...register("email")} />
+            <FieldError message={errors.email?.message} />
+          </label>
+          <button className="button" disabled={isSubmitting} type="submit">{t("recovery.send")}</button>
+        </form>
+      )}
+      <Link className="back-link" to="/login">{t("recovery.backToLogin")}</Link>
+    </AuthFrame>
+  );
+}
+
+/** The one-time token arrives in the URL fragment (never sent to a server by the browser). */
+export function ResetPasswordPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [requestError, setRequestError] = useState<unknown>();
+  const token = window.location.hash.replace(/^#/, "");
+  const schema = z
+    .object({
+      password: z.string().min(10, t("validation.passwordLength")).max(128),
+      password_confirmation: z.string(),
+    })
+    .refine((values) => values.password === values.password_confirmation, { path: ["password_confirmation"], message: t("validation.passwordMatch") });
+  const {
+    formState: { errors, isSubmitting },
+    handleSubmit,
+    register,
+  } = useForm<{ password: string; password_confirmation: string }>({ resolver: zodResolver(schema) });
+  const onSubmit = async (values: { password: string; password_confirmation: string }) => {
+    setRequestError(undefined);
+    try {
+      await apiRequest<undefined>("/api/v1/auth/password/reset", { method: "POST", authenticated: false, body: JSON.stringify({ token, password: values.password }) });
+      history.replaceState(null, "", window.location.pathname);
+      void navigate("/login", { replace: true, state: { message: t("recovery.done") } });
+    } catch (error) {
+      setRequestError(error);
+    }
+  };
+  return (
+    <AuthFrame eyebrow={t("recovery.eyebrow")} title={t("recovery.resetTitle")} intro={t("recovery.resetIntro")}>
+      <div className="form-heading"><h2>{t("recovery.resetFormTitle")}</h2></div>
+      {!token ? <div className="notice notice-error" role="alert">{t("recovery.missingToken")}</div> : null}
+      {requestError ? <ErrorState error={requestError} /> : null}
+      <form className="form-stack" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+        <label className="field">
+          <span>{t("fields.password")}</span>
+          <input autoComplete="new-password" type="password" {...register("password")} />
+          <FieldError message={errors.password?.message} />
+        </label>
+        <label className="field">
+          <span>{t("fields.confirmPassword")}</span>
+          <input autoComplete="new-password" type="password" {...register("password_confirmation")} />
+          <FieldError message={errors.password_confirmation?.message} />
+        </label>
+        <button className="button" disabled={isSubmitting || !token} type="submit">{t("recovery.resetAction")}</button>
+      </form>
+      <Link className="back-link" to="/forgot-password">{t("recovery.requestAgain")}</Link>
     </AuthFrame>
   );
 }

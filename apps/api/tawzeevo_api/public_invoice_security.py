@@ -79,6 +79,11 @@ class PublicInvoiceRateLimiter:
             times.append(now)
             return True
 
+    def forgive(self, client: str) -> None:
+        """Drop a client's window (a successful login only counts failures)."""
+        with self._lock:
+            self._clients.pop(sha256(client.encode()).hexdigest(), None)
+
 
 class PublicInvoicePrivacyMiddleware:
     def __init__(self, app: ASGIApp, private_limit: int = 60, catalog_limit: int = 600) -> None:

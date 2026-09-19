@@ -5,7 +5,7 @@ import { AppShell, PublicHeader } from "./components/AppShell";
 import { AdminRoute, ClientRoute, ProtectedRoute } from "./components/RouteGuards";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { ApplicationsPage } from "./pages/ApplicationsPage";
-import { LoginPage, RegisterPage } from "./pages/AuthPages";
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from "./pages/AuthPages";
 import { ClientHomePage } from "./pages/ClientHomePage";
 import { BackupCallbackPage } from "./pages/BackupCallbackPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -35,6 +35,8 @@ export function App() {
       <Route element={<PublicStatsPage />} path="/stats" />
       <Route element={<LoginPage />} path="/login" />
       <Route element={<RegisterPage />} path="/register" />
+      <Route element={<ForgotPasswordPage />} path="/forgot-password" />
+      <Route element={<ResetPasswordPage />} path="/reset-password" />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route element={<ClientRoute />}>

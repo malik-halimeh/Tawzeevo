@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     # anonymous storefront catalog. Never the sole control (hash-only lookups, constant 404s).
     public_private_rate_limit_per_minute: int = Field(default=60, ge=1)
     public_catalog_rate_limit_per_minute: int = Field(default=600, ge=1)
+    # Login and recovery abuse controls (PHASE_09.md B/C): per client IP per 15 minutes.
+    auth_failed_logins_per_15_minutes: int = Field(default=10, ge=1)
+    auth_reset_requests_per_15_minutes: int = Field(default=10, ge=1)
+    # Password recovery (D-077): link lifetime and where the operations client hosts the page.
+    password_reset_ttl_minutes: int = Field(default=30, ge=5, le=120)
+    password_reset_url: str = "http://localhost:5173/reset-password"
+    # Transactional e-mail (D-077): brevo or resend with a key; memory only outside production.
+    email_provider: str = "memory"
+    email_api_key: str | None = None
+    email_from: str = "Tawzeevo <no-reply@example.com>"
     # Online routing (D-060): OpenRouteService first when its key is set, Google only when its
     # key is set, otherwise the offline stop-order heuristic. Core delivery never depends on it.
     openrouteservice_api_key: str | None = None
@@ -62,6 +72,12 @@ class Settings(BaseSettings):
                 raise ValueError("REFRESH_COOKIE_SECURE must be true in production")
             if self.backup_drive_provider != "google":
                 raise ValueError("BACKUP_DRIVE_PROVIDER must be google in production")
+            if self.email_provider.lower() not in ("brevo", "resend") or not self.email_api_key:
+                raise ValueError(
+                    "EMAIL_PROVIDER (brevo|resend) and EMAIL_API_KEY are required in production"
+                )
+            if not self.password_reset_url.startswith("https://"):
+                raise ValueError("PASSWORD_RESET_URL must be https in production")
         return self
 
 
