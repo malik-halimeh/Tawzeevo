@@ -6,10 +6,10 @@
 
 - Current workstream: `Phase 7 — Delivery tasks, owner/driver assignment, locations, route assistance`
 - Current phase: `7`
-- Current phase status: `NOT_STARTED`
-- Current milestone: `P7-M1`
+- Current phase status: `IN_PROGRESS`
+- Current milestone: `P7-M2 — Owner/driver operational API, least-privilege projection + offline updates`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P6-M5`
+- Last completed milestone: `P7-M1`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -38,27 +38,33 @@ Phase 7 starts at Gate F (D-063 delivery lifecycle already recorded).
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
-| 7 | NOT_STARTED | Gate F; D-063 recorded; owner authorization of 2026-09-19 |
+| 7 | IN_PROGRESS | Gate F decided (D-060, D-061, D-063); owner authorization of 2026-09-19; P7-M1 complete 2026-09-19 |
 | 8 | LOCKED | Gate G |
 | 9 | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P6-M5, 2026-09-19): `schemas/sync.py` (entity types `supplier`, `product_cost`, `procurement_item`, `supplier_purchase`, `supplier_payment`), `services/sync_push.py` (appliers: supplier create/update with version conflicts, price append named by the operation id, procurement line edit with expected version; financial mapping for purchases and supplier payments with the operation id as idempotency key), `services/sync_changes.py` (supplier projection in the change feed — identity/contact/location only; result projections for cost entries and procurement lines), `services/suppliers.py::append_cost_row` and `services/procurement.py::apply_item_update` (shared, commit-free), operations client `offline/supplierCommands.ts` + offline fallbacks in `SupplierSetup.tsx`, `ProcurementPanel.tsx`, `PurchasePanel.tsx`, `e2e/phase6-procurement-flow.spec.ts`, `docs/phase-6/*`, README
-- Migrations: none new (head `20260919_0024`); `alembic check` PASS
-- Tests run (2026-09-19): backend `219 passed` (new `test_sync_phase6.py` ×2), ruff/format/mypy PASS; operations client `76 passed`, lint/types/build PASS; Playwright `5 passed` (Phase 3, 4, 5 ×2, 6) against the local stack
-- Security/invariants: DoD (PHASE_06.md N) PASS per `docs/phase-6/requirements-audit.md`; no critical/high supplier/procurement defect open; no-stock audit by schema scan
-- Known defects: none open for Phase 6
+- Code areas changed (P7-M1, 2026-09-19): migration `20260919_0025` (`delivery_tasks`: invoice, optional order, customer, neutral `assigned_membership_id` NOT NULL, D-063 status, delivery date, route sequence, amount-to-collect projection, performer at completion, cancel reason, version; one ASSIGNED task per invoice by partial unique index; RLS), `models.py::DeliveryTask`, `schemas/delivery.py`, `services/delivery.py` (eligibility = CONFIRMED invoice with a customer and no open task; sole-owner default assignee, otherwise the owner must choose; owner-only assign/reassign with audit of the previous assignee; completion by owner or the assigned member recording the performer; terminal states; `cancel_open_tasks_for_invoice` called from the Phase 3 invoice cancellation; amount to collect = invoice charge minus applied receipts), `routes/delivery.py` (`/api/v1/delivery-tasks`: list, eligible invoices, create, get, assignee, patch, complete (any member, assignment enforced), cancel), `services/invoice_finance.py` hook, operations client `DeliveryPanel.tsx` (Deliveries tab; "My deliveries" wording and no assignee field for a sole operator; create from eligible invoices, reassign select, mark delivered, cancel with reason; EN/AR)
+- Migrations: head `20260919_0025`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-19): backend `test_delivery_tasks.py` ×3 (draft not eligible; sole owner default assignee and `sole_operator`; duplicate open task 409; stale version 409; completion records performer; terminal 409; new task after completion; several members → `ASSIGNEE_REQUIRED`; driver 403 on assign/cancel/list/eligible; unknown assignee 404; reassignment audited with previous; old assignee 403, new assignee completes; cross-tenant 404; invoice cancellation closes the open task and removes eligibility) plus editor/sync/hardening/order suites `50 passed`; mypy/ruff PASS; operations client `DeliveryPanel.test.tsx` PASS, lint/types/build PASS
+- Security/invariants: sole owner/zero drivers works; owner self-operates; driver assignment protected (owner-only routes); no driver-only schema assumption (membership FK, role checked at runtime); tasks never touch invoices
+- Known defects: none open for P7-M1
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P7-M1 (2026-09-19) delivered delivery tasks with a neutral owner-or-driver assignee: sole-owner
+default, owner-only audited reassignment, completion by the assigned member with the performer
+recorded, terminal end states per D-063, and system cancellation from the invoice cancellation.
+
+### Previous (P6-M5)
 
 P6-M5 (2026-09-19) froze Phase 6: Phase 6 commands on the Phase 4 sync protocol (supplier,
 price append, procurement edit, purchase, supplier payment) with offline fallbacks in the owner
 screens, the real-browser procurement chain, and the Phase 6 evidence documents.
 
-### Previous (P6-M4)
+### Earlier (P6-M4)
 
 P6-M4 (2026-09-19) delivered actual supplier purchases: immutable purchases whose finalization
 appends the price history, charges the supplier payable and advances the procurement list in one

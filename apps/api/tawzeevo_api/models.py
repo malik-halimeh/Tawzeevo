@@ -2340,3 +2340,90 @@ class SupplierPurchaseItem(Base):
         CheckConstraint("line_total >= 0", name="ck_supplier_purchase_items_total_nonneg"),
         Index("ix_supplier_purchase_items_purchase", "tenant_id", "purchase_id"),
     )
+
+
+class DeliveryTaskStatus(StrEnum):
+    """D-063: both end states are terminal; a mistaken completion gets a new task."""
+
+    ASSIGNED = "ASSIGNED"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+class DeliveryTask(Base):
+    """One delivery of one CONFIRMED invoice by one active membership (PHASE_07.md A/B).
+    Tasks never create, recalculate or cancel invoices; `amount_to_collect` is a projection."""
+
+    __tablename__ = "delivery_tasks"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    invoice_id: Mapped[UUID] = mapped_column(
+        ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False
+    )
+    order_id: Mapped[UUID | None] = mapped_column(ForeignKey("orders.id", ondelete="SET NULL"))
+    customer_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    assigned_membership_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="ASSIGNED", server_default="ASSIGNED"
+    )
+    delivery_date: Mapped[date | None] = mapped_column(Date)
+    route_sequence: Mapped[int | None] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    amount_to_collect: Mapped[Decimal] = mapped_column(
+        Numeric(20, 4), nullable=False, default=Decimal("0"), server_default="0"
+    )
+    notes: Mapped[str | None] = mapped_column(String(1000))
+    created_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    performed_by_membership_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="SET NULL")
+    )
+    completion_note: Mapped[str | None] = mapped_column(String(500))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str | None] = mapped_column(String(500))
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["customer_id", "tenant_id"],
+            ["customers.id", "customers.tenant_id"],
+            ondelete="RESTRICT",
+            name="fk_delivery_tasks_customer_tenant",
+        ),
+        UniqueConstraint("id", "tenant_id", name="uq_delivery_tasks_id_tenant"),
+        CheckConstraint(
+            "status IN ('ASSIGNED', 'COMPLETED', 'CANCELLED')", name="ck_delivery_tasks_status"
+        ),
+        CheckConstraint(
+            "(completed_at IS NULL) = (performed_by_membership_id IS NULL)",
+            name="ck_delivery_tasks_completion_pair",
+        ),
+        CheckConstraint(
+            "(cancelled_at IS NULL) = (cancel_reason IS NULL)",
+            name="ck_delivery_tasks_cancel_pair",
+        ),
+        CheckConstraint("amount_to_collect >= 0", name="ck_delivery_tasks_amount_nonneg"),
+        Index("ix_delivery_tasks_tenant_date_status", "tenant_id", "delivery_date", "status"),
+        Index("ix_delivery_tasks_assignee", "tenant_id", "assigned_membership_id"),
+        Index(
+            "uq_delivery_tasks_open_invoice",
+            "invoice_id",
+            unique=True,
+            postgresql_where=text("status = 'ASSIGNED'"),
+        ),
+    )

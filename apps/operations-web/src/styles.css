@@ -588,3 +588,9 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .purchase-form { margin-block: 1rem; }
 .purchase-lines select, .purchase-lines input { width: 100%; }
 .purchase-history .outbox-row { align-items: start; }
+
+/* Deliveries (P7-M1) */
+.delivery-create { margin-block: 1rem; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto; }
+.delivery-row { align-items: start; }
+.delivery-row .category-actions { margin-block-start: .5rem; }
+@media (max-width: 720px) { .delivery-create { grid-template-columns: minmax(0, 1fr); } }

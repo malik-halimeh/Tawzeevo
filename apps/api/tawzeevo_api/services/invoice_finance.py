@@ -33,6 +33,7 @@ from tawzeevo_api.schemas.invoice_editor import (
     InvoiceHistoryRevisionResponse,
 )
 from tawzeevo_api.services.cash_van import get_customer
+from tawzeevo_api.services.delivery import cancel_open_tasks_for_invoice
 from tawzeevo_api.services.invoice_editor import (
     _audit_fuzzy_acceptances,
     _customer_snapshot,
@@ -294,6 +295,8 @@ def cancel_invoice(
                 released_credit = money(released_credit + effective_amount)
     invoice.status = InvoiceStatus.CANCELLED
     invoice.cancelled_at = cancelled_at
+    # PHASE_07.md B: a cancelled invoice closes its open delivery task (system cancellation).
+    cancel_open_tasks_for_invoice(db, tenant_id, invoice.id, "invoice cancelled")
     invoice.updated_by_user_id = actor_user_id
     # D-042: cancellation revokes public access in the same transaction.
     for cap in db.scalars(
