@@ -7,9 +7,9 @@
 - Current workstream: `Phase 7 — Delivery tasks, owner/driver assignment, locations, route assistance`
 - Current phase: `7`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P7-M3 — Locations, route assistance, nearby supplier reminders`
+- Current milestone: `P7-M4 — Field E2E/security/accessibility freeze`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P7-M2`
+- Last completed milestone: `P7-M3`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -38,27 +38,33 @@ Phase 7 starts at Gate F (D-063 delivery lifecycle already recorded).
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
-| 7 | IN_PROGRESS | Gate F decided (D-060, D-061, D-063); owner authorization of 2026-09-19; P7-M1, P7-M2 complete 2026-09-19 |
+| 7 | IN_PROGRESS | Gate F decided (D-060, D-061, D-063); owner authorization of 2026-09-19; P7-M1–P7-M3 complete 2026-09-19 |
 | 8 | LOCKED | Gate G |
 | 9 | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P7-M2, 2026-09-19): `schemas/delivery.py::MyWorkTask/MyWorkResponse` (least-privilege projection: contact, address, location, items, amount to collect, version — no ids of other parties, no costs), `services/delivery.py::my_work/my_work_task/complete_task_row`, `routes/delivery.py` (`GET /api/v1/delivery-tasks/my-work` for any active member; completion returns the reduced projection to a driver), sync opened to drivers with strict scope: `routes/sync.py` (member dependency), `services/sync.py` (driver bootstrap returns no collections; driver pull filtered to their own `delivery_task` rows while the cursor still advances), `services/sync_changes.py` (`delivery_task` change-feed projection), `services/sync_push.py` (drivers may push only `delivery_task complete`; `_apply_delivery_task` resolves the performing membership, checks assignment and version, replay-safe by operation id), operations client `MyWorkPanel.tsx` (driver workspace and owner "My deliveries" under Deliveries: cached list when offline, completion queued offline via `queueDeliveryCompletion`, sync now), `offline/supplierCommands.ts` extended
-- Migrations: none new (head `20260919_0025`)
-- Tests run (2026-09-19): backend `224 passed` (new in `test_delivery_tasks.py`: driver my-work lists only the assigned task with no cost/margin/profit/supplier/assignee/customer_id words; owner my-work empty; driver completion returns the reduced projection; other driver's task 403; suppliers/procurement/prices/debts 403; driver bootstrap has no collections; driver pull carries only own delivery tasks without cost fields; non-delivery push 403; completion applied once, replay flagged, second completion rejected, other member's task rejected; performer recorded), ruff/format/mypy PASS; operations client `78 passed` (MyWorkPanel), lint/types/build PASS
-- Security/invariants: unrelated data denied at the API, the bootstrap and the pull; owner secrets absent from the driver payload and cache (driver devices never download the owner projection); offline completion exactly once
-- Known defects: none open for P7-M2
+- Code areas changed (P7-M3, 2026-09-19): migration `20260919_0026` (customer `location_source` gps|manual|geocoded, `location_captured_at`, `location_accuracy_meters`, `location_confirmed_at/_by_membership_id`; existing coordinates marked manual), `config.py` (`OPENROUTESERVICE_API_KEY`, `GOOGLE_MAPS_API_KEY` slot, `ROUTING_TIMEOUT_SECONDS`), `services/routing.py` (haversine; deterministic nearest-neighbour + 2-opt with id tie-breaks, labelled `offline stop-order suggestion`; OpenRouteService optimization adapter with coordinates-only payload, timeout and any failure → heuristic with a note), `services/delivery.py` (D-061 precedence: confirmed only replaced with confirm; GPS < 50 m > geocoded > manual; worse never replaces better; single current reading, no history; suggest/save stop order for the owner or the assigned member; nearby suppliers with open pickup need — owner all lists, driver assigned lists, no price), `routes/delivery.py` (`POST /delivery-tasks/{id}/location`, `POST /api/v1/routes/suggest-order`, `PUT /api/v1/routes/order`, `GET /api/v1/routes/nearby-suppliers`), operations client `RoutePlanner.tsx` inside My Work (suggest with a one-off browser position, manual up/down reorder, save, per-stop "use my position" with an explicit confirm checkbox, nearby suppliers), EN/AR
+- Migrations: head `20260919_0026`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-19): backend `228 passed` (new `test_delivery_routes.py` ×4: heuristic identical for reversed input and never longer than the input order; precedence — good GPS replaces manual, loose GPS and manual refused with reasons, confirm wins, better GPS refused after confirm, re-confirm replaces, other driver 403, one reading only; provider off → offline order Near/Mid/Far with unlocated last; mocked ORS → provider order, payload has no names/phones, timeout honoured; ORS timeout → heuristic with note, call never fails; manual reorder persists 1..n in My Work; closed task refused; nearby: owner sees the supplier 200 m away with the open need and nothing 40 km away, driver nothing until assigned then identity/need without cost/estimate/currency), ruff/format/mypy PASS; operations client `79 passed` (RoutePlanner), lint/types/build PASS
+- Security/invariants: confirmed location safe; route deterministic offline; provider outage safe; driver price never exposed; no continuous tracking (position read on button press only)
+- Known defects: none open for P7-M3
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P7-M3 (2026-09-19) delivered location provenance with the D-061 precedence, the deterministic
+offline stop-order heuristic with manual reorder, the OpenRouteService adapter with safe fallback
+(D-060), and the role-projected nearby supplier reminder.
+
+### Previous (P7-M2)
 
 P7-M2 (2026-09-19) delivered the assigned-only member API and the driver's least-privilege
 projection, driver-scoped sync (empty bootstrap, filtered pull, completion-only push) and offline
 completion applied exactly once, with a My Work screen for drivers and for the owner as operator.
 
-### Previous (P7-M1)
+### Earlier (P7-M1)
 
 P7-M1 (2026-09-19) delivered delivery tasks with a neutral owner-or-driver assignee: sole-owner
 default, owner-only audited reassignment, completion by the assigned member with the performer

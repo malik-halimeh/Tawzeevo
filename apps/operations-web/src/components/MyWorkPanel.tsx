@@ -7,6 +7,7 @@ import { browserOffline } from "../offline/network";
 import { syncNow } from "../offline/pull";
 import { bootstrapLocalProjection } from "../offline/sync";
 import { queueDeliveryCompletion } from "../offline/supplierCommands";
+import { RoutePlanner } from "./RoutePlanner";
 import { ErrorState } from "./Ui";
 
 /**
@@ -79,6 +80,7 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
       {queued.length ? <div className="category-actions"><span className="muted">{t("myWork.pending", { count: queued.length })}</span><button className="button" disabled={busy} onClick={sync} type="button">{t("sync.syncNow")}</button></div> : null}
       <label className="field field-wide"><span>{t("myWork.note")}</span><input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
       {work && work.tasks.length === 0 ? <p className="muted">{t("myWork.empty")}</p> : null}
+      {work && work.tasks.length > 0 && !fromCache ? <RoutePlanner onSaved={() => { load().catch(setError); }} tasks={work.tasks.map((task) => ({ id: task.id, customer_name: task.customer_name, version: task.version }))} tenantId={tenantId} /> : null}
       <ol className="pickup-items my-work-list" aria-label={t("myWork.title")}>
         {work?.tasks.map((task) => (
           <li className="content-card my-work-stop" key={task.id}>

@@ -599,3 +599,8 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .my-work { margin-block-start: 1.5rem; }
 .my-work-list { counter-reset: none; gap: .75rem; }
 .my-work-stop { display: grid; gap: .35rem; }
+
+/* Route planner (P7-M3) */
+.route-planner { border-block-start: 1px solid var(--line); margin-block-start: 1rem; padding-block-start: 1rem; }
+.route-planner h6 { margin-block: .75rem .25rem; }
+.route-order li { margin-block: .2rem; }

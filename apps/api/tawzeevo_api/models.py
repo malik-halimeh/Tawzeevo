@@ -397,6 +397,18 @@ class Customer(TimestampMixin, Base):
     grade: Mapped[CustomerGrade | None] = mapped_column(customer_grade_enum)
     # D-072: optional per-customer access policy override (LINK | VERIFIED | ACCOUNT_REQUIRED).
     access_policy_override: Mapped[str | None] = mapped_column(String(20))
+    # D-061 provenance of the current location: source, capture time, accuracy, confirmation.
+    location_source: Mapped[str | None] = mapped_column(String(10))
+    location_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    location_accuracy_meters: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    location_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    location_confirmed_by_membership_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "tenant_memberships.id",
+            ondelete="SET NULL",
+            name="fk_customers_location_confirmed_by",
+        )
+    )
     version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("1"), default=1
     )
@@ -406,6 +418,14 @@ class Customer(TimestampMixin, Base):
             "access_policy_override IS NULL OR access_policy_override IN "
             "('LINK', 'VERIFIED', 'ACCOUNT_REQUIRED')",
             name="ck_customers_access_policy_override",
+        ),
+        CheckConstraint(
+            "location_source IS NULL OR location_source IN ('gps', 'manual', 'geocoded')",
+            name="ck_customers_location_source",
+        ),
+        CheckConstraint(
+            "location_accuracy_meters IS NULL OR location_accuracy_meters >= 0",
+            name="ck_customers_location_accuracy_nonneg",
         ),
         UniqueConstraint("id", "tenant_id", name="uq_customers_id_tenant"),
         Index("ix_customers_tenant_phone", "tenant_id", "phone"),

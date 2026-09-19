@@ -10,8 +10,14 @@ from tawzeevo_api.dependencies import TenantContext, get_tenant_context, require
 from tawzeevo_api.models import TenantRole
 from tawzeevo_api.schemas.delivery import (
     EligibleInvoiceListResponse,
+    LocationUpdateRequest,
+    LocationUpdateResponse,
     MyWorkResponse,
     MyWorkTask,
+    NearbyResponse,
+    SaveOrderRequest,
+    SuggestOrderRequest,
+    SuggestOrderResponse,
     TaskAssignRequest,
     TaskCancelRequest,
     TaskCompleteRequest,
@@ -23,6 +29,7 @@ from tawzeevo_api.schemas.delivery import (
 from tawzeevo_api.services import delivery
 
 delivery_router = APIRouter(prefix="/api/v1/delivery-tasks", tags=["delivery"])
+routes_router = APIRouter(prefix="/api/v1/routes", tags=["delivery"])
 
 Owner = Annotated[TenantContext, Depends(require_tenant_owner)]
 Member = Annotated[TenantContext, Depends(get_tenant_context)]
@@ -118,3 +125,48 @@ def cancel_task(task_id: UUID, request: TaskCancelRequest, db: Db, context: Owne
         request.reason,
     )
     return delivery.task_response(db, context.tenant.id, task, context.membership.id)
+
+
+@delivery_router.post("/{task_id}/location", response_model=LocationUpdateResponse)
+def post_task_location(
+    task_id: UUID, request: LocationUpdateRequest, db: Db, context: Member
+) -> LocationUpdateResponse:
+    """A reading for the task's customer by the owner or the assigned member (D-061 precedence).
+    `confirm` is the operator's explicit confirmation; nothing confirmed is replaced without it."""
+    applied, reason, customer = delivery.update_task_location(
+        db, context.tenant.id, context.membership, task_id, request
+    )
+    return LocationUpdateResponse(
+        applied=applied, reason=reason, location=delivery.location_view(customer)
+    )
+
+
+@routes_router.post("/suggest-order", response_model=SuggestOrderResponse)
+def post_suggest_order(
+    request: SuggestOrderRequest, db: Db, context: Member
+) -> SuggestOrderResponse:
+    """Stop order for the given open deliveries: provider when configured and reachable,
+    otherwise the labelled offline heuristic (D-060). Manual reorder stays available."""
+    return delivery.suggest_stop_order(db, context.tenant.id, context.membership, request)
+
+
+@routes_router.put("/order", response_model=MyWorkResponse)
+def put_route_order(request: SaveOrderRequest, db: Db, context: Member) -> MyWorkResponse:
+    """Persist a manual or accepted order as route_sequence 1..n."""
+    delivery.save_stop_order(db, context.tenant.id, context.membership, request.task_ids)
+    return delivery.my_work(db, context.tenant.id, context.membership)
+
+
+@routes_router.get("/nearby-suppliers", response_model=NearbyResponse)
+def get_nearby_suppliers(
+    db: Db,
+    context: Member,
+    latitude: Annotated[float, Query(ge=-90, le=90)],
+    longitude: Annotated[float, Query(ge=-180, le=180)],
+    radius_meters: Annotated[int, Query(ge=50, le=20000)] = 1500,
+) -> NearbyResponse:
+    """One position check on request: suppliers nearby with an open pickup need (PHASE_07.md H).
+    No background tracking; drivers see only their assigned lists and never a price."""
+    return delivery.nearby_suppliers(
+        db, context.tenant.id, context.membership, latitude, longitude, radius_meters
+    )

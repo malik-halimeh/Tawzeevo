@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # anonymous storefront catalog. Never the sole control (hash-only lookups, constant 404s).
     public_private_rate_limit_per_minute: int = Field(default=60, ge=1)
     public_catalog_rate_limit_per_minute: int = Field(default=600, ge=1)
+    # Online routing (D-060): OpenRouteService first when its key is set, Google only when its
+    # key is set, otherwise the offline stop-order heuristic. Core delivery never depends on it.
+    openrouteservice_api_key: str | None = None
+    google_maps_api_key: str | None = None
+    routing_timeout_seconds: float = Field(default=8.0, gt=0, le=60)
     # Encrypted Google backup (PHASE_04.md L; D-055..D-057). The master key wraps every
     # per-tenant data key and the Drive refresh tokens; it is a hosting secret, never committed.
     backup_master_key: str | None = None

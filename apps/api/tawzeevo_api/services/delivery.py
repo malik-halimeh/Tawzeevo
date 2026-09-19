@@ -32,22 +32,35 @@ from tawzeevo_api.models import (
     InvoiceStatus,
     Order,
     PaymentAllocation,
+    ProcurementItem,
+    ProcurementList,
     TenantMembership,
     TenantRole,
+    TenantSupplier,
     User,
 )
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
 from tawzeevo_api.schemas.delivery import (
     AssigneeView,
     EligibleInvoice,
+    LocationUpdateRequest,
+    LocationView,
     MyWorkResponse,
     MyWorkTask,
+    NearbyItem,
+    NearbyResponse,
+    NearbySupplier,
+    SuggestedStop,
+    SuggestOrderRequest,
+    SuggestOrderResponse,
     TaskCreateRequest,
     TaskLine,
     TaskListResponse,
     TaskResponse,
 )
 from tawzeevo_api.services.invoice_editor import money
+from tawzeevo_api.services.procurement import _line_is_settled
+from tawzeevo_api.services.routing import Stop, haversine_m, suggest_order
 
 TERMINAL = {DeliveryTaskStatus.COMPLETED.value, DeliveryTaskStatus.CANCELLED.value}
 
@@ -559,3 +572,255 @@ def complete_task_row(
         performed_by_membership_id=membership.id,
     )
     return task
+
+
+# ---------------------------------------------------------------------------------------------
+# Locations (PHASE_07.md E; D-061), stop order (F/G; D-060), nearby suppliers (H)
+# ---------------------------------------------------------------------------------------------
+
+GPS_GOOD_ACCURACY_M = Decimal("50")
+_SOURCE_RANK = {"gps": 3, "geocoded": 2, "manual": 1}
+
+
+def _reading_rank(source: str | None, accuracy: Decimal | None) -> int:
+    """Among unconfirmed readings (D-061): GPS better than 50 m beats geocoded beats manual;
+    a loose GPS reading ranks below geocoded."""
+    if source == "gps":
+        return 3 if accuracy is not None and accuracy < GPS_GOOD_ACCURACY_M else 1
+    return _SOURCE_RANK.get(source or "", 0)
+
+
+def location_view(customer: Customer) -> LocationView:
+    return LocationView(
+        latitude=customer.latitude,
+        longitude=customer.longitude,
+        source=customer.location_source,
+        captured_at=customer.location_captured_at,
+        accuracy_meters=customer.location_accuracy_meters,
+        confirmed_at=customer.location_confirmed_at,
+    )
+
+
+def _authorized_task(
+    db: Session, tenant_id: UUID, membership: TenantMembership, task_id: UUID
+) -> DeliveryTask:
+    task = get_task(db, tenant_id, task_id)
+    if membership.role is not TenantRole.OWNER and task.assigned_membership_id != membership.id:
+        raise AppError(403, "DELIVERY_TASK_NOT_ASSIGNED", "Only the assigned member may do this")
+    return task
+
+
+def update_task_location(
+    db: Session,
+    tenant_id: UUID,
+    membership: TenantMembership,
+    task_id: UUID,
+    request: LocationUpdateRequest,
+) -> tuple[bool, str, Customer]:
+    """Owner or the assigned member records a reading for the task's customer. A confirmed
+    location is only replaced by another confirmed reading; among unconfirmed readings a worse
+    one never replaces a better one silently. Only the current best is stored, no history."""
+    task = _authorized_task(db, tenant_id, membership, task_id)
+    _require_open(task)
+    customer = db.get(Customer, task.customer_id)
+    if customer is None or customer.tenant_id != tenant_id:
+        raise AppError(404, "CUSTOMER_NOT_FOUND", "Customer was not found")
+    now = datetime.now(UTC)
+    if customer.location_confirmed_at is not None and not request.confirm:
+        return False, "CONFIRMED_LOCATION_KEPT", customer
+    if (
+        customer.latitude is not None
+        and customer.location_confirmed_at is None
+        and not request.confirm
+        and _reading_rank(request.source, request.accuracy_meters)
+        < _reading_rank(customer.location_source, customer.location_accuracy_meters)
+    ):
+        return False, "BETTER_READING_KEPT", customer
+    customer.latitude = request.latitude
+    customer.longitude = request.longitude
+    customer.location_source = request.source
+    customer.location_captured_at = now
+    customer.location_accuracy_meters = request.accuracy_meters
+    if request.confirm:
+        customer.location_confirmed_at = now
+        customer.location_confirmed_by_membership_id = membership.id
+    else:
+        customer.location_confirmed_at = None
+        customer.location_confirmed_by_membership_id = None
+    db.add(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_user_id=membership.user_id,
+            action="customer_location_updated",
+            entity_type="customer",
+            entity_id=customer.id,
+            details={
+                "task_id": str(task.id),
+                "source": request.source,
+                "accuracy_meters": str(request.accuracy_meters or ""),
+                "confirmed": str(request.confirm),
+            },
+        )
+    )
+    commit_and_restore_tenant_scope(db, tenant_id)
+    db.refresh(customer)
+    return True, "CONFIRMED" if request.confirm else "APPLIED", customer
+
+
+def _member_tasks(
+    db: Session, tenant_id: UUID, membership: TenantMembership, task_ids: list[UUID]
+) -> list[DeliveryTask]:
+    tasks = [get_task(db, tenant_id, task_id) for task_id in task_ids]
+    for task in tasks:
+        if membership.role is not TenantRole.OWNER and task.assigned_membership_id != membership.id:
+            raise AppError(403, "DELIVERY_TASK_NOT_ASSIGNED", "Only your own stops can be ordered")
+    return tasks
+
+
+def suggest_stop_order(
+    db: Session, tenant_id: UUID, membership: TenantMembership, request: SuggestOrderRequest
+) -> SuggestOrderResponse:
+    tasks = _member_tasks(db, tenant_id, membership, request.task_ids)
+    customer_ids = [task.customer_id for task in tasks]
+    customers = {
+        row.id: row for row in db.scalars(select(Customer).where(Customer.id.in_(customer_ids)))
+    }
+    located: list[Stop] = []
+    unlocated: list[UUID] = []
+    for task in tasks:
+        customer = customers.get(task.customer_id)
+        if (
+            customer is not None
+            and customer.latitude is not None
+            and customer.longitude is not None
+        ):
+            located.append(Stop(task.id, float(customer.latitude), float(customer.longitude)))
+        else:
+            unlocated.append(task.id)
+    if request.origin is not None:
+        origin = (float(request.origin.latitude), float(request.origin.longitude))
+    elif located:
+        origin = (located[0].latitude, located[0].longitude)
+    else:
+        origin = (0.0, 0.0)
+    ordered, method, note = suggest_order(origin, located, allow_online=request.allow_online)
+    by_task = {task.id: task for task in tasks}
+    stops: list[SuggestedStop] = []
+    for index, stop in enumerate(ordered, start=1):
+        customer = customers.get(by_task[stop.id].customer_id)
+        stops.append(
+            SuggestedStop(
+                task_id=stop.id,
+                sequence=index,
+                customer_name=customer.name if customer else "?",
+                latitude=customer.latitude if customer else None,
+                longitude=customer.longitude if customer else None,
+                has_location=True,
+            )
+        )
+    for offset, task_id in enumerate(unlocated, start=len(stops) + 1):
+        customer = customers.get(by_task[task_id].customer_id)
+        stops.append(
+            SuggestedStop(
+                task_id=task_id,
+                sequence=offset,
+                customer_name=customer.name if customer else "?",
+                latitude=None,
+                longitude=None,
+                has_location=False,
+            )
+        )
+    return SuggestOrderResponse(method=method, note=note, stops=stops, unlocated_task_ids=unlocated)
+
+
+def save_stop_order(
+    db: Session, tenant_id: UUID, membership: TenantMembership, task_ids: list[UUID]
+) -> list[DeliveryTask]:
+    """Manual reorder or an accepted suggestion: sequence 1..n on the given open tasks."""
+    tasks = _member_tasks(db, tenant_id, membership, task_ids)
+    for sequence, task in enumerate(tasks, start=1):
+        if task.status != DeliveryTaskStatus.ASSIGNED.value:
+            raise AppError(409, "DELIVERY_TASK_CLOSED", "Only open deliveries can be ordered")
+        if task.route_sequence != sequence:
+            task.route_sequence = sequence
+            task.version += 1
+    db.add(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_user_id=membership.user_id,
+            action="delivery_route_ordered",
+            entity_type="delivery_task",
+            entity_id=tasks[0].id,
+            details={"count": str(len(tasks))},
+        )
+    )
+    commit_and_restore_tenant_scope(db, tenant_id)
+    return [get_task(db, tenant_id, task.id) for task in tasks]
+
+
+def nearby_suppliers(
+    db: Session,
+    tenant_id: UUID,
+    membership: TenantMembership,
+    latitude: float,
+    longitude: float,
+    radius_m: int,
+) -> NearbyResponse:
+    """Suppliers with a saved location within the radius that have an open pickup need
+    (PHASE_07.md H). Owners see every open list; a driver only the lists assigned to them.
+    Never a price here: the owner opens the supplier desk for that."""
+    set_tenant_scope(db, tenant_id)
+    query = select(ProcurementList).where(
+        ProcurementList.tenant_id == tenant_id,
+        ProcurementList.status.in_(["OPEN", "PARTIALLY_PURCHASED"]),
+    )
+    if membership.role is not TenantRole.OWNER:
+        query = query.where(ProcurementList.assignee_membership_id == membership.id)
+    lists = list(db.scalars(query))
+    needs: dict[UUID, list[NearbyItem]] = {}
+    for procurement_list in lists:
+        for item in db.scalars(
+            select(ProcurementItem).where(
+                ProcurementItem.tenant_id == tenant_id,
+                ProcurementItem.list_id == procurement_list.id,
+            )
+        ):
+            if item.supplier_id is None or _line_is_settled(item):
+                continue
+            needs.setdefault(item.supplier_id, []).append(
+                NearbyItem(
+                    product_name=item.product_name,
+                    remaining_quantity=item.remaining_quantity,
+                    price_basis=item.price_basis,
+                    pieces_per_box=item.pieces_per_box,
+                    list_title=procurement_list.title,
+                )
+            )
+    suppliers: list[NearbySupplier] = []
+    if needs:
+        for supplier in db.scalars(
+            select(TenantSupplier).where(
+                TenantSupplier.tenant_id == tenant_id, TenantSupplier.id.in_(list(needs))
+            )
+        ):
+            if supplier.latitude is None or supplier.longitude is None:
+                continue
+            distance = haversine_m(
+                latitude, longitude, float(supplier.latitude), float(supplier.longitude)
+            )
+            if distance > radius_m:
+                continue
+            suppliers.append(
+                NearbySupplier(
+                    supplier_id=supplier.id,
+                    supplier_name=supplier.name,
+                    contact_phone=supplier.contact_phone,
+                    address=supplier.address,
+                    latitude=supplier.latitude,
+                    longitude=supplier.longitude,
+                    distance_meters=int(round(distance)),
+                    items=needs[supplier.id],
+                )
+            )
+    suppliers.sort(key=lambda row: (row.distance_meters, row.supplier_name))
+    return NearbyResponse(radius_meters=radius_m, suppliers=suppliers)
