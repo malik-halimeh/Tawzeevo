@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import SessionLocal, get_db
 from tawzeevo_api.errors import AppError, AuthenticationError
+from tawzeevo_api.observability import RequestContextMiddleware
 from tawzeevo_api.public_invoice_security import (
     PublicInvoicePrivacyMiddleware,
     install_capability_log_redaction,
@@ -169,6 +170,8 @@ app.add_middleware(
     private_limit=get_settings().public_private_rate_limit_per_minute,
     catalog_limit=get_settings().public_catalog_rate_limit_per_minute,
 )
+# Outermost: every response carries X-Request-ID and one structured access-log line (P9-M3).
+app.add_middleware(RequestContextMiddleware)
 
 
 @app.exception_handler(AppError)
@@ -198,10 +201,11 @@ def health() -> dict[str, str]:
 @app.get("/health/database", tags=["system"])
 def database_health(db: Session = Depends(get_db)) -> dict[str, str]:
     try:
-        db.execute(text("SELECT 1"))
+        head = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"code": "DATABASE_UNAVAILABLE", "message": "Database is unavailable"},
         ) from exc
-    return {"status": "ok", "database": "postgresql"}
+    # The migration head lets a deploy check confirm the schema without reading logs (P9-M3).
+    return {"status": "ok", "database": "postgresql", "migration_head": head or "none"}

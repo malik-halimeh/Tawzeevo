@@ -46,7 +46,7 @@ class CapabilityLogFilter(logging.Filter):
 
 
 def install_capability_log_redaction() -> None:
-    for name in ("uvicorn.access", "uvicorn.error", "tawzeevo.public_invoices"):
+    for name in ("uvicorn.access", "uvicorn.error", "tawzeevo.public_invoices", "tawzeevo.access"):
         logger = logging.getLogger(name)
         if not any(isinstance(item, CapabilityLogFilter) for item in logger.filters):
             logger.addFilter(CapabilityLogFilter())

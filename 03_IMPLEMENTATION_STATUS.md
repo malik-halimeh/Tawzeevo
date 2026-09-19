@@ -8,7 +8,7 @@
 - Current phase: `9`
 - Current phase status: `IN_PROGRESS`
 - Current milestone: `P9-M3 — Performance + observability`
-- Current milestone status: `NOT_STARTED`
+- Current milestone status: `IN_PROGRESS` — done: `X-Request-ID` correlation (echoed when safe, else generated; header only, error bodies stay constant), one structured access-log line per request (route template, status, duration, request id; no query, body or secret; health probes quiet), `/health/database` reports the migration head, `scripts/slo_probe.py` (D-078 targets; local run 2026-09-19: phone lookup p95 17 ms, barcode 26 ms, customer create 21 ms, product read 17 ms, checkout 43 ms, sync push of 100 operations max 629 ms — all PASS). Next: the same probe against staging, alert definitions, sync/job/backup/auth monitoring
 - Last completed milestone: `P9-M2`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
