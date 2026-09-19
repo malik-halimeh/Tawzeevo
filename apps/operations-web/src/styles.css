@@ -572,3 +572,4 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .supplier-row { align-items: center; display: flex; gap: .8rem; justify-content: space-between; }
 .price-insights { margin-block-start: 1.5rem; }
 .price-insights mark { background: var(--warning-bg, #fff3cd); padding: 0 .2rem; }
+.supplier-recommendation .ranking { display: grid; gap: .4rem; padding-inline-start: 1.4rem; }

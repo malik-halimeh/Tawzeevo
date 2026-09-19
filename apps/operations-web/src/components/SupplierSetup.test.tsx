@@ -37,6 +37,10 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
     if (path.includes("/suppliers/products/product-1/costs")) {
       return Promise.resolve(Response.json({ product_id: "product-1", product_name: "Cedar Water", currency: "USD", preferred_supplier_id: preferred, entries }));
     }
+    if (path.includes("/supplier-prices/products/product-1/recommendation")) {
+      const ranked = entries.length === 0 ? [] : [{ rank: 1, supplier_id: "supplier-1", supplier_name: "Bekaa Wholesale", unit_cost: "8.0000", effective_at: "2026-09-17T01:00:00Z", age_days: 2, is_stale: false, source_type: "QUOTE", entry_id: "entry-1", quantity_context: "120", delta_vs_best: "0.0000", explanation: "LOWEST_COMPARABLE" }];
+      return Promise.resolve(Response.json({ product_id: "product-1", currency: "USD", cost_basis: "PIECE", pieces_per_box: null, stale_after_days: 90, recommended_supplier_id: ranked[0]?.supplier_id ?? null, preferred_supplier_id: preferred, effective_supplier_id: preferred ?? ranked[0]?.supplier_id ?? null, effective_reason: ranked.length === 0 ? "NO_COMPARABLE_PRICE" : preferred === "supplier-1" ? "OWNER_CHOICE_MATCHES_RECOMMENDATION" : "LOWEST_COMPARABLE", ranked, excluded: [{ supplier_id: "supplier-9", supplier_name: "Silent", reason: "NO_PRICE", detail: "" }] }));
+    }
     if (path.includes("/supplier-prices/products/product-1")) {
       const insights = entries.length === 0 ? [] : [{ supplier_id: "supplier-1", supplier_name: "Bekaa Wholesale", currency: "USD", cost_basis: "PIECE", pieces_per_box: null, latest_unit_cost: "8.0000", latest_effective_at: "2026-09-17T01:00:00Z", latest_source_type: "QUOTE", age_days: 2, lowest_unit_cost: "8.0000", highest_unit_cost: "8.0000", last_purchase_at: null, last_purchase_unit_cost: null, recent_unit_costs: ["8.0000"], entry_count: 1, variation_percent: null, stability: "INSUFFICIENT_DATA", is_preferred: true }];
       return Promise.resolve(Response.json({ product_id: "product-1", stale_after_days: 90, insights }));
@@ -56,6 +60,7 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
 
   fireEvent.change(screen.getByLabelText("Product"), { target: { value: "product-1" } });
   expect(await screen.findByText("No cost entries for this product yet.")).toBeInTheDocument();
+  expect(screen.getByText("No comparable price yet for this unit.")).toBeInTheDocument();
   fireEvent.change(screen.getAllByLabelText("Supplier")[0]!, { target: { value: "supplier-1" } });
   fireEvent.change(screen.getByLabelText("Unit cost (USD)"), { target: { value: "8" } });
   fireEvent.change(screen.getByLabelText("Source"), { target: { value: "QUOTE" } });
@@ -63,13 +68,17 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
   fireEvent.click(screen.getByRole("button", { name: "Save new cost entry" }));
   await waitFor(() => expect(screen.getByText("Cost entry saved. The invoice editor will preload it.")).toBeInTheDocument());
   expect(screen.getAllByText("Bekaa Wholesale · preferred").length).toBeGreaterThan(0);
-  expect(screen.getByText("8.0000 USD")).toBeInTheDocument();
+  expect(screen.getAllByText("8.0000 USD").length).toBeGreaterThan(0);
   const cost = bodies.find((body) => body.unit_cost !== undefined);
   expect(cost).toMatchObject({ supplier_id: "supplier-1", unit_cost: "8", currency: "USD", cost_basis: "PIECE", source_type: "QUOTE", quantity_context: "120" });
   // Derived insight table: latest with source and age, no purchase yet, stability label.
   expect(await screen.findByRole("table", { name: "Price insight per supplier" })).toBeInTheDocument();
   expect(screen.getByText("no purchase yet")).toBeInTheDocument();
   expect(screen.getByText("Not enough data")).toBeInTheDocument();
+  // Deterministic recommendation with an explanation, the owner's choice matching it, and the excluded supplier.
+  expect(await screen.findByText("Your choice Bekaa Wholesale matches the recommendation.")).toBeInTheDocument();
+  expect(screen.getByText("lowest comparable price")).toBeInTheDocument();
+  expect(screen.getByText(/Silent \(no price recorded\)/)).toBeInTheDocument();
 });
 
 test("supplier setup renders Arabic labels", async () => {

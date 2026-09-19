@@ -1,11 +1,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
+from tawzeevo_api.models import ProductPriceBasis
 from tawzeevo_api.schemas.suppliers import (
     PreferredSupplierRequest,
     ProductCostEntryCreateRequest,
@@ -13,6 +14,7 @@ from tawzeevo_api.schemas.suppliers import (
     ProductPriceInsightsResponse,
     SupplierCreateRequest,
     SupplierListResponse,
+    SupplierRecommendationResponse,
     SupplierResponse,
     SupplierUpdateRequest,
 )
@@ -22,6 +24,7 @@ from tawzeevo_api.services.suppliers import (
     list_suppliers,
     product_cost_setup,
     product_price_insights,
+    recommend_supplier,
     set_preferred_supplier,
     update_supplier,
 )
@@ -38,6 +41,20 @@ def get_product_price_insights(
 ) -> ProductPriceInsightsResponse:
     """Derived last/low/high/trend/stability per supplier and comparable group (PHASE_06.md C)."""
     return product_price_insights(db, context.tenant.id, product_id)
+
+
+@supplier_prices_router.get(
+    "/products/{product_id}/recommendation", response_model=SupplierRecommendationResponse
+)
+def get_supplier_recommendation(
+    product_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    cost_basis: Annotated[ProductPriceBasis | None, Query()] = None,
+    pieces_per_box: Annotated[int | None, Query(gt=0)] = None,
+) -> SupplierRecommendationResponse:
+    """Deterministic comparable ranking with the owner's override (PHASE_06.md D)."""
+    return recommend_supplier(db, context.tenant.id, product_id, cost_basis, pieces_per_box)
 
 
 @suppliers_router.get("", response_model=SupplierListResponse)

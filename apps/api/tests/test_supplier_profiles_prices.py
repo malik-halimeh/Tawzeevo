@@ -215,3 +215,95 @@ def test_price_history_is_append_only_with_provenance_and_derived_insights(clien
     _o, other_tenant, other_token = _owner_context(client, session_factory, "p6hist2")
     foreign = _get(client, other_tenant, other_token, f"/api/v1/supplier-prices/products/{pid}")
     assert foreign.status_code == 404
+
+
+def test_recommendation_is_deterministic_explainable_and_overridable(client, session_factory):
+    """PHASE_06.md D: same product, compatible unit/package, same currency, latest price per
+    supplier, lowest comparable first, age/source shown, owner override on top (P6-M2)."""
+    _owner, tenant, token = _owner_context(client, session_factory, "p6rec")
+    _category, product, _customer = _catalog(client, tenant, token, name="Labneh 500g")
+    pid = product["id"]
+    ids = {}
+    for name in ("Bekaa", "North", "South", "Tripoli", "Silent"):
+        ids[name] = _post(client, tenant, token, "/api/v1/suppliers", {"name": name}).json()["id"]
+    assert (
+        _cost(client, tenant, token, pid, ids["Bekaa"], "9.0000", effective_at=_at(30)).status_code
+        == 201
+    )
+    assert (
+        _cost(client, tenant, token, pid, ids["Bekaa"], "8.5000", effective_at=_at(2)).status_code
+        == 201
+    )
+    assert (
+        _cost(client, tenant, token, pid, ids["North"], "8.5000", effective_at=_at(5)).status_code
+        == 201
+    )
+    assert (
+        _cost(client, tenant, token, pid, ids["South"], "7.0000", effective_at=_at(200)).status_code
+        == 201
+    )
+    box = _cost(
+        client, tenant, token, pid, ids["Tripoli"], "80.0000", cost_basis="BOX", pieces_per_box=12
+    )
+    assert box.status_code == 201
+    path = f"/api/v1/supplier-prices/products/{pid}/recommendation"
+
+    first = _get(client, tenant, token, path)
+    assert first.status_code == 200, first.text
+    body = first.json()
+    assert body["cost_basis"] == "PIECE" and body["currency"] == "USD"
+    ranked = [
+        (r["rank"], r["supplier_name"], r["unit_cost"], r["explanation"]) for r in body["ranked"]
+    ]
+    # Same price: the newer entry ranks first; the cheap-but-stale South is ranked last, visible.
+    assert ranked == [
+        (1, "Bekaa", "8.5000", "LOWEST_COMPARABLE"),
+        (2, "North", "8.5000", "SAME_PRICE_OLDER"),
+        (3, "South", "7.0000", "STALE_RANKED_LAST"),
+    ]
+    assert body["ranked"][2]["is_stale"] is True and body["ranked"][2]["age_days"] >= 200
+    assert body["ranked"][1]["delta_vs_best"] == "0.0000"
+    assert {(e["supplier_name"], e["reason"]) for e in body["excluded"]} == {
+        ("Tripoli", "INCOMPATIBLE_UNIT"),
+        ("Silent", "NO_PRICE"),
+    }
+    # Bekaa became preferred with its first cost (D-041), so the owner choice matches.
+    assert body["recommended_supplier_id"] == ids["Bekaa"]
+    assert body["effective_supplier_id"] == ids["Bekaa"]
+    assert body["effective_reason"] == "OWNER_CHOICE_MATCHES_RECOMMENDATION"
+    # Reproducible: the same history gives the same answer.
+    again = _get(client, tenant, token, path).json()
+    assert [r["supplier_id"] for r in again["ranked"]] == [r["supplier_id"] for r in body["ranked"]]
+
+    # The box group is a different comparison; Tripoli ranks alone, piece suppliers are excluded.
+    boxes = client.get(
+        f"{path}?tenant_id={tenant}&cost_basis=BOX&pieces_per_box=12", headers=_auth(token)
+    )
+    assert boxes.status_code == 200, boxes.text
+    assert [r["supplier_name"] for r in boxes.json()["ranked"]] == ["Tripoli"]
+    assert {e["reason"] for e in boxes.json()["excluded"]} == {"INCOMPATIBLE_UNIT", "NO_PRICE"}
+
+    # Owner override with a reason: the recommendation stays visible next to the choice.
+    override = client.put(
+        f"/api/v1/suppliers/products/{pid}/preferred-supplier?tenant_id={tenant}",
+        headers=_auth(token),
+        json={"supplier_id": ids["North"], "reason": "delivers on Mondays"},
+    )
+    assert override.status_code == 200, override.text
+    after = _get(client, tenant, token, path).json()
+    assert after["recommended_supplier_id"] == ids["Bekaa"]
+    assert after["effective_supplier_id"] == ids["North"]
+    assert after["effective_reason"] == "OWNER_OVERRIDE"
+    with session_factory() as db:
+        from tawzeevo_api.models import AuditEvent
+
+        audit = db.scalar(
+            select(AuditEvent)
+            .where(AuditEvent.action == "preferred_supplier_set", AuditEvent.tenant_id == tenant)
+            .order_by(AuditEvent.occurred_at.desc())
+        )
+        assert audit is not None and audit.details["reason"] == "delivers on Mondays"
+
+    # Isolation: the other business sees nothing of this ranking.
+    _o, other_tenant, other_token = _owner_context(client, session_factory, "p6rec2")
+    assert _get(client, other_tenant, other_token, path).status_code == 404

@@ -42,6 +42,15 @@ interface PriceInsight {
 }
 interface PriceInsights { product_id: string; stale_after_days: number; insights: PriceInsight[] }
 
+/** Deterministic comparable ranking plus the owner's override (PHASE_06.md D). */
+interface RankedSupplier { rank: number; supplier_id: string; supplier_name: string; unit_cost: string; effective_at: string; age_days: number; is_stale: boolean; source_type: string; entry_id: string; quantity_context: string | null; delta_vs_best: string; explanation: string }
+interface ExcludedSupplier { supplier_id: string; supplier_name: string; reason: string; detail: string }
+interface Recommendation {
+  product_id: string; currency: string; cost_basis: ProductPriceBasis; pieces_per_box: number | null; stale_after_days: number;
+  recommended_supplier_id: string | null; preferred_supplier_id: string | null; effective_supplier_id: string | null; effective_reason: string;
+  ranked: RankedSupplier[]; excluded: ExcludedSupplier[];
+}
+
 interface ProductCostEntry {
   id: string;
   supplier_id: string;
@@ -75,6 +84,9 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
   const [profile, setProfile] = useState<SupplierProfileDraft>(emptyProfile());
   const [editing, setEditing] = useState<{ id: string; version: number; draft: SupplierProfileDraft }>();
   const [insights, setInsights] = useState<PriceInsights>();
+  const [recommendation, setRecommendation] = useState<Recommendation>();
+  const [compareBasis, setCompareBasis] = useState<ProductPriceBasis | "">("");
+  const [overrideReason, setOverrideReason] = useState("");
   const [productId, setProductId] = useState(initialProductId ?? "");
   const [setup, setSetup] = useState<ProductCostSetup>();
   const [costSupplierId, setCostSupplierId] = useState("");
@@ -103,14 +115,17 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
     setProducts(response.products);
   }, [tenantId]);
 
+  const recommendationPath = useCallback((id: string) => `/api/v1/supplier-prices/products/${id}/recommendation?tenant_id=${tenantId}${compareBasis ? `&cost_basis=${compareBasis}` : ""}`, [tenantId, compareBasis]);
+
   const loadSetup = useCallback(async (id: string) => {
-    if (!id) { setSetup(undefined); setInsights(undefined); return; }
-    const [costs, derived] = await Promise.all([
+    if (!id) { setSetup(undefined); setInsights(undefined); setRecommendation(undefined); return; }
+    const [costs, derived, ranking] = await Promise.all([
       apiRequest<ProductCostSetup>(`/api/v1/suppliers/products/${id}/costs?tenant_id=${tenantId}`),
       apiRequest<PriceInsights>(`/api/v1/supplier-prices/products/${id}?tenant_id=${tenantId}`),
+      apiRequest<Recommendation>(recommendationPath(id)),
     ]);
-    setSetup(costs); setInsights(derived);
-  }, [tenantId]);
+    setSetup(costs); setInsights(derived); setRecommendation(ranking);
+  }, [tenantId, recommendationPath]);
 
   useEffect(() => { void run(async () => { await Promise.all([loadSuppliers(), loadProducts()]); }); }, [run, loadSuppliers, loadProducts]);
   useEffect(() => { void run(() => loadSetup(productId)); }, [run, loadSetup, productId]);
@@ -158,18 +173,21 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
       });
       setSetup(response);
       setInsights(await apiRequest<PriceInsights>(`/api/v1/supplier-prices/products/${product.id}?tenant_id=${tenantId}`));
+      setRecommendation(await apiRequest<Recommendation>(recommendationPath(product.id)));
       setUnitCost(""); setNotes(""); setQuantityContext("");
       setNotice(t("supplierSetup.costAppended"));
     });
   };
 
-  const setPreferred = (supplierId: string | null) => {
+  const setPreferred = (supplierId: string | null, reason?: string) => {
     if (!product) return;
     void run(async () => {
       setSetup(await apiRequest<ProductCostSetup>(`/api/v1/suppliers/products/${product.id}/preferred-supplier?tenant_id=${tenantId}`, {
         method: "PUT",
-        body: JSON.stringify({ supplier_id: supplierId }),
+        body: JSON.stringify({ supplier_id: supplierId, reason: reason?.trim() || null }),
       }));
+      setRecommendation(await apiRequest<Recommendation>(recommendationPath(product.id)));
+      setOverrideReason("");
       setNotice(t("supplierSetup.preferredSaved"));
     });
   };
@@ -277,6 +295,42 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
                 </table>
               )}
               {setup.preferred_supplier_id ? <button className="text-button" disabled={busy} onClick={() => setPreferred(null)} type="button">{t("supplierSetup.clearPreferred")}</button> : null}
+              {recommendation ? (
+                <div className="price-insights supplier-recommendation" aria-labelledby="recommendation-title">
+                  <h5 id="recommendation-title">{t("supplierSetup.recommendationTitle")}</h5>
+                  <p className="muted">{t("supplierSetup.recommendationBody")}</p>
+                  <label className="field"><span>{t("supplierSetup.compareGroup")}</span>
+                    <select value={compareBasis} onChange={(event) => setCompareBasis(event.target.value as ProductPriceBasis | "")}>
+                      <option value="">{t("supplierSetup.productUnit", { unit: product.price_basis === "BOX" ? t("tenantWorkspace.box") : t("tenantWorkspace.piece") })}</option>
+                      <option value="PIECE">{t("tenantWorkspace.piece")}</option>
+                      <option value="BOX">{t("tenantWorkspace.box")}</option>
+                    </select>
+                  </label>
+                  <p className="form-status" role="status">
+                    {recommendation.effective_reason === "NO_COMPARABLE_PRICE" ? t("supplierSetup.noComparable") : t(`supplierSetup.effective.${recommendation.effective_reason}`, {
+                      supplier: supplierName_(recommendation.effective_supplier_id ?? ""),
+                      recommended: supplierName_(recommendation.recommended_supplier_id ?? ""),
+                    })}
+                  </p>
+                  {recommendation.ranked.length > 0 ? (
+                    <ol className="ranking" aria-label={t("supplierSetup.recommendationTitle")}>
+                      {recommendation.ranked.map((row) => (
+                        <li key={row.supplier_id}>
+                          <strong>{row.supplier_name}</strong> · <bdi dir="ltr">{row.unit_cost} {recommendation.currency}</bdi>
+                          {row.rank > 1 ? <> · <bdi dir="ltr">+{row.delta_vs_best}</bdi></> : null}
+                          {" · "}{t(`supplierSetup.sources.${row.source_type}`, { defaultValue: row.source_type })} · {row.is_stale ? <mark>{t("supplierSetup.ageDays", { days: row.age_days })}</mark> : t("supplierSetup.ageDays", { days: row.age_days })}
+                          {" — "}<span className="muted">{t(`supplierSetup.why.${row.explanation}`)}</span>
+                          {setup.preferred_supplier_id !== row.supplier_id ? <> <button className="text-button" disabled={busy} onClick={() => setPreferred(row.supplier_id, overrideReason)} type="button">{t("supplierSetup.chooseSupplier")}</button></> : null}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
+                  {recommendation.excluded.length > 0 ? (
+                    <p className="muted">{t("supplierSetup.notRanked")}: {recommendation.excluded.map((row) => `${row.supplier_name} (${t(`supplierSetup.excluded.${row.reason}`)}${row.detail ? ` ${row.detail}` : ""})`).join(", ")}</p>
+                  ) : null}
+                  <label className="field field-wide"><span>{t("supplierSetup.overrideReason")}</span><input maxLength={300} value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} /></label>
+                </div>
+              ) : null}
               {insights && insights.insights.length > 0 ? (
                 <div className="price-insights">
                   <h5>{t("supplierSetup.insightsTitle")}</h5>

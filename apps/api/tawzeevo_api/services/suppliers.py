@@ -27,14 +27,17 @@ from tawzeevo_api.models import (
 from tawzeevo_api.phone import normalize_phone
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.schemas.suppliers import (
+    ExcludedSupplier,
     PreferredSupplierRequest,
     ProductCostEntryCreateRequest,
     ProductCostEntryResponse,
     ProductCostSetupResponse,
     ProductPriceInsightsResponse,
+    RankedSupplier,
     SupplierCreateRequest,
     SupplierListResponse,
     SupplierPriceInsight,
+    SupplierRecommendationResponse,
     SupplierResponse,
     SupplierUpdateRequest,
 )
@@ -281,6 +284,7 @@ def set_preferred_supplier(
         "tenant_product",
         product.id,
         supplier_id=request.supplier_id,
+        reason=request.reason or "",
     )
     commit_and_restore_tenant_scope(db, tenant_id)
     return _cost_setup(db, tenant_id, get_product(db, tenant_id, product_id))
@@ -397,4 +401,146 @@ def product_price_insights(
         as_of=as_of,
         stale_after_days=STALE_AFTER_DAYS,
         insights=insights,
+    )
+
+
+# ---------------------------------------------------------------------------------------------
+# Deterministic comparable-supplier recommendation (PHASE_06.md D) — no AI, no FX
+# ---------------------------------------------------------------------------------------------
+
+
+def recommend_supplier(
+    db: Session,
+    tenant_id: UUID,
+    product_id: UUID,
+    cost_basis: ProductPriceBasis | None = None,
+    pieces_per_box: int | None = None,
+    now: datetime | None = None,
+) -> SupplierRecommendationResponse:
+    """Rank suppliers for one product inside one comparable group (the product's currency and
+    the requested unit/package): the latest price per supplier, fresh prices before stale ones,
+    lowest first, ties broken by newer price then supplier name then id, so two owners looking at
+    the same history see the same order. Suppliers whose only prices are in another unit, another
+    package size or another currency are listed as excluded with the reason, never ranked. The
+    owner's preferred supplier overrides the recommendation and both are returned."""
+    product = get_product(db, tenant_id, product_id)
+    as_of = now or datetime.now(UTC)
+    basis = cost_basis or product.price_basis
+    pieces = pieces_per_box if pieces_per_box is not None else product.pieces_per_box
+    if basis is ProductPriceBasis.PIECE:
+        pieces = None
+    rows = list(
+        db.scalars(
+            select(TenantProductCostEntry)
+            .where(
+                TenantProductCostEntry.tenant_id == tenant_id,
+                TenantProductCostEntry.tenant_product_id == product.id,
+                TenantProductCostEntry.effective_at <= as_of,
+            )
+            .order_by(
+                TenantProductCostEntry.effective_at.desc(),
+                TenantProductCostEntry.created_at.desc(),
+                TenantProductCostEntry.id.desc(),
+            )
+        )
+    )
+    names = {
+        row.id: row.name
+        for row in db.scalars(select(TenantSupplier).where(TenantSupplier.tenant_id == tenant_id))
+    }
+    latest: dict[UUID, TenantProductCostEntry] = {}
+    excluded: dict[UUID, ExcludedSupplier] = {}
+    for row in rows:  # newest first: the first comparable row per supplier is its latest price
+        if row.supplier_id in latest:
+            continue
+        if row.currency != product.currency:
+            reason, detail = "DIFFERENT_CURRENCY", f"{row.currency} vs {product.currency}"
+        elif row.cost_basis is not basis or (
+            basis is ProductPriceBasis.BOX and row.pieces_per_box != pieces
+        ):
+            package = f" x{row.pieces_per_box}" if row.pieces_per_box else ""
+            reason, detail = "INCOMPATIBLE_UNIT", f"{row.cost_basis.value}{package}"
+        else:
+            latest[row.supplier_id] = row
+            excluded.pop(row.supplier_id, None)
+            continue
+        excluded.setdefault(
+            row.supplier_id,
+            ExcludedSupplier(
+                supplier_id=row.supplier_id,
+                supplier_name=names.get(row.supplier_id, "?"),
+                reason=reason,
+                detail=detail,
+            ),
+        )
+    for supplier_id, name in names.items():
+        if supplier_id not in latest and supplier_id not in excluded:
+            excluded[supplier_id] = ExcludedSupplier(
+                supplier_id=supplier_id, supplier_name=name, reason="NO_PRICE", detail=""
+            )
+    ordered = sorted(
+        latest.values(),
+        key=lambda row: (
+            (as_of - row.effective_at).days >= STALE_AFTER_DAYS,
+            money(row.unit_cost),
+            -row.effective_at.timestamp(),
+            names.get(row.supplier_id, ""),
+            str(row.supplier_id),
+        ),
+    )
+    best = money(ordered[0].unit_cost) if ordered else Decimal("0")
+    ranked: list[RankedSupplier] = []
+    for index, row in enumerate(ordered, start=1):
+        age = max(0, (as_of - row.effective_at).days)
+        stale = age >= STALE_AFTER_DAYS
+        if index == 1:
+            explanation = "LOWEST_COMPARABLE" if not stale else "LOWEST_BUT_STALE"
+        elif stale:
+            explanation = "STALE_RANKED_LAST"
+        elif money(row.unit_cost) == best:
+            explanation = "SAME_PRICE_OLDER"
+        else:
+            explanation = "HIGHER_PRICE"
+        ranked.append(
+            RankedSupplier(
+                rank=index,
+                supplier_id=row.supplier_id,
+                supplier_name=names.get(row.supplier_id, "?"),
+                unit_cost=money(row.unit_cost),
+                effective_at=row.effective_at,
+                age_days=age,
+                is_stale=stale,
+                source_type=row.source_type,
+                entry_id=row.id,
+                quantity_context=row.quantity_context,
+                delta_vs_best=money(row.unit_cost) - best,
+                explanation=explanation,
+            )
+        )
+    recommended = ranked[0].supplier_id if ranked else None
+    preferred = product.preferred_supplier_id
+    if preferred is not None:
+        effective, reason = preferred, "OWNER_OVERRIDE"
+        if preferred == recommended:
+            reason = "OWNER_CHOICE_MATCHES_RECOMMENDATION"
+    elif recommended is not None:
+        effective, reason = recommended, "LOWEST_COMPARABLE"
+    else:
+        effective, reason = None, "NO_COMPARABLE_PRICE"
+    return SupplierRecommendationResponse(
+        product_id=product.id,
+        product_name=product.name,
+        currency=product.currency,
+        cost_basis=basis,
+        pieces_per_box=pieces,
+        as_of=as_of,
+        stale_after_days=STALE_AFTER_DAYS,
+        recommended_supplier_id=recommended,
+        preferred_supplier_id=preferred,
+        effective_supplier_id=effective,
+        effective_reason=reason,
+        ranked=ranked,
+        excluded=sorted(
+            excluded.values(), key=lambda row: (row.supplier_name, str(row.supplier_id))
+        ),
     )

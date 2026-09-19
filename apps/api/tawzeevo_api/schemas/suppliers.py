@@ -126,9 +126,13 @@ class ProductCostSetupResponse(BaseModel):
 
 
 class PreferredSupplierRequest(BaseModel):
+    """The owner's override of the deterministic recommendation (PHASE_06.md D step 7); the
+    optional reason is audited so the choice can be explained later."""
+
     model_config = ConfigDict(extra="forbid")
 
     supplier_id: UUID | None
+    reason: str | None = Field(default=None, max_length=300)
 
 
 class SupplierPriceInsight(BaseModel):
@@ -164,3 +168,44 @@ class ProductPriceInsightsResponse(BaseModel):
     as_of: datetime
     stale_after_days: int
     insights: list[SupplierPriceInsight]
+
+
+class RankedSupplier(BaseModel):
+    """One comparable supplier price in the recommendation, with everything needed to explain
+    its position (PHASE_06.md D steps 4–6)."""
+
+    rank: int
+    supplier_id: UUID
+    supplier_name: str
+    unit_cost: Decimal
+    effective_at: datetime
+    age_days: int
+    is_stale: bool
+    source_type: str
+    entry_id: UUID
+    quantity_context: Decimal | None
+    delta_vs_best: Decimal
+    explanation: str
+
+
+class ExcludedSupplier(BaseModel):
+    supplier_id: UUID
+    supplier_name: str
+    reason: str
+    detail: str
+
+
+class SupplierRecommendationResponse(BaseModel):
+    product_id: UUID
+    product_name: str
+    currency: str
+    cost_basis: ProductPriceBasis
+    pieces_per_box: int | None
+    as_of: datetime
+    stale_after_days: int
+    recommended_supplier_id: UUID | None
+    preferred_supplier_id: UUID | None
+    effective_supplier_id: UUID | None
+    effective_reason: str
+    ranked: list[RankedSupplier]
+    excluded: list[ExcludedSupplier]
