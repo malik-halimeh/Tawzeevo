@@ -1,5 +1,6 @@
 from decimal import Decimal
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,6 +28,10 @@ class Settings(BaseSettings):
     refresh_cookie_secure: bool = False
     refresh_cookie_name: str = "tawzeevo_refresh_token"
     refresh_cookie_path: str = "/api/v1/auth"
+    # D-026 default. "none" only when the client and the API are served from different sites
+    # (two onrender.com hosts): browsers drop a Lax cookie on cross-site fetches, so refresh
+    # would never see it. With "none" the cookie-bearing auth routes check the Origin header.
+    refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     jwt_issuer: str = "tawzeevo-api"
     jwt_audience: str = "tawzeevo-operations"
     media_local_root: str = ".local-media"
@@ -74,6 +79,8 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must contain at least 32 bytes in production")
             if not self.refresh_cookie_secure:
                 raise ValueError("REFRESH_COOKIE_SECURE must be true in production")
+            if self.refresh_cookie_samesite == "none" and not self.cors_allowed_origins:
+                raise ValueError("REFRESH_COOKIE_SAMESITE=none needs CORS_ALLOWED_ORIGINS")
             if self.backup_drive_provider != "google":
                 raise ValueError("BACKUP_DRIVE_PROVIDER must be google in production")
             if self.email_provider.lower() not in ("brevo", "resend") or not self.email_api_key:

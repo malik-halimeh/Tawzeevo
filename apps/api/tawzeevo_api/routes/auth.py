@@ -62,7 +62,7 @@ def set_refresh_cookie(response: Response, token: str, settings: Settings) -> No
         max_age=settings.refresh_token_ttl_days * 24 * 60 * 60,
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="lax",
+        samesite=settings.refresh_cookie_samesite,
         path=settings.refresh_cookie_path,
     )
 
@@ -72,7 +72,7 @@ def clear_refresh_cookie(response: Response, settings: Settings) -> None:
         key=settings.refresh_cookie_name,
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="lax",
+        samesite=settings.refresh_cookie_samesite,
         path=settings.refresh_cookie_path,
     )
 
@@ -109,6 +109,17 @@ def login_route(
     )
 
 
+def _require_allowed_origin(request: Request, settings: Settings) -> None:
+    """CSRF guard for cookie-bearing auth routes when the cookie is SameSite=None: a browser
+    always sends Origin on cross-site POSTs, and only the configured client origins may use the
+    refresh cookie. Same-site and non-browser calls carry no Origin and pass unchanged."""
+    origin = request.headers.get("origin")
+    if origin and origin not in settings.cors_allowed_origins:
+        raise AuthenticationError(
+            "ORIGIN_NOT_ALLOWED", "Origin is not allowed", clear_refresh_cookie=True
+        )
+
+
 @auth_router.post("/refresh", response_model=TokenResponse)
 def refresh(
     request: Request,
@@ -116,6 +127,7 @@ def refresh(
     db: Annotated[Session, Depends(get_db)],
 ) -> TokenResponse:
     settings = get_settings()
+    _require_allowed_origin(request, settings)
     refresh_token = request.cookies.get(settings.refresh_cookie_name)
     if refresh_token is None:
         raise AuthenticationError(clear_refresh_cookie=True)
@@ -133,10 +145,12 @@ def refresh(
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout_route(
+    request: Request,
     response: Response,
     db: Annotated[Session, Depends(get_db)],
     context: Annotated[AuthContext, Depends(get_auth_context)],
 ) -> None:
+    _require_allowed_origin(request, get_settings())
     logout(db, context.auth_session)
     clear_refresh_cookie(response, get_settings())
 

@@ -52,6 +52,7 @@ export function ErrorState({ error }: { error: unknown }) {
     <div className="notice notice-error" role="alert">
       <strong>{t("common.requestFailed")}</strong>
       <span>{message}</span>
+      {error instanceof TypeError ? <small>{t("errors.NETWORK_UNREACHABLE")}</small> : null}
     </div>
   );
 }

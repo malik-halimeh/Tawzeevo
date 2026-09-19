@@ -43,9 +43,31 @@ async function parseError(response: Response): Promise<ApiError> {
   );
 }
 
+// The free hosting tier sleeps the API when idle and answers the first request with a bare
+// gateway error that carries no CORS headers, which the browser reports as a network failure
+// (TypeError "Failed to fetch"). While the browser says it is online, retry such failures once
+// for the session calls that are safe to repeat (refresh, login, recovery). Everything else keeps
+// the original TypeError so the offline logic (outbox, pull, offline fallbacks) and the
+// lost-response handling keep recognising a real network failure.
+const WAKE_DELAY_MS = 1500;
+const RETRY_SAFE = ["/api/v1/auth/refresh", "/api/v1/auth/password/forgot", "/api/v1/auth/password/reset", "/login"];
+
+export async function fetchWithWakeRetry(input: string, init: RequestInit): Promise<Response> {
+  const path = input.startsWith(API_BASE_URL) ? input.slice(API_BASE_URL.length) : input;
+  const safe = RETRY_SAFE.includes(path);
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    const online = typeof navigator === "undefined" || navigator.onLine !== false;
+    if (!safe || !online || !(error instanceof TypeError)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, WAKE_DELAY_MS));
+    return fetch(input, init);
+  }
+}
+
 export async function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {
-    refreshPromise = fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+    refreshPromise = fetchWithWakeRetry(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: "POST",
       credentials: "include",
     })
@@ -90,7 +112,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithWakeRetry(`${API_BASE_URL}${path}`, {
     ...requestInit,
     headers,
     credentials: "include",
@@ -118,7 +140,7 @@ export async function apiBlobRequest(
   if (authenticated && accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithWakeRetry(`${API_BASE_URL}${path}`, {
     ...requestInit,
     headers,
     credentials: "include",

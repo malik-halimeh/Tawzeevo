@@ -187,7 +187,7 @@ def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
             key=settings.refresh_cookie_name,
             httponly=True,
             secure=settings.refresh_cookie_secure,
-            samesite="lax",
+            samesite=settings.refresh_cookie_samesite,
             path=settings.refresh_cookie_path,
         )
     return response
