@@ -79,7 +79,7 @@ def _financial_context(db: Session, *, suffix: str = "a") -> dict[str, object]:
         cost_basis=ProductPriceBasis.PIECE,
         pieces_per_box=12,
         effective_at=datetime(2026, 8, 26, tzinfo=UTC),
-        source_type="OWNER_ENTRY",
+        source_type="MANUAL",
         created_by_user_id=owner.id,
     )
     db.add(cost)
@@ -173,7 +173,7 @@ def test_supplier_costs_are_tenant_private_append_only_and_independently_priced(
                     currency="USD",
                     cost_basis=ProductPriceBasis.PIECE,
                     effective_at=datetime.now(UTC),
-                    source_type="OWNER_ENTRY",
+                    source_type="MANUAL",
                     created_by_user_id=first_owner.id,
                 )
             )
@@ -345,7 +345,7 @@ def test_invoice_order_cardinality_and_cost_snapshot_survive_later_cost_change(
             cost_basis=ProductPriceBasis.PIECE,
             pieces_per_box=12,
             effective_at=datetime(2026, 9, 2, tzinfo=UTC),
-            source_type="OWNER_ENTRY",
+            source_type="MANUAL",
             created_by_user_id=owner.id,
         )
         db.add(newer_cost)

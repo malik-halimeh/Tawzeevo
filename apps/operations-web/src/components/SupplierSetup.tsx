@@ -10,9 +10,37 @@ export interface Supplier {
   id: string;
   tenant_id: string;
   name: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  address: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  notes: string | null;
+  version: number;
   created_at: string;
   updated_at: string;
 }
+
+/** Editable profile fields (PHASE_06.md B); blank strings are sent as null. */
+interface SupplierProfileDraft { name: string; contact_name: string; contact_phone: string; address: string; latitude: string; longitude: string; notes: string }
+const emptyProfile = (): SupplierProfileDraft => ({ name: "", contact_name: "", contact_phone: "", address: "", latitude: "", longitude: "", notes: "" });
+const profileOf = (supplier: Supplier): SupplierProfileDraft => ({
+  name: supplier.name, contact_name: supplier.contact_name ?? "", contact_phone: supplier.contact_phone ?? "", address: supplier.address ?? "",
+  latitude: supplier.latitude ?? "", longitude: supplier.longitude ?? "", notes: supplier.notes ?? "",
+});
+const profileBody = (draft: SupplierProfileDraft) => ({
+  name: draft.name.trim(), contact_name: draft.contact_name.trim() || null, contact_phone: draft.contact_phone.trim() || null, address: draft.address.trim() || null,
+  latitude: draft.latitude.trim() || null, longitude: draft.longitude.trim() || null, notes: draft.notes.trim() || null,
+});
+
+/** Derived per supplier and comparable group; nothing here is stored (PHASE_06.md C). */
+interface PriceInsight {
+  supplier_id: string; supplier_name: string; currency: string; cost_basis: ProductPriceBasis; pieces_per_box: number | null;
+  latest_unit_cost: string; latest_effective_at: string; latest_source_type: string; age_days: number;
+  lowest_unit_cost: string; highest_unit_cost: string; last_purchase_at: string | null; last_purchase_unit_cost: string | null;
+  recent_unit_costs: string[]; entry_count: number; variation_percent: string | null; stability: "STABLE" | "MODERATE" | "VOLATILE" | "INSUFFICIENT_DATA"; is_preferred: boolean;
+}
+interface PriceInsights { product_id: string; stale_after_days: number; insights: PriceInsight[] }
 
 interface ProductCostEntry {
   id: string;
@@ -23,6 +51,7 @@ interface ProductCostEntry {
   pieces_per_box: number | null;
   effective_at: string;
   source_type: string;
+  quantity_context: string | null;
   notes: string | null;
   created_at: string;
 }
@@ -43,8 +72,9 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
   const { t } = useTranslation();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<TenantProduct[]>([]);
-  const [supplierName, setSupplierName] = useState("");
-  const [renaming, setRenaming] = useState<{ id: string; name: string }>();
+  const [profile, setProfile] = useState<SupplierProfileDraft>(emptyProfile());
+  const [editing, setEditing] = useState<{ id: string; version: number; draft: SupplierProfileDraft }>();
+  const [insights, setInsights] = useState<PriceInsights>();
   const [productId, setProductId] = useState(initialProductId ?? "");
   const [setup, setSetup] = useState<ProductCostSetup>();
   const [costSupplierId, setCostSupplierId] = useState("");
@@ -52,6 +82,8 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
   const [basis, setBasis] = useState<ProductPriceBasis>("PIECE");
   const [piecesPerBox, setPiecesPerBox] = useState("");
   const [notes, setNotes] = useState("");
+  const [sourceType, setSourceType] = useState<"MANUAL" | "QUOTE">("MANUAL");
+  const [quantityContext, setQuantityContext] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
@@ -72,8 +104,12 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
   }, [tenantId]);
 
   const loadSetup = useCallback(async (id: string) => {
-    if (!id) { setSetup(undefined); return; }
-    setSetup(await apiRequest<ProductCostSetup>(`/api/v1/suppliers/products/${id}/costs?tenant_id=${tenantId}`));
+    if (!id) { setSetup(undefined); setInsights(undefined); return; }
+    const [costs, derived] = await Promise.all([
+      apiRequest<ProductCostSetup>(`/api/v1/suppliers/products/${id}/costs?tenant_id=${tenantId}`),
+      apiRequest<PriceInsights>(`/api/v1/supplier-prices/products/${id}?tenant_id=${tenantId}`),
+    ]);
+    setSetup(costs); setInsights(derived);
   }, [tenantId]);
 
   useEffect(() => { void run(async () => { await Promise.all([loadSuppliers(), loadProducts()]); }); }, [run, loadSuppliers, loadProducts]);
@@ -84,21 +120,22 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
   const createSupplier = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
-      await apiRequest<Supplier>(`/api/v1/suppliers?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify({ name: supplierName }) });
-      setSupplierName("");
+      await apiRequest<Supplier>(`/api/v1/suppliers?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify(profileBody(profile)) });
+      setProfile(emptyProfile());
       await loadSuppliers();
       setNotice(t("supplierSetup.supplierCreated"));
     });
   };
 
-  const saveRename = (event: FormEvent) => {
+  const saveProfile = (event: FormEvent) => {
     event.preventDefault();
-    if (!renaming) return;
+    if (!editing) return;
     void run(async () => {
-      await apiRequest<Supplier>(`/api/v1/suppliers/${renaming.id}?tenant_id=${tenantId}`, { method: "PATCH", body: JSON.stringify({ name: renaming.name }) });
-      setRenaming(undefined);
+      // expected_version: a change made on another device is a conflict, never a silent overwrite.
+      await apiRequest<Supplier>(`/api/v1/suppliers/${editing.id}?tenant_id=${tenantId}`, { method: "PATCH", body: JSON.stringify({ ...profileBody(editing.draft), expected_version: editing.version }) });
+      setEditing(undefined);
       await loadSuppliers();
-      setNotice(t("supplierSetup.supplierRenamed"));
+      setNotice(t("supplierSetup.supplierSaved"));
     });
   };
 
@@ -114,11 +151,14 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
           currency: product.currency,
           cost_basis: basis,
           pieces_per_box: piecesPerBox ? Number(piecesPerBox) : null,
+          source_type: sourceType,
+          quantity_context: quantityContext || null,
           notes: notes || null,
         }),
       });
       setSetup(response);
-      setUnitCost(""); setNotes("");
+      setInsights(await apiRequest<PriceInsights>(`/api/v1/supplier-prices/products/${product.id}?tenant_id=${tenantId}`));
+      setUnitCost(""); setNotes(""); setQuantityContext("");
       setNotice(t("supplierSetup.costAppended"));
     });
   };
@@ -149,22 +189,32 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
       <div className="supplier-setup-grid">
         <article className="panel">
           <h4>{t("supplierSetup.suppliers")}</h4>
-          <form className="inline-form" onSubmit={createSupplier}>
-            <label className="field"><span>{t("supplierSetup.supplierName")}</span><input required value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label>
+          <form className="form-grid supplier-profile" onSubmit={createSupplier}>
+            <ProfileFields draft={profile} idPrefix="new" onChange={setProfile} />
             <button className="button" disabled={busy} type="submit">{t("supplierSetup.addSupplier")}</button>
           </form>
           {suppliers.length === 0 ? <p className="empty-note">{t("supplierSetup.noSuppliers")}</p> : (
             <ul className="supplier-list">
               {suppliers.map((supplier) => (
                 <li key={supplier.id}>
-                  {renaming?.id === supplier.id ? (
-                    <form className="inline-form" onSubmit={saveRename}>
-                      <label className="field"><span>{t("supplierSetup.supplierName")}</span><input required value={renaming.name} onChange={(event) => setRenaming({ id: supplier.id, name: event.target.value })} /></label>
-                      <button className="button" disabled={busy} type="submit">{t("common.saveChanges")}</button>
-                      <button className="text-button" onClick={() => setRenaming(undefined)} type="button">{t("common.cancel")}</button>
+                  {editing?.id === supplier.id ? (
+                    <form className="form-grid supplier-profile" onSubmit={saveProfile} aria-label={t("supplierSetup.editSupplier", { name: supplier.name })}>
+                      <ProfileFields draft={editing.draft} idPrefix={supplier.id} onChange={(draft) => setEditing({ ...editing, draft })} />
+                      <div className="category-actions">
+                        <button className="button" disabled={busy} type="submit">{t("common.saveChanges")}</button>
+                        <button className="text-button" onClick={() => setEditing(undefined)} type="button">{t("common.cancel")}</button>
+                      </div>
                     </form>
                   ) : (
-                    <><span>{supplier.name}</span><button className="text-button" disabled={busy} onClick={() => setRenaming({ id: supplier.id, name: supplier.name })} type="button">{t("supplierSetup.rename")}</button></>
+                    <div className="supplier-row">
+                      <div>
+                        <strong>{supplier.name}</strong>
+                        {supplier.contact_name || supplier.contact_phone ? <span className="muted"> · {supplier.contact_name}{supplier.contact_phone ? <> <bdi dir="ltr">{supplier.contact_phone}</bdi></> : null}</span> : null}
+                        {supplier.address ? <span className="muted"> · {supplier.address}</span> : null}
+                        {supplier.latitude && supplier.longitude ? <span className="muted"> · <bdi dir="ltr">{supplier.latitude}, {supplier.longitude}</bdi></span> : null}
+                      </div>
+                      <button className="text-button" disabled={busy} onClick={() => setEditing({ id: supplier.id, version: supplier.version, draft: profileOf(supplier) })} type="button">{t("supplierSetup.edit")}</button>
+                    </div>
                   )}
                 </li>
               ))}
@@ -198,6 +248,13 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
                   </select>
                 </label>
                 {basis === "BOX" ? <label className="field"><span>{t("tenantWorkspace.piecesPerBox")}</span><input dir="ltr" min="1" type="number" value={piecesPerBox} placeholder={product.pieces_per_box ? String(product.pieces_per_box) : ""} onChange={(event) => setPiecesPerBox(event.target.value)} /></label> : null}
+                <label className="field"><span>{t("supplierSetup.source")}</span>
+                  <select value={sourceType} onChange={(event) => setSourceType(event.target.value as "MANUAL" | "QUOTE")}>
+                    <option value="MANUAL">{t("supplierSetup.sources.MANUAL")}</option>
+                    <option value="QUOTE">{t("supplierSetup.sources.QUOTE")}</option>
+                  </select>
+                </label>
+                <label className="field"><span>{t("supplierSetup.quantityContext")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={quantityContext} onChange={(event) => setQuantityContext(event.target.value)} /></label>
                 <label className="field field-wide"><span>{t("supplierSetup.notes")}</span><input value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
                 <button className="button" disabled={busy || suppliers.length === 0} type="submit">{t("supplierSetup.appendCost")}</button>
               </form>
@@ -212,7 +269,7 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
                         <td dir="ltr">{entry.unit_cost} {entry.currency}</td>
                         <td>{entry.cost_basis}{entry.pieces_per_box ? ` ×${entry.pieces_per_box}` : ""}</td>
                         <td><time dateTime={entry.effective_at}>{new Date(entry.effective_at).toLocaleString()}</time></td>
-                        <td>{entry.source_type}</td>
+                        <td>{t(`supplierSetup.sources.${entry.source_type}`, { defaultValue: entry.source_type })}{entry.quantity_context ? ` · ${t("supplierSetup.forQuantity", { quantity: entry.quantity_context })}` : ""}</td>
                         <td>{setup.preferred_supplier_id !== entry.supplier_id ? <button className="text-button" disabled={busy} onClick={() => setPreferred(entry.supplier_id)} type="button">{t("supplierSetup.makePreferred")}</button> : null}</td>
                       </tr>
                     ))}
@@ -220,11 +277,49 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
                 </table>
               )}
               {setup.preferred_supplier_id ? <button className="text-button" disabled={busy} onClick={() => setPreferred(null)} type="button">{t("supplierSetup.clearPreferred")}</button> : null}
+              {insights && insights.insights.length > 0 ? (
+                <div className="price-insights">
+                  <h5>{t("supplierSetup.insightsTitle")}</h5>
+                  <p className="muted">{t("supplierSetup.insightsBody", { days: insights.stale_after_days })}</p>
+                  <table className="cost-history" aria-label={t("supplierSetup.insightsTitle")}>
+                    <thead><tr><th>{t("supplierSetup.supplier")}</th><th>{t("supplierSetup.comparable")}</th><th>{t("supplierSetup.latest")}</th><th>{t("supplierSetup.lowHigh")}</th><th>{t("supplierSetup.lastPurchase")}</th><th>{t("supplierSetup.trend")}</th><th>{t("supplierSetup.stability")}</th></tr></thead>
+                    <tbody>
+                      {insights.insights.map((row) => (
+                        <tr key={`${row.supplier_id}-${row.cost_basis}-${row.pieces_per_box ?? 0}`}>
+                          <td>{row.supplier_name}{row.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</td>
+                          <td>{row.currency} · {row.cost_basis}{row.pieces_per_box ? ` ×${row.pieces_per_box}` : ""}</td>
+                          <td dir="ltr">{row.latest_unit_cost} <small>{t(`supplierSetup.sources.${row.latest_source_type}`, { defaultValue: row.latest_source_type })} · {row.age_days >= insights.stale_after_days ? <mark>{t("supplierSetup.ageDays", { days: row.age_days })}</mark> : t("supplierSetup.ageDays", { days: row.age_days })}</small></td>
+                          <td dir="ltr">{row.lowest_unit_cost} – {row.highest_unit_cost}</td>
+                          <td>{row.last_purchase_at ? <><bdi dir="ltr">{row.last_purchase_unit_cost}</bdi> · <time dateTime={row.last_purchase_at}>{new Date(row.last_purchase_at).toLocaleDateString()}</time></> : t("supplierSetup.noPurchaseYet")}</td>
+                          <td dir="ltr">{row.recent_unit_costs.join(" ← ")}</td>
+                          <td>{t(`supplierSetup.stabilityLabels.${row.stability}`)}{row.variation_percent ? ` (${row.variation_percent}%)` : ""}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
             </>
           ) : null}
         </article>
       </div>
       <SupplierLedgerPanel tenantId={tenantId} suppliers={suppliers} />
     </section>
+  );
+}
+
+function ProfileFields({ draft, idPrefix, onChange }: { draft: SupplierProfileDraft; idPrefix: string; onChange: (draft: SupplierProfileDraft) => void }) {
+  const { t } = useTranslation();
+  const set = (key: keyof SupplierProfileDraft) => (event: { target: { value: string } }) => onChange({ ...draft, [key]: event.target.value });
+  return (
+    <>
+      <label className="field" htmlFor={`${idPrefix}-name`}><span>{t("supplierSetup.supplierName")}</span><input id={`${idPrefix}-name`} maxLength={200} required value={draft.name} onChange={set("name")} /></label>
+      <label className="field" htmlFor={`${idPrefix}-contact`}><span>{t("supplierSetup.contactName")}</span><input id={`${idPrefix}-contact`} maxLength={200} value={draft.contact_name} onChange={set("contact_name")} /></label>
+      <label className="field" htmlFor={`${idPrefix}-phone`}><span>{t("supplierSetup.contactPhone")}</span><input dir="ltr" id={`${idPrefix}-phone`} inputMode="tel" maxLength={64} value={draft.contact_phone} onChange={set("contact_phone")} /></label>
+      <label className="field field-wide" htmlFor={`${idPrefix}-address`}><span>{t("supplierSetup.address")}</span><input id={`${idPrefix}-address`} maxLength={500} value={draft.address} onChange={set("address")} /></label>
+      <label className="field" htmlFor={`${idPrefix}-lat`}><span>{t("supplierSetup.latitude")}</span><input dir="ltr" id={`${idPrefix}-lat`} inputMode="decimal" max="90" min="-90" step="0.000001" type="number" value={draft.latitude} onChange={set("latitude")} /></label>
+      <label className="field" htmlFor={`${idPrefix}-lng`}><span>{t("supplierSetup.longitude")}</span><input dir="ltr" id={`${idPrefix}-lng`} inputMode="decimal" max="180" min="-180" step="0.000001" type="number" value={draft.longitude} onChange={set("longitude")} /></label>
+      <label className="field field-wide" htmlFor={`${idPrefix}-notes`}><span>{t("supplierSetup.notes")}</span><input id={`${idPrefix}-notes`} maxLength={1000} value={draft.notes} onChange={set("notes")} /></label>
+    </>
   );
 }

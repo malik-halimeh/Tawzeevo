@@ -10,6 +10,7 @@ from tawzeevo_api.schemas.suppliers import (
     PreferredSupplierRequest,
     ProductCostEntryCreateRequest,
     ProductCostSetupResponse,
+    ProductPriceInsightsResponse,
     SupplierCreateRequest,
     SupplierListResponse,
     SupplierResponse,
@@ -20,11 +21,23 @@ from tawzeevo_api.services.suppliers import (
     create_supplier,
     list_suppliers,
     product_cost_setup,
+    product_price_insights,
     set_preferred_supplier,
     update_supplier,
 )
 
 suppliers_router = APIRouter(prefix="/api/v1/suppliers", tags=["suppliers"])
+supplier_prices_router = APIRouter(prefix="/api/v1/supplier-prices", tags=["suppliers"])
+
+
+@supplier_prices_router.get("/products/{product_id}", response_model=ProductPriceInsightsResponse)
+def get_product_price_insights(
+    product_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> ProductPriceInsightsResponse:
+    """Derived last/low/high/trend/stability per supplier and comparable group (PHASE_06.md C)."""
+    return product_price_insights(db, context.tenant.id, product_id)
 
 
 @suppliers_router.get("", response_model=SupplierListResponse)

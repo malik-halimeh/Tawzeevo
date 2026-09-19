@@ -7,7 +7,9 @@ append entries automatically later without changing these rules.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -16,19 +18,23 @@ from sqlalchemy.orm import Session
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
     AuditEvent,
+    CostSourceType,
     ProductPriceBasis,
     TenantProduct,
     TenantProductCostEntry,
     TenantSupplier,
 )
+from tawzeevo_api.phone import normalize_phone
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.schemas.suppliers import (
     PreferredSupplierRequest,
     ProductCostEntryCreateRequest,
     ProductCostEntryResponse,
     ProductCostSetupResponse,
+    ProductPriceInsightsResponse,
     SupplierCreateRequest,
     SupplierListResponse,
+    SupplierPriceInsight,
     SupplierResponse,
     SupplierUpdateRequest,
 )
@@ -102,6 +108,7 @@ def create_supplier(
         raise AppError(422, "SUPPLIER_NAME_REQUIRED", "Supplier name is required")
     _reject_duplicate_name(db, tenant_id, name)
     supplier = TenantSupplier(tenant_id=tenant_id, name=name)
+    _apply_profile(supplier, request.model_dump(exclude={"name"}, exclude_unset=True))
     db.add(supplier)
     db.flush()
     _audit(db, tenant_id, actor, "supplier_created", "tenant_supplier", supplier.id, name=name)
@@ -114,25 +121,50 @@ def update_supplier(
     db: Session, tenant_id: UUID, actor: UUID, supplier_id: UUID, request: SupplierUpdateRequest
 ) -> SupplierResponse:
     supplier = _supplier(db, tenant_id, supplier_id)
-    name = request.name.strip()
-    if not name:
-        raise AppError(422, "SUPPLIER_NAME_REQUIRED", "Supplier name is required")
-    _reject_duplicate_name(db, tenant_id, name, exclude_id=supplier.id)
-    previous = supplier.name
-    supplier.name = name
-    _audit(
-        db,
-        tenant_id,
-        actor,
-        "supplier_renamed",
-        "tenant_supplier",
-        supplier.id,
-        previous_name=previous,
-        name=name,
-    )
+    if request.expected_version is not None and supplier.version != request.expected_version:
+        raise AppError(
+            409, "SUPPLIER_VERSION_CONFLICT", "Supplier was changed elsewhere; reload it"
+        )
+    values = request.model_dump(exclude={"expected_version"}, exclude_unset=True)
+    changed: dict[str, object] = {}
+    if "name" in values:
+        name = (values.pop("name") or "").strip()
+        if not name:
+            raise AppError(422, "SUPPLIER_NAME_REQUIRED", "Supplier name is required")
+        _reject_duplicate_name(db, tenant_id, name, exclude_id=supplier.id)
+        if name != supplier.name:
+            changed["previous_name"] = supplier.name
+            changed["name"] = name
+            supplier.name = name
+    changed.update(_apply_profile(supplier, values))
+    if changed:
+        # A pure rename keeps the Phase 3 audit action; anything else is a profile update.
+        action = (
+            "supplier_renamed" if set(changed) <= {"previous_name", "name"} else "supplier_updated"
+        )
+        _audit(db, tenant_id, actor, action, "tenant_supplier", supplier.id, **changed)
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(supplier)
     return SupplierResponse.model_validate(supplier)
+
+
+def _apply_profile(supplier: TenantSupplier, values: dict[str, object]) -> dict[str, object]:
+    """Apply contact/address/location/notes fields; returns what actually changed for the audit."""
+    changed: dict[str, object] = {}
+    if "contact_phone" in values:
+        raw = values.pop("contact_phone")
+        normalized = normalize_phone(str(raw)) if raw else None
+        if normalized != supplier.contact_phone:
+            changed["contact_phone"] = normalized or ""
+        supplier.contact_phone = normalized
+        supplier.contact_phone_raw = str(raw) if raw else None
+    for field_name, value in values.items():
+        if getattr(supplier, field_name) != value:
+            changed[field_name] = "" if value is None else value
+            setattr(supplier, field_name, value)
+    if (supplier.latitude is None) != (supplier.longitude is None):
+        raise AppError(422, "COORDINATES_PAIRED", "Latitude and longitude must be given together")
+    return changed
 
 
 def _cost_setup(db: Session, tenant_id: UUID, product: TenantProduct) -> ProductCostSetupResponse:
@@ -192,7 +224,8 @@ def append_product_cost(
         if request.cost_basis is ProductPriceBasis.BOX
         else request.pieces_per_box,
         effective_at=request.effective_at or datetime.now(UTC),
-        source_type="MANUAL",
+        source_type=request.source_type.value,
+        quantity_context=request.quantity_context,
         notes=request.notes.strip() if request.notes else None,
         created_by_user_id=actor,
     )
@@ -210,6 +243,7 @@ def append_product_cost(
         unit_cost=money(request.unit_cost),
         currency=request.currency,
         cost_basis=request.cost_basis.value,
+        source_type=request.source_type.value,
     )
     if product.preferred_supplier_id is None:
         # First cost for a product makes its supplier the default so invoice entry preloads it.
@@ -250,3 +284,117 @@ def set_preferred_supplier(
     )
     commit_and_restore_tenant_scope(db, tenant_id)
     return _cost_setup(db, tenant_id, get_product(db, tenant_id, product_id))
+
+
+# ---------------------------------------------------------------------------------------------
+# Derived price insights (PHASE_06.md C) — computed, never stored
+# ---------------------------------------------------------------------------------------------
+
+STALE_AFTER_DAYS = 90
+RECENT_PRICES = 5
+_PERCENT = Decimal("0.01")
+
+
+def _variation_percent(values: list[Decimal]) -> Decimal | None:
+    """Spread of the recent comparable prices as a percentage of their mean (0 = perfectly
+    stable). Population standard deviation over at most RECENT_PRICES entries; None below two."""
+    if len(values) < 2:
+        return None
+    mean = sum(values) / Decimal(len(values))
+    if mean == 0:
+        return Decimal("0.00")
+    variance = sum((value - mean) ** 2 for value in values) / Decimal(len(values))
+    deviation = variance.sqrt()
+    return (deviation / mean * Decimal(100)).quantize(_PERCENT, rounding=ROUND_HALF_UP)
+
+
+def _stability(variation: Decimal | None) -> str:
+    if variation is None:
+        return "INSUFFICIENT_DATA"
+    if variation <= Decimal("2"):
+        return "STABLE"
+    if variation <= Decimal("10"):
+        return "MODERATE"
+    return "VOLATILE"
+
+
+def product_price_insights(
+    db: Session, tenant_id: UUID, product_id: UUID, now: datetime | None = None
+) -> ProductPriceInsightsResponse:
+    """Per supplier and comparable group: latest/lowest/highest, last actual purchase, recent
+    trend, stability and price age. Groups with different currency, basis or pieces per box are
+    never merged (no FX, no unit conversion); stale groups are reported, not hidden."""
+    product = get_product(db, tenant_id, product_id)
+    as_of = now or datetime.now(UTC)
+    rows = list(
+        db.scalars(
+            select(TenantProductCostEntry)
+            .where(
+                TenantProductCostEntry.tenant_id == tenant_id,
+                TenantProductCostEntry.tenant_product_id == product.id,
+                TenantProductCostEntry.effective_at <= as_of,
+            )
+            .order_by(
+                TenantProductCostEntry.effective_at.desc(),
+                TenantProductCostEntry.created_at.desc(),
+                TenantProductCostEntry.id.desc(),
+            )
+        )
+    )
+    names = {
+        row.id: row.name
+        for row in db.scalars(select(TenantSupplier).where(TenantSupplier.tenant_id == tenant_id))
+    }
+    groups: dict[tuple[UUID, str, ProductPriceBasis, int | None], list[TenantProductCostEntry]] = (
+        defaultdict(list)
+    )
+    for row in rows:  # newest first within each group
+        groups[(row.supplier_id, row.currency, row.cost_basis, row.pieces_per_box)].append(row)
+    insights: list[SupplierPriceInsight] = []
+    for (supplier_id, currency, basis, pieces), entries in groups.items():
+        latest = entries[0]
+        recent = [money(entry.unit_cost) for entry in entries[:RECENT_PRICES]]
+        purchases = [e for e in entries if e.source_type == CostSourceType.ACTUAL_PURCHASE.value]
+        variation = _variation_percent(recent)
+        insights.append(
+            SupplierPriceInsight(
+                supplier_id=supplier_id,
+                supplier_name=names.get(supplier_id, "?"),
+                currency=currency,
+                cost_basis=basis,
+                pieces_per_box=pieces,
+                latest_unit_cost=money(latest.unit_cost),
+                latest_effective_at=latest.effective_at,
+                latest_source_type=latest.source_type,
+                latest_entry_id=latest.id,
+                age_days=max(0, (as_of - latest.effective_at).days),
+                lowest_unit_cost=min(money(e.unit_cost) for e in entries),
+                highest_unit_cost=max(money(e.unit_cost) for e in entries),
+                last_purchase_at=purchases[0].effective_at if purchases else None,
+                last_purchase_unit_cost=money(purchases[0].unit_cost) if purchases else None,
+                recent_unit_costs=recent,
+                entry_count=len(entries),
+                variation_percent=variation,
+                stability=_stability(variation),
+                is_preferred=product.preferred_supplier_id == supplier_id,
+            )
+        )
+    insights.sort(
+        key=lambda row: (
+            row.currency,
+            row.cost_basis.value,
+            row.pieces_per_box or 0,
+            row.latest_unit_cost,
+            row.supplier_name,
+            str(row.supplier_id),
+        )
+    )
+    return ProductPriceInsightsResponse(
+        product_id=product.id,
+        product_name=product.name,
+        currency=product.currency,
+        preferred_supplier_id=product.preferred_supplier_id,
+        as_of=as_of,
+        stale_after_days=STALE_AFTER_DAYS,
+        insights=insights,
+    )

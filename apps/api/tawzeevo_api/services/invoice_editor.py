@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, text
+from sqlalchemy import case, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -452,6 +452,13 @@ class _PreparedItem:
     cost: _PreparedCost
 
 
+_COST_SOURCE_PRIORITY = case(
+    (TenantProductCostEntry.source_type == "ACTUAL_PURCHASE", 0),
+    (TenantProductCostEntry.source_type == "QUOTE", 1),
+    else_=2,
+)
+
+
 def _validate_supplier(db: Session, tenant_id: UUID, supplier_id: UUID) -> None:
     if (
         db.scalar(
@@ -509,7 +516,9 @@ def _prepare_cost(
             TenantProductCostEntry.cost_basis == cost_basis,
             TenantProductCostEntry.effective_at <= datetime.now(UTC),
         )
+        # D-059: the latest actual purchase wins, then the latest quote, then manual entries.
         .order_by(
+            _COST_SOURCE_PRIORITY,
             TenantProductCostEntry.effective_at.desc(),
             TenantProductCostEntry.created_at.desc(),
             TenantProductCostEntry.id.desc(),

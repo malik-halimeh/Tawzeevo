@@ -6,10 +6,10 @@
 
 - Current workstream: `Phase 6 — Suppliers, Price History, Demand-Driven Procurement, Supplier Debt`
 - Current phase: `6`
-- Current phase status: `NOT_STARTED`
-- Current milestone: `P6-M1`
+- Current phase status: `IN_PROGRESS`
+- Current milestone: `P6-M2 — Comparable supplier recommendation`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P5-M6`
+- Last completed milestone: `P6-M1`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -37,7 +37,7 @@ The Phase 6 gate decisions (D-058, D-059) are recorded, so Phase 6 begins with P
 | 3 | COMPLETE | Definition of Done PASSED 2026-09-17; P3-M1 through P3-M6 complete; evidence in `docs/phase-3/` |
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
-| 6 | NOT_STARTED | Gate decisions D-058, D-059 recorded; owner authorization of 2026-09-19 |
+| 6 | IN_PROGRESS | Gate decisions D-058, D-059 recorded; owner authorization of 2026-09-19; P6-M1 complete 2026-09-19 |
 | 7 | LOCKED | Gate F |
 | 8 | LOCKED | Gate G |
 | 9 | LOCKED | Phases 1–8 DoD |
@@ -45,21 +45,28 @@ The Phase 6 gate decisions (D-058, D-059) are recorded, so Phase 6 begins with P
 
 ## Current milestone evidence
 
-- Code areas changed (P5-M6, 2026-09-19): `tests/test_phase5_freeze.py` (rate limits from settings and separate per surface; link lifecycle safe on context/catalog/checkout; public surfaces carry no private words, correct cache policy, ids alone open nothing), `config.py` + `main.py` (`PUBLIC_PRIVATE_RATE_LIMIT_PER_MINUTE`, `PUBLIC_CATALOG_RATE_LIMIT_PER_MINUTE` per D-076), `schemas/checkout.py::OrderInvoiceView` + `services/orders.py::order_invoice_view` (order detail carries the draft's current revision; the Phase 2 draft read needs a customer), `OrdersPanel.tsx` (uses the detail's invoice; errors survive the automatic refresh), storefront `app/globals.css` (RTL skip-link overflow fix), `e2e/phase5-storefront-flow.spec.ts` (full storefront flow + Arabic phone), `docs/phase-5/*`, README
-- Migrations: head `20260919_0021`; `alembic check` PASS
-- Tests run (2026-09-19): backend `208 passed`, ruff/format/mypy PASS; operations client `73 passed`, storefront `5 passed`, lint/types/build PASS; Playwright `4 passed` (Phase 3, Phase 4, Phase 5 ×2) against the local stack
-- Security/invariants: DoD (PHASE_05.md Q) PASS per `docs/phase-5/requirements-audit.md`; no critical/high storefront/public security defect open
-- Known defects: none open for Phase 5
+- Code areas changed (P6-M1, 2026-09-19): migration `20260919_0022` (supplier contact/phone/address/location/notes/`version` with coordinate constraints; cost entries gain `quantity_context` and a constrained provenance `MANUAL | OWNER_OVERRIDE | QUOTE | ACTUAL_PURCHASE`, plus a product/supplier/effective index — the D-034 table stays the single cost truth), `models.py` (`CostSourceType`, supplier profile columns), `schemas/suppliers.py` (profile fields with phone normalization, partial update with `expected_version`, cost `source_type`/`quantity_context`, `SupplierPriceInsight`), `services/suppliers.py` (profile apply/audit, version conflict 409, derived `product_price_insights`: per supplier × comparable group latest/lowest/highest/last purchase/recent trend/variation %/stability/age, never across currency or unit), `routes/suppliers.py` (`GET /api/v1/supplier-prices/products/{id}`), `services/invoice_editor.py` (D-059 preload order: actual purchase → quote → manual), `services/sync_changes.py` (`TenantSupplier` versioned), operations client `SupplierSetup.tsx` (profile form/edit with expected version, cost source + quantity, insight table; EN/AR)
+- Migrations: head `20260919_0022`; upgrade/downgrade/upgrade and `alembic check` PASS; live rows verified all `MANUAL` before the constraint ships
+- Tests run (2026-09-19): backend `210 passed` (new `test_supplier_profiles_prices.py`: profile create/partial update/version conflict/clear coordinates/cross-tenant 404; append-only with provenance, hand-written `ACTUAL_PURCHASE` refused, box vs piece never merged, stale competitor visible, D-059 preload picks the actual purchase over a newer manual price), ruff/format/mypy PASS; operations client `73 passed`, lint/types/build PASS
+- Security/invariants: no history overwrite (tests read the oldest row back unchanged); unit/currency rules (groups keyed by currency + basis + pieces per box, no FX); tenant isolation (RLS unchanged, foreign tenant 404)
+- Known defects: none open for P6-M1
 - Contract deviations: none
+- Operations note: Render has not auto-deployed any commit since `ed29319` (2026-09-18 19:15) although every service reports `autoDeploy: yes`; deploys are triggered through the Render API after each push until the owner re-authorizes the Render GitHub app (OWNER_ACTIONS.md § K)
 
 ## Latest completed milestone summary
+
+P6-M1 (2026-09-19) extended suppliers into full profiles (contact, address, saved location,
+notes, row version) and the D-034 cost history into a provenance-aware, append-only price history
+with derived per-supplier insights and the D-059 invoice preload order.
+
+### Previous (P5-M6)
 
 P5-M6 (2026-09-19) froze Phase 5: freeze tests for abuse limits, link lifecycle and public leakage,
 configurable rate limits (D-076), the real-browser storefront E2E in English and Arabic on a phone,
 three defects fixed (stale confirm revision, RTL skip-link overflow, hard-coded limits), and the
 Phase 5 evidence documents.
 
-### Previous (P5-M5)
+### Earlier (P5-M5)
 
 P5-M5 (2026-09-19) delivered owner order review: an order inbox, explicit customer linking (the
 personalized-link hint is a suggestion only) that re-prices the draft, confirmation through the

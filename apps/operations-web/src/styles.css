@@ -566,3 +566,9 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; margin: 0; padding: 0; }
 .chips .text-button { border: 1px solid var(--line); border-radius: 999px; padding: .35rem .7rem; }
 @media (max-width: 720px) { .orders-layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* Supplier profiles and price insights (P6-M1) */
+.supplier-profile { margin-block-end: 1rem; }
+.supplier-row { align-items: center; display: flex; gap: .8rem; justify-content: space-between; }
+.price-insights { margin-block-start: 1.5rem; }
+.price-insights mark { background: var(--warning-bg, #fff3cd); padding: 0 .2rem; }

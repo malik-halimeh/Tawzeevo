@@ -15,7 +15,7 @@ const product = {
 
 test("owner creates a supplier, appends a cost entry and sees it preferred (FA-004 / D-041)", async () => {
   await i18n.changeLanguage("en");
-  const suppliers: { id: string; tenant_id: string; name: string; created_at: string; updated_at: string }[] = [];
+  const suppliers: Record<string, unknown>[] = [];
   const entries: Record<string, unknown>[] = [];
   let preferred: string | null = null;
   const bodies: Record<string, unknown>[] = [];
@@ -25,7 +25,7 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
     if (body) bodies.push(body);
     if (path.includes("/tenants/tenant/products")) return Promise.resolve(Response.json({ products: [product] }));
     if (path.endsWith("/api/v1/suppliers?tenant_id=tenant") && init?.method === "POST") {
-      suppliers.push({ id: `supplier-${suppliers.length + 1}`, tenant_id: "tenant", name: String(body?.name).trim(), created_at: "2026-09-17T00:00:00Z", updated_at: "2026-09-17T00:00:00Z" });
+      suppliers.push({ id: `supplier-${suppliers.length + 1}`, tenant_id: "tenant", name: String(body?.name).trim(), contact_name: body?.contact_name ?? null, contact_phone: body?.contact_phone ?? null, address: body?.address ?? null, latitude: null, longitude: null, notes: null, version: 1, created_at: "2026-09-17T00:00:00Z", updated_at: "2026-09-17T00:00:00Z" });
       return Promise.resolve(Response.json(suppliers[suppliers.length - 1], { status: 201 }));
     }
     if (path.endsWith("/api/v1/suppliers?tenant_id=tenant")) return Promise.resolve(Response.json({ suppliers }));
@@ -37,26 +37,39 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
     if (path.includes("/suppliers/products/product-1/costs")) {
       return Promise.resolve(Response.json({ product_id: "product-1", product_name: "Cedar Water", currency: "USD", preferred_supplier_id: preferred, entries }));
     }
+    if (path.includes("/supplier-prices/products/product-1")) {
+      const insights = entries.length === 0 ? [] : [{ supplier_id: "supplier-1", supplier_name: "Bekaa Wholesale", currency: "USD", cost_basis: "PIECE", pieces_per_box: null, latest_unit_cost: "8.0000", latest_effective_at: "2026-09-17T01:00:00Z", latest_source_type: "QUOTE", age_days: 2, lowest_unit_cost: "8.0000", highest_unit_cost: "8.0000", last_purchase_at: null, last_purchase_unit_cost: null, recent_unit_costs: ["8.0000"], entry_count: 1, variation_percent: null, stability: "INSUFFICIENT_DATA", is_preferred: true }];
+      return Promise.resolve(Response.json({ product_id: "product-1", stale_after_days: 90, insights }));
+    }
     return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
   }));
 
   render(<SupplierSetup tenantId="tenant" />);
   expect(await screen.findByText("No suppliers yet. Add the first supplier to start recording costs.")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Supplier name"), { target: { value: "Bekaa Wholesale" } });
+  fireEvent.change(screen.getByLabelText("Contact person"), { target: { value: "Abu Ali" } });
+  fireEvent.change(screen.getByLabelText("Contact phone"), { target: { value: "03 123 456" } });
   fireEvent.click(screen.getByRole("button", { name: "Add supplier" }));
   expect(await screen.findByText("Supplier created.")).toBeInTheDocument();
   expect(screen.getAllByText("Bekaa Wholesale").length).toBeGreaterThan(0);
+  expect(bodies[0]).toMatchObject({ name: "Bekaa Wholesale", contact_name: "Abu Ali", contact_phone: "03 123 456", address: null, latitude: null });
 
   fireEvent.change(screen.getByLabelText("Product"), { target: { value: "product-1" } });
   expect(await screen.findByText("No cost entries for this product yet.")).toBeInTheDocument();
   fireEvent.change(screen.getAllByLabelText("Supplier")[0]!, { target: { value: "supplier-1" } });
   fireEvent.change(screen.getByLabelText("Unit cost (USD)"), { target: { value: "8" } });
+  fireEvent.change(screen.getByLabelText("Source"), { target: { value: "QUOTE" } });
+  fireEvent.change(screen.getByLabelText("For quantity (optional)"), { target: { value: "120" } });
   fireEvent.click(screen.getByRole("button", { name: "Save new cost entry" }));
   await waitFor(() => expect(screen.getByText("Cost entry saved. The invoice editor will preload it.")).toBeInTheDocument());
-  expect(screen.getByText("Bekaa Wholesale · preferred")).toBeInTheDocument();
+  expect(screen.getAllByText("Bekaa Wholesale · preferred").length).toBeGreaterThan(0);
   expect(screen.getByText("8.0000 USD")).toBeInTheDocument();
   const cost = bodies.find((body) => body.unit_cost !== undefined);
-  expect(cost).toMatchObject({ supplier_id: "supplier-1", unit_cost: "8", currency: "USD", cost_basis: "PIECE" });
+  expect(cost).toMatchObject({ supplier_id: "supplier-1", unit_cost: "8", currency: "USD", cost_basis: "PIECE", source_type: "QUOTE", quantity_context: "120" });
+  // Derived insight table: latest with source and age, no purchase yet, stability label.
+  expect(await screen.findByRole("table", { name: "Price insight per supplier" })).toBeInTheDocument();
+  expect(screen.getByText("no purchase yet")).toBeInTheDocument();
+  expect(screen.getByText("Not enough data")).toBeInTheDocument();
 });
 
 test("supplier setup renders Arabic labels", async () => {

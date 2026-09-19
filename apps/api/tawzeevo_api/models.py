@@ -788,7 +788,20 @@ class TenantProductImage(TimestampMixin, Base):
     )
 
 
+class CostSourceType(StrEnum):
+    """Provenance of a cost entry (D-034, D-059). Invoice entry prefers ACTUAL_PURCHASE, then
+    QUOTE, then the manual kinds; historical invoice snapshots are never rewritten."""
+
+    MANUAL = "MANUAL"
+    OWNER_OVERRIDE = "OWNER_OVERRIDE"
+    QUOTE = "QUOTE"
+    ACTUAL_PURCHASE = "ACTUAL_PURCHASE"
+
+
 class TenantSupplier(TimestampMixin, Base):
+    """Tenant-private supplier profile (PHASE_06.md B): identity, contact, address, saved location,
+    notes. `version` lets offline edits carry an expected version (Phase 4 sync semantics)."""
+
     __tablename__ = "tenant_suppliers"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -796,10 +809,32 @@ class TenantSupplier(TimestampMixin, Base):
         ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    contact_name: Mapped[str | None] = mapped_column(String(200))
+    contact_phone: Mapped[str | None] = mapped_column(String(32))
+    contact_phone_raw: Mapped[str | None] = mapped_column(String(64))
+    address: Mapped[str | None] = mapped_column(String(500))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    notes: Mapped[str | None] = mapped_column(String(1000))
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
 
     __table_args__ = (
         UniqueConstraint("id", "tenant_id", name="uq_tenant_suppliers_id_tenant"),
         Index("ix_tenant_suppliers_tenant_name", "tenant_id", "name"),
+        CheckConstraint(
+            "(latitude IS NULL) = (longitude IS NULL)",
+            name="ck_tenant_suppliers_coordinates_paired",
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR latitude BETWEEN -90 AND 90",
+            name="ck_tenant_suppliers_latitude_range",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR longitude BETWEEN -180 AND 180",
+            name="ck_tenant_suppliers_longitude_range",
+        ),
     )
 
 
@@ -819,6 +854,8 @@ class TenantProductCostEntry(Base):
     effective_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source_type: Mapped[str] = mapped_column(String(40), nullable=False)
     source_reference_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    # Quantity the price was quoted or bought for (PHASE_06.md C "quantity context"); optional.
+    quantity_context: Mapped[Decimal | None] = mapped_column(Numeric(20, 4))
     notes: Mapped[str | None] = mapped_column(String(500))
     created_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -839,6 +876,21 @@ class TenantProductCostEntry(Base):
             ["tenant_suppliers.id", "tenant_suppliers.tenant_id"],
             ondelete="RESTRICT",
             name="fk_product_cost_entries_supplier_tenant",
+        ),
+        CheckConstraint(
+            "source_type IN ('MANUAL', 'OWNER_OVERRIDE', 'QUOTE', 'ACTUAL_PURCHASE')",
+            name="ck_tenant_product_cost_entries_source_type",
+        ),
+        CheckConstraint(
+            "quantity_context IS NULL OR quantity_context > 0",
+            name="ck_tenant_product_cost_entries_quantity_context_positive",
+        ),
+        Index(
+            "ix_tenant_product_cost_entries_product_supplier_effective",
+            "tenant_id",
+            "tenant_product_id",
+            "supplier_id",
+            "effective_at",
         ),
         UniqueConstraint(
             "id",

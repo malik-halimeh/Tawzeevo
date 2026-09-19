@@ -33,13 +33,14 @@ from tawzeevo_api.models import (
     SyncChange,
     TenantBarcode,
     TenantProduct,
+    TenantSupplier,
 )
 
 PROTOCOL_VERSION = 1
 # Highest local (IndexedDB) schema the server knows how to serve; the PWA declares its own.
 APP_SCHEMA_VERSION = 2
 
-VERSIONED_TYPES: tuple[type, ...] = (Customer, Category, TenantProduct)
+VERSIONED_TYPES: tuple[type, ...] = (Customer, Category, TenantProduct, TenantSupplier)
 
 
 def _plain(value: Any) -> Any:
