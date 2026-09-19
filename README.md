@@ -16,16 +16,17 @@ the storefront lets customers order as guests without an account.
 | 4 | Offline-first operations with exactly-once synchronization and encrypted Google Drive backup | Complete |
 | 5 | Public bilingual storefront, personalized customer links, guest checkout, owner order review, recommendations, featured products | Complete |
 | 6 | Supplier profiles, append-only price history, supplier recommendation, demand-driven procurement, actual purchases, supplier debt | Complete |
-| 7 | Delivery tasks, owner/driver assignment, locations, route assistance | Next |
-| 8 | Analytics, customer lifetime statistics, tenant branding | Planned |
+| 7 | Delivery tasks, owner-or-driver assignment, driver least privilege, offline completion, locations, route assistance | Complete |
+| 8 | Analytics, customer lifetime statistics, tenant branding | Next |
 | 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Planned |
 | 10 | Seasonal best-product forecasting (statistical, optional) | Planned |
 
-### What the next phase delivers (Phase 7)
+### What the next phase delivers (Phase 8)
 
-Field operations: delivery tasks created from confirmed invoices and storefront orders, assignment
-to the owner-as-operator or to least-privileged drivers, customer and supplier locations on a map,
-and route assistance for the day's stops. Customer-facing delivery tracking stays out of scope.
+Business intelligence that reconciles to the ledgers: per-invoice and period analytics (invoiced
+sales, receipts, outstanding and payable by currency, historical gross profit from cost snapshots),
+customer lifetime statistics, tenant branding on invoices and the storefront, and public aggregate
+statistics with small-cohort protection. No metric is fabricated when source data is missing.
 
 ## Key capabilities
 
@@ -69,6 +70,15 @@ and route assistance for the day's stops. Customer-facing delivery tracking stay
 - Procurement lists built from confirmed customer demand with required / target / purchased / remaining kept apart; manual lines, waive, remove and cancel with reasons, carry-forward, labelled estimates, print and CSV; a neutral owner-or-driver assignee and a price-free pickup view
 - Immutable supplier purchases whose finalization appends the price history, charges the supplier payable and advances the procurement list in one transaction; replay-safe; compensating reversals; payments capped by the payable and never allocated to a purchase; outstanding totals by currency, never summed across currencies
 - No stock or inventory concept anywhere — a schema-wide test guarantees it
+
+**Deliveries and field work**
+
+- Confirmed invoices become delivery tasks with a neutral owner-or-driver assignee; a one-person business is the assignee by default and never sets up a driver; owners assign and reassign (audited), completion records who did it, end states are final
+- Drivers are added by e-mail from a registered account and revoked in one step; a driver's API, sync bootstrap, change feed and cache carry only their assigned stops — contact, address, items, amount to collect — never prices, costs, profit or other members' work
+- Offline completion queued on the device and applied exactly once on reconnect
+- Customer locations with provenance (GPS accuracy, manual, geocoded) and an operator confirmation; a confirmed location is never replaced silently and a worse reading never beats a better one; no continuous tracking, no location history
+- Stop-order suggestion from OpenRouteService when configured (coordinates only leave the server) with a deterministic offline nearest-neighbour + 2-opt heuristic as the always-available fallback, labelled as a suggestion, plus manual reorder
+- "Suppliers near me": one position check on request against open procurement needs, role-projected (drivers see needs, not prices)
 
 **Storefront**
 
@@ -310,6 +320,8 @@ Executed results for each completed phase are recorded in `docs/phase-1/test-rep
 - [`docs/phase-5/requirements-audit.md`](docs/phase-5/requirements-audit.md) — requirement-to-code/test evidence for Phase 5
 - [`docs/phase-6/demo-guide.md`](docs/phase-6/demo-guide.md) — suppliers, price history, recommendation, procurement and purchases demonstration
 - [`docs/phase-6/requirements-audit.md`](docs/phase-6/requirements-audit.md) — requirement-to-code/test evidence for Phase 6
+- [`docs/phase-7/demo-guide.md`](docs/phase-7/demo-guide.md) — deliveries, drivers, offline completion, locations and routes demonstration
+- [`docs/phase-7/requirements-audit.md`](docs/phase-7/requirements-audit.md) — requirement-to-code/test evidence for Phase 7
 - [`docs/runbooks/backup-key-recovery.md`](docs/runbooks/backup-key-recovery.md) — backup keys, master-key rotation and the restore procedure
 - [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
 

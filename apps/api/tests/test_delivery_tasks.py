@@ -416,3 +416,55 @@ def test_driver_sync_is_scoped_and_offline_completion_applies_once(client, sessi
         row = db.get(DeliveryTask, UUID(mine["id"]))
         assert row is not None and row.status == "COMPLETED" and row.version == 2
         assert str(row.performed_by_membership_id) == driver_membership
+
+
+def test_owner_team_api_adds_registered_driver_and_revocation_locks_access(client, session_factory):
+    """PHASE_07.md A/I: one membership one role; a revoked driver is refused on the next call."""
+    from test_sync_bootstrap import _bootstrap
+
+    owner, tenant, token = _owner_context(client, session_factory, "p7team")
+    driver = _user(session_factory, "driver-p7team@example.com", SystemUserType.CLIENT)
+    unknown = _post(
+        client,
+        tenant,
+        token,
+        f"/api/v1/tenants/{tenant}/memberships",
+        {"email": "nobody-p7@example.com"},
+    )
+    assert unknown.status_code == 404
+    added = _post(
+        client, tenant, token, f"/api/v1/tenants/{tenant}/memberships", {"email": driver.email}
+    )
+    assert added.status_code == 201, added.text
+    assert added.json()["role"] == "driver" and added.json()["is_self"] is False
+    twice = _post(
+        client, tenant, token, f"/api/v1/tenants/{tenant}/memberships", {"email": driver.email}
+    )
+    assert twice.status_code == 409
+    driver_token = _login(client, driver.email)
+    assert _get(client, tenant, driver_token, "/api/v1/delivery-tasks/my-work").status_code == 200
+    device = str(uuid4())
+    assert _bootstrap(client, tenant, driver_token, device).status_code == 200
+    # Drivers cannot manage the team; owners cannot revoke themselves; revocation locks out.
+    assert (
+        _get(client, tenant, driver_token, f"/api/v1/tenants/{tenant}/memberships").status_code
+        == 403
+    )
+    members = _get(client, tenant, token, f"/api/v1/tenants/{tenant}/memberships").json()["members"]
+    me = next(m for m in members if m["is_self"])
+    assert (
+        _post(
+            client, tenant, token, f"/api/v1/tenants/{tenant}/memberships/{me['id']}/revoke"
+        ).status_code
+        == 409
+    )
+    revoked = _post(
+        client, tenant, token, f"/api/v1/tenants/{tenant}/memberships/{added.json()['id']}/revoke"
+    )
+    assert revoked.status_code == 200 and revoked.json()["is_active"] is False
+    assert _get(client, tenant, driver_token, "/api/v1/delivery-tasks/my-work").status_code == 403
+    pull = client.get(
+        f"/api/v1/sync/pull?tenant_id={tenant}&cursor=0&device_installation_id={device}",
+        headers=_auth(driver_token),
+    )
+    assert pull.status_code == 403

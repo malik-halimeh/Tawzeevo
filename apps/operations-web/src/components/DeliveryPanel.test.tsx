@@ -19,6 +19,7 @@ test("sole owner creates a delivery for a confirmed invoice with no driver setup
     if (body) bodies.push(body);
     if (path.endsWith("/delivery-tasks") && init?.method === "POST") { tasks.push({ ...baseTask }); return Promise.resolve(Response.json(tasks[0], { status: 201 })); }
     if (path.endsWith("/delivery-tasks")) return Promise.resolve(Response.json({ tasks, eligible_members: [me], sole_operator: true }));
+    if (path.endsWith("/memberships")) return Promise.resolve(Response.json({ members: [{ id: "m1", role: "owner", is_active: true, display_name: "Layla Haddad", email: "l@example.com", is_self: true, created_at: "", revoked_at: null }] }));
     if (path.endsWith("/eligible-invoices")) return Promise.resolve(Response.json({ invoices: tasks.length ? [] : [{ invoice_id: "inv1", official_invoice_number: "2026-000001", customer_id: "c1", customer_name: "Corner Shop", currency: "USD", net_sales: "30.0000", confirmed_at: "2026-09-19T05:00:00Z", order_id: null, delivery_date: null }] }));
     if (path.endsWith("/t1/complete")) { tasks[0] = { ...baseTask, status: "COMPLETED", performed_by: me, completed_at: "2026-09-19T07:00:00Z", version: 2 }; return Promise.resolve(Response.json(tasks[0])); }
     return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));

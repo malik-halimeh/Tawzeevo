@@ -32,6 +32,7 @@ from tawzeevo_api.routes.supplier_ledger import supplier_ledger_router, supplier
 from tawzeevo_api.routes.supplier_purchases import outstanding_router, supplier_purchases_router
 from tawzeevo_api.routes.suppliers import supplier_prices_router, suppliers_router
 from tawzeevo_api.routes.sync import sync_router
+from tawzeevo_api.routes.team import team_router
 from tawzeevo_api.routes.users import stats_router, users_router
 from tawzeevo_api.services.backup import run_due_backups
 from tawzeevo_api.services.sync_changes import register_change_tracking
@@ -152,6 +153,7 @@ app.include_router(supplier_purchases_router)
 app.include_router(outstanding_router)
 app.include_router(delivery_router)
 app.include_router(routes_router)
+app.include_router(team_router)
 app.include_router(sync_router)
 app.include_router(backup_router)
 app.include_router(platform_backup_router)

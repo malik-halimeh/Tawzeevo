@@ -5,7 +5,7 @@ import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
 import { browserOffline } from "../offline/network";
 import { syncNow } from "../offline/pull";
-import { bootstrapLocalProjection } from "../offline/sync";
+import { bootstrapLocalProjection, localSyncStatus } from "../offline/sync";
 import { queueDeliveryCompletion } from "../offline/supplierCommands";
 import { RoutePlanner } from "./RoutePlanner";
 import { ErrorState } from "./Ui";
@@ -33,18 +33,28 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
 
+  // Register this device for offline completions while online (a driver bootstrap downloads
+  // nothing; an owner device that already bootstrapped from the Offline tab is left alone).
+  const ensureDevice = useCallback(async () => {
+    try {
+      const status = await localSyncStatus(tenantId, membershipId);
+      if (!status.bootstrapped_at) await bootstrapLocalProjection(tenantId, membershipId);
+    } catch { /* offline or storage unavailable: completion still queues; sync retries registration */ }
+  }, [tenantId, membershipId]);
+
   const load = useCallback(async () => {
     try {
       const fresh = await apiRequest<MyWork>(`/api/v1/delivery-tasks/my-work?tenant_id=${tenantId}`);
       setWork(fresh); setFromCache(false);
       try { localStorage.setItem(cacheKey(tenantId, membershipId), JSON.stringify(fresh)); } catch { /* storage may be unavailable */ }
+      if (fresh.role === "driver") void ensureDevice();
     } catch (problem) {
       // Offline: show the last downloaded list so the stops are still readable.
       if (!(problem instanceof TypeError) || !browserOffline()) throw problem;
       const cached = localStorage.getItem(cacheKey(tenantId, membershipId));
       if (cached) { setWork(JSON.parse(cached) as MyWork); setFromCache(true); } else throw problem;
     }
-  }, [tenantId, membershipId]);
+  }, [tenantId, membershipId, ensureDevice]);
   useEffect(() => { load().catch(setError); }, [load]);
 
   const complete = (task: WorkTask) => {
@@ -53,8 +63,6 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
       .then(() => { setNotice(t("myWork.completed")); setNote(""); return load(); })
       .catch(async (problem: unknown) => {
         if (!(problem instanceof TypeError) || !browserOffline()) { setError(problem); return; }
-        // Offline: make sure this device is registered (a driver bootstrap downloads nothing), then queue.
-        try { await bootstrapLocalProjection(tenantId, membershipId); } catch { /* already registered or offline: the outbox still queues */ }
         await queueDeliveryCompletion(tenantId, membershipId, task.id, task.version, note || null);
         setQueued((current) => [...current, task.id]);
         setNotice(t("myWork.queued"));
@@ -64,7 +72,7 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
   };
   const sync = () => {
     setBusy(true); setError(undefined);
-    syncNow(tenantId, membershipId).then(() => { setQueued([]); setNotice(t("myWork.synced")); return load(); }).catch(setError).finally(() => setBusy(false));
+    ensureDevice().then(() => syncNow(tenantId, membershipId)).then(() => { setQueued([]); setNotice(t("myWork.synced")); return load(); }).catch(setError).finally(() => setBusy(false));
   };
 
   return (

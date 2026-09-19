@@ -18,6 +18,7 @@ export interface Task {
   completed_at: string | null; performed_by: Assignee | null; completion_note: string | null; cancelled_at: string | null; cancel_reason: string | null; version: number; created_at: string;
 }
 interface TaskList { tasks: Task[]; eligible_members: Assignee[]; sole_operator: boolean }
+interface Member { id: string; role: string; is_active: boolean; display_name: string; email: string; is_self: boolean; revoked_at: string | null }
 interface Eligible { invoice_id: string; official_invoice_number: string | null; customer_id: string; customer_name: string; currency: string; net_sales: string; confirmed_at: string | null; order_id: string | null; delivery_date: string | null }
 
 export function DeliveryPanel({ tenantId }: { tenantId: string }) {
@@ -30,17 +31,20 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
   const [assignee, setAssignee] = useState("");
   const [date, setDate] = useState("");
   const [reason, setReason] = useState("");
+  const [team, setTeam] = useState<Member[]>([]);
+  const [driverEmail, setDriverEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
 
   const refresh = useCallback(async () => {
-    const [list, open] = await Promise.all([
+    const [list, open, team] = await Promise.all([
       apiRequest<TaskList>(`/api/v1/delivery-tasks${q}${statusFilter ? `&status=${statusFilter}` : ""}`),
       apiRequest<{ invoices: Eligible[] }>(`/api/v1/delivery-tasks/eligible-invoices${q}`),
+      apiRequest<{ members: Member[] }>(`/api/v1/tenants/${tenantId}/memberships`),
     ]);
-    setData(list); setEligible(open.invoices);
-  }, [q, statusFilter]);
+    setData(list); setEligible(open.invoices); setTeam(team.members);
+  }, [q, statusFilter, tenantId]);
   useEffect(() => { refresh().catch(setError); }, [refresh]);
 
   const run = (action: () => Promise<string | undefined>) => {
@@ -55,6 +59,18 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
       return t("delivery.created");
     });
   };
+  const addDriver = (event: FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      await apiRequest<Member>(`/api/v1/tenants/${tenantId}/memberships`, { method: "POST", body: JSON.stringify({ email: driverEmail }) });
+      setDriverEmail("");
+      return t("delivery.driverAdded");
+    });
+  };
+  const revoke = (member: Member) => run(async () => {
+    await apiRequest<Member>(`/api/v1/tenants/${tenantId}/memberships/${member.id}/revoke`, { method: "POST" });
+    return t("delivery.driverRevoked");
+  });
   const act = (task: Task, path: string, body: Record<string, unknown>, message: string, method = "POST") => run(async () => {
     await apiRequest<Task>(`/api/v1/delivery-tasks/${task.id}${path}${q}`, { method, body: JSON.stringify({ expected_version: task.version, ...body }) });
     return message;
@@ -107,6 +123,22 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
       </div>
 
       {data && data.tasks.length === 0 ? <p className="muted">{t("delivery.empty")}</p> : null}
+      <details className="team">
+        <summary>{t("delivery.team")}</summary>
+        <p className="muted">{t("delivery.teamBody")}</p>
+        <form className="inline-form" onSubmit={addDriver}>
+          <label className="field"><span>{t("delivery.driverEmail")}</span><input required type="email" value={driverEmail} onChange={(event) => setDriverEmail(event.target.value)} /></label>
+          <button className="button" disabled={busy} type="submit">{t("delivery.addDriver")}</button>
+        </form>
+        <ul className="outbox-list">
+          {team.map((member) => (
+            <li className="outbox-row" key={member.id}>
+              <span>{member.display_name} · {t(`procurement.roles.${member.role}`)} · <bdi dir="ltr">{member.email}</bdi>{!member.is_active ? ` · ${t("delivery.revoked")}` : ""}</span>
+              {member.is_active && !member.is_self ? <button className="text-button danger-link" disabled={busy} onClick={() => revoke(member)} type="button">{t("delivery.revoke")}</button> : null}
+            </li>
+          ))}
+        </ul>
+      </details>
       <ul className="outbox-list delivery-list" aria-label={t("delivery.list")}>
         {data?.tasks.map((task) => (
           <li className="outbox-row delivery-row" key={task.id}>
