@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from tawzeevo_api.schemas.branding import PublicBranding
+
 
 class SlugResolution(BaseModel):
     tenant_id: UUID
@@ -81,6 +83,7 @@ class PublicStorefront(BaseModel):
     categories: list[PublicCategory]
     published_products: int
     generated_at: datetime
+    branding: PublicBranding | None = None
 
 
 class ViewRequest(BaseModel):

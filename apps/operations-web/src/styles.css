@@ -610,3 +610,8 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .analytics-facts dd { font-variant-numeric: tabular-nums; }
 .lifetime-habits { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin-block-start: 1rem; }
 .lifetime-habits ol { padding-inline-start: 1.2rem; }
+
+/* Branding (P8-M3) */
+.branding-form h4 { margin-block: 1rem .25rem; }
+.logo-row { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; }
+.branding-logo { block-size: 4rem; inline-size: auto; max-inline-size: 12rem; object-fit: contain; }

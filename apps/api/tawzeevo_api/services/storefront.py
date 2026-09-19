@@ -40,6 +40,7 @@ from tawzeevo_api.schemas.storefront import (
     SlugResolution,
     StorefrontSettings,
 )
+from tawzeevo_api.services.branding import public_branding
 from tawzeevo_api.services.customer_access import CustomerContext
 from tawzeevo_api.services.pricing import derive_counterpart_prices, resolve_product_pricing
 
@@ -338,6 +339,7 @@ def public_storefront(db: Session, slug: str) -> PublicStorefront:
         categories=categories,
         published_products=sum(counts.values()),
         generated_at=datetime.now(UTC),
+        branding=public_branding(db, tenant),
     )
 
 

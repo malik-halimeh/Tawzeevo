@@ -84,6 +84,7 @@ def test_capability_projection_current_revision_privacy_and_no_stored_secret(
     _privacy(response)
     public = response.json()
     assert set(public) == {
+        "branding",  # presentation block only (P8-M3), never owner or ledger data
         "business_name",
         "customer_name",
         "status",

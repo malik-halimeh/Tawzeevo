@@ -2447,3 +2447,72 @@ class DeliveryTask(Base):
             postgresql_where=text("status = 'ASSIGNED'"),
         ),
     )
+
+
+class TenantBranding(Base):
+    """Presentation settings only (PHASE_08.md F): never roles, scoping, pricing or ledgers."""
+
+    __tablename__ = "tenant_branding"
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    description: Mapped[str | None] = mapped_column(String(1000))
+    phone: Mapped[str | None] = mapped_column(String(32))
+    whatsapp: Mapped[str | None] = mapped_column(String(32))
+    email: Mapped[str | None] = mapped_column(String(254))
+    address: Mapped[str | None] = mapped_column(String(500))
+    primary_color: Mapped[str | None] = mapped_column(String(7))
+    secondary_color: Mapped[str | None] = mapped_column(String(7))
+    storefront_title: Mapped[str | None] = mapped_column(String(120))
+    banner_text: Mapped[str | None] = mapped_column(String(300))
+    social_links: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}", nullable=False
+    )
+    about_text: Mapped[str | None] = mapped_column(String(4000))
+    contact_text: Mapped[str | None] = mapped_column(String(2000))
+    privacy_text: Mapped[str | None] = mapped_column(String(8000))
+    terms_text: Mapped[str | None] = mapped_column(String(8000))
+    invoice_header: Mapped[str | None] = mapped_column(String(500))
+    invoice_footer: Mapped[str | None] = mapped_column(String(500))
+    invoice_terms: Mapped[str | None] = mapped_column(String(2000))
+    thank_you_text: Mapped[str | None] = mapped_column(String(300))
+    invoice_qr_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    default_language: Mapped[str] = mapped_column(
+        String(2), default="en", server_default="en", nullable=False
+    )
+    date_format: Mapped[str] = mapped_column(
+        String(12), default="DD/MM/YYYY", server_default="DD/MM/YYYY", nullable=False
+    )
+    timezone: Mapped[str] = mapped_column(
+        String(64), default="Asia/Beirut", server_default="Asia/Beirut", nullable=False
+    )
+    display_currency: Mapped[str | None] = mapped_column(String(3))
+    logo_object_key: Mapped[str | None] = mapped_column(String(500))
+    logo_content_type: Mapped[str | None] = mapped_column(String(50))
+    logo_width: Mapped[int | None] = mapped_column(Integer)
+    logo_height: Mapped[int | None] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("default_language IN ('en', 'ar')", name="ck_tenant_branding_language"),
+        CheckConstraint(
+            "primary_color IS NULL OR primary_color ~ '^#[0-9a-fA-F]{6}$'",
+            name="ck_tenant_branding_primary_color",
+        ),
+        CheckConstraint(
+            "secondary_color IS NULL OR secondary_color ~ '^#[0-9a-fA-F]{6}$'",
+            name="ck_tenant_branding_secondary_color",
+        ),
+        CheckConstraint(
+            "date_format IN ('DD/MM/YYYY', 'YYYY-MM-DD', 'MM/DD/YYYY')",
+            name="ck_tenant_branding_date_format",
+        ),
+    )

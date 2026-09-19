@@ -7,9 +7,9 @@
 - Current workstream: `Phase 8 — Analytics, customer lifetime statistics, tenant branding`
 - Current phase: `8`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P8-M3 — Tenant branding + safe public aggregate stats`
+- Current milestone: `P8-M4 — Phase 8 verification, E2E and freeze`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P8-M2`
+- Last completed milestone: `P8-M3`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -39,25 +39,30 @@ Phase 8 starts at Gate G (D-064–D-070 recorded).
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 7 | COMPLETE | Frozen 2026-09-19 (P7-M4): `docs/phase-7/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
-| 8 | IN_PROGRESS | Gate G decisions D-064–D-070 recorded; owner authorization of 2026-09-19; P8-M1, P8-M2 complete 2026-09-19 |
+| 8 | IN_PROGRESS | Gate G decisions D-064–D-070 recorded; owner authorization of 2026-09-19; P8-M1, P8-M2, P8-M3 complete 2026-09-19 |
 | 9 | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P8-M2, 2026-09-19): `services/customer_stats.py` (D-069 per customer from confirmed current revisions attributed by the owner-resolved `customer_id` only: per-currency purchased / count / largest / average / receipts net of reversals / refunds / outstanding and credit / discounts / markups; first and latest purchase, average days between purchases, purchases per month; late-payment count = charges settled by a receipt paid after the overdue threshold; cancelled invoices and storefront cancellation requests; top 5 products and categories by value then quantity per currency; monthly spend on the tenant calendar; grade timeline from the sale-time snapshots; `insufficient_data` instead of invented values), `schemas/customer_stats.py`, `routes/analytics.py` (`GET /api/v1/analytics/customers/{id}`, owner-only), operations client `AnalyticsPanel.tsx` (customer drilldown: facts, money table by currency, habits, grade timeline, monthly spend; EN/AR)
-- Migrations: none (indexed transactional queries; no duplicated truth)
-- Tests run (2026-09-19): backend `test_customer_stats.py` (empty customer reports insufficient data; three purchases with a grade change, a twin customer on the same phone and a cancelled invoice: totals exclude the twin and the cancellation, largest/average/receipts/outstanding/discounts/markups reconcile, average 20 days between purchases, one late payment against a 7-day threshold, top products and categories, grade timeline A → B, twin reports only itself; driver 403; other tenant 404) plus `test_analytics.py`; ruff/format/mypy PASS; operations client `80 passed`, lint/types/build PASS
-- Security/invariants: lifetime matrix passes; duplicates not merged; cross-tenant secure; attribution never from the storefront hint (D-072)
-- Known defects: none open for P8-M2
-- Contract deviations: none
+- Code areas changed (P8-M3, 2026-09-19): migration `20260919_0027_tenant_branding` (`tenant_branding`, one row per tenant, forced RLS); `models.py::TenantBranding`; `schemas/branding.py` (owner request/response, `PublicBranding`, `InvoiceBranding`; colours `#rrggbb` only, social links https-only from a fixed key set, phone/WhatsApp normalized); `services/branding.py` (defaults when no row, version check, audit events, logo through the validated product-image pipeline into object storage as WebP, public logo path with a version query for caching); `routes/branding.py` (`GET/PUT /api/v1/tenants/{id}/branding`, `POST …/branding/logo`, owner-only); `routes/storefront.py::read_logo` (public, cached); `public_storefront` carries `branding`; `public_invoices` carries `InvoiceBranding` and the page template renders logo/header/footer/terms/thank-you/contact and defaults to the business language; safe QR: `GET /api/v1/public/invoice/qr` (header-authorized, PNG of the same capability page only, `no-store`, only when the business enabled it; CSP `img-src 'self' blob:`); `services/public_stats.py` + `GET /stats/platform` (D-070: aggregate counts only, withheld below 5 businesses / 20 customers; Phase 1 stats unchanged); operations client `BrandingPanel.tsx` (identity, storefront, invoice, localization, logo upload; EN/AR); storefront `ShopFrame.tsx` (theme tokens from the business colours, title, logo, banner, contact and social footer, info links), `app/[slug]/info/[page]` (About/Contact/Privacy/Terms), `loadShop` default language from branding when the visitor chose none
+- Migrations: `20260919_0027_tenant_branding` (applied locally; head assertions updated)
+- Tests run (2026-09-19): backend `test_branding_public_stats.py` (defaults; save/normalize/validate; version conflict; logo upload, public serving with cache headers, non-image rejected; storefront block without owner-only fields; price and confirmed invoice unchanged; invoice page block without storefront-only fields; QR only with the header and only when enabled; CSP; driver and other tenant denied; Phase 1 stats unchanged; small cohort withheld and no sensitive field names) plus the full backend suite; ruff/format/mypy PASS; operations client `82 passed` (invoice page: XSS-safe text, hidden logo/QR without branding, branded render with business default language, QR requested once), lint/types PASS; storefront `5 passed`, lint/types PASS
+- Security/invariants: branding is presentation only (no pricing, roles, scope, ledger, cancellation, no-stock or API authority touched); tenant-isolated; logo validated like product images; QR encodes only the capability page the holder already has and the secret never enters a URL on the server; public stats expose no revenue, debt, duplicates or per-tenant values
+- Known defects: none open for P8-M3
+- Contract deviations: favicon, featured-product presentation, promotional banners and configurable homepage layout (PHASE_08.md F storefront list) are not implemented in this milestone; recorded in the Phase 8 requirements audit for the owner's decision — no logic depends on them
 
 ## Latest completed milestone summary
+
+P8-M3 (2026-09-19) delivered tenant branding (owner desk, storefront theme/texts/pages, branded
+customer invoice page with a safe QR) and the D-070 public platform aggregates; presentation only.
+
+### Previous (P8-M2)
 
 P8-M2 (2026-09-19) delivered customer lifetime statistics per D-069 with a drilldown in the
 owner analytics screen; duplicates are never merged and missing data is reported, not invented.
 
-### Previous (P8-M1)
+### Earlier (P8-M1)
 
 P8-M1 (2026-09-19) delivered the trusted metric service: current-state and event-flow views by
 currency on the tenant calendar, gross profit from sale-time snapshots with coverage, and the

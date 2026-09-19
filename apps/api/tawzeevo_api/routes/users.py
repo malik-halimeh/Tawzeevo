@@ -10,6 +10,7 @@ from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import get_current_user, require_system_admin
 from tawzeevo_api.models import SystemUserType, User
 from tawzeevo_api.schemas.auth import UserResponse
+from tawzeevo_api.schemas.public_stats import PlatformStatsResponse
 from tawzeevo_api.schemas.users import (
     AdminCreateUserRequest,
     AdminUpdateUserRequest,
@@ -19,6 +20,7 @@ from tawzeevo_api.schemas.users import (
     UserCountResponse,
     UserListResponse,
 )
+from tawzeevo_api.services.public_stats import platform_stats
 from tawzeevo_api.services.users import (
     average_user_age,
     create_user,
@@ -127,3 +129,9 @@ def average_age(db: Annotated[Session, Depends(get_db)]) -> AverageAgeResponse:
 @stats_router.get("/top-cities", response_model=list[CityCountResponse])
 def top_cities(db: Annotated[Session, Depends(get_db)]) -> list[CityCountResponse]:
     return [CityCountResponse.model_validate(row) for row in top_user_cities(db)]
+
+
+@stats_router.get("/platform", response_model=PlatformStatsResponse)
+def platform(db: Annotated[Session, Depends(get_db)]) -> PlatformStatsResponse:
+    """Aggregate, non-sensitive platform figures with small-cohort protection (D-070)."""
+    return platform_stats(db)

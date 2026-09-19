@@ -27,6 +27,7 @@ import { isOfflineFailure } from "../offline/network";
 import { createCustomerOffline, createProductOffline, updateCustomerOffline, updateProductOffline } from "../offline/outbox";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { BackupPanel } from "./BackupPanel";
+import { BrandingPanel } from "./BrandingPanel";
 import { CampaignPanel } from "./CampaignPanel";
 import { CustomerLinkControls } from "./CustomerLinkControls";
 import { DeliveryPanel } from "./DeliveryPanel";
@@ -340,7 +341,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const queryClient = useQueryClient();
   const [tenantId, setTenantId] = useState(contexts[0]?.tenant_id ?? "");
   const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
-  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "procurement" | "invoices" | "orders" | "deliveries" | "analytics" | "sync" | "backup">("customers");
+  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "procurement" | "invoices" | "orders" | "deliveries" | "analytics" | "branding" | "sync" | "backup">("customers");
   const [backupNotice, setBackupNotice] = useState<string>();
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
   useEffect(() => {
@@ -646,6 +647,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <button aria-selected={view === "orders"} onClick={() => setView("orders")} role="tab" type="button">{t("orders.tab")}</button>
             <button aria-selected={view === "deliveries"} onClick={() => setView("deliveries")} role="tab" type="button">{t("delivery.tab")}</button>
             <button aria-selected={view === "analytics"} onClick={() => setView("analytics")} role="tab" type="button">{t("analytics.tab")}</button>
+            <button aria-selected={view === "branding"} onClick={() => setView("branding")} role="tab" type="button">{t("branding.tab")}</button>
             <button aria-selected={view === "sync"} onClick={() => setView("sync")} role="tab" type="button">{t("sync.tab")}</button>
             <button aria-selected={view === "backup"} onClick={() => setView("backup")} role="tab" type="button">{t("backup.tab")}</button>
           </div>
@@ -758,6 +760,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "analytics" ? (
             <AnalyticsPanel tenantId={context.tenant_id} />
+          ) : view === "branding" ? (
+            <BrandingPanel tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
             <>
               <DeliveryPanel tenantId={context.tenant_id} />

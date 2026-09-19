@@ -16,6 +16,7 @@ from tawzeevo_api.schemas.public_invoices import (
     PublicInvoiceResponse,
 )
 from tawzeevo_api.services.public_invoices import (
+    invoice_qr_png,
     issue_capability,
     list_capabilities,
     resolve_public_invoice,
@@ -85,7 +86,8 @@ def public_invoice_page() -> HTMLResponse:
         headers={
             "Content-Security-Policy": (
                 f"default-src 'none'; script-src 'sha256-{_SCRIPT_HASH}'; "
-                "style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; "
+                "style-src 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; "
+                "base-uri 'none'; "
                 "frame-ancestors 'none'; form-action 'none'"
             ),
         },
@@ -103,3 +105,15 @@ def public_invoice_data(
 ) -> PublicInvoiceResponse:
     # Deliberately avoid validation errors echoing a secret header into the response/logs.
     return resolve_public_invoice(db, request.headers.get("X-Invoice-Capability", ""))
+
+
+@public_invoices_router.get(
+    "/invoice/qr",
+    include_in_schema=False,
+    description="Supply X-Invoice-Capability. PNG QR of this invoice page only.",
+)
+def public_invoice_qr(request: Request, db: Annotated[Session, Depends(get_db)]) -> Response:
+    content = invoice_qr_png(
+        db, request.headers.get("X-Invoice-Capability", ""), request.headers.get("host", "")
+    )
+    return Response(content, media_type="image/png", headers={"Cache-Control": "no-store"})

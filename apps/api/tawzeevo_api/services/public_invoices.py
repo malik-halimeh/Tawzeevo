@@ -1,12 +1,14 @@
 """Capability authorization and explicit public projection, independent of user login."""
 
 import hashlib
+import io
 import re
 import secrets
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import qrcode
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +30,7 @@ from tawzeevo_api.schemas.public_invoices import (
     PublicInvoiceItem,
     PublicInvoiceResponse,
 )
+from tawzeevo_api.services.branding import invoice_branding
 from tawzeevo_api.services.invoice_finance import _locked_invoice, _revision
 
 TOKEN_PATTERN = re.compile(r"[a-f0-9]{32}\.[A-Za-z0-9_-]{43}")
@@ -221,6 +224,7 @@ def resolve_public_invoice(db: Session, raw: str) -> PublicInvoiceResponse:
     name = revision.customer_snapshot.get("name")
     # Never serialize an owner response, arbitrary snapshot dict, or ORM row here.
     return PublicInvoiceResponse(
+        branding=invoice_branding(db, tenant),
         business_name=tenant.name,
         customer_name=name if isinstance(name, str) else None,
         status=invoice.status,
@@ -246,3 +250,18 @@ def resolve_public_invoice(db: Session, raw: str) -> PublicInvoiceResponse:
             for item in items
         ],
     )
+
+
+def invoice_qr_png(db: Session, raw: str, host: str) -> bytes:
+    """A QR that encodes only the page the holder is already on (the capability link itself).
+    Available only when the business enabled it; the secret never leaves the request."""
+    response = resolve_public_invoice(db, raw)
+    if response.branding is None or not response.branding.invoice_qr_enabled:
+        raise _unavailable()
+    if not host or "/" in host or len(host) > 253:
+        raise _unavailable()
+    scheme = "http" if host.split(":")[0] in ("127.0.0.1", "localhost") else "https"
+    image = qrcode.make(f"{scheme}://{host}/api/v1/public/invoice#{raw}", border=2)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()

@@ -26,7 +26,6 @@ export function pageNumber(params: SearchParams): number {
  */
 export async function loadShop(slug: string, restOfPath: string, params: SearchParams): Promise<{ shop: PublicStorefront; lang: Lang }> {
   if (!isValidSlug(slug)) notFound();
-  const lang = langFrom(params);
   let shop: PublicStorefront;
   try {
     shop = await fetchStorefront(slug);
@@ -34,6 +33,9 @@ export async function loadShop(slug: string, restOfPath: string, params: SearchP
     if (error instanceof CatalogError && error.status === 404) notFound();
     throw error;
   }
+  // The owner's default language applies when the visitor has not chosen one (PHASE_08.md F).
+  const chosen = Array.isArray(params.lang) ? params.lang[0] : params.lang;
+  const lang = chosen === "ar" || chosen === "en" ? langFrom(params) : shop.branding?.default_language === "ar" ? "ar" : langFrom(params);
   if (shop.redirected_from) {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {

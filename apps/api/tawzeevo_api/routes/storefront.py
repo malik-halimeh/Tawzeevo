@@ -52,6 +52,7 @@ from tawzeevo_api.schemas.storefront import (
     ViewResponse,
 )
 from tawzeevo_api.services import (
+    branding,
     checkout,
     customer_access,
     orders,
@@ -127,6 +128,18 @@ def read_product(
 ) -> PublicProduct:
     context = _context(db, request, response)
     return storefront.public_product(db, tenant_slug, product_id, context)
+
+
+@storefront_public_router.get("/{tenant_slug}/branding/logo")
+def read_logo(tenant_slug: str, db: Annotated[Session, Depends(get_db)]) -> Response:
+    """The business logo for the storefront and invoice pages (cacheable, nosniff)."""
+    tenant = storefront.resolve_slug(db, tenant_slug)
+    content, content_type = branding.logo_content(db, tenant.tenant_id)
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @storefront_public_router.get("/{tenant_slug}/catalog/images/{kind}/{image_id}")

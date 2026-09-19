@@ -40,7 +40,14 @@ export interface PublicProductPage {
   has_more: boolean;
 }
 
+export interface PublicBranding {
+  business_name: string; description: string | null; phone: string | null; whatsapp: string | null; email: string | null; address: string | null;
+  primary_color: string | null; secondary_color: string | null; storefront_title: string | null; banner_text: string | null; social_links: Record<string, string>;
+  about_text: string | null; contact_text: string | null; privacy_text: string | null; terms_text: string | null; default_language: "en" | "ar"; logo_path: string | null;
+}
+
 export interface PublicStorefront {
+  branding?: PublicBranding | null;
   slug: string;
   redirected_from: string | null;
   name: string;

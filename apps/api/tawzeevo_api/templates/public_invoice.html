@@ -13,18 +13,21 @@
     h1{font-size:clamp(1.5rem,5vw,2.5rem)}.table-wrap{overflow:auto}table{border-collapse:collapse;min-width:38rem;width:100%}th,td{padding:.8rem;text-align:start;border-bottom:1px solid var(--line)}
     dl{margin-inline-start:auto;max-width:25rem}dl div{display:flex;justify-content:space-between;gap:2rem}dd{margin:0}dt,dd{padding:.4rem 0}.total{font-size:1.3rem;border-top:2px solid var(--accent);font-weight:bold}
     [hidden]{display:none!important}#notice{padding:1rem 0}footer{border-top:1px solid var(--line);margin-top:2rem;padding-top:1rem}
+    #logo{block-size:3rem;inline-size:auto;vertical-align:middle;margin-inline-end:.75rem}#brand-header,#thanks{font-weight:bold}#contact{direction:ltr;text-align:start}
+    #qr{display:block;inline-size:9rem;block-size:9rem;margin-block:1rem}footer p{margin:.4rem 0}
   </style>
 </head>
 <body><main>
   <header><strong>Tawzeevo</strong><button id="language" type="button">العربية</button></header>
   <p id="notice" role="status" aria-live="polite">Loading invoice… / جارٍ تحميل الفاتورة…</p>
   <article id="invoice" hidden>
-    <h1 id="business"></h1><h2 id="heading"></h2><p id="customer"></p><p id="status"></p>
+    <h1><img id="logo" alt="" hidden><span id="business"></span></h1><p id="brand-header"></p>
+    <h2 id="heading"></h2><p id="customer"></p><p id="status"></p>
     <div class="table-wrap" tabindex="0" role="region" aria-label="Invoice items / بنود الفاتورة">
       <table><thead><tr id="columns"></tr></thead><tbody id="items"></tbody></table>
     </div>
     <dl id="totals"></dl>
-    <footer id="note"></footer>
+    <footer><p id="thanks"></p><p id="terms"></p><p id="brand-footer"></p><p id="contact"></p><img id="qr" alt="" hidden><p id="note"></p></footer>
   </article>
 </main><script>
 (() => {
@@ -33,9 +36,10 @@
   history.replaceState(null, "", location.pathname);
   let language = "en";
   let invoice;
+  let qrLoaded = false;
   const words = {
-    en: {invoice:"Invoice",draft:"Draft",revision:"Revision",customer:"Customer",status:"Status",DRAFT:"Draft — not confirmed",CONFIRMED:"Confirmed",CANCELLED:"Cancelled",name:"Item",quantity:"Quantity",unit:"Unit",price:"Unit price",total:"Line total",subtotal:"Subtotal",discount:"Discounts",markup:"Markups",net_sales:"Invoice value",PIECE:"Piece",BOX:"Box",note:"This page shows this invoice only. Invoice value excludes other balances and does not indicate payment status. Keep this private link safe.",error:"This link is invalid, expired, revoked, or temporarily unavailable. Reopen the original shared link or contact the business."},
-    ar: {invoice:"فاتورة",draft:"مسودة",revision:"الإصدار",customer:"العميل",status:"الحالة",DRAFT:"مسودة — غير مؤكدة",CONFIRMED:"مؤكدة",CANCELLED:"ملغاة",name:"الصنف",quantity:"الكمية",unit:"الوحدة",price:"سعر الوحدة",total:"إجمالي البند",subtotal:"المجموع",discount:"الخصومات",markup:"الزيادات",net_sales:"قيمة الفاتورة",PIECE:"قطعة",BOX:"علبة",note:"تعرض هذه الصفحة هذه الفاتورة فقط. لا تشمل القيمة الأرصدة الأخرى ولا تدل على حالة الدفع. احتفظ بالرابط الخاص بأمان.",error:"الرابط غير صالح أو منتهي أو ملغى أو غير متاح مؤقتاً. افتح الرابط الأصلي أو تواصل مع صاحب العمل."}
+    en: {invoice:"Invoice",draft:"Draft",revision:"Revision",customer:"Customer",status:"Status",DRAFT:"Draft — not confirmed",CONFIRMED:"Confirmed",CANCELLED:"Cancelled",name:"Item",quantity:"Quantity",unit:"Unit",price:"Unit price",total:"Line total",subtotal:"Subtotal",discount:"Discounts",markup:"Markups",net_sales:"Invoice value",PIECE:"Piece",BOX:"Box",note:"This page shows this invoice only. Invoice value excludes other balances and does not indicate payment status. Keep this private link safe.",error:"This link is invalid, expired, revoked, or temporarily unavailable. Reopen the original shared link or contact the business.",qr:"QR code for this invoice page"},
+    ar: {invoice:"فاتورة",draft:"مسودة",revision:"الإصدار",customer:"العميل",status:"الحالة",DRAFT:"مسودة — غير مؤكدة",CONFIRMED:"مؤكدة",CANCELLED:"ملغاة",name:"الصنف",quantity:"الكمية",unit:"الوحدة",price:"سعر الوحدة",total:"إجمالي البند",subtotal:"المجموع",discount:"الخصومات",markup:"الزيادات",net_sales:"قيمة الفاتورة",PIECE:"قطعة",BOX:"علبة",note:"تعرض هذه الصفحة هذه الفاتورة فقط. لا تشمل القيمة الأرصدة الأخرى ولا تدل على حالة الدفع. احتفظ بالرابط الخاص بأمان.",error:"الرابط غير صالح أو منتهي أو ملغى أو غير متاح مؤقتاً. افتح الرابط الأصلي أو تواصل مع صاحب العمل.",qr:"رمز QR لصفحة هذه الفاتورة"}
   };
   const put = (id, value) => { document.getElementById(id).textContent = value; };
   function render() {
@@ -46,7 +50,22 @@
     if (!invoice) { put("notice", w.error); return; }
     put("notice", "");
     document.getElementById("invoice").hidden = false;
+    const brand = invoice.branding || {};
     put("business", invoice.business_name);
+    const logo = document.getElementById("logo");
+    logo.hidden = !brand.logo_path; if (brand.logo_path) logo.src = brand.logo_path;
+    put("brand-header", brand.invoice_header || "");
+    put("thanks", brand.thank_you_text || "");
+    put("terms", brand.invoice_terms || "");
+    put("brand-footer", brand.invoice_footer || "");
+    put("contact", [brand.business_tel, brand.business_whatsapp, brand.business_location].filter(Boolean).join(" · "));
+    if (brand.invoice_qr_enabled && !qrLoaded) {
+      qrLoaded = true;
+      fetch("invoice/qr", {headers:{"X-Invoice-Capability":token},credentials:"omit",cache:"no-store",referrerPolicy:"no-referrer"})
+        .then(response => {if (!response.ok) throw new Error("unavailable"); return response.blob();})
+        .then(blob => {const qr = document.getElementById("qr"); qr.src = URL.createObjectURL(blob); qr.alt = w.qr; qr.hidden = false;})
+        .catch(() => {});
+    }
     put("heading", `${w.invoice} ${invoice.number || w.draft} · ${w.revision} ${invoice.revision}`);
     put("customer", invoice.customer_name ? `${w.customer}: ${invoice.customer_name}` : "");
     put("status", `${w.status}: ${w[invoice.status]}`);
@@ -75,6 +94,6 @@
   if (!/^[a-f0-9]{32}\.[A-Za-z0-9_-]{43}$/.test(token)) {render(); return;}
   fetch("invoice/data", {headers:{"X-Invoice-Capability":token},credentials:"omit",cache:"no-store",referrerPolicy:"no-referrer"})
     .then(response => {if (!response.ok) throw new Error("unavailable"); return response.json();})
-    .then(data => {invoice = data; render();}).catch(() => render());
+    .then(data => {invoice = data; if (data.branding && data.branding.default_language === "ar") language = "ar"; render();}).catch(() => render());
 })();
 </script></body></html>

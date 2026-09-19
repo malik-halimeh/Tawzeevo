@@ -90,3 +90,10 @@ h2 { font-size: 1.05rem; margin: 1rem 0 0.5rem; }
 .order-lines { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .order-lines th, .order-lines td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); text-align: start; }
 .order-lines tfoot th { border-bottom: 0; }
+
+/* Branding (PHASE_08.md F): theme tokens come from the business; layout stays ours. */
+.shop-logo { block-size: 2rem; inline-size: auto; margin-inline-end: .5rem; vertical-align: middle; }
+.brand-banner { background: var(--accent-soft, var(--accent)); color: var(--accent-ink); border-radius: 10px; padding: .75rem 1rem; margin: 0 0 1rem; }
+.shop-footer p { margin: .25rem 0; }
+.brand-social a, .brand-pages a { margin-inline-end: .75rem; }
+.info-page { max-width: 720px; white-space: pre-wrap; }

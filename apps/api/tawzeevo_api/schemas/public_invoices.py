@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from tawzeevo_api.models import InvoiceStatus, ProductPriceBasis
+from tawzeevo_api.schemas.branding import InvoiceBranding
 
 
 class CapabilityResponse(BaseModel):
@@ -36,6 +37,7 @@ class PublicInvoiceItem(BaseModel):
 
 
 class PublicInvoiceResponse(BaseModel):
+    branding: InvoiceBranding | None = None
     business_name: str
     customer_name: str | None
     status: InvoiceStatus
