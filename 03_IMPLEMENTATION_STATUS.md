@@ -6,10 +6,10 @@
 
 - Current workstream: `Phase 8 — Analytics, customer lifetime statistics, tenant branding`
 - Current phase: `8`
-- Current phase status: `NOT_STARTED`
-- Current milestone: `P8-M1`
+- Current phase status: `IN_PROGRESS`
+- Current milestone: `P8-M2 — Customer lifetime statistics`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P7-M4`
+- Last completed milestone: `P8-M1`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -39,26 +39,32 @@ Phase 8 starts at Gate G (D-064–D-070 recorded).
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 7 | COMPLETE | Frozen 2026-09-19 (P7-M4): `docs/phase-7/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
-| 8 | NOT_STARTED | Gate G decisions D-064–D-070 recorded; owner authorization of 2026-09-19 |
+| 8 | IN_PROGRESS | Gate G decisions D-064–D-070 recorded; owner authorization of 2026-09-19; P8-M1 complete 2026-09-19 |
 | 9 | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P7-M4, 2026-09-19): `routes/team.py` (owner adds a registered client account as driver, lists members, revokes — last active owner protected, self-revoke refused; revocation revokes sync devices in the same transaction), `DeliveryPanel.tsx` Team section, `MyWorkPanel.tsx` (device registered while online; Sync now re-checks registration; operator heading "My route"), `e2e/phase7-field-flow.spec.ts`, `docs/phase-7/*`, README
-- Migrations: none new (head `20260919_0026`); `alembic check` PASS
-- Tests run (2026-09-19): backend `229 passed` (new: team API — unknown account 404, add driver 201, duplicate 409, driver cannot list the team, owner cannot revoke self, revoked driver 403 on my-work and pull), ruff/format/mypy PASS; operations client `79 passed`, lint/types/build PASS; Playwright `6 passed` (Phase 3, 4, 5 ×2, 6, 7)
-- Security/invariants: DoD (PHASE_07.md N) PASS per `docs/phase-7/requirements-audit.md`; no critical/high field authorization or privacy defect open
-- Known defects: none open for Phase 7
+- Code areas changed (P8-M1, 2026-09-19): `services/analytics.py` (periods 30d/90d/1y/all on the Asia/Beirut calendar with UTC storage; `invoiced_sales` D-064 from current revisions of CONFIRMED invoices; `customer_receipts` D-065 net of reversals with refunds separate; `customer_outstanding` / `supplier_payable` D-066 positive balances with credits separate; `gross_profit` D-067 from sale-time snapshots only with uncovered lines counted and coverage next to it; `event_flow` PHASE_08.md B from ledger effects — confirmations, edit deltas, cancellation reversals — with tenant-calendar monthly buckets; per-invoice view), `schemas/analytics.py`, `routes/analytics.py` (`/api/v1/analytics/overview|events|invoices/{id}`, owner-only), operations client `AnalyticsPanel.tsx` (Analytics tab: period select, current state facts by currency, profit table with coverage and uncovered lines, event-flow totals and monthly table; EN/AR; no colour-only signal)
+- Migrations: none (queries over canonical rows; no analytics store)
+- Tests run (2026-09-19): backend `test_analytics.py` ×5 (DST-day period boundary at local midnight; seeded reconciliation — opening balance excluded, cancelled excluded, USD and LBP listed apart, receipts net of a reversal, outstanding = opening + invoice − receipts, profit equals independent recomputation with 100 % coverage, 30d/90d/1y/all agree today, invalid period 422, per-invoice receipts + outstanding = net sales, driver/admin 403, other tenant empty; event flow: confirmations, negative edit delta, cancellation reversal, net effect equals current state, one monthly bucket; profit unchanged by a later cheaper purchase and an uncovered legacy line reported not estimated; confirmed_at 30 minutes either side of the tenant-calendar boundary), targeted suites `30 passed`; ruff/format/mypy PASS; operations client `80 passed`, lint/types/build PASS
+- Security/invariants: seeded reconciliation exact; no currency mixing; revision/cancellation tests; no fabricated cost; owner-only
+- Known defects: none open for P8-M1
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P8-M1 (2026-09-19) delivered the trusted metric service: current-state and event-flow views by
+currency on the tenant calendar, gross profit from sale-time snapshots with coverage, and the
+owner analytics baseline screen.
+
+### Previous (P7-M4)
 
 P7-M4 (2026-09-19) froze Phase 7: owner team management (add/revoke drivers), the real-browser
 field flow (sole owner, driver least privilege, offline completion applied once, revocation), two
 defects fixed, and the Phase 7 evidence documents.
 
-### Previous (P7-M3)
+### Earlier (P7-M3)
 
 P7-M3 (2026-09-19) delivered location provenance with the D-061 precedence, the deterministic
 offline stop-order heuristic with manual reorder, the OpenRouteService adapter with safe fallback

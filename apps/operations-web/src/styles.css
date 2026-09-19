@@ -604,3 +604,7 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .route-planner { border-block-start: 1px solid var(--line); margin-block-start: 1rem; padding-block-start: 1rem; }
 .route-planner h6 { margin-block: .75rem .25rem; }
 .route-order li { margin-block: .2rem; }
+
+/* Analytics (P8-M1) */
+.analytics-panel h4 { margin-block: 1.25rem .5rem; }
+.analytics-facts dd { font-variant-numeric: tabular-nums; }
