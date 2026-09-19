@@ -7,9 +7,9 @@
 - Current workstream: `Phase 8 — Analytics, customer lifetime statistics, tenant branding`
 - Current phase: `8`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P8-M2 — Customer lifetime statistics`
+- Current milestone: `P8-M3 — Tenant branding + safe public aggregate stats`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P8-M1`
+- Last completed milestone: `P8-M2`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -39,26 +39,31 @@ Phase 8 starts at Gate G (D-064–D-070 recorded).
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 7 | COMPLETE | Frozen 2026-09-19 (P7-M4): `docs/phase-7/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
-| 8 | IN_PROGRESS | Gate G decisions D-064–D-070 recorded; owner authorization of 2026-09-19; P8-M1 complete 2026-09-19 |
+| 8 | IN_PROGRESS | Gate G decisions D-064–D-070 recorded; owner authorization of 2026-09-19; P8-M1, P8-M2 complete 2026-09-19 |
 | 9 | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P8-M1, 2026-09-19): `services/analytics.py` (periods 30d/90d/1y/all on the Asia/Beirut calendar with UTC storage; `invoiced_sales` D-064 from current revisions of CONFIRMED invoices; `customer_receipts` D-065 net of reversals with refunds separate; `customer_outstanding` / `supplier_payable` D-066 positive balances with credits separate; `gross_profit` D-067 from sale-time snapshots only with uncovered lines counted and coverage next to it; `event_flow` PHASE_08.md B from ledger effects — confirmations, edit deltas, cancellation reversals — with tenant-calendar monthly buckets; per-invoice view), `schemas/analytics.py`, `routes/analytics.py` (`/api/v1/analytics/overview|events|invoices/{id}`, owner-only), operations client `AnalyticsPanel.tsx` (Analytics tab: period select, current state facts by currency, profit table with coverage and uncovered lines, event-flow totals and monthly table; EN/AR; no colour-only signal)
-- Migrations: none (queries over canonical rows; no analytics store)
-- Tests run (2026-09-19): backend `test_analytics.py` ×5 (DST-day period boundary at local midnight; seeded reconciliation — opening balance excluded, cancelled excluded, USD and LBP listed apart, receipts net of a reversal, outstanding = opening + invoice − receipts, profit equals independent recomputation with 100 % coverage, 30d/90d/1y/all agree today, invalid period 422, per-invoice receipts + outstanding = net sales, driver/admin 403, other tenant empty; event flow: confirmations, negative edit delta, cancellation reversal, net effect equals current state, one monthly bucket; profit unchanged by a later cheaper purchase and an uncovered legacy line reported not estimated; confirmed_at 30 minutes either side of the tenant-calendar boundary), targeted suites `30 passed`; ruff/format/mypy PASS; operations client `80 passed`, lint/types/build PASS
-- Security/invariants: seeded reconciliation exact; no currency mixing; revision/cancellation tests; no fabricated cost; owner-only
-- Known defects: none open for P8-M1
+- Code areas changed (P8-M2, 2026-09-19): `services/customer_stats.py` (D-069 per customer from confirmed current revisions attributed by the owner-resolved `customer_id` only: per-currency purchased / count / largest / average / receipts net of reversals / refunds / outstanding and credit / discounts / markups; first and latest purchase, average days between purchases, purchases per month; late-payment count = charges settled by a receipt paid after the overdue threshold; cancelled invoices and storefront cancellation requests; top 5 products and categories by value then quantity per currency; monthly spend on the tenant calendar; grade timeline from the sale-time snapshots; `insufficient_data` instead of invented values), `schemas/customer_stats.py`, `routes/analytics.py` (`GET /api/v1/analytics/customers/{id}`, owner-only), operations client `AnalyticsPanel.tsx` (customer drilldown: facts, money table by currency, habits, grade timeline, monthly spend; EN/AR)
+- Migrations: none (indexed transactional queries; no duplicated truth)
+- Tests run (2026-09-19): backend `test_customer_stats.py` (empty customer reports insufficient data; three purchases with a grade change, a twin customer on the same phone and a cancelled invoice: totals exclude the twin and the cancellation, largest/average/receipts/outstanding/discounts/markups reconcile, average 20 days between purchases, one late payment against a 7-day threshold, top products and categories, grade timeline A → B, twin reports only itself; driver 403; other tenant 404) plus `test_analytics.py`; ruff/format/mypy PASS; operations client `80 passed`, lint/types/build PASS
+- Security/invariants: lifetime matrix passes; duplicates not merged; cross-tenant secure; attribution never from the storefront hint (D-072)
+- Known defects: none open for P8-M2
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P8-M2 (2026-09-19) delivered customer lifetime statistics per D-069 with a drilldown in the
+owner analytics screen; duplicates are never merged and missing data is reported, not invented.
+
+### Previous (P8-M1)
 
 P8-M1 (2026-09-19) delivered the trusted metric service: current-state and event-flow views by
 currency on the tenant calendar, gross profit from sale-time snapshots with coverage, and the
 owner analytics baseline screen.
 
-### Previous (P7-M4)
+### Earlier (P7-M4)
 
 P7-M4 (2026-09-19) froze Phase 7: owner team management (add/revoke drivers), the real-browser
 field flow (sole owner, driver least privilege, offline completion applied once, revocation), two

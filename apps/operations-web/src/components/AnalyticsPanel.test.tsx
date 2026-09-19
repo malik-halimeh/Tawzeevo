@@ -13,6 +13,7 @@ test("owner sees per-currency figures, profit with coverage and the event flow, 
     const url = input instanceof Request ? input.url : input.toString();
     const period = new URL(url, "http://x").searchParams.get("period") ?? "";
     if (url.includes("/analytics/overview")) { periods.push(period); return Promise.resolve(Response.json({ period: { key: period, start: null, end: "2026-09-19T00:00:00Z", timezone: "Asia/Beirut" }, confirmed_invoices: 2, invoiced_sales: [{ currency: "LBP", amount: "90000.0000" }, { currency: "USD", amount: "24.2500" }], customer_receipts: [{ currency: "USD", amount: "10.0000" }], customer_refunds: [], customer_outstanding: [{ currency: "USD", amount: "114.2500" }], customer_credit: [], supplier_payable: [], supplier_credit: [], gross_profit: [{ currency: "USD", gross_profit: "8.2500", covered_lines: 1, total_lines: 2, uncovered_lines: 1, coverage_percent: "50.0000" }] })); }
+    if (url.includes("/tenants/t1/customers")) return Promise.resolve(Response.json({ customers: [] }));
     if (url.includes("/analytics/events")) return Promise.resolve(Response.json({ totals: [{ currency: "USD", confirmations: "50.0000", edit_deltas: "-12.0000", cancellations: "-13.7500", net_effect: "24.2500" }], monthly: [{ currency: "USD", month: "2026-09", net_effect: "24.2500" }] }));
     return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: url } }, { status: 404 }));
   }));

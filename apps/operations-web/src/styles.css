@@ -608,3 +608,5 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 /* Analytics (P8-M1) */
 .analytics-panel h4 { margin-block: 1.25rem .5rem; }
 .analytics-facts dd { font-variant-numeric: tabular-nums; }
+.lifetime-habits { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin-block-start: 1rem; }
+.lifetime-habits ol { padding-inline-start: 1.2rem; }
