@@ -201,15 +201,20 @@ def product_cost_setup(db: Session, tenant_id: UUID, product_id: UUID) -> Produc
     return _cost_setup(db, tenant_id, get_product(db, tenant_id, product_id))
 
 
-def append_product_cost(
+def append_cost_row(
     db: Session,
     tenant_id: UUID,
     actor: UUID,
     product_id: UUID,
     request: ProductCostEntryCreateRequest,
-) -> ProductCostSetupResponse:
+    entry_id: UUID | None = None,
+) -> TenantProductCostEntry:
+    """Validate and append one cost entry without committing (shared by the API and the sync
+    push applier). `entry_id` lets an offline command name its own row so a replay is a no-op."""
     product = get_product(db, tenant_id, product_id)
     _supplier(db, tenant_id, request.supplier_id)
+    if entry_id is not None and db.get(TenantProductCostEntry, entry_id) is not None:
+        raise AppError(409, "ENTITY_ID_IN_USE", "Entity id already exists")
     if request.currency != product.currency:
         # D-034: no silent currency conversion; a cost must be in the product's currency.
         raise AppError(400, "CURRENCY_MISMATCH", "Cost currency must match the product currency")
@@ -232,8 +237,26 @@ def append_product_cost(
         notes=request.notes.strip() if request.notes else None,
         created_by_user_id=actor,
     )
+    if entry_id is not None:
+        entry.id = entry_id
     db.add(entry)
     db.flush()
+    if product.preferred_supplier_id is None:
+        # First cost for a product makes its supplier the default so invoice entry preloads it.
+        product.preferred_supplier_id = request.supplier_id
+    return entry
+
+
+def append_product_cost(
+    db: Session,
+    tenant_id: UUID,
+    actor: UUID,
+    product_id: UUID,
+    request: ProductCostEntryCreateRequest,
+) -> ProductCostSetupResponse:
+    product = get_product(db, tenant_id, product_id)
+    had_preferred = product.preferred_supplier_id is not None
+    entry = append_cost_row(db, tenant_id, actor, product_id, request)
     _audit(
         db,
         tenant_id,
@@ -248,9 +271,7 @@ def append_product_cost(
         cost_basis=request.cost_basis.value,
         source_type=request.source_type.value,
     )
-    if product.preferred_supplier_id is None:
-        # First cost for a product makes its supplier the default so invoice entry preloads it.
-        product.preferred_supplier_id = request.supplier_id
+    if not had_preferred and product.preferred_supplier_id == request.supplier_id:
         _audit(
             db,
             tenant_id,

@@ -55,7 +55,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await page.getByRole("spinbutton", { name: "Unit cost (USD)" }).fill("8");
   await page.getByRole("button", { name: "Save new cost entry" }).click();
   await expect(page.getByText("Cost entry saved. The invoice editor will preload it.")).toBeVisible();
-  await expect(page.getByText("Bekaa Wholesale · preferred")).toBeVisible();
+  await expect(page.getByText("Bekaa Wholesale · preferred").first()).toBeVisible();
 
   // ----- Browser: supplier ledger desk (D-039 cap and explicit prepayment) -----
   const ledger = page.getByRole("article", { name: "Supplier payable and payments" });

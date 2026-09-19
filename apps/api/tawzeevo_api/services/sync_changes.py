@@ -30,9 +30,11 @@ from tawzeevo_api.models import (
     InvoiceRevision,
     InvoiceRevisionItem,
     Payment,
+    ProcurementItem,
     SyncChange,
     TenantBarcode,
     TenantProduct,
+    TenantProductCostEntry,
     TenantSupplier,
 )
 
@@ -236,8 +238,75 @@ def _ledger_entry(row: CustomerLedgerEntry) -> dict[str, Any]:
     )
 
 
+def _supplier(row: TenantSupplier) -> dict[str, Any]:
+    # Identity, contact and location only — never costs (PHASE_06.md B/F).
+    return _fields(
+        row,
+        (
+            "id",
+            "tenant_id",
+            "name",
+            "contact_name",
+            "contact_phone",
+            "contact_phone_raw",
+            "address",
+            "latitude",
+            "longitude",
+            "notes",
+            "version",
+            "created_at",
+            "updated_at",
+        ),
+    )
+
+
+def _product_cost(row: TenantProductCostEntry) -> dict[str, Any]:
+    return _fields(
+        row,
+        (
+            "id",
+            "tenant_id",
+            "tenant_product_id",
+            "supplier_id",
+            "unit_cost",
+            "currency",
+            "cost_basis",
+            "pieces_per_box",
+            "effective_at",
+            "source_type",
+            "quantity_context",
+            "notes",
+            "created_at",
+        ),
+    )
+
+
+def _procurement_item(row: ProcurementItem) -> dict[str, Any]:
+    return _fields(
+        row,
+        (
+            "id",
+            "tenant_id",
+            "list_id",
+            "tenant_product_id",
+            "product_name",
+            "supplier_id",
+            "price_basis",
+            "pieces_per_box",
+            "origin",
+            "required_quantity",
+            "target_quantity",
+            "purchased_quantity",
+            "notes",
+            "version",
+            "updated_at",
+        ),
+    )
+
+
 PROJECTIONS: dict[type, tuple[str, Callable[[Any], dict[str, Any]]]] = {
     Customer: ("customer", _customer),
+    TenantSupplier: ("supplier", _supplier),
     Category: ("category", _category),
     TenantProduct: ("tenant_product", _product),
     TenantBarcode: ("tenant_barcode", _barcode),
@@ -246,6 +315,13 @@ PROJECTIONS: dict[type, tuple[str, Callable[[Any], dict[str, Any]]]] = {
     InvoiceRevisionItem: ("invoice_revision_item", _revision_item),
     Payment: ("payment", _payment),
     CustomerLedgerEntry: ("customer_ledger_entry", _ledger_entry),
+}
+
+# Push-result projections that are not part of the change feed (append-only rows the device
+# does not mirror, and procurement lines whose full read lives in the owner API).
+RESULT_PROJECTIONS: dict[type, Callable[[Any], dict[str, Any]]] = {
+    TenantProductCostEntry: _product_cost,
+    ProcurementItem: _procurement_item,
 }
 
 # Set by the push service for the duration of one operation so change rows carry its identity.

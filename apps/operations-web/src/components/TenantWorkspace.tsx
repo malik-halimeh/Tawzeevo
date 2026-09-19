@@ -750,9 +750,9 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "orders" ? (
             <OrdersPanel tenantId={context.tenant_id} />
           ) : view === "procurement" ? (
-            <ProcurementPanel tenantId={context.tenant_id} />
+            <ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
-            <SupplierSetup tenantId={context.tenant_id} />
+            <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : (
             <InvoiceEditor tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={() => setView("suppliers")} />
           )}

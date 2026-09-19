@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { apiBlobRequest, apiRequest } from "../api/client";
 import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from "../api/types";
+import { browserOffline } from "../offline/network";
+import { queueProcurementItemEdit } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
 
 /**
@@ -23,7 +25,7 @@ interface Supplier { id: string; name: string }
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function ProcurementPanel({ tenantId }: { tenantId: string }) {
+export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string; membershipId?: string }) {
   const { t } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
   const [lists, setLists] = useState<ListSummary[]>([]);
@@ -78,7 +80,17 @@ export function ProcurementPanel({ tenantId }: { tenantId: string }) {
   };
   const editTarget = (line: Line, value: string) => {
     if (!detail || !value || value === line.target_quantity) return;
-    call(`${detail.id}/items/${line.id}`, { method: "PATCH", body: JSON.stringify({ expected_version: line.version, target_quantity: value }) }, t("procurement.targetSaved"));
+    run(async () => {
+      try {
+        setDetail(await apiRequest<ListDetail>(`/api/v1/procurement/lists/${detail.id}/items/${line.id}${q}`, { method: "PATCH", body: JSON.stringify({ expected_version: line.version, target_quantity: value }) }));
+        return t("procurement.targetSaved");
+      } catch (problem) {
+        // Offline: the edit is queued with the version this screen saw; a newer server version becomes a visible conflict.
+        if (!(problem instanceof TypeError) || !browserOffline() || !membershipId) throw problem;
+        await queueProcurementItemEdit(tenantId, membershipId, line.id, line.version, { target_quantity: value });
+        return t("procurement.targetQueued");
+      }
+    });
   };
   const chooseSupplier = (line: Line, supplierId: string) => {
     if (!detail) return;

@@ -332,6 +332,20 @@ def update_item(
         raise AppError(
             409, "PROCUREMENT_ITEM_VERSION_CONFLICT", "Line was changed elsewhere; reload"
         )
+    changed = apply_item_update(db, tenant_id, item, request)
+    if changed:
+        _audit(
+            db, tenant_id, actor, "procurement_item_updated", "procurement_item", item.id, **changed
+        )
+    refresh_status(db, row)
+    commit_and_restore_tenant_scope(db, tenant_id)
+    return get_list(db, tenant_id, list_id)
+
+
+def apply_item_update(
+    db: Session, tenant_id: UUID, item: ProcurementItem, request: ItemUpdateRequest
+) -> dict[str, object]:
+    """Field-level edit shared by the API and the sync push applier; no commit here."""
     changed: dict[str, object] = {}
     if request.target_quantity is not None and request.target_quantity != item.target_quantity:
         if request.target_quantity < item.purchased_quantity:
@@ -339,7 +353,7 @@ def update_item(
                 422, "TARGET_BELOW_PURCHASED", "Target cannot be below the purchased quantity"
             )
         changed["target_quantity"] = f"{item.target_quantity:f}→{request.target_quantity:f}"
-        item.target_quantity = request.target_quantity  # required_quantity stays as demand history
+        item.target_quantity = money(request.target_quantity)  # required stays as demand history
     if request.clear_supplier:
         changed["supplier_id"] = ""
         item.supplier_id = None
@@ -352,12 +366,7 @@ def update_item(
         item.notes = request.notes
     if changed:
         item.version += 1
-        _audit(
-            db, tenant_id, actor, "procurement_item_updated", "procurement_item", item.id, **changed
-        )
-    refresh_status(db, row)
-    commit_and_restore_tenant_scope(db, tenant_id)
-    return get_list(db, tenant_id, list_id)
+    return changed
 
 
 def remove_item(

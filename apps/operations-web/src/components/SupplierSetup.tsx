@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from "../api/types";
+import { browserOffline } from "../offline/network";
+import { queueCostAppend } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
 import { PurchasePanel } from "./PurchasePanel";
 import { SupplierLedgerPanel } from "./SupplierLedgerPanel";
@@ -78,7 +80,7 @@ interface ProductCostSetup {
  * Owner setup for tenant-private suppliers and append-only product costs (D-041 / D-034).
  * Costs are never edited here: every save appends a new effective-dated entry.
  */
-export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string; initialProductId?: string }) {
+export function SupplierSetup({ tenantId, membershipId, initialProductId }: { tenantId: string; membershipId?: string; initialProductId?: string }) {
   const { t } = useTranslation();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<TenantProduct[]>([]);
@@ -159,19 +161,27 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
     event.preventDefault();
     if (!product) return;
     void run(async () => {
-      const response = await apiRequest<ProductCostSetup>(`/api/v1/suppliers/products/${product.id}/costs?tenant_id=${tenantId}`, {
-        method: "POST",
-        body: JSON.stringify({
-          supplier_id: costSupplierId,
-          unit_cost: unitCost,
-          currency: product.currency,
-          cost_basis: basis,
-          pieces_per_box: piecesPerBox ? Number(piecesPerBox) : null,
-          source_type: sourceType,
-          quantity_context: quantityContext || null,
-          notes: notes || null,
-        }),
-      });
+      const body = {
+        supplier_id: costSupplierId,
+        unit_cost: unitCost,
+        currency: product.currency,
+        cost_basis: basis,
+        pieces_per_box: piecesPerBox ? Number(piecesPerBox) : null,
+        source_type: sourceType,
+        quantity_context: quantityContext || null,
+        notes: notes || null,
+      };
+      let response: ProductCostSetup;
+      try {
+        response = await apiRequest<ProductCostSetup>(`/api/v1/suppliers/products/${product.id}/costs?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify(body) });
+      } catch (problem) {
+        // No connection: queue the append on this device; it is sent once on reconnect (PHASE_06.md I).
+        if (!(problem instanceof TypeError) || !browserOffline() || !membershipId) throw problem;
+        await queueCostAppend(tenantId, membershipId, { product_id: product.id, ...body });
+        setUnitCost(""); setNotes(""); setQuantityContext("");
+        setNotice(t("supplierSetup.costQueued"));
+        return;
+      }
       setSetup(response);
       setInsights(await apiRequest<PriceInsights>(`/api/v1/supplier-prices/products/${product.id}?tenant_id=${tenantId}`));
       setRecommendation(await apiRequest<Recommendation>(recommendationPath(product.id)));
@@ -358,7 +368,7 @@ export function SupplierSetup({ tenantId, initialProductId }: { tenantId: string
           ) : null}
         </article>
       </div>
-      <PurchasePanel tenantId={tenantId} suppliers={suppliers} />
+      <PurchasePanel membershipId={membershipId} suppliers={suppliers} tenantId={tenantId} />
       <SupplierLedgerPanel tenantId={tenantId} suppliers={suppliers} />
     </section>
   );

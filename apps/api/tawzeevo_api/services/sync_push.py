@@ -24,9 +24,12 @@ from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
     Category,
     Customer,
+    ProcurementItem,
+    ProcurementList,
     SyncOperation,
     TenantMembership,
     TenantProduct,
+    TenantSupplier,
 )
 from tawzeevo_api.phone import InvalidPhoneNumberError, normalize_phone
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
@@ -43,6 +46,14 @@ from tawzeevo_api.schemas.payments import (
     CustomerReceiptRequest,
     CustomerRefundRequest,
     PaymentReversalRequest,
+)
+from tawzeevo_api.schemas.procurement import ItemUpdateRequest
+from tawzeevo_api.schemas.supplier_ledger import SupplierPaymentRequest
+from tawzeevo_api.schemas.supplier_purchases import PurchaseCreateRequest
+from tawzeevo_api.schemas.suppliers import (
+    ProductCostEntryCreateRequest,
+    SupplierCreateRequest,
+    SupplierUpdateRequest,
 )
 from tawzeevo_api.schemas.sync import (
     ConflictEnvelope,
@@ -66,8 +77,16 @@ from tawzeevo_api.services.payments import (
     reverse_customer_receipt,
 )
 from tawzeevo_api.services.pricing import list_product_grade_prices
+from tawzeevo_api.services.procurement import apply_item_update
+from tawzeevo_api.services.supplier_ledger import record_supplier_payment
+from tawzeevo_api.services.supplier_purchases import purchase_response, record_purchase
+from tawzeevo_api.services.suppliers import (
+    _apply_profile,
+    _reject_duplicate_name,
+    append_cost_row,
+)
 from tawzeevo_api.services.sync import active_device, high_water
-from tawzeevo_api.services.sync_changes import PROJECTIONS, PROTOCOL_VERSION
+from tawzeevo_api.services.sync_changes import PROJECTIONS, PROTOCOL_VERSION, RESULT_PROJECTIONS
 
 
 def _fingerprint(operation: PushOperation) -> str:
@@ -94,7 +113,10 @@ def _lock(db: Session, operation_id: UUID) -> None:
 
 
 def _projection(row: Any) -> dict[str, Any]:
-    return PROJECTIONS[type(row)][1](row)
+    entry = PROJECTIONS.get(type(row))
+    if entry is not None:
+        return entry[1](row)
+    return RESULT_PROJECTIONS[type(row)](row)
 
 
 class _Conflict(Exception):
@@ -110,7 +132,9 @@ def _check_version(row: Any, operation: PushOperation) -> None:
         raise _Conflict(row, operation.expected_version)
 
 
-def _apply_customer(db: Session, tenant_id: UUID, operation: PushOperation) -> Any:
+def _apply_customer(
+    db: Session, tenant_id: UUID, operation: PushOperation, actor: UUID | None = None
+) -> Any:
     if operation.operation_type == "create":
         create = CustomerCreateRequest.model_validate(operation.payload)
         existing = db.get(Customer, operation.entity_id)
@@ -152,7 +176,9 @@ def _apply_customer(db: Session, tenant_id: UUID, operation: PushOperation) -> A
     raise AppError(400, "UNSUPPORTED_OPERATION", "Customers cannot be archived")
 
 
-def _apply_category(db: Session, tenant_id: UUID, operation: PushOperation) -> Any:
+def _apply_category(
+    db: Session, tenant_id: UUID, operation: PushOperation, actor: UUID | None = None
+) -> Any:
     if operation.operation_type == "create":
         create = CategoryCreateRequest.model_validate(operation.payload)
         if db.get(Category, operation.entity_id) is not None:
@@ -200,7 +226,9 @@ def _apply_category(db: Session, tenant_id: UUID, operation: PushOperation) -> A
     return row
 
 
-def _apply_product(db: Session, tenant_id: UUID, operation: PushOperation) -> Any:
+def _apply_product(
+    db: Session, tenant_id: UUID, operation: PushOperation, actor: UUID | None = None
+) -> Any:
     if operation.operation_type == "create":
         create = TenantProductCreateRequest.model_validate(operation.payload)
         if db.get(TenantProduct, operation.entity_id) is not None:
@@ -229,10 +257,90 @@ def _apply_product(db: Session, tenant_id: UUID, operation: PushOperation) -> An
     raise AppError(400, "UNSUPPORTED_OPERATION", "Products cannot be archived")
 
 
-_APPLIERS: dict[str, Callable[[Session, UUID, PushOperation], Any]] = {
+def _apply_supplier(
+    db: Session, tenant_id: UUID, operation: PushOperation, actor: UUID | None = None
+) -> Any:
+    if operation.operation_type == "create":
+        create = SupplierCreateRequest.model_validate(operation.payload)
+        if db.get(TenantSupplier, operation.entity_id) is not None:
+            raise AppError(409, "ENTITY_ID_IN_USE", "Entity id already exists")
+        name = create.name.strip()
+        if not name:
+            raise AppError(422, "SUPPLIER_NAME_REQUIRED", "Supplier name is required")
+        _reject_duplicate_name(db, tenant_id, name)
+        row = TenantSupplier(id=operation.entity_id, tenant_id=tenant_id, name=name)
+        _apply_profile(row, create.model_dump(exclude={"name"}, exclude_unset=True))
+        db.add(row)
+        db.flush()
+        return row
+    if operation.operation_type == "update":
+        existing = db.get(TenantSupplier, operation.entity_id)
+        if existing is None or existing.tenant_id != tenant_id:
+            raise AppError(404, "SUPPLIER_NOT_FOUND", "Supplier was not found")
+        row = existing
+        _check_version(row, operation)
+        update = SupplierUpdateRequest.model_validate(operation.payload)
+        values = update.model_dump(exclude={"expected_version"}, exclude_unset=True)
+        if "name" in values:
+            name = (values.pop("name") or "").strip()
+            if not name:
+                raise AppError(422, "SUPPLIER_NAME_REQUIRED", "Supplier name is required")
+            _reject_duplicate_name(db, tenant_id, name, exclude_id=row.id)
+            row.name = name
+        _apply_profile(row, values)
+        db.flush()
+        return row
+    raise AppError(400, "UNSUPPORTED_OPERATION", "Suppliers cannot be archived")
+
+
+def _apply_product_cost(
+    db: Session, tenant_id: UUID, operation: PushOperation, actor: UUID | None = None
+) -> Any:
+    """Append-only price entry recorded offline (PHASE_06.md I); the operation id is the row id,
+    so a replayed command never appends twice."""
+    if operation.operation_type != "create":
+        raise AppError(400, "UNSUPPORTED_OPERATION", "Cost entries are append-only")
+    payload = dict(operation.payload)
+    product_id = payload.pop("product_id", None)
+    if not product_id:
+        raise AppError(422, "VALIDATION_ERROR", "product_id is required")
+    request = ProductCostEntryCreateRequest.model_validate(payload)
+    if actor is None:
+        raise AppError(400, "ACTOR_REQUIRED", "Cost entries need a recording user")
+    return append_cost_row(
+        db, tenant_id, actor, UUID(str(product_id)), request, entry_id=operation.entity_id
+    )
+
+
+def _apply_procurement_item(
+    db: Session, tenant_id: UUID, operation: PushOperation, actor: UUID | None = None
+) -> Any:
+    if operation.operation_type != "update":
+        raise AppError(
+            400, "UNSUPPORTED_OPERATION", "Procurement lines are edited, not created, offline"
+        )
+    row = db.get(ProcurementItem, operation.entity_id)
+    if row is None or row.tenant_id != tenant_id:
+        raise AppError(404, "PROCUREMENT_ITEM_NOT_FOUND", "Procurement line was not found")
+    owner_list = db.get(ProcurementList, row.list_id)
+    if owner_list is None or owner_list.status in ("COMPLETE", "CANCELLED"):
+        raise AppError(409, "PROCUREMENT_LIST_CLOSED", "A complete or cancelled list cannot change")
+    _check_version(row, operation)
+    request = ItemUpdateRequest.model_validate(
+        {**operation.payload, "expected_version": operation.expected_version}
+    )
+    apply_item_update(db, tenant_id, row, request)
+    db.flush()
+    return row
+
+
+_APPLIERS: dict[str, Callable[[Session, UUID, PushOperation, UUID | None], Any]] = {
     "customer": _apply_customer,
     "category": _apply_category,
     "tenant_product": _apply_product,
+    "supplier": _apply_supplier,
+    "product_cost": _apply_product_cost,
+    "procurement_item": _apply_procurement_item,
 }
 
 
@@ -243,7 +351,7 @@ _APPLIERS: dict[str, Callable[[Session, UUID, PushOperation], Any]] = {
 # financial services' own replay protection keeps a crash between the two commits harmless.
 # ---------------------------------------------------------------------------------------------
 
-FINANCIAL_TYPES = {"invoice", "payment"}
+FINANCIAL_TYPES = {"invoice", "payment", "supplier_purchase", "supplier_payment"}
 
 
 def _financial_payload(operation: PushOperation) -> dict[str, Any]:
@@ -253,7 +361,7 @@ def _financial_payload(operation: PushOperation) -> dict[str, Any]:
         payload.setdefault("client_command_id", str(operation.operation_id))
     if operation.entity_type == "invoice" and operation.operation_type == "cancel":
         payload.setdefault("idempotency_key", str(operation.operation_id))
-    if operation.entity_type == "payment":
+    if operation.entity_type in {"payment", "supplier_purchase", "supplier_payment"}:
         payload.setdefault("idempotency_key", str(operation.operation_id))
     payload.pop("confirmed", None)
     return payload
@@ -303,6 +411,19 @@ def _apply_financial(
             actor,
             operation.entity_id,
             PaymentReversalRequest.model_validate(payload),
+        )
+    elif kind == ("supplier_purchase", "create"):
+        purchase, replayed = record_purchase(
+            db, tenant_id, actor, PurchaseCreateRequest.model_validate(payload)
+        )
+        response = purchase_response(db, tenant_id, purchase, replayed)
+    elif kind == ("supplier_payment", "receipt"):
+        response = record_supplier_payment(
+            db,
+            tenant_id,
+            actor,
+            SupplierPaymentRequest.model_validate(payload),
+            prepayment=bool(operation.payload.get("prepayment")),
         )
     else:
         raise AppError(400, "UNSUPPORTED_OPERATION", "Unsupported financial operation")
@@ -438,7 +559,7 @@ def _apply_one(
     sync_changes.set_operation_context(db, operation.operation_id, request.device_installation_id)
     try:
         try:
-            row = _APPLIERS[operation.entity_type](db, tenant_id, operation)
+            row = _APPLIERS[operation.entity_type](db, tenant_id, operation, actor)
         except ValidationError as exc:
             raise AppError(422, "VALIDATION_ERROR", exc.errors()[0].get("msg", "invalid")) from exc
         result = PushResult(

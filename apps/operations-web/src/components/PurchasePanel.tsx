@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from "../api/types";
+import { browserOffline } from "../offline/network";
+import { queuePurchase } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
 
 /**
@@ -18,7 +20,7 @@ interface OpenLine { id: string; product_id: string; product_name: string; suppl
 interface ListSummary { id: string; status: string; title: string }
 interface DraftLine { product_id: string; quantity: string; unit_cost: string; procurement_item_id: string | null }
 
-export function PurchasePanel({ tenantId, suppliers }: { tenantId: string; suppliers: { id: string; name: string }[] }) {
+export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId: string; membershipId?: string | undefined; suppliers: { id: string; name: string }[] }) {
   const { t } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -67,19 +69,24 @@ export function PurchasePanel({ tenantId, suppliers }: { tenantId: string; suppl
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setBusy(true); setError(undefined); setNotice(undefined);
-    apiRequest<Purchase>(`/api/v1/supplier-purchases${q}`, {
-      method: "POST",
-      body: JSON.stringify({
-        idempotency_key: key, supplier_id: supplierId, currency, procurement_list_id: listId || null, supplier_reference: reference || null,
-        items: lines.filter((row) => row.product_id && row.quantity && row.unit_cost !== "").map((row) => ({ product_id: row.product_id, quantity: row.quantity, unit_cost: row.unit_cost, procurement_item_id: row.procurement_item_id })),
-      }),
-    })
+    const input = {
+      idempotency_key: key, supplier_id: supplierId, currency, procurement_list_id: listId || null, supplier_reference: reference || null,
+      items: lines.filter((row) => row.product_id && row.quantity && row.unit_cost !== "").map((row) => ({ product_id: row.product_id, quantity: row.quantity, unit_cost: row.unit_cost, procurement_item_id: row.procurement_item_id })),
+    };
+    const reset = () => { setKey(crypto.randomUUID()); setLines([{ product_id: "", quantity: "", unit_cost: "", procurement_item_id: null }]); setReference(""); setListId(""); };
+    apiRequest<Purchase>(`/api/v1/supplier-purchases${q}`, { method: "POST", body: JSON.stringify(input) })
       .then((purchase) => {
         setNotice(purchase.replayed ? t("purchases.replayed") : t("purchases.recorded", { total: purchase.total_amount, currency: purchase.currency }));
-        setKey(crypto.randomUUID()); setLines([{ product_id: "", quantity: "", unit_cost: "", procurement_item_id: null }]); setReference(""); setListId("");
+        reset();
         return refresh();
       })
-      .catch(setError)
+      .catch(async (problem: unknown) => {
+        // Offline: the purchase keeps its idempotency key as the operation id and is sent exactly once later.
+        if (!(problem instanceof TypeError) || !browserOffline() || !membershipId) { setError(problem); return; }
+        await queuePurchase(tenantId, membershipId, input);
+        setNotice(t("purchases.queued"));
+        reset();
+      })
       .finally(() => setBusy(false));
   };
 

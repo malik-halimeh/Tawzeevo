@@ -4,19 +4,19 @@
 
 ## Current execution
 
-- Current workstream: `Phase 6 — Suppliers, Price History, Demand-Driven Procurement, Supplier Debt`
-- Current phase: `6`
-- Current phase status: `IN_PROGRESS`
-- Current milestone: `P6-M5 — Offline/E2E/hardening + freeze`
+- Current workstream: `Phase 7 — Delivery tasks, owner/driver assignment, locations, route assistance`
+- Current phase: `7`
+- Current phase status: `NOT_STARTED`
+- Current milestone: `P7-M1`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P6-M4`
+- Last completed milestone: `P6-M5`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
 The owner authorized `Start Phase 4` and `Start Phase 5` on 2026-09-18 and, on 2026-09-19, every
-phase up to and including Phase 9 (Phase 10 is not authorized). Phases 1–5 are complete and their
-requirements audits, test reports and demo guides are frozen under `docs/phase-1` … `docs/phase-5`.
-The Phase 6 gate decisions (D-058, D-059) are recorded, so Phase 6 begins with P6-M1.
+phase up to and including Phase 9 (Phase 10 is not authorized). Phases 1–6 are complete and their
+requirements audits, test reports and demo guides are frozen under `docs/phase-1` … `docs/phase-6`.
+Phase 7 starts at Gate F (D-063 delivery lifecycle already recorded).
 
 ## Demo workstream status
 
@@ -37,29 +37,35 @@ The Phase 6 gate decisions (D-058, D-059) are recorded, so Phase 6 begins with P
 | 3 | COMPLETE | Definition of Done PASSED 2026-09-17; P3-M1 through P3-M6 complete; evidence in `docs/phase-3/` |
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
-| 6 | IN_PROGRESS | Gate decisions D-058, D-059 recorded; owner authorization of 2026-09-19; P6-M1–P6-M4 complete 2026-09-19 |
-| 7 | LOCKED | Gate F |
+| 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
+| 7 | NOT_STARTED | Gate F; D-063 recorded; owner authorization of 2026-09-19 |
 | 8 | LOCKED | Gate G |
 | 9 | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P6-M4, 2026-09-19): migration `20260919_0024` (`supplier_purchases` immutable header with tenant-unique idempotency key, reversal marker pair, `supplier_purchase_items` with a link to the appended cost entry and to the procurement line; RLS on both; internal UUIDs only), `models.py` (`SupplierPurchase`, `SupplierPurchaseItem`, `SupplierLedgerEntryType.PURCHASE_REVERSAL`, `remaining_quantity` quantized), `schemas/supplier_purchases.py`, `services/supplier_purchases.py` (finalization in one transaction: header + lines + one `ACTUAL_PURCHASE` cost entry per line + one `PURCHASE_CHARGE` supplier-ledger entry + procurement `purchased_quantity` and status refresh + audit; advisory-locked idempotency with fingerprint (replay returns the stored purchase, different body 409); currency must equal the product currency; compensating `PURCHASE_REVERSAL` with progress taken back and a complete list reopened; `outstanding_totals` per currency with positive balances summed, credits separate, no netting, no cross-currency sum), `routes/supplier_purchases.py` (`/api/v1/supplier-purchases`, `/{id}/reverse`, `GET /api/v1/supplier-ledger/totals`), operations client `PurchasePanel.tsx` inside the supplier desk (totals by currency, purchase form with optional procurement list preload, per-line product/quantity/unit cost, idempotency key per form, history with reversal by reason; EN/AR)
-- Migrations: head `20260919_0024`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-19): backend `217 passed` (new `test_supplier_purchases.py`: a bad second line rolls everything back — no header, line, cost entry, ledger row or progress; currency mismatch 400; purchase → payable 30, history row newest with quantity context, insight last purchase, list PARTIALLY_PURCHASED with demand untouched; replay 200 with the same id and no second charge; changed body 409; second purchase completes the list; reversal → compensating entry, payable back, list reopened, replay by key, second reversal 409, cost rows kept; ordinary payment above payable 409 and payment 10 → payable 20 with no purchase allocation; listing and foreign-tenant 404; totals: USD owed 100 with 40 credit shown separately, LBP owed 500000, customers positive, no grand total field), ruff/format/mypy PASS; operations client `76 passed`, lint/types/build PASS
-- Security/invariants: chain reconciles (history + payable + procurement in one commit); no per-purchase payment allocation (D-039 cap unchanged); currencies never summed; no inventory row exists
-- Known defects: none open for P6-M4
+- Code areas changed (P6-M5, 2026-09-19): `schemas/sync.py` (entity types `supplier`, `product_cost`, `procurement_item`, `supplier_purchase`, `supplier_payment`), `services/sync_push.py` (appliers: supplier create/update with version conflicts, price append named by the operation id, procurement line edit with expected version; financial mapping for purchases and supplier payments with the operation id as idempotency key), `services/sync_changes.py` (supplier projection in the change feed — identity/contact/location only; result projections for cost entries and procurement lines), `services/suppliers.py::append_cost_row` and `services/procurement.py::apply_item_update` (shared, commit-free), operations client `offline/supplierCommands.ts` + offline fallbacks in `SupplierSetup.tsx`, `ProcurementPanel.tsx`, `PurchasePanel.tsx`, `e2e/phase6-procurement-flow.spec.ts`, `docs/phase-6/*`, README
+- Migrations: none new (head `20260919_0024`); `alembic check` PASS
+- Tests run (2026-09-19): backend `219 passed` (new `test_sync_phase6.py` ×2), ruff/format/mypy PASS; operations client `76 passed`, lint/types/build PASS; Playwright `5 passed` (Phase 3, 4, 5 ×2, 6) against the local stack
+- Security/invariants: DoD (PHASE_06.md N) PASS per `docs/phase-6/requirements-audit.md`; no critical/high supplier/procurement defect open; no-stock audit by schema scan
+- Known defects: none open for Phase 6
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P6-M5 (2026-09-19) froze Phase 6: Phase 6 commands on the Phase 4 sync protocol (supplier,
+price append, procurement edit, purchase, supplier payment) with offline fallbacks in the owner
+screens, the real-browser procurement chain, and the Phase 6 evidence documents.
+
+### Previous (P6-M4)
 
 P6-M4 (2026-09-19) delivered actual supplier purchases: immutable purchases whose finalization
 appends the price history, charges the supplier payable and advances the procurement list in one
 transaction, replay-safe and fully rolled back on failure; compensating reversals; and customer
 outstanding / supplier payable totals by currency.
 
-### Previous (P6-M3)
+### Earlier (P6-M3)
 
 P6-M3 (2026-09-19) delivered demand-driven procurement: lists built from confirmed customer
 demand with separate required/target/purchased/remaining quantities, owner edits that preserve

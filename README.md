@@ -15,18 +15,17 @@ the storefront lets customers order as guests without an account.
 | 3 | Invoices, immutable revisions, official numbering, customer ledger, payments and allocations, refunds, cancellation, overdue debt, supplier costs and payables, private invoice links | Complete |
 | 4 | Offline-first operations with exactly-once synchronization and encrypted Google Drive backup | Complete |
 | 5 | Public bilingual storefront, personalized customer links, guest checkout, owner order review, recommendations, featured products | Complete |
-| 6 | Supplier price history, demand-driven procurement, supplier debt | Next |
-| 7 | Delivery tasks, owner/driver assignment, locations, route assistance | Planned |
+| 6 | Supplier profiles, append-only price history, supplier recommendation, demand-driven procurement, actual purchases, supplier debt | Complete |
+| 7 | Delivery tasks, owner/driver assignment, locations, route assistance | Next |
 | 8 | Analytics, customer lifetime statistics, tenant branding | Planned |
 | 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Planned |
 | 10 | Seasonal best-product forecasting (statistical, optional) | Planned |
 
-### What the next phase delivers (Phase 6)
+### What the next phase delivers (Phase 7)
 
-Suppliers become first-class: effective-dated purchase price history per product and supplier,
-procurement suggestions derived from confirmed customer demand (never from stock levels), purchase
-records with received quantities, and supplier debt with the same append-only ledger discipline the
-customer ledger already follows.
+Field operations: delivery tasks created from confirmed invoices and storefront orders, assignment
+to the owner-as-operator or to least-privileged drivers, customer and supplier locations on a map,
+and route assistance for the day's stops. Customer-facing delivery tracking stays out of scope.
 
 ## Key capabilities
 
@@ -61,6 +60,15 @@ customer ledger already follows.
 - Server-authoritative identifiers: official invoice numbers, revision numbers and change sequence numbers are never produced on the device; a queued invoice shows a clearly pending reference
 - Ordered incremental pull with tombstones, resumable bootstrap, device leases and retirement, and server-side revocation on membership revoke or business suspension
 - Encrypted disaster-recovery backup to the owner's own Google Drive (`drive.file` scope, one app folder per business): AES-256-GCM with per-business keys wrapped by an environment master key, daily/monthly retention, owner restore drills, and a platform-only import into an empty recovery tenant
+
+**Suppliers and procurement**
+
+- Supplier profiles (contact, address, saved location, notes) with versioned edits; tenant-private, never visible to drivers
+- Append-only price history on the single cost-entry table with provenance (manual, quote, actual purchase) and a per-supplier insight: latest, lowest, highest, last purchase, trend, stability, age — comparable groups only (same currency, unit and package), no conversion
+- Deterministic supplier recommendation with a written reason for every rank, exclusions with reasons, and an audited owner override; invoice entry preloads actual purchase → quote → manual
+- Procurement lists built from confirmed customer demand with required / target / purchased / remaining kept apart; manual lines, waive, remove and cancel with reasons, carry-forward, labelled estimates, print and CSV; a neutral owner-or-driver assignee and a price-free pickup view
+- Immutable supplier purchases whose finalization appends the price history, charges the supplier payable and advances the procurement list in one transaction; replay-safe; compensating reversals; payments capped by the payable and never allocated to a purchase; outstanding totals by currency, never summed across currencies
+- No stock or inventory concept anywhere — a schema-wide test guarantees it
 
 **Storefront**
 
@@ -300,6 +308,8 @@ Executed results for each completed phase are recorded in `docs/phase-1/test-rep
 - [`docs/phase-4/requirements-audit.md`](docs/phase-4/requirements-audit.md) — requirement-to-code/test evidence for Phase 4
 - [`docs/phase-5/demo-guide.md`](docs/phase-5/demo-guide.md) — storefront, personalized links, guest checkout and owner review demonstration
 - [`docs/phase-5/requirements-audit.md`](docs/phase-5/requirements-audit.md) — requirement-to-code/test evidence for Phase 5
+- [`docs/phase-6/demo-guide.md`](docs/phase-6/demo-guide.md) — suppliers, price history, recommendation, procurement and purchases demonstration
+- [`docs/phase-6/requirements-audit.md`](docs/phase-6/requirements-audit.md) — requirement-to-code/test evidence for Phase 6
 - [`docs/runbooks/backup-key-recovery.md`](docs/runbooks/backup-key-recovery.md) — backup keys, master-key rotation and the restore procedure
 - [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
 

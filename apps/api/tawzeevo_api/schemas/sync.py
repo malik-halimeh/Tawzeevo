@@ -59,7 +59,20 @@ class PushOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     operation_id: UUID
-    entity_type: Literal["customer", "category", "tenant_product", "invoice", "payment"]
+    entity_type: Literal[
+        "customer",
+        "category",
+        "tenant_product",
+        "invoice",
+        "payment",
+        # Phase 6 (PHASE_06.md I): supplier profile, price append, procurement line edit and the
+        # financial supplier purchase / payment commands ride the same protocol.
+        "supplier",
+        "product_cost",
+        "procurement_item",
+        "supplier_purchase",
+        "supplier_payment",
+    ]
     operation_type: Literal[
         "create", "update", "archive", "confirm", "cancel", "receipt", "refund", "reverse"
     ]
