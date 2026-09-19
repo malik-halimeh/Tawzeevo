@@ -66,7 +66,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await expect(ledger.getByText("20.0000")).toBeVisible();
   await ledger.getByRole("spinbutton", { name: "Payment amount" }).fill("25");
   await ledger.getByRole("button", { name: "Record payment", exact: true }).click();
-  await expect(ledger.getByText(/cannot exceed the current payable/)).toBeVisible();
+  await expect(ledger.getByRole("alert").filter({ hasText: /cannot exceed the current payable/ })).toBeVisible(); // the refusal itself, not the explanatory body text
   await ledger.getByRole("button", { name: "Record as prepayment" }).click();
   await expect(ledger.getByText("Supplier prepayment recorded as credit.")).toBeVisible();
   await expect(ledger.getByText("-5.0000")).toBeVisible();

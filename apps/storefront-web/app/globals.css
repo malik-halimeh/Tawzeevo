@@ -93,7 +93,7 @@ h2 { font-size: 1.05rem; margin: 1rem 0 0.5rem; }
 
 /* Branding (PHASE_08.md F): theme tokens come from the business; layout stays ours. */
 .shop-logo { block-size: 2rem; inline-size: auto; margin-inline-end: .5rem; vertical-align: middle; }
-.brand-banner { background: var(--accent-soft, var(--accent)); color: var(--accent-ink); border-radius: 10px; padding: .75rem 1rem; margin: 0 0 1rem; }
+.brand-banner { background: var(--accent-soft, var(--accent)); color: var(--accent-soft-ink, var(--accent-ink)); border-radius: 10px; padding: .75rem 1rem; margin: 0 0 1rem; }
 .shop-footer p { margin: .25rem 0; }
 .brand-social a, .brand-pages a { margin-inline-end: .75rem; }
 .info-page { max-width: 720px; white-space: pre-wrap; }

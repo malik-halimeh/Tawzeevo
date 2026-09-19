@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
@@ -26,6 +26,7 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
   const [overview, setOverview] = useState<Overview>();
   const [flow, setFlow] = useState<Flow>();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [phoneSearch, setPhoneSearch] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [lifetime, setLifetime] = useState<Lifetime>();
   const [error, setError] = useState<unknown>();
@@ -38,7 +39,14 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
     setOverview(o); setFlow(f);
   }, [tenantId, period]);
   useEffect(() => { load().catch(setError); }, [load]);
-  useEffect(() => { apiRequest<CustomerSearchResponse>(`/api/v1/tenants/${tenantId}/customers`).then((body) => setCustomers(body.customers)).catch(setError); }, [tenantId]);
+  // Customers are found by phone, like everywhere else on the desk (there is no list-all endpoint).
+  const findCustomers = (event: FormEvent) => {
+    event.preventDefault();
+    setError(undefined);
+    apiRequest<CustomerSearchResponse>(`/api/v1/tenants/${tenantId}/customers/search?phone=${encodeURIComponent(phoneSearch)}`)
+      .then((body) => { setCustomers(body.customers); setCustomerId(body.customers.length === 1 ? body.customers[0]!.id : ""); })
+      .catch(setError);
+  };
   useEffect(() => {
     if (!customerId) { setLifetime(undefined); return; }
     apiRequest<Lifetime>(`/api/v1/analytics/customers/${customerId}?tenant_id=${tenantId}`).then(setLifetime).catch(setError);
@@ -88,12 +96,19 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
       ) : null}
       <h4>{t("analytics.lifetimeTitle")}</h4>
       <p className="muted">{t("analytics.lifetimeBody")}</p>
-      <label className="field"><span>{t("tenantWorkspace.customers")}</span>
-        <select value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-          <option value="">—</option>
-          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.phone}</option>)}
-        </select>
-      </label>
+      <form className="inline-form" onSubmit={findCustomers}>
+        <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label>
+        <button className="button" type="submit">{t("common.search")}</button>
+      </form>
+      {customers.length > 1 ? (
+        <label className="field"><span>{t("tenantWorkspace.customers")}</span>
+          <select value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+            <option value="">—</option>
+            {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.phone}</option>)}
+          </select>
+        </label>
+      ) : null}
+      {phoneSearch && customers.length === 0 && !lifetime ? <p className="muted">{t("analytics.noCustomer")}</p> : null}
       {lifetime ? (
         <div className="lifetime" aria-live="polite">
           {lifetime.insufficient_data ? <p className="muted">{t("analytics.insufficient")}</p> : (

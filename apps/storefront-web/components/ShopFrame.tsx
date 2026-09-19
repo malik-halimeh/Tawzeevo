@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { type PublicStorefront, publicApiBase } from "@/lib/catalog";
 import type { CustomerContext } from "@/lib/personal";
@@ -7,6 +7,7 @@ import { CartLink } from "./CartControls";
 import { PersonalBanner } from "./PersonalBanner";
 import { shopHref } from "@/lib/format";
 import { type Lang, dirFor, otherLang, t } from "@/lib/i18n";
+import { themeTokens } from "@/lib/theme";
 
 /**
  * Shared shop chrome: name, search, language switch, the "not accepting orders" notice, footer.
@@ -30,9 +31,7 @@ export function ShopFrame({
   const other = otherLang(lang);
   const brand = shop.branding ?? null;
   const title = brand?.storefront_title || shop.name;
-  const theme = brand?.primary_color || brand?.secondary_color
-    ? ({ ...(brand?.primary_color ? { "--accent": brand.primary_color } : {}), ...(brand?.secondary_color ? { "--accent-soft": brand.secondary_color } : {}) } as CSSProperties)
-    : undefined;
+  const theme = themeTokens(brand?.primary_color, brand?.secondary_color);
   const info = (["about_text", "contact_text", "privacy_text", "terms_text"] as const).filter((key) => brand?.[key]);
   const apiBase = publicApiBase();
   const switchHref = other === "ar" ? `${currentPath}${currentPath.includes("?") ? "&" : "?"}lang=ar` : currentPath.replace(/([?&])lang=ar(&|$)/, (_m, p1: string, p2: string) => (p2 ? p1 : "")).replace(/\?$/, "");

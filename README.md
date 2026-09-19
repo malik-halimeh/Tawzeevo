@@ -17,16 +17,18 @@ the storefront lets customers order as guests without an account.
 | 5 | Public bilingual storefront, personalized customer links, guest checkout, owner order review, recommendations, featured products | Complete |
 | 6 | Supplier profiles, append-only price history, supplier recommendation, demand-driven procurement, actual purchases, supplier debt | Complete |
 | 7 | Delivery tasks, owner-or-driver assignment, driver least privilege, offline completion, locations, route assistance | Complete |
-| 8 | Analytics, customer lifetime statistics, tenant branding | Next |
-| 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Planned |
+| 8 | Analytics that reconcile to the ledgers, customer lifetime statistics, business branding, safe public statistics | Complete |
+| 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Next |
 | 10 | Seasonal best-product forecasting (statistical, optional) | Planned |
 
-### What the next phase delivers (Phase 8)
+### What the next phase delivers (Phase 9)
 
-Business intelligence that reconciles to the ledgers: per-invoice and period analytics (invoiced
-sales, receipts, outstanding and payable by currency, historical gross profit from cost snapshots),
-customer lifetime statistics, tenant branding on invoices and the storefront, and public aggregate
-statistics with small-cohort protection. No metric is fabricated when source data is missing.
+Production hardening without product redesign: the security matrix (authorization, RLS, sessions,
+rate limits, CSP/CORS, uploads) and password recovery with session invalidation (D-077); database
+concurrency, backup/restore drills and data lifecycle; measured performance against the accepted
+targets (D-078) with observability; CI/CD and a staging rehearsal; customer verification and
+delivery providers, optional customer accounts that link to existing customer records without
+copying history; and a multi-tenant pilot.
 
 ## Key capabilities
 
@@ -79,6 +81,15 @@ statistics with small-cohort protection. No metric is fabricated when source dat
 - Customer locations with provenance (GPS accuracy, manual, geocoded) and an operator confirmation; a confirmed location is never replaced silently and a worse reading never beats a better one; no continuous tracking, no location history
 - Stop-order suggestion from OpenRouteService when configured (coordinates only leave the server) with a deterministic offline nearest-neighbour + 2-opt heuristic as the always-available fallback, labelled as a suggestion, plus manual reorder
 - "Suppliers near me": one position check on request against open procurement needs, role-projected (drivers see needs, not prices)
+
+**Analytics and branding**
+
+- Owner-only business figures by currency and period on the business calendar: invoiced sales from confirmed current revisions, receipts net of reversals, refunds separately, outstanding and payable from the ledgers; currencies are never converted or summed together
+- Historical gross profit from the sale-time cost snapshot only, always shown with its coverage; a line without a recorded cost is reported as uncovered, never estimated
+- Event flow (confirmations, accepted edit differences, cancellation reversals on their own dates) next to the current-state view
+- One customer over time: purchases, receipts, outstanding, largest/average invoice, rhythm, late payments, cancellations, top products and categories, monthly spend and the grade at each sale — duplicate customer records are never merged
+- Business branding (identity, contact, logo, colours, storefront title/banner/texts/pages, invoice header/footer/terms/thank-you, default language) applied to the storefront and the customer invoice page as presentation only; the invoice page can show a QR that points solely at that same private page
+- Public platform statistics stay aggregate and are withheld below a minimum cohort; the Phase 1 statistics are unchanged
 
 **Storefront**
 
@@ -306,7 +317,7 @@ A real-browser end-to-end lane (Playwright, Chromium) covers the critical owner 
 npm run e2e --workspace=@tawzeevo/operations-web
 ```
 
-Executed results for each completed phase are recorded in `docs/phase-1/test-report.md`, `docs/phase-2/test-report.md`, `docs/phase-3/test-report.md` and `docs/phase-4/test-report.md`.
+Executed results for each completed phase are recorded in `docs/phase-N/test-report.md` (Phases 1–8).
 
 ## Documentation
 
@@ -322,6 +333,8 @@ Executed results for each completed phase are recorded in `docs/phase-1/test-rep
 - [`docs/phase-6/requirements-audit.md`](docs/phase-6/requirements-audit.md) — requirement-to-code/test evidence for Phase 6
 - [`docs/phase-7/demo-guide.md`](docs/phase-7/demo-guide.md) — deliveries, drivers, offline completion, locations and routes demonstration
 - [`docs/phase-7/requirements-audit.md`](docs/phase-7/requirements-audit.md) — requirement-to-code/test evidence for Phase 7
+- [`docs/phase-8/demo-guide.md`](docs/phase-8/demo-guide.md) — analytics, customer lifetime statistics, branding and public statistics demonstration
+- [`docs/phase-8/requirements-audit.md`](docs/phase-8/requirements-audit.md) — requirement-to-code/test evidence for Phase 8
 - [`docs/runbooks/backup-key-recovery.md`](docs/runbooks/backup-key-recovery.md) — backup keys, master-key rotation and the restore procedure
 - [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
 
