@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, get_tenant_context, require_tenant_owner
+from tawzeevo_api.models import TenantRole
 from tawzeevo_api.schemas.delivery import (
     EligibleInvoiceListResponse,
+    MyWorkResponse,
+    MyWorkTask,
     TaskAssignRequest,
     TaskCancelRequest,
     TaskCompleteRequest,
@@ -37,6 +40,12 @@ def get_tasks(
         db, context.tenant.id, status=status_filter, delivery_date=delivery_date
     )
     return delivery.list_response(db, context.tenant.id, rows, context.membership.id)
+
+
+@delivery_router.get("/my-work", response_model=MyWorkResponse)
+def get_my_work(db: Db, context: Member) -> MyWorkResponse:
+    """Assigned-only projection for drivers and for the owner as operator (PHASE_07.md D/J)."""
+    return delivery.my_work(db, context.tenant.id, context.membership)
 
 
 @delivery_router.get("/eligible-invoices", response_model=EligibleInvoiceListResponse)
@@ -85,15 +94,16 @@ def patch_task(task_id: UUID, request: TaskUpdateRequest, db: Db, context: Owner
     return delivery.task_response(db, context.tenant.id, task, context.membership.id)
 
 
-@delivery_router.post("/{task_id}/complete", response_model=TaskResponse)
+@delivery_router.post("/{task_id}/complete", response_model=TaskResponse | MyWorkTask)
 def complete_task(
     task_id: UUID, request: TaskCompleteRequest, db: Db, context: Member
-) -> TaskResponse:
-    """Owner or the assigned member (the driver path returns the same owner view in P7-M1;
-    the least-privilege driver projection arrives with P7-M2)."""
+) -> TaskResponse | MyWorkTask:
+    """Owner or the assigned member. A driver gets back the least-privilege projection only."""
     task = delivery.complete_task(
         db, context.tenant.id, context.membership, task_id, request.expected_version, request.note
     )
+    if context.membership.role is not TenantRole.OWNER:
+        return delivery.my_work_task(db, context.tenant.id, task)
     return delivery.task_response(db, context.tenant.id, task, context.membership.id)
 
 

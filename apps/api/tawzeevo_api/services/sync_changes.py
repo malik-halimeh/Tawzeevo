@@ -26,6 +26,7 @@ from tawzeevo_api.models import (
     Category,
     Customer,
     CustomerLedgerEntry,
+    DeliveryTask,
     Invoice,
     InvoiceRevision,
     InvoiceRevisionItem,
@@ -304,9 +305,32 @@ def _procurement_item(row: ProcurementItem) -> dict[str, Any]:
     )
 
 
+def _delivery_task(row: DeliveryTask) -> dict[str, Any]:
+    # The feed carries the task row only; the member-facing projection is built by the API.
+    return _fields(
+        row,
+        (
+            "id",
+            "tenant_id",
+            "invoice_id",
+            "customer_id",
+            "assigned_membership_id",
+            "status",
+            "delivery_date",
+            "route_sequence",
+            "currency",
+            "amount_to_collect",
+            "notes",
+            "version",
+            "updated_at",
+        ),
+    )
+
+
 PROJECTIONS: dict[type, tuple[str, Callable[[Any], dict[str, Any]]]] = {
     Customer: ("customer", _customer),
     TenantSupplier: ("supplier", _supplier),
+    DeliveryTask: ("delivery_task", _delivery_task),
     Category: ("category", _category),
     TenantProduct: ("tenant_product", _product),
     TenantBarcode: ("tenant_barcode", _barcode),

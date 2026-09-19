@@ -29,6 +29,7 @@ import { BackupPanel } from "./BackupPanel";
 import { CampaignPanel } from "./CampaignPanel";
 import { CustomerLinkControls } from "./CustomerLinkControls";
 import { DeliveryPanel } from "./DeliveryPanel";
+import { MyWorkPanel } from "./MyWorkPanel";
 import { OrdersPanel } from "./OrdersPanel";
 import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
@@ -630,7 +631,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
         ) : null}
       </header>
       {context.role !== "owner" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.ownerOnly")}</div> : null}
-      {context.role === "driver" && context.tenant_status === "ACTIVE" ? <PickupPanel tenantId={context.tenant_id} /> : null}
+      {context.role === "driver" && context.tenant_status === "ACTIVE" ? <><MyWorkPanel membershipId={context.membership_id} tenantId={context.tenant_id} /><PickupPanel tenantId={context.tenant_id} /></> : null}
       {context.tenant_status !== "ACTIVE" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.inactive")}</div> : null}
       {context.role === "owner" && context.tenant_status === "ACTIVE" ? (
         <>
@@ -754,7 +755,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "procurement" ? (
             <ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
-            <DeliveryPanel tenantId={context.tenant_id} />
+            <>
+              <DeliveryPanel tenantId={context.tenant_id} />
+              <MyWorkPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
+            </>
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : (

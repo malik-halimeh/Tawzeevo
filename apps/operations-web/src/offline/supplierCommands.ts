@@ -7,13 +7,13 @@ import { PROTOCOL_VERSION, type OutboxRecord, getDeviceInstallationId, openLocal
  * key (purchase), so a retried command never applies twice. No local projection is kept: the
  * owner sees the queued command in the outbox and the server truth after the next sync.
  */
-type Phase6Entity = "supplier" | "product_cost" | "procurement_item" | "supplier_purchase" | "supplier_payment";
+type Phase6Entity = "supplier" | "product_cost" | "procurement_item" | "supplier_purchase" | "supplier_payment" | "delivery_task";
 
 function command(
   tenantId: string,
   membershipId: string,
   entityType: Phase6Entity,
-  operationType: "create" | "update" | "receipt",
+  operationType: "create" | "update" | "receipt" | "complete",
   entityId: string,
   expectedVersion: number | null,
   payload: Record<string, unknown>,
@@ -61,6 +61,14 @@ export interface PurchaseInput { idempotency_key: string; supplier_id: string; c
 export async function queuePurchase(tenantId: string, membershipId: string, input: PurchaseInput): Promise<string> {
   const db = openLocalDatabase(tenantId, membershipId);
   const cmd = command(tenantId, membershipId, "supplier_purchase", "create", input.idempotency_key, null, { ...input }, input.idempotency_key);
+  await db.outbox.add(cmd);
+  return cmd.operation_id;
+}
+
+/** Phase 7 (PHASE_07.md I): complete an assigned delivery offline with the version this screen saw. */
+export async function queueDeliveryCompletion(tenantId: string, membershipId: string, taskId: string, expectedVersion: number, note: string | null): Promise<string> {
+  const db = openLocalDatabase(tenantId, membershipId);
+  const cmd = command(tenantId, membershipId, "delivery_task", "complete", taskId, expectedVersion, { note });
   await db.outbox.add(cmd);
   return cmd.operation_id;
 }

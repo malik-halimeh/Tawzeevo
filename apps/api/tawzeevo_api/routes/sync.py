@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
-from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
+from tawzeevo_api.dependencies import TenantContext, get_tenant_context
 from tawzeevo_api.schemas.sync import (
     BootstrapRequest,
     BootstrapResponse,
@@ -25,7 +25,7 @@ sync_router = APIRouter(prefix="/api/v1/sync", tags=["sync"])
 def start_bootstrap(
     request: BootstrapRequest,
     db: Annotated[Session, Depends(get_db)],
-    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    context: Annotated[TenantContext, Depends(get_tenant_context)],
 ) -> BootstrapResponse:
     """Register (or refresh) this device and return the change high-water mark to resume from."""
     return bootstrap(db, context.tenant.id, context.membership, request)
@@ -35,7 +35,7 @@ def start_bootstrap(
 def read_snapshot_page(
     collection: SnapshotCollection,
     db: Annotated[Session, Depends(get_db)],
-    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    context: Annotated[TenantContext, Depends(get_tenant_context)],
     device_installation_id: UUID,
     cursor: str | None = None,
     page_size: Annotated[int, Query(ge=1, le=PULL_PAGE_SIZE)] = PULL_PAGE_SIZE,
@@ -56,7 +56,7 @@ def read_snapshot_page(
 def push(
     request: PushRequest,
     db: Annotated[Session, Depends(get_db)],
-    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    context: Annotated[TenantContext, Depends(get_tenant_context)],
 ) -> PushResponse:
     """Apply queued device operations exactly once; each operation is its own transaction."""
     return push_operations(db, context.tenant.id, context.membership, request)
@@ -65,7 +65,7 @@ def push(
 @sync_router.get("/pull", response_model=PullResponse)
 def pull(
     db: Annotated[Session, Depends(get_db)],
-    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    context: Annotated[TenantContext, Depends(get_tenant_context)],
     device_installation_id: UUID,
     cursor: Annotated[int, Query(ge=0)] = 0,
     page_size: Annotated[int, Query(ge=1, le=PULL_PAGE_SIZE)] = PULL_PAGE_SIZE,

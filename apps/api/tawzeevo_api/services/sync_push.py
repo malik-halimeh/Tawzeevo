@@ -29,10 +29,11 @@ from tawzeevo_api.models import (
     SyncOperation,
     TenantMembership,
     TenantProduct,
+    TenantRole,
     TenantSupplier,
 )
 from tawzeevo_api.phone import InvalidPhoneNumberError, normalize_phone
-from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
+from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, get_scoped_membership
 from tawzeevo_api.schemas.cash_van import (
     CategoryCreateRequest,
     CategoryUpdateRequest,
@@ -65,6 +66,8 @@ from tawzeevo_api.schemas.sync import (
 )
 from tawzeevo_api.services import sync_changes
 from tawzeevo_api.services.cash_van import build_product, get_category, get_customer, get_product
+from tawzeevo_api.services.delivery import complete_task_row
+from tawzeevo_api.services.delivery import get_task as get_delivery_task
 from tawzeevo_api.services.invoice_editor import create_editor_draft, update_editor_draft
 from tawzeevo_api.services.invoice_finance import (
     cancel_invoice,
@@ -334,6 +337,29 @@ def _apply_procurement_item(
     return row
 
 
+def _apply_delivery_task(
+    db: Session, tenant_id: UUID, operation: PushOperation, actor: UUID | None = None
+) -> Any:
+    """Offline completion (PHASE_07.md I): the assigned member completes with the expected
+    version; the operation id makes a retry a replay, never a second completion."""
+    if operation.operation_type != "complete":
+        raise AppError(400, "UNSUPPORTED_OPERATION", "Delivery tasks are only completed offline")
+    if actor is None:
+        raise AppError(400, "ACTOR_REQUIRED", "Completion needs the performing member")
+    membership = get_scoped_membership(db, tenant_id=tenant_id, user_id=actor, active_only=True)
+    if membership is None:
+        raise AppError(403, "TENANT_MEMBERSHIP_REQUIRED", "Active membership is required")
+    task = get_delivery_task(db, tenant_id, operation.entity_id)
+    note = operation.payload.get("note")
+    complete_task_row(
+        db, tenant_id, membership, task, operation.expected_version, str(note) if note else None
+    )
+    db.flush()
+    return task
+
+
+DRIVER_PUSH_TYPES = {"delivery_task"}
+
 _APPLIERS: dict[str, Callable[[Session, UUID, PushOperation, UUID | None], Any]] = {
     "customer": _apply_customer,
     "category": _apply_category,
@@ -341,6 +367,7 @@ _APPLIERS: dict[str, Callable[[Session, UUID, PushOperation, UUID | None], Any]]
     "supplier": _apply_supplier,
     "product_cost": _apply_product_cost,
     "procurement_item": _apply_procurement_item,
+    "delivery_task": _apply_delivery_task,
 }
 
 
@@ -618,6 +645,11 @@ def push_operations(
 ) -> PushResponse:
     if request.protocol_version != PROTOCOL_VERSION:
         raise AppError(409, "SYNC_PROTOCOL_MISMATCH", "Unsupported sync protocol version")
+    if membership.role is not TenantRole.OWNER:
+        # PHASE_07.md D/I: a driver's device may only complete its assigned delivery tasks.
+        for operation in request.operations:
+            if operation.entity_type not in DRIVER_PUSH_TYPES:
+                raise AppError(403, "TENANT_OWNER_REQUIRED", "Drivers can only complete deliveries")
     active_device(db, tenant_id, membership, request.device_installation_id)
     commit_and_restore_tenant_scope(db, tenant_id)
     results = [

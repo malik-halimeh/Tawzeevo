@@ -40,6 +40,8 @@ from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, s
 from tawzeevo_api.schemas.delivery import (
     AssigneeView,
     EligibleInvoice,
+    MyWorkResponse,
+    MyWorkTask,
     TaskCreateRequest,
     TaskLine,
     TaskListResponse,
@@ -267,25 +269,7 @@ def complete_task(
 ) -> DeliveryTask:
     """Owner or the assigned member; the performer is recorded (PHASE_07.md A rule 8)."""
     task = get_task(db, tenant_id, task_id)
-    if membership.role is not TenantRole.OWNER and task.assigned_membership_id != membership.id:
-        raise AppError(
-            403, "DELIVERY_TASK_NOT_ASSIGNED", "Only the assigned member can complete it"
-        )
-    _require_open(task)
-    _check_version(task, expected_version)
-    task.status = DeliveryTaskStatus.COMPLETED.value
-    task.completed_at = datetime.now(UTC)
-    task.performed_by_membership_id = membership.id
-    task.completion_note = note
-    task.version += 1
-    _audit(
-        db,
-        tenant_id,
-        membership.user_id,
-        "delivery_task_completed",
-        task.id,
-        performed_by_membership_id=membership.id,
-    )
+    complete_task_row(db, tenant_id, membership, task, expected_version, note)
     commit_and_restore_tenant_scope(db, tenant_id)
     return get_task(db, tenant_id, task_id)
 
@@ -501,3 +485,77 @@ def count_open(db: Session, tenant_id: UUID) -> int:
         )
         or 0
     )
+
+
+def my_work_task(db: Session, tenant_id: UUID, task: DeliveryTask) -> MyWorkTask:
+    invoice = db.get(Invoice, task.invoice_id)
+    customer = db.get(Customer, task.customer_id)
+    return MyWorkTask(
+        id=task.id,
+        status=task.status,
+        official_invoice_number=invoice.official_invoice_number if invoice else None,
+        customer_name=customer.name if customer else "?",
+        customer_phone=customer.phone if customer else "",
+        customer_address=customer.address if customer else None,
+        customer_latitude=customer.latitude if customer else None,
+        customer_longitude=customer.longitude if customer else None,
+        delivery_date=task.delivery_date,
+        route_sequence=task.route_sequence,
+        currency=task.currency,
+        amount_to_collect=(
+            amount_to_collect(db, tenant_id, invoice)
+            if invoice and task.status == DeliveryTaskStatus.ASSIGNED.value
+            else task.amount_to_collect
+        ),
+        items=task_lines(db, tenant_id, task.invoice_id),
+        notes=task.notes,
+        version=task.version,
+    )
+
+
+def my_work(db: Session, tenant_id: UUID, membership: TenantMembership) -> MyWorkResponse:
+    """Assigned, open tasks of the caller only — the same shape for a driver and for an owner
+    acting as operator (PHASE_07.md C/D)."""
+    rows = list_tasks(
+        db,
+        tenant_id,
+        status=DeliveryTaskStatus.ASSIGNED.value,
+        assigned_membership_id=membership.id,
+    )
+    return MyWorkResponse(
+        tasks=[my_work_task(db, tenant_id, row) for row in rows],
+        membership_id=membership.id,
+        role=membership.role.value,
+    )
+
+
+def complete_task_row(
+    db: Session,
+    tenant_id: UUID,
+    membership: TenantMembership,
+    task: DeliveryTask,
+    expected_version: int | None,
+    note: str | None,
+) -> DeliveryTask:
+    """Completion without commit (shared by the API and the sync push applier)."""
+    if membership.role is not TenantRole.OWNER and task.assigned_membership_id != membership.id:
+        raise AppError(
+            403, "DELIVERY_TASK_NOT_ASSIGNED", "Only the assigned member can complete it"
+        )
+    _require_open(task)
+    if expected_version is not None:
+        _check_version(task, expected_version)
+    task.status = DeliveryTaskStatus.COMPLETED.value
+    task.completed_at = datetime.now(UTC)
+    task.performed_by_membership_id = membership.id
+    task.completion_note = note
+    task.version += 1
+    _audit(
+        db,
+        tenant_id,
+        membership.user_id,
+        "delivery_task_completed",
+        task.id,
+        performed_by_membership_id=membership.id,
+    )
+    return task

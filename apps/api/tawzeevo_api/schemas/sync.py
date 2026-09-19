@@ -72,9 +72,19 @@ class PushOperation(BaseModel):
         "procurement_item",
         "supplier_purchase",
         "supplier_payment",
+        # Phase 7 (PHASE_07.md I): completion of an assigned delivery task.
+        "delivery_task",
     ]
     operation_type: Literal[
-        "create", "update", "archive", "confirm", "cancel", "receipt", "refund", "reverse"
+        "create",
+        "update",
+        "archive",
+        "confirm",
+        "cancel",
+        "receipt",
+        "refund",
+        "reverse",
+        "complete",
     ]
     entity_id: UUID
     expected_version: int | None = Field(default=None, ge=1)

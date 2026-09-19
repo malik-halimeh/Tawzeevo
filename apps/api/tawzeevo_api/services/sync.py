@@ -30,6 +30,7 @@ from tawzeevo_api.models import (
     TenantBarcode,
     TenantMembership,
     TenantProduct,
+    TenantRole,
 )
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.schemas.sync import (
@@ -128,12 +129,15 @@ def bootstrap(
     water = high_water(db, tenant_id)
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(device)
+    # PHASE_07.md D/I: a driver's device registers for the outbox but never downloads the owner
+    # projection; its cache is fed only by the assigned-task change feed.
+    collections = list(_SNAPSHOT_SOURCES) if membership.role is TenantRole.OWNER else []
     return BootstrapResponse(
         device=DeviceResponse.model_validate(device),
         high_water_change_seq=water,
         protocol_version=PROTOCOL_VERSION,
         app_schema_version=APP_SCHEMA_VERSION,
-        collections=list(_SNAPSHOT_SOURCES),
+        collections=collections,
         page_size=PULL_PAGE_SIZE,
     )
 
@@ -266,6 +270,16 @@ def pull_changes(
     )
     has_more = len(rows) > page_size
     rows = rows[:page_size]
+    next_cursor = rows[-1].change_seq if rows else cursor
+    if membership.role is not TenantRole.OWNER:
+        # Least privilege (PHASE_07.md D): drivers receive only their own delivery tasks. The
+        # cursor still advances over everything so the feed stays ordered and acknowledged.
+        rows = [
+            row
+            for row in rows
+            if row.entity_type == "delivery_task"
+            and str(row.payload.get("assigned_membership_id")) == str(membership.id)
+        ]
     if cursor > device.last_acknowledged_change_seq:
         device.last_acknowledged_change_seq = cursor
     water = high_water(db, tenant_id)
@@ -285,7 +299,7 @@ def pull_changes(
             )
             for row in rows
         ],
-        next_cursor=rows[-1].change_seq if rows else cursor,
+        next_cursor=next_cursor,
         high_water_change_seq=water,
         has_more=has_more,
         protocol_version=PROTOCOL_VERSION,

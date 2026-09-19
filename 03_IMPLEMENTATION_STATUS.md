@@ -7,9 +7,9 @@
 - Current workstream: `Phase 7 — Delivery tasks, owner/driver assignment, locations, route assistance`
 - Current phase: `7`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P7-M2 — Owner/driver operational API, least-privilege projection + offline updates`
+- Current milestone: `P7-M3 — Locations, route assistance, nearby supplier reminders`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P7-M1`
+- Last completed milestone: `P7-M2`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -38,27 +38,33 @@ Phase 7 starts at Gate F (D-063 delivery lifecycle already recorded).
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
-| 7 | IN_PROGRESS | Gate F decided (D-060, D-061, D-063); owner authorization of 2026-09-19; P7-M1 complete 2026-09-19 |
+| 7 | IN_PROGRESS | Gate F decided (D-060, D-061, D-063); owner authorization of 2026-09-19; P7-M1, P7-M2 complete 2026-09-19 |
 | 8 | LOCKED | Gate G |
 | 9 | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P7-M1, 2026-09-19): migration `20260919_0025` (`delivery_tasks`: invoice, optional order, customer, neutral `assigned_membership_id` NOT NULL, D-063 status, delivery date, route sequence, amount-to-collect projection, performer at completion, cancel reason, version; one ASSIGNED task per invoice by partial unique index; RLS), `models.py::DeliveryTask`, `schemas/delivery.py`, `services/delivery.py` (eligibility = CONFIRMED invoice with a customer and no open task; sole-owner default assignee, otherwise the owner must choose; owner-only assign/reassign with audit of the previous assignee; completion by owner or the assigned member recording the performer; terminal states; `cancel_open_tasks_for_invoice` called from the Phase 3 invoice cancellation; amount to collect = invoice charge minus applied receipts), `routes/delivery.py` (`/api/v1/delivery-tasks`: list, eligible invoices, create, get, assignee, patch, complete (any member, assignment enforced), cancel), `services/invoice_finance.py` hook, operations client `DeliveryPanel.tsx` (Deliveries tab; "My deliveries" wording and no assignee field for a sole operator; create from eligible invoices, reassign select, mark delivered, cancel with reason; EN/AR)
-- Migrations: head `20260919_0025`; upgrade/downgrade/upgrade and `alembic check` PASS
-- Tests run (2026-09-19): backend `test_delivery_tasks.py` ×3 (draft not eligible; sole owner default assignee and `sole_operator`; duplicate open task 409; stale version 409; completion records performer; terminal 409; new task after completion; several members → `ASSIGNEE_REQUIRED`; driver 403 on assign/cancel/list/eligible; unknown assignee 404; reassignment audited with previous; old assignee 403, new assignee completes; cross-tenant 404; invoice cancellation closes the open task and removes eligibility) plus editor/sync/hardening/order suites `50 passed`; mypy/ruff PASS; operations client `DeliveryPanel.test.tsx` PASS, lint/types/build PASS
-- Security/invariants: sole owner/zero drivers works; owner self-operates; driver assignment protected (owner-only routes); no driver-only schema assumption (membership FK, role checked at runtime); tasks never touch invoices
-- Known defects: none open for P7-M1
+- Code areas changed (P7-M2, 2026-09-19): `schemas/delivery.py::MyWorkTask/MyWorkResponse` (least-privilege projection: contact, address, location, items, amount to collect, version — no ids of other parties, no costs), `services/delivery.py::my_work/my_work_task/complete_task_row`, `routes/delivery.py` (`GET /api/v1/delivery-tasks/my-work` for any active member; completion returns the reduced projection to a driver), sync opened to drivers with strict scope: `routes/sync.py` (member dependency), `services/sync.py` (driver bootstrap returns no collections; driver pull filtered to their own `delivery_task` rows while the cursor still advances), `services/sync_changes.py` (`delivery_task` change-feed projection), `services/sync_push.py` (drivers may push only `delivery_task complete`; `_apply_delivery_task` resolves the performing membership, checks assignment and version, replay-safe by operation id), operations client `MyWorkPanel.tsx` (driver workspace and owner "My deliveries" under Deliveries: cached list when offline, completion queued offline via `queueDeliveryCompletion`, sync now), `offline/supplierCommands.ts` extended
+- Migrations: none new (head `20260919_0025`)
+- Tests run (2026-09-19): backend `224 passed` (new in `test_delivery_tasks.py`: driver my-work lists only the assigned task with no cost/margin/profit/supplier/assignee/customer_id words; owner my-work empty; driver completion returns the reduced projection; other driver's task 403; suppliers/procurement/prices/debts 403; driver bootstrap has no collections; driver pull carries only own delivery tasks without cost fields; non-delivery push 403; completion applied once, replay flagged, second completion rejected, other member's task rejected; performer recorded), ruff/format/mypy PASS; operations client `78 passed` (MyWorkPanel), lint/types/build PASS
+- Security/invariants: unrelated data denied at the API, the bootstrap and the pull; owner secrets absent from the driver payload and cache (driver devices never download the owner projection); offline completion exactly once
+- Known defects: none open for P7-M2
 - Contract deviations: none
 
 ## Latest completed milestone summary
+
+P7-M2 (2026-09-19) delivered the assigned-only member API and the driver's least-privilege
+projection, driver-scoped sync (empty bootstrap, filtered pull, completion-only push) and offline
+completion applied exactly once, with a My Work screen for drivers and for the owner as operator.
+
+### Previous (P7-M1)
 
 P7-M1 (2026-09-19) delivered delivery tasks with a neutral owner-or-driver assignee: sole-owner
 default, owner-only audited reassignment, completion by the assigned member with the performer
 recorded, terminal end states per D-063, and system cancellation from the invoice cancellation.
 
-### Previous (P6-M5)
+### Earlier (P6-M5)
 
 P6-M5 (2026-09-19) froze Phase 6: Phase 6 commands on the Phase 4 sync protocol (supplier,
 price append, procurement edit, purchase, supplier payment) with offline fallbacks in the owner

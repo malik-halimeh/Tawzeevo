@@ -594,3 +594,8 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .delivery-row { align-items: start; }
 .delivery-row .category-actions { margin-block-start: .5rem; }
 @media (max-width: 720px) { .delivery-create { grid-template-columns: minmax(0, 1fr); } }
+
+/* My Work (P7-M2) */
+.my-work { margin-block-start: 1.5rem; }
+.my-work-list { counter-reset: none; gap: .75rem; }
+.my-work-stop { display: grid; gap: .35rem; }

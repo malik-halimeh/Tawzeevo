@@ -116,3 +116,30 @@ class EligibleInvoice(BaseModel):
 
 class EligibleInvoiceListResponse(BaseModel):
     invoices: list[EligibleInvoice]
+
+
+class MyWorkTask(BaseModel):
+    """Least-privilege projection (PHASE_07.md D): only what the assigned member needs to deliver
+    and collect. No costs, margins, other customers, settings or other members' tasks."""
+
+    id: UUID
+    status: str
+    official_invoice_number: str | None
+    customer_name: str
+    customer_phone: str
+    customer_address: str | None
+    customer_latitude: Decimal | None
+    customer_longitude: Decimal | None
+    delivery_date: date | None
+    route_sequence: int | None
+    currency: str
+    amount_to_collect: Decimal
+    items: list[TaskLine]
+    notes: str | None
+    version: int
+
+
+class MyWorkResponse(BaseModel):
+    tasks: list[MyWorkTask]
+    membership_id: UUID
+    role: str
