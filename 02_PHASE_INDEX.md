@@ -22,7 +22,7 @@ To enter a new phase, user explicitly says `Start Phase N`.
 | 7 | `PHASE_07.md` | owner/driver delivery operations + locations + route assistance | 4 | Gate F + routing provider approval |
 | 8 | `PHASE_08.md` | analytics + lifetime stats + branding | 4 | Gate G |
 | 9 | `PHASE_09.md` | production hardening + deployment + pilot | 6 | Phases 1–8 DoD |
-| 10 | `PHASE_10.md` | optional season/month forecasting | 3 | reliable production-like historical data |
+| 10 | `PHASE_10.md` | optional season/month forecasting | 3 | GATED — waiting for sufficient real historical data (D-086; gate addendum in `PHASE_10.md`) |
 
 ## Gate C — Financial core
 

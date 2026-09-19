@@ -6,10 +6,19 @@ This is the primary operating contract for the implementation agent in this repo
 
 The project is implemented **milestone by milestone**. Do not read every phase file at once. Keep context small, deterministic, and current.
 
+## Agent roles
+
+Two agents work under the project owner: a **Design & Planning Agent** (planning, architecture
+reasoning, review, UI/UX design) and an **Implementation Agent** (orchestration and
+implementation). The canonical, binding definition is decision **D-081** in `04_DECISIONS.md`;
+`AGENT_START_HERE.md` summarises it and must be read before any implementation. Nothing in this
+file overrides D-081.
+
 ## Mandatory read order at the start of every implementation run
 
 Read only:
 
+0. `AGENT_START_HERE.md` (agent roles and limits; canonical text is D-081)
 1. `AGENTS.md`
 2. `00_PROJECT_CONTRACT.md`
 3. `01_TECH_STACK.md`
@@ -35,6 +44,9 @@ Highest to lowest:
 7. Mechanical implementation choices.
 
 If two instructions conflict, stop before implementing the conflicting behavior and ask the user.
+An approved plan or design specification from the Design & Planning Agent is binding on the
+Implementation Agent but sits below items 1–4 of this list: when it contradicts them, surface the
+contradiction (D-081).
 
 ## No-invention rule
 

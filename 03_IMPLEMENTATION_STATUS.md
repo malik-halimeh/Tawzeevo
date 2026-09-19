@@ -42,7 +42,7 @@ Phase 9 starts with P9-M1 (D-077 password recovery approved; D-078 targets; D-07
 | 8 | COMPLETE | Gate G decisions D-064–D-070; P8-M1–P8-M4 complete 2026-09-19; `docs/phase-8/{requirements-audit,test-report,demo-guide}.md`; four storefront presentation items (favicon, featured presentation, promotional banners, homepage layout) left for the owner's decision |
 | 9 | IN_PROGRESS | owner authorization of 2026-09-19; P9-M1, P9-M2 complete 2026-09-19 |
 | 9-old | LOCKED | Phases 1–8 DoD |
-| 10 | LOCKED | historical-data gate |
+| 10 | GATED — WAITING FOR SUFFICIENT HISTORICAL DATA | D-082–D-087 recorded 2026-09-20 (`PHASE_10.md` gate addendum); no forecasting code before the gate; `Start Phase 10` only after the gate procedure |
 
 ## Current milestone evidence
 

@@ -36,6 +36,16 @@ Examples of `Applies to`:
 - typography;
 - motion.
 
+## Design-Agent Contract
+
+Design authority belongs to the Design & Planning Agent (canonical: `04_DECISIONS.md` D-081;
+summary: `AGENT_START_HERE.md`). Design may change colour, spacing, typography, shapes, layout,
+animation and responsive/mobile presentation. Design must not change business or architecture
+invariants: roles, tenant scoping, state machines, financial calculations, ledger behaviour, sync
+semantics, cancellation rules, delivery rules, API contracts or product behaviour. The
+Implementation Agent implements an approved design specification as binding and does not redesign
+approved screens or introduce a competing design language on its own.
+
 ## Implementation design rules
 
 When doing design work:

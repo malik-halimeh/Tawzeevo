@@ -57,3 +57,7 @@ private/
 # Tool-generated agent notes (never committed)
 apps/storefront-web/AGENTS.md
 apps/storefront-web/CLAUDE.md
+
+# Local agent loader and private role mapping (D-025: never in the public repository)
+/CLAUDE.md
+.claude/

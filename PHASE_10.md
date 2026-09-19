@@ -285,3 +285,48 @@ Mark Phase 10 COMPLETE and STOP.
 Each requires explicit future approval.
 
 First milestone to implement: **P10-M1 — Historical dataset + statistical forecasting baseline**
+
+---
+
+# Gate addendum — 2026-09-20 (owner decisions D-082 … D-087)
+
+This addendum does not change sections A–K; it fixes the gate that stands in front of them.
+
+**Status: GATED — WAITING FOR SUFFICIENT HISTORICAL DATA (D-086).** Phase 10 does not start when
+Phase 9 completes. It starts only when real usage has accumulated enough trustworthy canonical
+sales history to evaluate the actual data distribution and calibrate sufficiency. "6 months" is
+not an automatic unlock.
+
+**Gate requirements (D-086):** reliable confirmed/non-cancelled historical sales; stable product
+identity/history; correct revisions/cancellations; tenant/timezone correctness; enough history to
+define meaningful sufficiency thresholds; enough historical windows for backtesting; the "best
+product" target metric resolved. Synthetic/demo data never justifies production thresholds or a
+trustworthiness claim.
+
+**Foundation fixed now, implemented later:**
+- Sufficiency is tiered (`INSUFFICIENT` / `LIMITED` / `SEASONAL_ELIGIBLE` / `STRONG_HISTORY`),
+  considers amount and distribution over time, and its numeric thresholds are calibrated,
+  versioned and configurable at the gate (D-082).
+- Seasons are fixed reporting buckets Dec–Feb / Mar–May / Jun–Aug / Sep–Nov; month is the primary
+  precision; labels are never causal (D-083).
+- No opaque confidence %; transparent components (sufficiency, recurrence/stability, backtest
+  reliability); any "Strength" indicator keeps its components visible (D-084).
+- Rolling / walk-forward backtesting without leakage; top-5 overlap as the owner-facing metric;
+  plain-language explanation; "best product" definition decided at the gate, never silently (D-085).
+
+**Historical sales evidence (D-087, not implemented):** a future owner-facing "Historical Sales"
+screen (month → products → quantity, optional value, source, COMPLETE/PARTIAL) records real
+historical sales as forecasting evidence, fully isolated from invoices, ledgers, numbering,
+deliveries, procurement and recommendations, with provenance and `entered_at` separate from the
+historical period. Section A's "canonical confirmed, non-cancelled sales history" may later be
+amended to "validated canonical operational sales + validated historical-sales evidence" as two
+separate, distinguishable sources — an explicit future decision, not implied by this addendum.
+
+**Gate procedure when the owner returns:** inspect the real data → calibrate and version D-082
+thresholds → resolve the "best product" target → (if real client records exist) decide the
+historical-sales schema and quality rules, implement the Historical Sales workflow, validate the
+entered history → decide whether enough trustworthy data exists → then P10-M1.
+
+**Phase 9 obligation:** preserve every canonical historical field Phase 10 needs; flag any
+schema/process that would discard it instead of pre-empting it with early forecasting code.
+
