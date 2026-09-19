@@ -11,6 +11,7 @@ from tawzeevo_api.dependencies import require_client, require_system_admin
 from tawzeevo_api.models import TenantApplicationStatus, TenantStatus, User
 from tawzeevo_api.schemas.platform import (
     AccessPeriodRequest,
+    CloseTenantRequest,
     ReactivateTenantRequest,
     SuspendTenantRequest,
     TenantApplicationApproveRequest,
@@ -23,6 +24,7 @@ from tawzeevo_api.schemas.platform import (
 )
 from tawzeevo_api.services.platform import (
     approve_application,
+    close_tenant,
     list_applications,
     list_tenants,
     reactivate_tenant,
@@ -148,6 +150,16 @@ def platform_suspend_tenant(
     request: SuspendTenantRequest = Body(default_factory=SuspendTenantRequest),
 ) -> TenantResponse:
     return tenant_response(suspend_tenant(db, tenant_id, admin, request))
+
+
+@platform_router.post("/tenants/{tenant_id}/close", response_model=TenantResponse)
+def platform_close_tenant(
+    tenant_id: UUID,
+    request: CloseTenantRequest,
+    db: Annotated[Session, Depends(get_db)],
+    admin: Annotated[User, Depends(require_system_admin)],
+) -> TenantResponse:
+    return tenant_response(close_tenant(db, tenant_id, admin, request))
 
 
 @platform_router.post("/tenants/{tenant_id}/reactivate", response_model=TenantResponse)

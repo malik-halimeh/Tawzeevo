@@ -7,9 +7,9 @@
 - Current workstream: `Phase 9 — Production hardening, CI/CD, staging, multi-tenant pilot`
 - Current phase: `9`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P9-M2 — Database, concurrency, backup/restore, data lifecycle`
+- Current milestone: `P9-M3 — Performance + observability`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P9-M1`
+- Last completed milestone: `P9-M2`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -40,26 +40,32 @@ Phase 9 starts with P9-M1 (D-077 password recovery approved; D-078 targets; D-07
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 7 | COMPLETE | Frozen 2026-09-19 (P7-M4): `docs/phase-7/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 8 | COMPLETE | Gate G decisions D-064–D-070; P8-M1–P8-M4 complete 2026-09-19; `docs/phase-8/{requirements-audit,test-report,demo-guide}.md`; four storefront presentation items (favicon, featured presentation, promotional banners, homepage layout) left for the owner's decision |
-| 9 | IN_PROGRESS | P9-M1 complete 2026-09-19 (D-077 password recovery live; authorization matrix; login/recovery throttles); owner authorization of 2026-09-19 |
+| 9 | IN_PROGRESS | owner authorization of 2026-09-19; P9-M1, P9-M2 complete 2026-09-19 |
 | 9-old | LOCKED | Phases 1–8 DoD |
 | 10 | LOCKED | historical-data gate |
 
 ## Current milestone evidence
 
-- Code areas changed (P9-M1, 2026-09-19): migration `20260919_0028_password_reset_tokens`; `models.py::PasswordResetToken`; `services/password_reset.py` (D-077: hashed single-use token, 30-minute expiry, newest link supersedes, identical answer for unknown addresses, reset bumps `security_version` and revokes every session, audit events without token or address, mail failure surfaced as 503 rather than faked); `services/mailer.py` (provider by `EMAIL_PROVIDER`: Brevo / Resend / in-memory outbox; production settings require a real provider and an https reset page); `routes/auth.py` (`POST /api/v1/auth/password/forgot` → 202 always, `POST /api/v1/auth/password/reset` → 204; per-IP sliding windows: 10 failed logins / 15 min, 10 recovery calls / 15 min, a successful login clears the failures); `config.py` (`AUTH_FAILED_LOGINS_PER_15_MINUTES`, `AUTH_RESET_REQUESTS_PER_15_MINUTES`, `PASSWORD_RESET_TTL_MINUTES`, `PASSWORD_RESET_URL`, `EMAIL_PROVIDER`, `EMAIL_API_KEY`, `EMAIL_FROM`); operations client `/forgot-password` and `/reset-password` pages (token in the URL fragment, dropped after use; EN/AR); `tests/test_security_matrix.py` (system role × tenant role × 12 resources, all cells; suspension locks owner and driver, reactivation restores)
-- Migrations: `20260919_0028` (applied locally; head assertions updated)
-- Tests run (2026-09-19): backend `test_password_recovery.py` (5), `test_security_matrix.py` (2), `test_auth.py` production-settings guard extended; full backend suite; ruff/format/mypy clean; operations client App test for both recovery pages, lint/types clean; `npm audit --omit=dev`: 0 vulnerabilities; `pip-audit` could not reach PyPI/OSV from this machine (TLS interception) — scheduled for CI in P9-M4
-- Security/invariants: enumeration-safe recovery; secrets never in URLs, logs or audit rows; reset kills sessions and access tokens; matrix confirms owner-only, member and admin-only boundaries and that no denied answer echoes another business's id; platform admin still gets nothing tenant-private
-- Known defects: none open for P9-M1
-- Contract deviations: the exhaustive matrix covers 12 representative resources (every router family) rather than every route; a route added later must be added to `MATRIX`
+- Code areas changed (P9-M2, 2026-09-19): `database.py` + `config.py` (bounded pool: `DB_POOL_SIZE` 5, `DB_MAX_OVERFLOW` 5, recycle 1800 s, timeout 10 s, pre-ping); `services/platform.py::close_tenant` + `POST /api/v1/platform/tenants/{id}/close` (admin-only, terminal, retyped business name, reason audited, devices revoked, every row retained); admin Tenants screen "Close this business for good" (EN/AR); `tests/test_lifecycle_drill.py` (export → suspend: owner/driver/device/private link locked and storefront stops orders → reactivate: export identical except revoked device rows → close: confirmation mismatch 400, owner 403, terminal 409s, `TENANT_CLOSED`, storefront 404, counts unchanged; production-like upgrade from the Phase 7 head `20260919_0026` to head is expand-only)
+- Migrations: none new
+- Tests run (2026-09-19): full backend suite; concurrency invariants already in place and green (`test_invoice_editor` sequence race and refund ceiling, `test_fa009_create_command` same command twice, `test_supplier_ledger` payment cap, `test_public_invoices` capability issue, `test_sync_push` replay); migration from zero (`test_hardening`) and Phase-7-head upgrade rehearsal; restore drill (`test_backup` import into an empty tenant, tampered file and wrong key refused); RLS suite; ruff/format/mypy clean; operations client `82 passed`, lint/types clean
+- Security/invariants: suspension and closure never delete; closure is deliberate (retyped name) and terminal; public storefront and private links stop at once; pool is bounded so one instance cannot exhaust the hosted connection cap
+- Known defects: none open for P9-M2
+- Contract deviations: hosted backup/PITR is a Supabase plan setting the owner must confirm (`private/OWNER_ACTIONS.md` § K3); the application-level encrypted Google Drive backup and restore drill are verified against the in-memory double until the owner's OAuth client exists (§ I)
 
 ## Latest completed milestone summary
+
+P9-M2 (2026-09-19) delivered the bounded connection pool, the deliberate tenant closure path,
+the lifecycle drill (suspend/reactivate preserves every row; close is terminal and retains data)
+and the production-like migration rehearsal from the Phase 7 head.
+
+### Previous (P9-M1)
 
 P9-M1 (2026-09-19) delivered password recovery per D-077 (hashed one-time tokens, session
 invalidation, Brevo/Resend adapter, EN/AR pages), login and recovery throttles, and the
 authorization matrix suite.
 
-### Previous (P8-M4)
+### Earlier (P8-M4)
 
 P8-M4 (2026-09-19) froze Phase 8: the reconciliation E2E (dashboard = ledgers = invoices,
 lifetime drilldown, branding on storefront and invoice page), a broken customer picker fixed,

@@ -23,6 +23,7 @@ from tawzeevo_api.repositories.tenancy import count_usable_owners, set_tenant_sc
 from tawzeevo_api.schemas.platform import (
     AccessPeriodRequest,
     AccessState,
+    CloseTenantRequest,
     ReactivateTenantRequest,
     SuspendTenantRequest,
     TenantApplicationApproveRequest,
@@ -309,6 +310,23 @@ def suspend_tenant(
         "TENANT_SUSPENDED",
         {"reason": request.reason.value},
     )
+    db.commit()
+    db.refresh(tenant)
+    return tenant
+
+
+def close_tenant(db: Session, tenant_id: UUID, actor: User, request: CloseTenantRequest) -> Tenant:
+    """Deliberate closure (PHASE_09.md E): terminal, retains every row for financial and audit
+    retention, ends all member, device and public access. The business name must be retyped."""
+    tenant = _tenant_for_update(db, tenant_id)
+    if tenant.status is TenantStatus.CLOSED:
+        raise AppError(409, "TENANT_ALREADY_CLOSED", "Tenant is already closed")
+    if request.confirm_business_name.strip().casefold() != tenant.name.strip().casefold():
+        raise AppError(400, "CLOSE_CONFIRMATION_MISMATCH", "Retype the business name to close it")
+    tenant.status = TenantStatus.CLOSED
+    tenant.closed_at = datetime.now(UTC)
+    revoke_tenant_devices(db, tenant.id, "TENANT_CLOSED")
+    _audit_tenant_change(db, tenant, actor, "TENANT_CLOSED", {"reason": request.reason})
     db.commit()
     db.refresh(tenant)
     return tenant

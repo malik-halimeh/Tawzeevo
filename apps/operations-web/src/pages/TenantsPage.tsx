@@ -86,11 +86,30 @@ export function TenantsPage() {
       await refresh();
     },
   });
-  const mutationError = setAccess.error ?? suspend.error ?? reactivate.error;
+  // Deliberate closure (PHASE_09.md E): terminal, data retained; the name must be retyped.
+  const [closeConfirm, setCloseConfirm] = useState("");
+  const [closeReason, setCloseReason] = useState("");
+  const close = useMutation({
+    mutationFn: () => {
+      if (!selected) throw new Error("No tenant selected");
+      return apiRequest<Tenant>(`/api/v1/platform/tenants/${selected.id}/close`, {
+        method: "POST",
+        body: JSON.stringify({ reason: closeReason, confirm_business_name: closeConfirm }),
+      });
+    },
+    onSuccess: async (tenant) => {
+      setSelected(tenant);
+      setNotice(t("tenants.closed", { name: tenant.name }));
+      setCloseConfirm(""); setCloseReason("");
+      await refresh();
+    },
+  });
+  const mutationError = setAccess.error ?? suspend.error ?? reactivate.error ?? close.error;
   const resetMutationState = () => {
     setAccess.reset();
     suspend.reset();
     reactivate.reset();
+    close.reset();
   };
   const openTenant = (tenant: Tenant) => {
     resetMutationState();
@@ -117,6 +136,15 @@ export function TenantsPage() {
             <label className="field"><span>{t("fields.graceUntil")}</span><input type="date" value={draft.grace_until} onChange={(event) => setDraft({ ...draft, grace_until: event.target.value })} /></label>
             <label className="field field-wide"><span>{t("fields.suspensionReason")}</span><select disabled={selected.status !== "ACTIVE"} value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value as SuspensionReason })}><option value="SUBSCRIPTION_OVERDUE">{t("reasons.SUBSCRIPTION_OVERDUE")}</option><option value="ADMINISTRATIVE">{t("reasons.ADMINISTRATIVE")}</option><option value="SECURITY">{t("reasons.SECURITY")}</option><option value="OTHER">{t("reasons.OTHER")}</option></select></label>
             <div className="form-actions field-wide"><button className="button button-secondary" onClick={() => setSelected(undefined)} type="button">{t("common.close")}</button><button className="button button-secondary" disabled={setAccess.isPending} onClick={() => { suspend.reset(); reactivate.reset(); setAccess.mutate(); }} type="button">{t("tenants.saveAccess")}</button>{selected.status === "ACTIVE" ? <button className="button button-danger" disabled={suspend.isPending} onClick={() => { setAccess.reset(); reactivate.reset(); suspend.mutate(); }} type="button">{t("tenants.suspend")}</button> : null}{selected.status === "SUSPENDED" ? <button className="button" disabled={reactivate.isPending} onClick={() => { setAccess.reset(); suspend.reset(); reactivate.mutate(); }} type="button">{t("tenants.reactivate")}</button> : null}</div>
+            {selected.status !== "CLOSED" ? (
+              <details className="field-wide close-tenant">
+                <summary>{t("tenants.closeTitle")}</summary>
+                <p className="muted">{t("tenants.closeBody")}</p>
+                <label className="field"><span>{t("tenants.closeReason")}</span><input value={closeReason} onChange={(event) => setCloseReason(event.target.value)} /></label>
+                <label className="field"><span>{t("tenants.closeConfirm", { name: selected.name })}</span><input value={closeConfirm} onChange={(event) => setCloseConfirm(event.target.value)} /></label>
+                <button className="button button-danger" disabled={close.isPending || closeReason.trim().length < 3 || closeConfirm.trim().toLowerCase() !== selected.name.trim().toLowerCase()} onClick={() => { resetMutationState(); close.mutate(); }} type="button">{t("tenants.closeAction")}</button>
+              </details>
+            ) : null}
           </div>
         </section>
       ) : null}

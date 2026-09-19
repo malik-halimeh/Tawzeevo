@@ -127,6 +127,13 @@ class SuspendTenantRequest(BaseModel):
     reason: SuspensionReason = SuspensionReason.SUBSCRIPTION_OVERDUE
 
 
+class CloseTenantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=3, max_length=300)
+    confirm_business_name: str = Field(min_length=1, max_length=200)
+
+
 class ReactivateTenantRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
