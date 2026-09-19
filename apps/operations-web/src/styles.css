@@ -583,3 +583,8 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .pickup-supplier { border-block-start: 1px solid var(--line); padding-block: .75rem; }
 .pickup-items { display: grid; gap: .3rem; list-style: none; margin: .5rem 0 0; padding: 0; }
 @media print { .app-sidebar, .workspace-tabs, .procurement-toolbar, .inline-form, .category-actions, .outbox-list { display: none !important; } }
+
+/* Supplier purchases (P6-M4) */
+.purchase-form { margin-block: 1rem; }
+.purchase-lines select, .purchase-lines input { width: 100%; }
+.purchase-history .outbox-row { align-items: start; }

@@ -28,6 +28,7 @@ from tawzeevo_api.routes.procurement import procurement_router
 from tawzeevo_api.routes.public_invoices import capabilities_router, public_invoices_router
 from tawzeevo_api.routes.storefront import storefront_owner_router, storefront_public_router
 from tawzeevo_api.routes.supplier_ledger import supplier_ledger_router, supplier_payments_router
+from tawzeevo_api.routes.supplier_purchases import outstanding_router, supplier_purchases_router
 from tawzeevo_api.routes.suppliers import supplier_prices_router, suppliers_router
 from tawzeevo_api.routes.sync import sync_router
 from tawzeevo_api.routes.users import stats_router, users_router
@@ -146,6 +147,8 @@ app.include_router(supplier_payments_router)
 app.include_router(suppliers_router)
 app.include_router(supplier_prices_router)
 app.include_router(procurement_router)
+app.include_router(supplier_purchases_router)
+app.include_router(outstanding_router)
 app.include_router(sync_router)
 app.include_router(backup_router)
 app.include_router(platform_backup_router)

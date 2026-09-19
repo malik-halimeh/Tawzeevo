@@ -24,6 +24,9 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : undefined;
     if (body) bodies.push(body);
     if (path.includes("/tenants/tenant/products")) return Promise.resolve(Response.json({ products: [product] }));
+    if (path.endsWith("/supplier-purchases")) return Promise.resolve(Response.json({ purchases: [] }));
+    if (path.endsWith("/supplier-ledger/totals")) return Promise.resolve(Response.json({ customers: [], suppliers: [] }));
+    if (path.endsWith("/procurement/lists")) return Promise.resolve(Response.json({ lists: [] }));
     if (path.endsWith("/api/v1/suppliers?tenant_id=tenant") && init?.method === "POST") {
       suppliers.push({ id: `supplier-${suppliers.length + 1}`, tenant_id: "tenant", name: String(body?.name).trim(), contact_name: body?.contact_name ?? null, contact_phone: body?.contact_phone ?? null, address: body?.address ?? null, latitude: null, longitude: null, notes: null, version: 1, created_at: "2026-09-17T00:00:00Z", updated_at: "2026-09-17T00:00:00Z" });
       return Promise.resolve(Response.json(suppliers[suppliers.length - 1], { status: 201 }));
@@ -83,7 +86,7 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
 
 test("supplier setup renders Arabic labels", async () => {
   await i18n.changeLanguage("ar");
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json({ suppliers: [], products: [] }))));
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json({ suppliers: [], products: [], purchases: [], lists: [], customers: [] }))));
   render(<SupplierSetup tenantId="tenant" />);
   expect(await screen.findByRole("button", { name: "إضافة مورّد" })).toBeInTheDocument();
   expect(screen.getByText("المورّدون وكلف المنتجات")).toBeInTheDocument();

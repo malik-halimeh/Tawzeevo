@@ -133,6 +133,7 @@ class SupplierLedgerEntryType(StrEnum):
     SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT"
     SUPPLIER_PREPAYMENT = "SUPPLIER_PREPAYMENT"
     SUPPLIER_PAYMENT_REVERSAL = "SUPPLIER_PAYMENT_REVERSAL"
+    PURCHASE_REVERSAL = "PURCHASE_REVERSAL"
     AUTHORIZED_MANUAL_ADJUSTMENT = "AUTHORIZED_MANUAL_ADJUSTMENT"
 
 
@@ -2231,4 +2232,111 @@ class ProcurementItem(Base):
 
     @property
     def remaining_quantity(self) -> Decimal:
-        return max(Decimal("0"), Decimal(self.target_quantity) - Decimal(self.purchased_quantity))
+        remaining = Decimal(self.target_quantity) - Decimal(self.purchased_quantity)
+        return max(Decimal("0"), remaining).quantize(Decimal("0.0001"))
+
+
+class SupplierPurchase(Base):
+    """Immutable actual purchase from a supplier (PHASE_06.md G). Finalization writes the
+    ACTUAL_PURCHASE cost entries, one PURCHASE_CHARGE ledger entry and the procurement progress in
+    the same transaction; a reversal is a compensating ledger entry plus `reversed_at`."""
+
+    __tablename__ = "supplier_purchases"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    supplier_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    procurement_list_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    idempotency_key: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    purchased_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    supplier_reference: Mapped[str | None] = mapped_column(String(200))
+    notes: Mapped[str | None] = mapped_column(String(1000))
+    created_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    reversed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reversal_reason: Mapped[str | None] = mapped_column(String(500))
+    reversal_idempotency_key: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["supplier_id", "tenant_id"],
+            ["tenant_suppliers.id", "tenant_suppliers.tenant_id"],
+            ondelete="RESTRICT",
+            name="fk_supplier_purchases_supplier_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["procurement_list_id", "tenant_id"],
+            ["procurement_lists.id", "procurement_lists.tenant_id"],
+            ondelete="SET NULL",
+            name="fk_supplier_purchases_list_tenant",
+        ),
+        UniqueConstraint("id", "tenant_id", name="uq_supplier_purchases_id_tenant"),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_supplier_purchases_idempotency"),
+        CheckConstraint("total_amount >= 0", name="ck_supplier_purchases_total_nonneg"),
+        CheckConstraint(
+            "(reversed_at IS NULL) = (reversal_reason IS NULL)",
+            name="ck_supplier_purchases_reversal_pair",
+        ),
+        Index("ix_supplier_purchases_supplier", "tenant_id", "supplier_id", "purchased_at"),
+    )
+
+
+class SupplierPurchaseItem(Base):
+    __tablename__ = "supplier_purchase_items"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    purchase_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    line_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    tenant_product_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    procurement_item_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    price_basis: Mapped[ProductPriceBasis] = mapped_column(product_price_basis_enum, nullable=False)
+    pieces_per_box: Mapped[int | None] = mapped_column(Integer)
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    cost_entry_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    notes: Mapped[str | None] = mapped_column(String(500))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["purchase_id", "tenant_id"],
+            ["supplier_purchases.id", "supplier_purchases.tenant_id"],
+            ondelete="CASCADE",
+            name="fk_supplier_purchase_items_purchase_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_product_id", "tenant_id"],
+            ["tenant_products.id", "tenant_products.tenant_id"],
+            ondelete="RESTRICT",
+            name="fk_supplier_purchase_items_product_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["procurement_item_id", "tenant_id"],
+            ["procurement_items.id", "procurement_items.tenant_id"],
+            ondelete="SET NULL",
+            name="fk_supplier_purchase_items_procurement_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["cost_entry_id"],
+            ["tenant_product_cost_entries.id"],
+            ondelete="SET NULL",
+            name="fk_supplier_purchase_items_cost_entry",
+        ),
+        UniqueConstraint("purchase_id", "line_number", name="uq_supplier_purchase_items_line"),
+        CheckConstraint("quantity > 0", name="ck_supplier_purchase_items_quantity_positive"),
+        CheckConstraint("unit_cost >= 0", name="ck_supplier_purchase_items_unit_cost_nonneg"),
+        CheckConstraint("line_total >= 0", name="ck_supplier_purchase_items_total_nonneg"),
+        Index("ix_supplier_purchase_items_purchase", "tenant_id", "purchase_id"),
+    )
