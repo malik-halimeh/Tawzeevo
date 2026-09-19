@@ -29,6 +29,8 @@ import { BackupPanel } from "./BackupPanel";
 import { CampaignPanel } from "./CampaignPanel";
 import { CustomerLinkControls } from "./CustomerLinkControls";
 import { OrdersPanel } from "./OrdersPanel";
+import { PickupPanel } from "./PickupPanel";
+import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
 
@@ -335,7 +337,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const queryClient = useQueryClient();
   const [tenantId, setTenantId] = useState(contexts[0]?.tenant_id ?? "");
   const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
-  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "invoices" | "orders" | "sync" | "backup">("customers");
+  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "procurement" | "invoices" | "orders" | "sync" | "backup">("customers");
   const [backupNotice, setBackupNotice] = useState<string>();
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
   useEffect(() => {
@@ -627,6 +629,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
         ) : null}
       </header>
       {context.role !== "owner" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.ownerOnly")}</div> : null}
+      {context.role === "driver" && context.tenant_status === "ACTIVE" ? <PickupPanel tenantId={context.tenant_id} /> : null}
       {context.tenant_status !== "ACTIVE" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.inactive")}</div> : null}
       {context.role === "owner" && context.tenant_status === "ACTIVE" ? (
         <>
@@ -635,6 +638,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <button aria-selected={view === "categories"} onClick={() => setView("categories")} role="tab" type="button">{t("tenantWorkspace.categories")}</button>
             <button aria-selected={view === "products"} onClick={() => setView("products")} role="tab" type="button">{t("tenantWorkspace.products")}</button>
             <button aria-selected={view === "suppliers"} onClick={() => setView("suppliers")} role="tab" type="button">{t("supplierSetup.tab")}</button>
+            <button aria-selected={view === "procurement"} onClick={() => setView("procurement")} role="tab" type="button">{t("procurement.tab")}</button>
             <button aria-selected={view === "invoices"} onClick={() => setView("invoices")} role="tab" type="button">{t("invoiceEditor.tab")}</button>
             <button aria-selected={view === "orders"} onClick={() => setView("orders")} role="tab" type="button">{t("orders.tab")}</button>
             <button aria-selected={view === "sync"} onClick={() => setView("sync")} role="tab" type="button">{t("sync.tab")}</button>
@@ -745,6 +749,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <BackupPanel tenantId={context.tenant_id} initialNotice={backupNotice} />
           ) : view === "orders" ? (
             <OrdersPanel tenantId={context.tenant_id} />
+          ) : view === "procurement" ? (
+            <ProcurementPanel tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup tenantId={context.tenant_id} />
           ) : (

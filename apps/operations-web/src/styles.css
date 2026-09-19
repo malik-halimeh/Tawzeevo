@@ -573,3 +573,13 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: .78r
 .price-insights { margin-block-start: 1.5rem; }
 .price-insights mark { background: var(--warning-bg, #fff3cd); padding: 0 .2rem; }
 .supplier-recommendation .ranking { display: grid; gap: .4rem; padding-inline-start: 1.4rem; }
+
+/* Procurement (P6-M3) */
+.procurement-toolbar { align-items: end; flex-wrap: wrap; }
+.procurement-group h5 { margin-block: 1rem .35rem; }
+.procurement-lines .qty-input { width: 6rem; }
+.procurement-lines tr.line-removed td, .procurement-lines tr.line-waived td, .procurement-lines tr.line-carried td { color: var(--muted, #6b7280); text-decoration: line-through; }
+.procurement-lines tr.line-removed td:last-child, .procurement-lines tr.line-waived td:last-child, .procurement-lines tr.line-carried td:last-child { text-decoration: none; }
+.pickup-supplier { border-block-start: 1px solid var(--line); padding-block: .75rem; }
+.pickup-items { display: grid; gap: .3rem; list-style: none; margin: .5rem 0 0; padding: 0; }
+@media print { .app-sidebar, .workspace-tabs, .procurement-toolbar, .inline-form, .category-actions, .outbox-list { display: none !important; } }

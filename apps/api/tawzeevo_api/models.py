@@ -2073,3 +2073,162 @@ class OrderCancellationRequest(Base):
             postgresql_where=text("status = 'PENDING'"),
         ),
     )
+
+
+class ProcurementStatus(StrEnum):
+    """D-058 lifecycle. COMPLETE and CANCELLED are terminal."""
+
+    OPEN = "OPEN"
+    PARTIALLY_PURCHASED = "PARTIALLY_PURCHASED"
+    COMPLETE = "COMPLETE"
+    CANCELLED = "CANCELLED"
+
+
+class ProcurementItemOrigin(StrEnum):
+    DEMAND = "DEMAND"
+    MANUAL = "MANUAL"
+    CARRY_FORWARD = "CARRY_FORWARD"
+
+
+class ProcurementList(Base):
+    """A purchasing to-do built from confirmed customer demand (PHASE_06.md E/F). Quantities
+    are demand and progress only — never stock. The assignee is any active membership."""
+
+    __tablename__ = "procurement_lists"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="OPEN", server_default="OPEN"
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    demand_from: Mapped[date | None] = mapped_column(Date)
+    demand_to: Mapped[date | None] = mapped_column(Date)
+    notes: Mapped[str | None] = mapped_column(String(1000))
+    assignee_membership_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="SET NULL")
+    )
+    carried_from_list_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("procurement_lists.id", ondelete="SET NULL")
+    )
+    created_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str | None] = mapped_column(String(500))
+
+    __table_args__ = (
+        UniqueConstraint("id", "tenant_id", name="uq_procurement_lists_id_tenant"),
+        CheckConstraint(
+            "status IN ('OPEN', 'PARTIALLY_PURCHASED', 'COMPLETE', 'CANCELLED')",
+            name="ck_procurement_lists_status",
+        ),
+        CheckConstraint(
+            "demand_from IS NULL OR demand_to IS NULL OR demand_from <= demand_to",
+            name="ck_procurement_lists_demand_range",
+        ),
+        Index("ix_procurement_lists_tenant_status", "tenant_id", "status"),
+        Index("ix_procurement_lists_assignee", "tenant_id", "assignee_membership_id"),
+    )
+
+
+class ProcurementItem(Base):
+    """One product line. required = confirmed demand, target = owner-adjusted, purchased =
+    progress written by supplier purchases; remaining is derived. Never deleted."""
+
+    __tablename__ = "procurement_items"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    list_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    tenant_product_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    supplier_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    price_basis: Mapped[ProductPriceBasis] = mapped_column(product_price_basis_enum, nullable=False)
+    pieces_per_box: Mapped[int | None] = mapped_column(Integer)
+    origin: Mapped[str] = mapped_column(String(16), nullable=False)
+    required_quantity: Mapped[Decimal] = mapped_column(
+        Numeric(20, 4), nullable=False, default=Decimal("0"), server_default="0"
+    )
+    target_quantity: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    purchased_quantity: Mapped[Decimal] = mapped_column(
+        Numeric(20, 4), nullable=False, default=Decimal("0"), server_default="0"
+    )
+    demand_invoice_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    remove_reason: Mapped[str | None] = mapped_column(String(300))
+    waived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    waive_reason: Mapped[str | None] = mapped_column(String(300))
+    carried_from_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("procurement_items.id", ondelete="SET NULL")
+    )
+    carried_to_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("procurement_items.id", ondelete="SET NULL")
+    )
+    notes: Mapped[str | None] = mapped_column(String(500))
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["list_id", "tenant_id"],
+            ["procurement_lists.id", "procurement_lists.tenant_id"],
+            ondelete="CASCADE",
+            name="fk_procurement_items_list_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_product_id", "tenant_id"],
+            ["tenant_products.id", "tenant_products.tenant_id"],
+            ondelete="RESTRICT",
+            name="fk_procurement_items_product_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["supplier_id", "tenant_id"],
+            ["tenant_suppliers.id", "tenant_suppliers.tenant_id"],
+            ondelete="SET NULL",
+            name="fk_procurement_items_supplier_tenant",
+        ),
+        UniqueConstraint("id", "tenant_id", name="uq_procurement_items_id_tenant"),
+        CheckConstraint(
+            "origin IN ('DEMAND', 'MANUAL', 'CARRY_FORWARD')", name="ck_procurement_items_origin"
+        ),
+        CheckConstraint("required_quantity >= 0", name="ck_procurement_items_required_nonneg"),
+        CheckConstraint("target_quantity >= 0", name="ck_procurement_items_target_nonneg"),
+        CheckConstraint("purchased_quantity >= 0", name="ck_procurement_items_purchased_nonneg"),
+        CheckConstraint(
+            "(waived_at IS NULL) = (waive_reason IS NULL)", name="ck_procurement_items_waive_pair"
+        ),
+        CheckConstraint(
+            "(removed_at IS NULL) = (remove_reason IS NULL)",
+            name="ck_procurement_items_remove_pair",
+        ),
+        Index("ix_procurement_items_list", "tenant_id", "list_id"),
+        Index("ix_procurement_items_product", "tenant_id", "tenant_product_id"),
+    )
+
+    @property
+    def remaining_quantity(self) -> Decimal:
+        return max(Decimal("0"), Decimal(self.target_quantity) - Decimal(self.purchased_quantity))

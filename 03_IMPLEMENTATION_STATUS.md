@@ -7,9 +7,9 @@
 - Current workstream: `Phase 6 — Suppliers, Price History, Demand-Driven Procurement, Supplier Debt`
 - Current phase: `6`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P6-M3 — Demand-driven procurement + owner/driver assignee`
+- Current milestone: `P6-M4 — Actual purchases, supplier ledger/payment, debt totals`
 - Current milestone status: `NOT_STARTED`
-- Last completed milestone: `P6-M2`
+- Last completed milestone: `P6-M3`
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
 - Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
 
@@ -37,7 +37,7 @@ The Phase 6 gate decisions (D-058, D-059) are recorded, so Phase 6 begins with P
 | 3 | COMPLETE | Definition of Done PASSED 2026-09-17; P3-M1 through P3-M6 complete; evidence in `docs/phase-3/` |
 | 4 | COMPLETE | Frozen 2026-09-18 (P4-M6): `docs/phase-4/requirements-audit.md`, `test-report.md`, `demo-guide.md`; live Google run deferred to the owner's OAuth client |
 | 5 | COMPLETE | Frozen 2026-09-19 (P5-M6): `docs/phase-5/requirements-audit.md`, `test-report.md`, `demo-guide.md`; D-071/D-072/D-075/D-076 implemented (LINK assurance only) |
-| 6 | IN_PROGRESS | Gate decisions D-058, D-059 recorded; owner authorization of 2026-09-19; P6-M1, P6-M2 complete 2026-09-19 |
+| 6 | IN_PROGRESS | Gate decisions D-058, D-059 recorded; owner authorization of 2026-09-19; P6-M1–P6-M3 complete 2026-09-19 |
 | 7 | LOCKED | Gate F |
 | 8 | LOCKED | Gate G |
 | 9 | LOCKED | Phases 1–8 DoD |
@@ -45,19 +45,26 @@ The Phase 6 gate decisions (D-058, D-059) are recorded, so Phase 6 begins with P
 
 ## Current milestone evidence
 
-- Code areas changed (P6-M2, 2026-09-19): `services/suppliers.py::recommend_supplier` (one comparable group per call — product currency + requested unit/package; latest price per supplier; fresh before stale; lowest first; ties by newer price, supplier name, id; every row carries rank, age, source, stale flag, delta vs best and an explanation code; suppliers with only incompatible units, another currency or no price are listed as excluded with the reason; the owner's preferred supplier is the override and both ids are returned with `effective_reason`), `schemas/suppliers.py` (`RankedSupplier`, `ExcludedSupplier`, `SupplierRecommendationResponse`; `PreferredSupplierRequest.reason` audited), `routes/suppliers.py` (`GET /api/v1/supplier-prices/products/{id}/recommendation?cost_basis&pieces_per_box`), operations client `SupplierSetup.tsx` (recommendation panel: compare-by unit, effective choice sentence, ranked list with "why", not-ranked list with reasons, choose-this-supplier with a recorded reason; EN/AR)
-- Migrations: none (head `20260919_0022`)
-- Tests run (2026-09-19): backend `test_supplier_profiles_prices.py::test_recommendation_is_deterministic_explainable_and_overridable` (same price → newer first; cheap-but-stale ranked last and visible; box entry excluded from the piece group and ranked alone in the box group; no-price supplier excluded; identical result on repeat; override with reason audited; foreign tenant 404) — supplier/editor/schema suites `27 passed`; operations client `73 passed`, lint/types/build PASS
-- Security/invariants: no FX and no unit conversion (different currency/unit rows are excluded, never converted); reproducible ordering with explicit tie-breaks; owner override recorded in the audit log
-- Known defects: none open for P6-M2
+- Code areas changed (P6-M3, 2026-09-19): migration `20260919_0023` (`procurement_lists` with D-058 status, demand range, neutral `assignee_membership_id`, carry-forward link, version; `procurement_items` with `required_quantity` / `target_quantity` / `purchased_quantity` kept apart, origin DEMAND | MANUAL | CARRY_FORWARD, soft remove/waive with paired reasons, carried_from/to links; RLS on both; no stock column anywhere), `models.py` (`ProcurementList`, `ProcurementItem.remaining_quantity` derived), `schemas/procurement.py`, `services/procurement.py` (confirmed demand = current-revision lines of CONFIRMED invoices confirmed in the tenant-calendar range, grouped by product + unit/package; generate, manual add, versioned target/supplier edits that never touch the demand figure, soft remove, waive with reason, neutral assignee validation, complete only when every line is settled, cancel only without purchases, carry-forward into a new OPEN list with linked lines, labelled estimate from the chosen or cheapest comparable supplier, CSV export, runner projection with supplier identity/location and quantities only), `routes/procurement.py` (`/api/v1/procurement/*`; `my-pickups` open to any active member, the rest owner-only), operations client `ProcurementPanel.tsx` (build from demand, grouped lines with required/target/purchased/remaining, inline target and supplier edits, waive/remove/cancel with a required reason, complete, carry forward, print and CSV download, assignee select) and `PickupPanel.tsx` (driver workspace view), EN/AR
+- Migrations: head `20260919_0023`; upgrade/downgrade/upgrade and `alembic check` PASS
+- Tests run (2026-09-19): backend `215 passed` (new `test_procurement.py`: schema-wide guard that no column is named stock/inventory/on-hand/reserved/warehouse/availability; demand of two confirmed invoices summed while a draft is ignored; quantity meanings and stale-version refusal; manual line removed but kept with reason; completion refused with an open line, allowed after waive; closed list refuses edits; CSV has demand/progress/estimate columns and no stock word; partial purchase → cancel refused, target below purchased refused, carry-forward moves the remaining 4 with both lines linked and history untouched; fresh list cancelled with reason; sole owner self-assigns; active driver assignable, unknown membership 404; driver projection carries no money field; driver 403 on owner views/prices/suppliers; unassigned list leaves the driver's projection; foreign tenant 404; platform admin 403), ruff/format/mypy PASS; operations client `75 passed` (procurement flow, driver pickup view), lint/types/build PASS
+- Security/invariants: no inventory (A) enforced by test; lifecycle per D-058 with nothing dropped silently; driver never receives price/cost/estimate (F); RLS on new tables; assignee must be an active membership of the same tenant
+- Known defects: none open for P6-M3
 - Contract deviations: none
 
 ## Latest completed milestone summary
 
+P6-M3 (2026-09-19) delivered demand-driven procurement: lists built from confirmed customer
+demand with separate required/target/purchased/remaining quantities, owner edits that preserve
+demand history, the D-058 lifecycle with waive/carry-forward/cancel reasons, labelled cost
+estimates, print/CSV export, a neutral owner-or-driver assignee and a price-free pickup view.
+
+### Previous (P6-M2)
+
 P6-M2 (2026-09-19) delivered the deterministic comparable-supplier recommendation with
 explanations, exclusions with reasons, and the owner override recorded with its reason.
 
-### Previous (P6-M1)
+### Earlier (P6-M1)
 
 P6-M1 (2026-09-19) extended suppliers into full profiles (contact, address, saved location,
 notes, row version) and the D-034 cost history into a provenance-aware, append-only price history
