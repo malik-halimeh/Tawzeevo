@@ -108,7 +108,7 @@ confirm the verdict is still "NOT PASSED" unless the open items have evidence of
    and explain it.
 4. `apps/api/scripts/pilot_drill.py` against staging → accepted: 30/30.
 5. Secrets scan: `git log -p | grep -iE "xkeysib|rnd_|sk_live|BEGIN PRIVATE"` and a read of
-   `.gitignore` → accepted: nothing found; `private/`, `.env*`, `/CLAUDE.md`, `.claude/` ignored.
+   `.gitignore` → accepted: nothing found; `private/`, `.env*` and the local agent-loader files are ignored.
 6. Public-repository naming (D-025): grep the tracked files, case-insensitively, for the names of
    the assistant products and vendors the owner uses (the list is in the owner's private role
    mapping, not here) → accepted: matches only in `.gitignore` file names.
