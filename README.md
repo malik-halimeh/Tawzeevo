@@ -18,17 +18,19 @@ the storefront lets customers order as guests without an account.
 | 6 | Supplier profiles, append-only price history, supplier recommendation, demand-driven procurement, actual purchases, supplier debt | Complete |
 | 7 | Delivery tasks, owner-or-driver assignment, driver least privilege, offline completion, locations, route assistance | Complete |
 | 8 | Analytics that reconcile to the ledgers, customer lifetime statistics, business branding, safe public statistics | Complete |
-| 9 | Production hardening, CI/CD, staging, multi-tenant pilot | Next |
+| 9 | Production hardening, CI/CD, staging, customer verification, multi-tenant pilot | In progress — launch-gate audit done; customer accounts (P9-M6) await gate decisions |
 | 10 | Seasonal best-product forecasting (statistical, optional) | Planned |
 
-### What the next phase delivers (Phase 9)
+### Where Phase 9 stands
 
-Production hardening without product redesign: the security matrix (authorization, RLS, sessions,
-rate limits, CSP/CORS, uploads) and password recovery with session invalidation (D-077); database
-concurrency, backup/restore drills and data lifecycle; measured performance against the accepted
-targets (D-078) with observability; CI/CD and a staging rehearsal; customer verification and
-delivery providers, optional customer accounts that link to existing customer records without
-copying history; and a multi-tenant pilot.
+Delivered: password recovery, the authorization-matrix and lifecycle suites, bounded database
+pool and deliberate business closure, request correlation and structured access logs, process
+metrics with an external alert probe, a CI pipeline (backend on PostgreSQL, both clients,
+real-browser flows, dependency audits) with live deploys gated on green CI, a staging pair with
+its own database, customer verification by one-time code with verified sessions, and the
+multi-tenant pilot drill. Waiting on product decisions: customer accounts (P9-M6), the production
+code-delivery channel, and the launch-gate items listed in `docs/phase-9/requirements-audit.md`.
+Phase 10 (forecasting) is gated until enough real historical data exists (`PHASE_10.md`).
 
 ## Key capabilities
 
@@ -317,7 +319,7 @@ A real-browser end-to-end lane (Playwright, Chromium) covers the critical owner 
 npm run e2e --workspace=@tawzeevo/operations-web
 ```
 
-Executed results for each completed phase are recorded in `docs/phase-N/test-report.md` (Phases 1–8).
+Executed results for each phase are recorded in `docs/phase-N/test-report.md` (Phases 1–9).
 
 ## Documentation
 
@@ -335,6 +337,8 @@ Executed results for each completed phase are recorded in `docs/phase-N/test-rep
 - [`docs/phase-7/requirements-audit.md`](docs/phase-7/requirements-audit.md) — requirement-to-code/test evidence for Phase 7
 - [`docs/phase-8/demo-guide.md`](docs/phase-8/demo-guide.md) — analytics, customer lifetime statistics, branding and public statistics demonstration
 - [`docs/phase-8/requirements-audit.md`](docs/phase-8/requirements-audit.md) — requirement-to-code/test evidence for Phase 8
+- [`docs/phase-9/demo-guide.md`](docs/phase-9/demo-guide.md) — recovery, hardening suites, observability, CI/CD, release runbook, customer verification, pilot drill
+- [`docs/phase-9/requirements-audit.md`](docs/phase-9/requirements-audit.md) — launch-gate audit for Phase 9 with the open items
 - [`docs/runbooks/backup-key-recovery.md`](docs/runbooks/backup-key-recovery.md) — backup keys, master-key rotation and the restore procedure
 - [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
 

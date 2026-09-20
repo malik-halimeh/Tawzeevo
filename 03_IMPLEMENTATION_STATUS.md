@@ -7,11 +7,11 @@
 - Current workstream: `Phase 9 — Production hardening, CI/CD, staging, multi-tenant pilot`
 - Current phase: `9`
 - Current phase status: `IN_PROGRESS`
-- Current milestone: `P9-M6 — Customer accounts and history claiming`
-- Current milestone status: `NOT_STARTED` (gate inputs still open: account identity e-mail/phone, recovery, session lifetime — asked 2026-09-20)
-- Last completed milestone: `P9-M5` (P9-M3 and P9-M4 complete 2026-09-20)
+- Current milestone: `P9-M6 — Customer accounts and history claiming` (P9-M7 and the P9-M8 launch-gate audit were executed ahead of it on 2026-09-20; Phase 9 closes when P9-M6 is done and the launch-gate items in `docs/phase-9/requirements-audit.md` are cleared)
+- Current milestone status: `BLOCKED` — gate inputs still open: account identity (e-mail/phone), recovery, session lifetime (asked 2026-09-20)
+- Last completed milestone: `P9-M7` (P9-M3, P9-M4, P9-M5, P9-M7 complete 2026-09-20; P9-M8 audit executed with verdict NOT PASSED — open items listed)
 - Next required user command: `continue` (the owner authorized Phases 6–9 on 2026-09-19; Phase 10 stays locked)
-- Blocking decision: `none; a live Google backup run needs the owner's OAuth client (OWNER_ACTIONS.md § I), all backup behaviour is verified against the in-memory Drive double`
+- Blocking decision: `P9-M6 gate (account identity e-mail/phone, recovery, session lifetime); P9-M5 production OTP provider and remembered-browser policy; D-088 confirmation; launch gate needs the live encrypted backup run (Supabase free plan keeps no backups)`
 
 The owner authorized `Start Phase 4` and `Start Phase 5` on 2026-09-18 and, on 2026-09-19, every
 phase up to and including Phase 9 (Phase 10 is not authorized). Phases 1–8 are complete and their
@@ -40,28 +40,34 @@ Phase 9 starts with P9-M1 (D-077 password recovery approved; D-078 targets; D-07
 | 6 | COMPLETE | Frozen 2026-09-19 (P6-M5): `docs/phase-6/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 7 | COMPLETE | Frozen 2026-09-19 (P7-M4): `docs/phase-7/requirements-audit.md`, `test-report.md`, `demo-guide.md` |
 | 8 | COMPLETE | Gate G decisions D-064–D-070; P8-M1–P8-M4 complete 2026-09-19; `docs/phase-8/{requirements-audit,test-report,demo-guide}.md`; four storefront presentation items (favicon, featured presentation, promotional banners, homepage layout) left for the owner's decision |
-| 9 | IN_PROGRESS | owner authorization of 2026-09-19; P9-M1, P9-M2 complete 2026-09-19; P9-M3, P9-M4, P9-M5 complete 2026-09-20 |
+| 9 | IN_PROGRESS | owner authorization of 2026-09-19; P9-M1, P9-M2 complete 2026-09-19; P9-M3, P9-M4, P9-M5, P9-M7 complete 2026-09-20; P9-M8 audit executed (NOT PASSED — open items); P9-M6 BLOCKED on gate decisions; evidence in `docs/phase-9/` |
 | 9-old | LOCKED | Phases 1–8 DoD |
 | 10 | GATED — WAITING FOR SUFFICIENT HISTORICAL DATA | D-082–D-087 recorded 2026-09-20 (`PHASE_10.md` gate addendum); no forecasting code before the gate; `Start Phase 10` only after the gate procedure |
 
 ## Current milestone evidence
 
-- Code areas changed (P9-M3/M4/M5, 2026-09-20): `observability.py` (request ids, structured access log, `configure_logging`), `metrics.py` + `/health/metrics`, `.github/workflows/ci.yml` (backend on PostgreSQL, ruff/mypy/alembic, clients, Playwright, pip-audit/npm audit), `health-alerts.yml` (10-minute live probe, fails on the D-078 error ratio or backup/mail failures), `deploy.yml` (live deploys only after green CI, `RENDER_API_KEY` secret); staging services `tawzeevo-staging-api` / `tawzeevo-staging-web` on Render (own `STAGING_DATABASE_URL`, own secrets, auto-deploy); `REFRESH_COOKIE_SAMESITE` + Origin guard (D-088, pending confirmation); client wake retry; migration `20260920_0029` (`customer_verification_challenges`, `customer_verified_sessions`, orders accept `VERIFIED`); `services/otp_delivery.py` (provider-neutral; dev adapter only until the gate decision), `services/customer_verification.py`, `customer_access.py` (`resolve_state` vs granted `resolve_context`, `SESSION_HEADER`, sessions die with the link), public routes `customer-verification/start|confirm|session|dev-code`, owner `verified-sessions/revoke`, `available_policies` now LINK+VERIFIED; storefront `/[slug]/verify` page + routes, `visitorFor`, session cookie, banner offer; desk policy selector (business default and per-customer override) and "End verified sessions"
-- Migrations: `20260920_0029`
-- Tests run (2026-09-20): backend **253 passed** locally (incl. `test_customer_verification.py` ×3, `test_observability.py` ×4); operations client 82; storefront 9; Playwright **8 passed** (new `phase9-verification-flow`); CI: backend/web jobs green except `pip-audit` findings on `cryptography`/`pytest` → floors raised to 50.x / 9.x in this commit
-- Measured (staging, D-078): client-side from Beirut p95 337–561 ms for lookups/reads (network floor ≈300 ms), checkout 429 ms, sync push of 100 ops 4.8 s — server-side durations to be read from the access log now that it reaches stdout; local run: all targets met
-- Security/invariants: LINK-policy customers unchanged; VERIFIED needs a live session bound to the same link and customer; codes hashed, 6 digits, 5 minutes, 5 attempts, 5 starts/hour; provider outage 503 with nothing usable left; suspension/rotation/revocation end sessions; dev code endpoint only with the dev adapter outside production
+- Code areas changed (P9-M7 / P9-M8, 2026-09-20): `scripts/pilot_drill.py` (two businesses, owner+driver and sole-owner models, driver least privilege, analytics reconciliation, cross-tenant/driver/admin/anonymous boundaries, public catalogs); `docs/phase-9/{requirements-audit,test-report,demo-guide}.md`; README Phase 9 section; health probe fix
+- Migrations: none new (head `20260920_0029`)
+- Tests run (2026-09-20): pilot drill on staging **30/30**; CI green on `83c6adb` (backend 253 in CI, both clients, Playwright 8, audits); alert probe normal run green, simulated failure fails as designed; live: `/health/database` head `20260920_0029`
+- Live pilot: business "Bekaa Fresh Water" with the owner's two pilot accounts (owner + driver) created on the live service; logins in `private/DEMO_ACCOUNTS.md`
+- Security/invariants: no leak in 30 boundary checks; admin reads no tenant data; drivers see assigned stops only
 - Known defects: none open
-- Contract deviations: P9-M5 precondition (production OTP provider, remembered-browser policy) not yet decided by the owner — the dev adapter is the only channel; the milestone is complete for everything a decision does not gate
+- Contract deviations: Phase 9 is not marked COMPLETE — P9-M6 is blocked on gate decisions and the launch-gate verdict is NOT PASSED (live backup run, decisions, SLO adjustment) — see `docs/phase-9/requirements-audit.md`
 
 ## Latest completed milestone summary
+
+P9-M7 (2026-09-20) executed the multi-tenant pilot drill on staging (30/30) and created the
+live pilot business with the owner's accounts; the P9-M8 launch-gate audit was written with an
+honest NOT PASSED verdict and the exact open items.
+
+### Previous (P9-M5)
 
 P9-M5 (2026-09-20) delivered customer verification (one-time code through a provider-neutral
 adapter, verified sessions bound to the link, VERIFIED policy on storefront and desk); P9-M3
 (request ids, access log, metrics, alert probe, SLO probe) and P9-M4 (CI/CD, gated live deploys,
 staging) completed the same day.
 
-### Previous (P9-M2)
+### Earlier (P9-M2)
 
 P9-M2 (2026-09-19) delivered the bounded connection pool, the deliberate tenant closure path,
 the lifecycle drill (suspend/reactivate preserves every row; close is terminal and retains data)
