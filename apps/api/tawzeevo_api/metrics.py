@@ -38,6 +38,12 @@ def snapshot() -> dict[str, object]:
         "backup_runs": counters.get("backup_runs", 0),
         "backup_failures": counters.get("backup_failures", 0),
         "mail_failures": counters.get("mail_failures", 0),
+        "otp_sent": counters.get("otp_sent", 0),
+        "otp_verified": counters.get("otp_verified", 0),
+        "otp_wrong": counters.get("otp_wrong", 0),
+        "otp_locked": counters.get("otp_locked", 0),
+        "otp_throttled": counters.get("otp_throttled", 0),
+        "otp_delivery_failures": counters.get("otp_delivery_failures", 0),
     }
 
 

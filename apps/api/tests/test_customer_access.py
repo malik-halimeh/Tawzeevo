@@ -64,6 +64,9 @@ def test_link_gives_current_customer_pricing_without_exposing_anything_private(
         "assurance": "LINK",
         "tenant_slug": slug,
         "display_name": customer["name"],
+        "required_policy": "LINK",
+        "granted": True,
+        "contact_hint": "",
     }
     assert context.headers["cache-control"] == "no-store"
     for forbidden in ("grade", "balance", "debt", "phone", "invoice", "payment"):
@@ -126,7 +129,7 @@ def test_rotation_revocation_one_active_and_isolation(client, session_factory):
         f"/api/v1/tenants/{tenant}/customers/{customer['id']}/access-link", headers=_auth(token)
     ).json()
     assert status["active"]["id"] == first["id"] and status["effective_policy"] == "LINK"
-    assert status["available_policies"] == ["LINK"]
+    assert status["available_policies"] == ["LINK", "VERIFIED"]  # P9-M5 added VERIFIED
 
     # Rotation: the old secret dies the instant the new one exists; only one active row.
     second, secret_b = _issue(client, tenant, token, customer["id"])
@@ -203,7 +206,7 @@ def test_rotation_revocation_one_active_and_isolation(client, session_factory):
         ).status_code
         == 404
     )
-    for policy in ("VERIFIED", "ACCOUNT_REQUIRED"):
+    for policy in ("ACCOUNT_REQUIRED",):  # VERIFIED became selectable in P9-M5
         r = client.put(
             f"/api/v1/tenants/{tenant}/customers/{customer['id']}/access-policy",
             headers=_auth(token),

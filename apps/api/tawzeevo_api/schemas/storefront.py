@@ -149,6 +149,7 @@ class CustomerLinkStatusResponse(BaseModel):
     policy_override: str | None
     tenant_policy: str
     available_policies: list[str]
+    verified_sessions: int = 0
 
 
 class CustomerPolicyRequest(BaseModel):
@@ -164,8 +165,24 @@ class TenantPolicyRequest(BaseModel):
 
 
 class CustomerContextResponse(BaseModel):
-    """Everything the storefront may know about a personalized visitor: no grade, no history."""
+    """Everything the storefront may know about a personalized visitor: no grade, no history.
+    `granted` is false while the policy asks for more assurance than the visitor holds (then the
+    storefront offers verification and shows only the masked phone hint)."""
 
     assurance: str
     tenant_slug: str
     display_name: str
+    required_policy: str = "LINK"
+    granted: bool = True
+    contact_hint: str = ""
+
+
+class VerificationConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=4, max_length=12)
+
+
+class VerificationSessionResponse(BaseModel):
+    session: str
+    expires_at: datetime

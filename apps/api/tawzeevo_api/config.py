@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # Login and recovery abuse controls (PHASE_09.md B/C): per client IP per 15 minutes.
     auth_failed_logins_per_15_minutes: int = Field(default=10, ge=1)
     auth_reset_requests_per_15_minutes: int = Field(default=10, ge=1)
+    # Customer verification (D-073): provider selected at the Phase 9 gate ("dev" until then);
+    # the numbers are operational policy (proposed defaults, owner to confirm), not invariants.
+    customer_otp_provider: str = "dev"
+    customer_otp_ttl_minutes: int = Field(default=5, ge=1, le=30)
+    customer_otp_max_attempts: int = Field(default=5, ge=3, le=10)
+    customer_otp_starts_per_hour: int = Field(default=5, ge=1, le=20)
+    customer_verified_session_days: int = Field(default=7, ge=1, le=90)
     # Password recovery (D-077): link lifetime and where the operations client hosts the page.
     password_reset_ttl_minutes: int = Field(default=30, ge=5, le=120)
     password_reset_url: str = "http://localhost:5173/reset-password"

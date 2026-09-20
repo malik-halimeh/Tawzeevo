@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.errors import AppError
@@ -26,6 +26,7 @@ from tawzeevo_api.models import (
     Customer,
     CustomerAccessLink,
     CustomerGrade,
+    CustomerVerifiedSession,
     Tenant,
     TenantStatus,
 )
@@ -50,8 +51,20 @@ class AccessPolicy(StrEnum):
     ACCOUNT_REQUIRED = "ACCOUNT_REQUIRED"
 
 
-# Phase 5 can satisfy only LINK; the others exist for later assurance levels (D-072, D-073, D-074).
-AVAILABLE_POLICIES = frozenset({AccessPolicy.LINK})
+# LINK (Phase 5) and VERIFIED (Phase 9 P9-M5) can be enforced; ACCOUNT_REQUIRED waits for P9-M6.
+AVAILABLE_POLICIES = frozenset({AccessPolicy.LINK, AccessPolicy.VERIFIED})
+_ASSURANCE_RANK = {
+    Assurance.ANONYMOUS: 0,
+    Assurance.LINK: 1,
+    Assurance.VERIFIED: 2,
+    Assurance.ACCOUNT: 3,
+}
+_POLICY_RANK = {AccessPolicy.LINK: 1, AccessPolicy.VERIFIED: 2, AccessPolicy.ACCOUNT_REQUIRED: 3}
+SESSION_HEADER = "X-Customer-Session"
+
+
+def satisfies(assurance: Assurance, policy: AccessPolicy) -> bool:
+    return _ASSURANCE_RANK[assurance] >= _POLICY_RANK[policy]
 
 
 @dataclass(frozen=True)
@@ -65,6 +78,18 @@ class CustomerContext:
     grade: CustomerGrade | None  # used for pricing only; never serialized to the public
     assurance: Assurance
     link_id: UUID
+    required_policy: AccessPolicy = AccessPolicy.LINK
+    phone: str = ""  # the customer's own number, for the verification challenge only
+
+    @property
+    def granted(self) -> bool:
+        """Personalized pricing and order submission are granted only when the assurance the
+        visitor holds satisfies the policy that applies to this customer (D-072)."""
+        return satisfies(self.assurance, self.required_policy)
+
+    @property
+    def contact_hint(self) -> str:
+        return f"…{self.phone[-3:]}" if self.phone else ""
 
 
 def _unavailable() -> AppError:
@@ -121,6 +146,18 @@ def _active_link(db: Session, tenant_id: UUID, customer_id: UUID) -> CustomerAcc
     )
 
 
+def revoke_sessions_for_link(db: Session, tenant_id: UUID, link_id: UUID, reason: str) -> None:
+    db.execute(
+        update(CustomerVerifiedSession)
+        .where(
+            CustomerVerifiedSession.tenant_id == tenant_id,
+            CustomerVerifiedSession.link_id == link_id,
+            CustomerVerifiedSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=datetime.now(UTC), revoked_reason=reason)
+    )
+
+
 def _audit(db: Session, link: CustomerAccessLink, actor: UUID, action: str) -> None:
     db.add(
         AuditEvent(
@@ -148,6 +185,7 @@ def issue_link(
         previous.revoked_at = now
         previous.revoked_reason = "rotated"
         rotated_from = previous.id
+        revoke_sessions_for_link(db, tenant_id, previous.id, "link_rotated")
         db.flush()
         _audit(db, previous, actor, "customer_link_rotated")
     raw = f"{tenant_id.hex}.{secrets.token_urlsafe(32)}"
@@ -175,6 +213,7 @@ def revoke_link(db: Session, tenant_id: UUID, actor: UUID, customer_id: UUID) ->
     link.revoked_at = datetime.now(UTC)
     link.revoked_reason = "revoked"
     _audit(db, link, actor, "customer_link_revoked")
+    revoke_sessions_for_link(db, tenant_id, link.id, "link_revoked")
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(link)
     return link
@@ -226,10 +265,34 @@ def set_tenant_policy(db: Session, tenant: Tenant, actor: UUID, policy: str) -> 
 # ---------------------------------------------------------------------------------------------
 
 
-def resolve_context(db: Session, raw: str | None, *, touch: bool = False) -> CustomerContext | None:
-    """Resolve a capability to its customer context, or None for anything that is not a live,
-    policy-permitted link of an ACTIVE business. Never raises for a bad secret: an absent context
-    simply means the anonymous storefront (D-072)."""
+def _session_assurance(
+    db: Session, tenant_id: UUID, link: CustomerAccessLink, session_raw: str | None
+) -> Assurance:
+    """VERIFIED when a live verified session for this very link is presented, else LINK."""
+    if not session_raw or not TOKEN_PATTERN.fullmatch(session_raw):
+        return Assurance.LINK
+    now = datetime.now(UTC)
+    row = db.scalar(
+        select(CustomerVerifiedSession).where(
+            CustomerVerifiedSession.tenant_id == tenant_id,
+            CustomerVerifiedSession.token_sha256 == _hash(session_raw),
+            CustomerVerifiedSession.link_id == link.id,
+            CustomerVerifiedSession.revoked_at.is_(None),
+            CustomerVerifiedSession.expires_at > now,
+        )
+    )
+    if row is None or row.customer_id != link.customer_id:
+        return Assurance.LINK
+    row.last_used_at = now
+    return Assurance.VERIFIED
+
+
+def resolve_state(
+    db: Session, raw: str | None, session_raw: str | None = None, *, touch: bool = False
+) -> CustomerContext | None:
+    """Resolve a capability (and an optional verified session) to the visitor's full state:
+    who the link is for, which policy applies and which assurance is held. None for anything
+    that is not a live link of an ACTIVE business. Never raises for a bad secret (D-072)."""
     if not raw or not TOKEN_PATTERN.fullmatch(raw):
         return None
     tenant_id = UUID(hex=raw[:32])
@@ -250,10 +313,15 @@ def resolve_context(db: Session, raw: str | None, *, touch: bool = False) -> Cus
     customer = db.scalar(
         select(Customer).where(Customer.tenant_id == tenant_id, Customer.id == link.customer_id)
     )
-    if customer is None or effective_policy(tenant, customer) is not AccessPolicy.LINK:
+    if customer is None:
         return None
+    policy = effective_policy(tenant, customer)
+    if policy is AccessPolicy.ACCOUNT_REQUIRED:
+        return None  # P9-M6
+    assurance = _session_assurance(db, tenant_id, link, session_raw)
     if touch:
         link.last_used_at = now
+    if touch or assurance is Assurance.VERIFIED:
         commit_and_restore_tenant_scope(db, tenant_id)
     return CustomerContext(
         tenant_id=tenant_id,
@@ -261,13 +329,28 @@ def resolve_context(db: Session, raw: str | None, *, touch: bool = False) -> Cus
         customer_id=customer.id,
         display_name=customer.name,
         grade=customer.grade,
-        assurance=Assurance.LINK,
+        assurance=assurance,
         link_id=link.id,
+        required_policy=policy,
+        phone=customer.phone,
     )
 
 
-def require_context(db: Session, raw: str | None) -> CustomerContext:
-    context = resolve_context(db, raw, touch=True)
+def resolve_context(
+    db: Session, raw: str | None, session_raw: str | None = None, *, touch: bool = False
+) -> CustomerContext | None:
+    """The granted context only: personalized pricing and checkout see a customer solely when
+    the held assurance satisfies the policy; an unmet policy is the anonymous storefront."""
+    state = resolve_state(db, raw, session_raw, touch=touch)
+    return state if state is not None and state.granted else None
+
+
+def require_context(
+    db: Session, raw: str | None, session_raw: str | None = None
+) -> CustomerContext:
+    """Full state for the storefront's context call (it needs to know when verification is
+    still required); every other consumer uses `resolve_context`."""
+    context = resolve_state(db, raw, session_raw, touch=True)
     if context is None:
         raise _unavailable()
     return context

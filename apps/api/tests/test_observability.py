@@ -44,7 +44,7 @@ def test_access_log_has_route_template_and_no_query_or_secret(client, caplog, mo
 
 def test_database_health_reports_the_migration_head(client):
     body = client.get("/health/database").json()
-    assert body["status"] == "ok" and body["migration_head"] == "20260919_0028"
+    assert body["status"] == "ok" and body["migration_head"] == "20260920_0029"
 
 
 def test_health_metrics_counts_without_content(client):

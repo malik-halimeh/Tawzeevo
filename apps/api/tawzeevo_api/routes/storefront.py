@@ -11,7 +11,8 @@ from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.errors import AppError
-from tawzeevo_api.models import Customer
+from tawzeevo_api.models import AuditEvent, Customer
+from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.routes.cash_van import _storage_dependency
 from tawzeevo_api.schemas.cash_van import CustomerCreateRequest
 from tawzeevo_api.schemas.checkout import (
@@ -48,6 +49,8 @@ from tawzeevo_api.schemas.storefront import (
     StorefrontSettings,
     StorefrontSlugRequest,
     TenantPolicyRequest,
+    VerificationConfirmRequest,
+    VerificationSessionResponse,
     ViewRequest,
     ViewResponse,
 )
@@ -55,11 +58,13 @@ from tawzeevo_api.services import (
     branding,
     checkout,
     customer_access,
+    customer_verification,
     orders,
     storefront,
     storefront_signals,
 )
 from tawzeevo_api.services.media import ObjectStorage
+from tawzeevo_api.services.otp_delivery import dev_delivery
 
 storefront_public_router = APIRouter(prefix="/api/v1/public", tags=["storefront"])
 storefront_owner_router = APIRouter(prefix="/api/v1/tenants/{tenant_id}", tags=["storefront"])
@@ -69,6 +74,7 @@ PUBLIC_CACHE = "public, max-age=60, stale-while-revalidate=300"
 # A personalized response is for one visitor only (D-075).
 PRIVATE_CACHE = "private, no-store"
 CAPABILITY_HEADER = "X-Customer-Capability"
+SESSION_HEADER = customer_access.SESSION_HEADER
 
 
 def _context(
@@ -76,9 +82,11 @@ def _context(
 ) -> customer_access.CustomerContext | None:
     """Optional personalization: a valid capability in the private header personalizes prices;
     anything else (absent, revoked, rotated, suspended business) is simply anonymous."""
-    context = customer_access.resolve_context(db, request.headers.get(CAPABILITY_HEADER))
+    context = customer_access.resolve_context(
+        db, request.headers.get(CAPABILITY_HEADER), request.headers.get(SESSION_HEADER)
+    )
     response.headers["Cache-Control"] = PRIVATE_CACHE if context else PUBLIC_CACHE
-    response.headers["Vary"] = CAPABILITY_HEADER
+    response.headers["Vary"] = f"{CAPABILITY_HEADER}, {SESSION_HEADER}"
     return context
 
 
@@ -287,16 +295,83 @@ def read_customer_context(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
     capability: Annotated[str | None, Header(alias=CAPABILITY_HEADER)] = None,
+    session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
 ) -> CustomerContextResponse:
-    """Fixed path; the capability travels only in the private header. Answers with the least
-    the storefront needs (assurance, business, display name) or a constant 404."""
+    """Fixed path; the secrets travel only in private headers. Answers with the least the
+    storefront needs (assurance, policy, business, display name, masked phone) or a constant 404."""
     response.headers["Cache-Control"] = PRIVATE_CACHE
-    context = customer_access.require_context(db, capability)
+    context = customer_access.require_context(db, capability, session)
     return CustomerContextResponse(
         assurance=context.assurance.value,
         tenant_slug=context.tenant_slug,
         display_name=context.display_name,
+        required_policy=context.required_policy.value,
+        granted=context.granted,
+        contact_hint=context.contact_hint if not context.granted else "",
     )
+
+
+@storefront_public_router.post(
+    "/customer-verification/start",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="Supply X-Customer-Capability. Sends a one-time code to the customer's own phone.",
+)
+def start_customer_verification(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    capability: Annotated[str | None, Header(alias=CAPABILITY_HEADER)] = None,
+    language: Annotated[str, Header(alias="Accept-Language")] = "en",
+) -> dict[str, str]:
+    response.headers["Cache-Control"] = PRIVATE_CACHE
+    customer_verification.start_challenge(
+        db, capability, "ar" if language.startswith("ar") else "en"
+    )
+    return {"status": "sent"}
+
+
+@storefront_public_router.post(
+    "/customer-verification/confirm",
+    response_model=VerificationSessionResponse,
+    description="Supply X-Customer-Capability and the code; returns the verified session secret.",
+)
+def confirm_customer_verification(
+    request: VerificationConfirmRequest,
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    capability: Annotated[str | None, Header(alias=CAPABILITY_HEADER)] = None,
+) -> VerificationSessionResponse:
+    response.headers["Cache-Control"] = PRIVATE_CACHE
+    secret, expires_at = customer_verification.confirm_challenge(db, capability, request.code)
+    return VerificationSessionResponse(session=secret, expires_at=expires_at)
+
+
+@storefront_public_router.delete(
+    "/customer-verification/session", status_code=status.HTTP_204_NO_CONTENT
+)
+def end_customer_verification(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    capability: Annotated[str | None, Header(alias=CAPABILITY_HEADER)] = None,
+    session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
+) -> None:
+    response.headers["Cache-Control"] = PRIVATE_CACHE
+    customer_verification.end_session(db, capability, session)
+
+
+@storefront_public_router.get("/customer-verification/dev-code", include_in_schema=False)
+def dev_verification_code(
+    db: Annotated[Session, Depends(get_db)],
+    capability: Annotated[str | None, Header(alias=CAPABILITY_HEADER)] = None,
+) -> dict[str, str | None]:
+    """Test-only: the last code the development adapter produced for this link's customer.
+    Refused unless the provider is `dev` and the environment is not production."""
+    settings = get_settings()
+    if settings.customer_otp_provider != "dev" or settings.app_env.lower() == "production":
+        raise AppError(404, "NOT_FOUND", "Not found")
+    context = customer_access.resolve_state(db, capability)
+    if context is None:
+        raise AppError(404, "CUSTOMER_LINK_UNAVAILABLE", "This link is not available")
+    return {"code": dev_delivery().latest_code(context.phone)}
 
 
 def _status(db: Session, context: TenantContext, customer_id: UUID) -> CustomerLinkStatusResponse:
@@ -309,8 +384,38 @@ def _status(db: Session, context: TenantContext, customer_id: UUID) -> CustomerL
         effective_policy=customer_access.effective_policy(context.tenant, customer).value,
         policy_override=customer.access_policy_override,
         tenant_policy=context.tenant.customer_access_policy,
-        available_policies=[policy.value for policy in customer_access.AVAILABLE_POLICIES],
+        available_policies=sorted(policy.value for policy in customer_access.AVAILABLE_POLICIES),
+        verified_sessions=customer_verification.count_active_sessions(
+            db, context.tenant.id, customer_id
+        ),
     )
+
+
+@storefront_owner_router.post(
+    "/customers/{customer_id}/verified-sessions/revoke",
+    response_model=CustomerLinkStatusResponse,
+)
+def revoke_verified_sessions(
+    customer_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> CustomerLinkStatusResponse:
+    """Owner ends every verified session of the customer; the link itself stays usable."""
+    revoked = customer_verification.revoke_customer_sessions(
+        db, context.tenant.id, customer_id, "owner_revoked"
+    )
+    db.add(
+        AuditEvent(
+            tenant_id=context.tenant.id,
+            actor_user_id=context.membership.user_id,
+            action="customer_verified_sessions_revoked",
+            entity_type="customer",
+            entity_id=customer_id,
+            details={"count": revoked},
+        )
+    )
+    commit_and_restore_tenant_scope(db, context.tenant.id)
+    return _status(db, context, customer_id)
 
 
 @storefront_owner_router.get(
@@ -404,7 +509,9 @@ def guest_checkout(
     """One order per Idempotency-Key: a replay returns the original; a different body is 409.
     A valid personalized capability adds only the intended-customer hint."""
     response.headers["Cache-Control"] = PRIVATE_CACHE
-    context = customer_access.resolve_context(db, http_request.headers.get(CAPABILITY_HEADER))
+    context = customer_access.resolve_context(
+        db, http_request.headers.get(CAPABILITY_HEADER), http_request.headers.get(SESSION_HEADER)
+    )
     return checkout.checkout(
         db,
         tenant_slug,

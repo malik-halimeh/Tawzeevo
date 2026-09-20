@@ -1927,6 +1927,70 @@ class CustomerAccessLink(Base):
     )
 
 
+class CustomerVerificationChallenge(Base):
+    """One-time code sent to the customer's own phone (D-073): hash only, short expiry, bounded
+    attempts, consumed once; bound to the personalized link it was started from."""
+
+    __tablename__ = "customer_verification_challenges"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE"), nullable=False
+    )
+    link_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customer_access_links.id", ondelete="CASCADE"), nullable=False
+    )
+    code_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consumed_reason: Mapped[str | None] = mapped_column(String(30))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_customer_verification_challenges_customer",
+            "tenant_id",
+            "customer_id",
+            "created_at",
+        ),
+    )
+
+
+class CustomerVerifiedSession(Base):
+    """Proof that a challenge succeeded (assurance VERIFIED, D-072): hash only, expiring,
+    revocable, bound to the link — revoking or rotating the link ends every session."""
+
+    __tablename__ = "customer_verified_sessions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE"), nullable=False
+    )
+    link_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customer_access_links.id", ondelete="CASCADE"), nullable=False
+    )
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(String(30))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (Index("ix_customer_verified_sessions_customer", "tenant_id", "customer_id"),)
+
+
 class Order(Base):
     """Storefront guest order (PHASE_05.md E/G). `intended_customer_id` is a hint (D-072)."""
 
@@ -1969,7 +2033,7 @@ class Order(Base):
             "status IN ('RECEIVED', 'CONFIRMED', 'DECLINED', 'CANCELLED')", name="ck_orders_status"
         ),
         CheckConstraint(
-            "intended_assurance IS NULL OR intended_assurance IN ('LINK')",
+            "intended_assurance IS NULL OR intended_assurance IN ('LINK', 'VERIFIED')",
             name="ck_orders_intended_assurance",
         ),
         Index("ix_orders_tenant_status_created", "tenant_id", "status", "created_at"),
