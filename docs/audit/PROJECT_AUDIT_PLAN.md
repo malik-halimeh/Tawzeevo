@@ -109,7 +109,9 @@ confirm the verdict is still "NOT PASSED" unless the open items have evidence of
 4. `apps/api/scripts/pilot_drill.py` against staging → accepted: 30/30.
 5. Secrets scan: `git log -p | grep -iE "xkeysib|rnd_|sk_live|BEGIN PRIVATE"` and a read of
    `.gitignore` → accepted: nothing found; `private/`, `.env*`, `/CLAUDE.md`, `.claude/` ignored.
-6. Public-repository naming (D-025): `grep -rniE "claude|anthropic|openai|codex|astra" --exclude-dir=node_modules --exclude-dir=.git .` → accepted: matches only in `.gitignore` file names.
+6. Public-repository naming (D-025): grep the tracked files, case-insensitively, for the names of
+   the assistant products and vendors the owner uses (the list is in the owner's private role
+   mapping, not here) → accepted: matches only in `.gitignore` file names.
 
 ### Step F — Accessibility, bilingual and mobile (30 min)
 Run the two Playwright storefront flows (Phase 5 Arabic-on-phone, Phase 8 branding) and the
