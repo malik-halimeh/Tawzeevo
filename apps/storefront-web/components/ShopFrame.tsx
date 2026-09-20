@@ -51,7 +51,7 @@ export function ShopFrame({
         </form>
       </header>
       <main id="content">
-        {context ? <PersonalBanner displayName={context.display_name} lang={lang} slug={shop.slug} /> : null}
+        {context ? <PersonalBanner displayName={context.display_name} granted={context.granted} lang={lang} slug={shop.slug} /> : null}
         {!shop.accepting_orders ? <p className="notice" role="status">{t(lang, "notAccepting")}</p> : null}
         {brand?.banner_text && currentPath === `/${shop.slug}` ? <p className="brand-banner">{brand.banner_text}</p> : null}
         {children}

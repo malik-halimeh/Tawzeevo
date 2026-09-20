@@ -13,6 +13,7 @@ export interface StorefrontSettingsResponse {
   previous_slugs: string[];
   published_products: number;
   accepting_orders: boolean;
+  customer_access_policy: string;
 }
 
 const STOREFRONT_BASE = (import.meta.env.VITE_STOREFRONT_BASE_URL as string | undefined) ?? "http://localhost:3000";
@@ -50,6 +51,13 @@ export function StorefrontSettings({ tenantId }: { tenantId: string }) {
   };
 
   const url = settings ? `${STOREFRONT_BASE}/${settings.slug}` : "";
+  const setPolicy = (policy: string) => {
+    setBusy(true); setError(undefined); setNotice(undefined);
+    apiRequest<StorefrontSettingsResponse>(`/api/v1/tenants/${tenantId}/storefront/access-policy?tenant_id=${tenantId}`, { method: "PUT", body: JSON.stringify({ policy }) })
+      .then((updated) => { setSettings(updated); setNotice(t("storefront.policySaved", { policy: t(`customerLink.policies.${updated.customer_access_policy}`) })); })
+      .catch(setError)
+      .finally(() => setBusy(false));
+  };
   return (
     <article className="content-card" aria-labelledby="storefront-settings-title">
       <p className="section-kicker">{t("storefront.kicker")}</p>
@@ -63,6 +71,13 @@ export function StorefrontSettings({ tenantId }: { tenantId: string }) {
           <div><dt>{t("storefront.published")}</dt><dd>{settings.published_products}</dd></div>
           <div><dt>{t("storefront.orders")}</dt><dd>{t(settings.accepting_orders ? "storefront.accepting" : "storefront.paused")}</dd></div>
           {settings.previous_slugs.length ? <div><dt>{t("storefront.previous")}</dt><dd dir="ltr">{settings.previous_slugs.join(", ")}</dd></div> : null}
+          <div><dt>{t("storefront.policy")}</dt><dd>
+            <select aria-label={t("storefront.policy")} disabled={busy} value={settings.customer_access_policy} onChange={(event) => setPolicy(event.target.value)}>
+              <option value="LINK">{t("customerLink.policies.LINK")}</option>
+              <option value="VERIFIED">{t("customerLink.policies.VERIFIED")}</option>
+            </select>
+            <p className="muted">{t("storefront.policyBody")}</p>
+          </dd></div>
         </dl>
       ) : null}
       <form className="inline-form" onSubmit={rename}>

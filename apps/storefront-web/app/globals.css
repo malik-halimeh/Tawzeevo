@@ -97,3 +97,9 @@ h2 { font-size: 1.05rem; margin: 1rem 0 0.5rem; }
 .shop-footer p { margin: .25rem 0; }
 .brand-social a, .brand-pages a { margin-inline-end: .75rem; }
 .info-page { max-width: 720px; white-space: pre-wrap; }
+
+/* Customer verification (P9-M5) */
+.verify { max-width: 28rem; }
+.verify-form label { display: grid; gap: .35rem; margin-block: 1rem; }
+.verify-form input { font-size: 1.4rem; letter-spacing: .3em; padding: .5rem .75rem; border: 1px solid var(--line, #b3c9c0); border-radius: 8px; max-width: 12rem; }
+.verify-actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }

@@ -72,10 +72,20 @@ export function publicApiBase(): string {
   return (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 }
 
-async function get<T>(path: string, capability?: string | null): Promise<T> {
+/** A personalized request carries the capability and, after verification, the session secret. */
+export type Personal = string | { capability: string; session: string | null } | null | undefined;
+
+function personalHeaders(personal: Personal): Record<string, string> | null {
+  if (!personal) return null;
+  if (typeof personal === "string") return { "X-Customer-Capability": personal };
+  return { "X-Customer-Capability": personal.capability, ...(personal.session ? { "X-Customer-Session": personal.session } : {}) };
+}
+
+async function get<T>(path: string, personal?: Personal): Promise<T> {
   // Anonymous pages are cached for a minute; personalized responses are never cached (D-075).
-  const response = capability
-    ? await fetch(`${apiBase()}${path}`, { headers: { "X-Customer-Capability": capability }, cache: "no-store" })
+  const headers = personalHeaders(personal);
+  const response = headers
+    ? await fetch(`${apiBase()}${path}`, { headers, cache: "no-store" })
     : await fetch(`${apiBase()}${path}`, { next: { revalidate: 60 } });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { detail?: { code?: string; message?: string } };
@@ -88,7 +98,7 @@ export function fetchStorefront(slug: string): Promise<PublicStorefront> {
   return get<PublicStorefront>(`/api/v1/public/${encodeURIComponent(slug)}/catalog`);
 }
 
-export function fetchProducts(slug: string, options: { query?: string; categoryId?: string; page?: number; pageSize?: number; capability?: string | null } = {}): Promise<PublicProductPage> {
+export function fetchProducts(slug: string, options: { query?: string; categoryId?: string; page?: number; pageSize?: number; capability?: Personal } = {}): Promise<PublicProductPage> {
   const params = new URLSearchParams();
   if (options.query) params.set("query", options.query);
   if (options.categoryId) params.set("category_id", options.categoryId);
@@ -98,7 +108,7 @@ export function fetchProducts(slug: string, options: { query?: string; categoryI
   return get<PublicProductPage>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/products${suffix}`, options.capability);
 }
 
-export function fetchProduct(slug: string, productId: string, capability?: string | null): Promise<PublicProduct> {
+export function fetchProduct(slug: string, productId: string, capability?: Personal): Promise<PublicProduct> {
   return get<PublicProduct>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/products/${encodeURIComponent(productId)}`, capability);
 }
 
@@ -107,10 +117,10 @@ export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/.test(slug) && slug.length >= 3;
 }
 
-export function fetchFeatured(slug: string, capability?: string | null): Promise<{ items: PublicProduct[] }> {
+export function fetchFeatured(slug: string, capability?: Personal): Promise<{ items: PublicProduct[] }> {
   return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/featured`, capability);
 }
 
-export function fetchRecommended(slug: string, limit = 8, capability?: string | null): Promise<{ items: PublicProduct[] }> {
+export function fetchRecommended(slug: string, limit = 8, capability?: Personal): Promise<{ items: PublicProduct[] }> {
   return get<{ items: PublicProduct[] }>(`/api/v1/public/${encodeURIComponent(slug)}/catalog/recommended?limit=${limit}`, capability);
 }

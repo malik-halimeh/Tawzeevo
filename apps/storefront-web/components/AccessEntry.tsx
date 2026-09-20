@@ -19,10 +19,16 @@ export function AccessEntry({ slug, lang }: { slug: string; lang: Lang }) {
     const exchange = async () => {
       if (!secret) return false;
       const response = await fetch(`/${slug}/access/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capability: secret }) });
-      return response.ok;
+      if (!response.ok) return false;
+      const body = (await response.json().catch(() => ({}))) as { verification_required?: boolean };
+      return body.verification_required ? "verify" : true;
     };
     exchange()
-      .then((ok) => { if (ok) window.location.replace(shopHref(slug, lang)); else setState("failed"); })
+      .then((result) => {
+        if (result === "verify") window.location.replace(shopHref(slug, lang, "/verify"));
+        else if (result) window.location.replace(shopHref(slug, lang));
+        else setState("failed");
+      })
       .catch(() => setState("failed"));
   }, [slug, lang]);
 

@@ -6,7 +6,7 @@ import { ShopFrame } from "@/components/ShopFrame";
 import { fetchFeatured, fetchProducts, fetchRecommended } from "@/lib/catalog";
 import { shopHref } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { capabilityFor, resolveContext } from "@/lib/personal";
+import { visitorFor } from "@/lib/personal";
 import { type SearchParams, loadShop, pageNumber } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<SearchParams> };
@@ -23,9 +23,7 @@ export default async function ShopHome({ params, searchParams }: Props) {
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, "", query);
   const page = pageNumber(query);
-  const capability = await capabilityFor(shop.slug);
-  const context = await resolveContext(capability);
-  const personal = context ? capability : null;
+  const { state: context, personal } = await visitorFor(shop.slug);
   const [products, featured, recommended] = await Promise.all([
     fetchProducts(shop.slug, { page, capability: personal }),
     page === 1 ? fetchFeatured(shop.slug, personal) : Promise.resolve({ items: [] }),

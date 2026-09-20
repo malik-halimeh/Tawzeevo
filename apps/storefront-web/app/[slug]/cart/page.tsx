@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { CartCheckout } from "@/components/CartCheckout";
 import { ShopFrame } from "@/components/ShopFrame";
 import { t } from "@/lib/i18n";
-import { capabilityFor, resolveContext } from "@/lib/personal";
+import { visitorFor } from "@/lib/personal";
 import { type SearchParams, loadShop } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<SearchParams> };
@@ -18,7 +18,7 @@ export default async function CartPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, "/cart", query);
-  const context = await resolveContext(await capabilityFor(shop.slug));
+  const { state: context } = await visitorFor(shop.slug);
   return (
     <ShopFrame context={context} currentPath={`/${shop.slug}/cart`} lang={lang} shop={shop}>
       <h2>{t(lang, "cart")}</h2>
