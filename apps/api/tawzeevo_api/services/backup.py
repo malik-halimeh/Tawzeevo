@@ -17,6 +17,7 @@ import jwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from tawzeevo_api import metrics
 from tawzeevo_api.config import Settings, get_settings
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
@@ -384,7 +385,9 @@ def run_due_backups(
         try:
             run_backup(db, tenant.id, None, kind, active, moment)
             done.append(tenant.id)
+            metrics.increment("backup_runs")
         except AppError as error:
+            metrics.increment("backup_failures")
             logger.warning("scheduled backup failed for tenant %s: %s", tenant.id, error.code)
     return done
 

@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
+from tawzeevo_api import metrics
 from tawzeevo_api.config import Settings, get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import AuthContext, get_auth_context
@@ -98,8 +99,13 @@ def login_route(
     failures, _ = _limiters(settings)
     client = _client_ip(http_request)
     if not failures.allow(client):
+        metrics.increment("auth_login_throttled")
         raise _too_many()
-    tokens = login(db, request, settings)
+    try:
+        tokens = login(db, request, settings)
+    except AuthenticationError:
+        metrics.increment("auth_login_failures")
+        raise
     # A successful login gives the budget back: only failures accumulate.
     failures.forgive(client)
     set_refresh_cookie(response, tokens.refresh_token, settings)
@@ -185,4 +191,5 @@ def reset_password_route(
     if not resets.allow(_client_ip(http_request)):
         raise _too_many()
     reset_password(db, request.token, request.password.get_secret_value())
+    metrics.increment("auth_password_resets")
     clear_refresh_cookie(response, settings)

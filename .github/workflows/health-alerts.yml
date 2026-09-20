@@ -1,0 +1,66 @@
+name: Health and alerts
+
+# PHASE_09.md G (P9-M3): an external probe of the live API every 10 minutes. A failing run is the
+# alert: GitHub e-mails the repository owner when a scheduled workflow fails. The probe also keeps
+# the free-tier service from sleeping between visits. Nothing here touches tenant data.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: API base URL to probe
+        default: https://tawzeevo-api-malik-halimeh.onrender.com
+      simulate_failure:
+        description: "Set to 'yes' to test the alert path (forces a failure)"
+        default: "no"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_URL: ${{ github.event.inputs.api_url || 'https://tawzeevo-api-malik-halimeh.onrender.com' }}
+      MAX_5XX_RATIO: "0.01"     # D-078: 5xx < 1 %
+      MIN_REQUESTS_FOR_RATIO: "200"
+    steps:
+      - name: Liveness, database and migration head
+        run: |
+          set -e
+          for i in 1 2 3; do
+            body=$(curl -s --max-time 40 "$API_URL/health/database") && break
+            sleep 15
+          done
+          echo "$body"
+          echo "$body" | grep -q '"status":"ok"'
+          echo "$body" | grep -q '"migration_head":"20260919_'
+      - name: Error ratio and failure counters
+        run: |
+          set -e
+          metrics=$(curl -s --max-time 40 "$API_URL/health/metrics")
+          echo "$metrics"
+          python3 - "$metrics" <<'PY'
+          import json, os, sys
+          m = json.loads(sys.argv[1])
+          problems = []
+          if m["http_responses_total"] >= int(os.environ["MIN_REQUESTS_FOR_RATIO"]) and m["http_5xx_ratio"] >= float(os.environ["MAX_5XX_RATIO"]):
+              problems.append(f"5xx ratio {m['http_5xx_ratio']} over {m['http_responses_total']} responses")
+          if m["backup_failures"] > 0:
+              problems.append(f"backup failures: {m['backup_failures']}")
+          if m["mail_failures"] > 0:
+              problems.append(f"mail failures: {m['mail_failures']}")
+          if m["sync_push_operations"] >= 100 and m["sync_push_rejected"] > m["sync_push_operations"] * 0.2:
+              problems.append(f"sync rejections: {m['sync_push_rejected']} of {m['sync_push_operations']}")
+          if m["auth_login_throttled"] >= 50:
+              problems.append(f"login throttling: {m['auth_login_throttled']} blocked attempts since start")
+          if problems:
+              print("ALERT: " + "; ".join(problems))
+              sys.exit(1)
+          print("healthy")
+          PY
+      - name: Simulated failure (alert path test)
+        if: ${{ github.event.inputs.simulate_failure == 'yes' }}
+        run: |
+          echo "ALERT: simulated failure requested"
+          exit 1

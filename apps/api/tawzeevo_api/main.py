@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from tawzeevo_api import metrics
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import SessionLocal, get_db
 from tawzeevo_api.errors import AppError, AuthenticationError
@@ -196,6 +197,12 @@ def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "tawzeevo-api"}
+
+
+@app.get("/health/metrics", tags=["system"])
+def health_metrics() -> dict[str, object]:
+    """Process counters for the external alert probe (P9-M3); no tenant or user content."""
+    return metrics.snapshot()
 
 
 @app.get("/health/database", tags=["system"])

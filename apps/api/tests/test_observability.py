@@ -45,3 +45,22 @@ def test_access_log_has_route_template_and_no_query_or_secret(client, caplog, mo
 def test_database_health_reports_the_migration_head(client):
     body = client.get("/health/database").json()
     assert body["status"] == "ok" and body["migration_head"] == "20260919_0028"
+
+
+def test_health_metrics_counts_without_content(client):
+    from tawzeevo_api import metrics
+
+    metrics.reset_for_tests()
+    client.get("/health")
+    client.post("/login", json={"email": "nobody@example.com", "password": "wrong password"})
+    body = client.get("/health/metrics").json()
+    assert body["http_responses_total"] >= 2 and body["auth_login_failures"] == 1
+    assert body["http_responses_5xx"] == 0 and body["http_5xx_ratio"] == 0.0
+    assert set(body) >= {
+        "uptime_seconds",
+        "sync_push_rejected",
+        "backup_failures",
+        "mail_failures",
+        "auth_login_throttled",
+    }
+    assert "nobody@example.com" not in str(body)

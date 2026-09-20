@@ -16,12 +16,14 @@ from contextvars import ContextVar
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from tawzeevo_api import metrics
+
 access_logger = logging.getLogger("tawzeevo.access")
 request_id_var: ContextVar[str] = ContextVar("tawzeevo_request_id", default="-")
 _SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 
 # Paths that are noise in the access log (health probes from the platform).
-_QUIET = frozenset({"/health", "/health/database"})
+_QUIET = frozenset({"/health", "/health/database", "/health/metrics"})
 
 
 def current_request_id() -> str:
@@ -59,6 +61,9 @@ class RequestContextMiddleware:
         finally:
             request_id_var.reset(token)
             path = scope.get("path", "")
+            metrics.increment(f"http_responses_{status_code // 100}xx")
+            if status_code == 429:
+                metrics.increment("http_responses_429")
             if path not in _QUIET:
                 route = scope.get("route")
                 template = getattr(route, "path", None) or "unmatched"

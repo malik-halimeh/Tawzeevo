@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from tawzeevo_api import metrics
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
@@ -656,4 +657,6 @@ def push_operations(
         _apply_one(db, tenant_id, membership.user_id, request, operation)
         for operation in request.operations
     ]
+    metrics.increment("sync_push_operations", len(results))
+    metrics.increment("sync_push_rejected", sum(1 for r in results if r.status == "rejected"))
     return PushResponse(results=results, high_water_change_seq=high_water(db, tenant_id))

@@ -15,6 +15,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from tawzeevo_api import metrics
 from tawzeevo_api.config import Settings, get_settings
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import AuditEvent, PasswordResetToken, User
@@ -75,6 +76,7 @@ def request_reset(db: Session, email: str, settings: Settings | None = None) -> 
     try:
         get_mailer(active).send(Mail(to=user.email, subject=mail.subject, text=mail.text))
     except MailerError as exc:
+        metrics.increment("mail_failures")
         # The token exists but the holder cannot receive it; surface an operational error
         # without revealing whether the address is registered.
         raise AppError(503, "MAIL_UNAVAILABLE", "The e-mail service is unavailable") from exc
