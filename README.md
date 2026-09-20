@@ -339,6 +339,7 @@ Executed results for each phase are recorded in `docs/phase-N/test-report.md` (P
 - [`docs/phase-8/requirements-audit.md`](docs/phase-8/requirements-audit.md) — requirement-to-code/test evidence for Phase 8
 - [`docs/phase-9/demo-guide.md`](docs/phase-9/demo-guide.md) — recovery, hardening suites, observability, CI/CD, release runbook, customer verification, pilot drill
 - [`docs/phase-9/requirements-audit.md`](docs/phase-9/requirements-audit.md) — launch-gate audit for Phase 9 with the open items
+- [`docs/audit/PROJECT_AUDIT_PLAN.md`](docs/audit/PROJECT_AUDIT_PLAN.md) — how any agent audits Phases 1–9: procedure, acceptance criteria, findings register
 - [`docs/runbooks/backup-key-recovery.md`](docs/runbooks/backup-key-recovery.md) — backup keys, master-key rotation and the restore procedure
 - [`docs/future-phases.md`](docs/future-phases.md) — planned phases and their boundaries
 
