@@ -30,6 +30,20 @@ def current_request_id() -> str:
     return request_id_var.get()
 
 
+def configure_logging() -> None:
+    """Make the application loggers visible on the host: uvicorn configures only its own loggers,
+    so without this the `tawzeevo.*` INFO lines (access log, backup scheduler) never reach stdout.
+    Idempotent; a pre-existing handler (tests, a hosting agent) is left alone."""
+    for name in ("tawzeevo", "tawzeevo.access"):
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.INFO)
+    root = logging.getLogger("tawzeevo")
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+        root.addHandler(handler)
+
+
 class RequestContextMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app

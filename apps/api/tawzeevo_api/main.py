@@ -14,7 +14,7 @@ from tawzeevo_api import metrics
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import SessionLocal, get_db
 from tawzeevo_api.errors import AppError, AuthenticationError
-from tawzeevo_api.observability import RequestContextMiddleware
+from tawzeevo_api.observability import RequestContextMiddleware, configure_logging
 from tawzeevo_api.public_invoice_security import (
     PublicInvoicePrivacyMiddleware,
     install_capability_log_redaction,
@@ -121,6 +121,7 @@ OPENAPI_TAGS = [
     },
 ]
 
+configure_logging()
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
