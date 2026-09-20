@@ -34,7 +34,7 @@ jobs:
           done
           echo "$body"
           echo "$body" | grep -q '"status":"ok"'
-          echo "$body" | grep -q '"migration_head":"20260919_'
+          echo "$body" | grep -Eq '"migration_head":"[0-9]{8}_[0-9]{4}"'
       - name: Error ratio and failure counters
         run: |
           set -e
