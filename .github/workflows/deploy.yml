@@ -1,0 +1,42 @@
+name: Deploy live after green CI
+
+# PHASE_09.md H (P9-M4): the live services deploy only after the CI workflow succeeded on main.
+# Staging deploys on every push (Render auto-deploy) and is the rehearsal; live is gated here.
+# The Render API key lives in the repository secret RENDER_API_KEY; service ids are not secret.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      API_SERVICE: srv-da3g89ht0dsc73fjonag
+      WEB_SERVICE: srv-da3g89ht0dsc73fjona0
+      SHOP_SERVICE: srv-damjm64ri2ms73dkoehg
+    steps:
+      - name: Trigger deploys
+        run: |
+          set -e
+          for svc in "$API_SERVICE" "$WEB_SERVICE" "$SHOP_SERVICE"; do
+            code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST "https://api.render.com/v1/services/$svc/deploys" \
+              -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+              -d '{"clearCache":"do_not_clear"}')
+            echo "$svc -> HTTP $code"
+            test "$code" = "201" || { cat /tmp/out.json; exit 1; }
+          done
+      - name: Wait for the API to come back with the expected migration head
+        run: |
+          for i in $(seq 1 40); do
+            body=$(curl -s --max-time 30 https://tawzeevo-api-malik-halimeh.onrender.com/health/database || true)
+            echo "$body" | grep -q '"status":"ok"' && echo "$body" && exit 0
+            sleep 15
+          done
+          echo "API did not report healthy within 10 minutes"; exit 1

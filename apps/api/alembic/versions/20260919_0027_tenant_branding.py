@@ -61,9 +61,7 @@ def upgrade() -> None:
             "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
-        sa.CheckConstraint(
-            "default_language IN ('en', 'ar')", name="ck_tenant_branding_language"
-        ),
+        sa.CheckConstraint("default_language IN ('en', 'ar')", name="ck_tenant_branding_language"),
         sa.CheckConstraint(
             "primary_color IS NULL OR primary_color ~ '^#[0-9a-fA-F]{6}$'",
             name="ck_tenant_branding_primary_color",
