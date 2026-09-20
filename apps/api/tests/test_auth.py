@@ -307,6 +307,7 @@ def test_production_settings_require_secure_cookie_and_real_secret() -> None:
         "email_provider": "brevo",
         "email_api_key": "xkeysib-test",
         "password_reset_url": "https://ops.example/reset-password",
+        "backup_drive_provider": "google",  # explicit: CI exports the memory double
     }
     production = Settings(
         app_env="production",
