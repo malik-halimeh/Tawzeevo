@@ -77,7 +77,7 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| API, operations web, storefront as separate deployables; managed PostgreSQL; object storage; HTTPS; staging; never test against production | Render web service + two static/web sites; Supabase; S3-compatible media storage (`MEDIA_STORAGE_PROVIDER=s3` live); `tawzeevo-staging-api`/`-web` with `STAGING_DATABASE_URL`; tests run only on disposable or CI databases | PASS (no separate worker process — D-079 in-process scheduler for the pilot) |
+| API, operations web, storefront as separate deployables; managed PostgreSQL; object storage; HTTPS; staging; never test against production | Render web service + two static/web sites; Supabase; `tawzeevo-staging-api`/`-web` with `STAGING_DATABASE_URL`; tests run only on disposable or CI databases. **Object storage: NOT implemented** — `services/media.py` provides only `LocalObjectStorage` under `MEDIA_LOCAL_ROOT` (no `MEDIA_STORAGE_PROVIDER` setting, no S3 client); product/logo images are not durable across restarts of the hosting filesystem. D-080 (S3-compatible bucket) remains the locked target; the earlier claim that `MEDIA_STORAGE_PROVIDER=s3` was live was wrong (corrected 2026-09-21) | PARTIAL — object storage OPEN (D-080 adapter + bucket credentials pending; no separate worker process — D-079 in-process scheduler for the pilot) |
 
 ## J — Multi-tenant pilot (P9-M7)
 
@@ -110,10 +110,12 @@ is **not yet decided**. Nothing was built; the assurance model already reserves 
 | One-person + separate-driver pilot | PASS on staging; real pilot started |
 | Data lifecycle drill | PASS |
 | No stock/availability/tracking regression | PASS (`test_procurement.py` schema guard, Phase 5/7 privacy tests) |
-| No critical/high launch blocker | one HIGH open: no hosted database backup until the live Google Drive backup runs (owner § L3/L4); P9-M6 gate decisions; OTP production provider decision |
+| No critical/high launch blocker | open: no hosted database backup until the live Google Drive backup runs (owner § L3/L4); product/logo media not durable until the D-080 object-storage adapter and bucket exist (§ I); P9-M6 gate decisions; OTP production provider decision; hosted database role attributes (§ D) |
 
 **Launch gate verdict: NOT PASSED** until (1) the live encrypted backup has run and a restore
 drill succeeded, (2) the owner decides the P9-M5 provider / remembered-browser items and the
 P9-M6 gate items (or explicitly defers P9-M6 past launch), (3) D-088 is confirmed, (4) the SLO
-adjustment for the hosted setup is approved or the sync push is optimised. Explicit exclusions
-unchanged.
+adjustment for the hosted setup is approved or the sync push is optimised, (5) the D-080
+object-storage adapter is implemented against an owner-provisioned bucket so media survives
+restarts, (6) the hosted application database role is confirmed `NOSUPERUSER NOBYPASSRLS`
+(`docs/runbooks/database-role.md`). Explicit exclusions unchanged.
