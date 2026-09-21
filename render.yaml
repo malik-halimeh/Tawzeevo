@@ -8,7 +8,9 @@ services:
     buildCommand: pip install .
     # Migrations run before the API starts so every deploy carries its schema (free plan has no
     # separate pre-deploy step). Alembic is idempotent: an already-migrated database is a no-op.
-    startCommand: alembic upgrade head && uvicorn tawzeevo_api.main:app --host 0.0.0.0 --port $PORT
+    # --no-access-log: the structured tawzeevo.access line (route template + request id) is the
+    # access log; uvicorn's raw request line would repeat it with the query string (PHASE_09.md G).
+    startCommand: alembic upgrade head && uvicorn tawzeevo_api.main:app --host 0.0.0.0 --port $PORT --no-access-log
     # /health answers 503 until the schema is at the head the code expects, so a failed
     # migration keeps the previous release serving (PHASE_09.md H).
     healthCheckPath: /health

@@ -37,7 +37,7 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| Forgot password, one-time hashed token, short expiry, single use, rate limit, enumeration-safe, session invalidation, audit | `services/password_reset.py`, `services/mailer.py` (Brevo/Resend/memory), `routes/auth.py`; `test_password_recovery.py` (5); client `/forgot-password`, `/reset-password` (`App.test.tsx`); live: production settings accept the Brevo variables; the owner's live send test is pending (`private/OWNER_ACTIONS.md` § L2) | PASS (live mail delivery unverified) |
+| Forgot password, one-time hashed token, short expiry, single use, rate limit, enumeration-safe, session invalidation, audit | `services/password_reset.py`, `services/mailer.py` (Brevo/Resend/memory), `routes/auth.py`; `test_password_recovery.py` (5; since 2026-09-21 a mail-provider outage answers the same 202 as an unknown address and is counted in `mail_failures` instead of a distinct 503 that revealed registered addresses); client `/forgot-password`, `/reset-password` (`App.test.tsx`); live: production settings accept the Brevo variables; the owner's live send test is pending (`private/OWNER_ACTIONS.md` § L2) | PASS (live mail delivery unverified) |
 
 ## D — Database hardening
 
@@ -64,7 +64,7 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| Structured logs, request ids, metrics, app/DB health, sync/backup/auth metrics, alert levels; no secrets in logs | `observability.py` (JSON access log, `X-Request-ID`, `configure_logging`), `metrics.py` + `/health/metrics`, `/health/database` with migration head, capability redaction filter; `health-alerts.yml` probes every 10 minutes and fails on DB down, 5xx ≥ 1 %, backup/mail failures, sync rejections, login throttling — a failed run e-mails the repository owner; `test_observability.py` (4) | PASS (no separate error-tracking SaaS; job health = backup counters) |
+| Structured logs, request ids, metrics, app/DB health, sync/backup/auth metrics, alert levels; no secrets in logs | `observability.py` (JSON access log, `X-Request-ID`, `configure_logging`), `metrics.py` + `/health/metrics`, `/health/database` with migration head, capability redaction filter, uvicorn access-log query-string filter (`AccessLogQueryStringFilter`, added 2026-09-21 after the audit found 253/443 uvicorn request lines carrying query strings; the hosting start command also passes `--no-access-log` so the structured line is the only access log); `health-alerts.yml` probes every 10 minutes and fails on DB down, 5xx ≥ 1 %, backup/mail failures, sync rejections, login throttling — a failed run e-mails the repository owner; `test_observability.py` (5) | PASS (no separate error-tracking SaaS; job health = backup/reminder/job counters) |
 
 ## H — CI/CD
 

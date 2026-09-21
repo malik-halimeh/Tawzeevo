@@ -47,11 +47,38 @@ class CapabilityLogFilter(logging.Filter):
         return True
 
 
+_QUERY_IN_REQUEST_LINE = re.compile(r"\?[^\s\"]*")
+
+
+def strip_query_string(value: str) -> str:
+    """Drop everything from the first '?' of a request target (identifiers, cursors, filters and
+    any secret a client put in the URL never reach an access log)."""
+    return _QUERY_IN_REQUEST_LINE.sub("", value)
+
+
+class AccessLogQueryStringFilter(logging.Filter):
+    """uvicorn's access log prints the raw request line ('%s - "%s %s HTTP/%s" %d' with the full
+    path in args[2]); this filter strips the query string from every string argument and from
+    the message so the route path is kept and the parameters are not (PHASE_09.md G)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = strip_query_string(record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                strip_query_string(a) if isinstance(a, str) else a for a in record.args
+            )
+        return True
+
+
 def install_capability_log_redaction() -> None:
     for name in ("uvicorn.access", "uvicorn.error", "tawzeevo.public_invoices", "tawzeevo.access"):
         logger = logging.getLogger(name)
         if not any(isinstance(item, CapabilityLogFilter) for item in logger.filters):
             logger.addFilter(CapabilityLogFilter())
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(item, AccessLogQueryStringFilter) for item in access.filters):
+        access.addFilter(AccessLogQueryStringFilter())
 
 
 class PublicInvoiceRateLimiter:

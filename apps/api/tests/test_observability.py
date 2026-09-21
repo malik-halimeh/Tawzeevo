@@ -64,3 +64,26 @@ def test_health_metrics_counts_without_content(client):
         "auth_login_throttled",
     }
     assert "nobody@example.com" not in str(body)
+
+
+def test_uvicorn_access_log_never_records_query_strings(caplog):
+    """TWZ-A-058: the raw request line uvicorn logs is stripped of its query string (tenant and
+    device ids, cursors, filters, anything a client put in the URL) while the path is kept."""
+    import logging
+
+    from tawzeevo_api.public_invoice_security import install_capability_log_redaction
+
+    install_capability_log_redaction()
+    access = logging.getLogger("uvicorn.access")
+    with caplog.at_level(logging.INFO, logger="uvicorn.access"):
+        access.info(
+            '%s - "%s %s HTTP/%s" %d',
+            "10.0.0.7:1234",
+            "GET",
+            "/api/v1/sync/pull?tenant_id=abc&device_installation_id=def&cursor=0&secret=x",
+            "1.1",
+            200,
+        )
+    rendered = caplog.records[-1].getMessage()
+    assert '"GET /api/v1/sync/pull HTTP/1.1" 200' in rendered
+    assert "?" not in rendered and "tenant_id" not in rendered and "secret" not in rendered

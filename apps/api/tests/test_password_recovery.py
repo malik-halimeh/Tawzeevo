@@ -150,7 +150,13 @@ def test_login_brute_force_and_recovery_request_throttles(client):
     assert blocked.status_code == 429  # reset attempts share the recovery budget
 
 
-def test_mail_provider_failure_is_reported_not_faked(client, monkeypatch):
+def test_mail_provider_failure_is_counted_but_the_answer_stays_enumeration_safe(
+    client, monkeypatch
+):
+    """D-077: a provider outage must not turn the forgot endpoint into an account oracle. Known
+    and unknown addresses get the same 202; the failure is counted for the alert probe."""
+    from tawzeevo_api import metrics
+
     register(client)
 
     class Broken:
@@ -161,10 +167,12 @@ def test_mail_provider_failure_is_reported_not_faked(client, monkeypatch):
     monkeypatch.setattr(
         "tawzeevo_api.services.password_reset.get_mailer", lambda settings=None: Broken()
     )
-    response = client.post(
-        "/api/v1/auth/password/forgot", json={"email": "layla.haddad@example.com"}
-    )
-    assert response.status_code == 503 and response.json()["detail"]["code"] == "MAIL_UNAVAILABLE"
+    metrics.reset_for_tests()
+    known = client.post("/api/v1/auth/password/forgot", json={"email": "layla.haddad@example.com"})
+    unknown = client.post("/api/v1/auth/password/forgot", json={"email": "nobody@example.com"})
+    assert known.status_code == unknown.status_code == 202
+    assert known.json() == unknown.json()
+    assert metrics.snapshot()["mail_failures"] == 1  # the outage is observable, not the address
     assert memory_outbox() == []
 
 
