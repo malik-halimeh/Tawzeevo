@@ -1,0 +1,998 @@
+{
+  "run_id": "20260920-1922-7a7596",
+  "remediation_branch": "remediation/audit-20260920",
+  "remediation_base_sha": "4d6ea0a9529999fb74aaa3d69bdbaa94b157de84",
+  "frozen_audit_sha": "f00c39e9816f359879ccebfc8e0a72d5ddb9ec37",
+  "remediated_on": "2026-09-21",
+  "commits": {
+    "a3d545c": "security: restrict driver sync snapshot projections",
+    "e296cb9": "security: enforce tenant_applications RLS",
+    "ff3908d": "security: database-role RLS preflight and health report",
+    "298ecaa": "tests: add the D-088 Origin-guard regression cited by the Phase 9 evidence",
+    "14a1e6c": "docs(phase-9): object storage is not implemented; correct the S3 claim (D-080)",
+    "8b184e9": "security: resolve the client IP behind trusted proxies for the abuse controls",
+    "c85c7ae": "security: refuse the development OTP provider in production; gate VERIFIED on a usable provider",
+    "dde9855": "deploy: enforce production configuration and migration readiness",
+    "96abb68": "security: harden route authorization coverage",
+    "02775a1": "pwa: complete manifest assets",
+    "45cd1f4": "ops: implement scheduled rollup/reminder execution",
+    "693d2d2": "routing: implement deterministic fallback (D-060 provider chain)",
+    "8a0a696": "security: keep query strings out of the access log; enumeration-safe forgot-password under outage",
+    "82b042f": "security: lock delivery-task transitions, revoke devices on user deletion, secrets off argv",
+    "ff8d8f2": "finance: tighten idempotent replay detection for drafts and payments",
+    "f8d4a28": "docs: correct stale evidence statements and public-repository neutrality",
+    "acb3baf": "finance: supplier purchases immutable at the database; reversed purchases never drive preload",
+    "524eb14": "tests: tenant-calendar day in date-window tests; behavioural branding assertion",
+    "f0f7e54": "operations-web: default procurement range on the tenant calendar (D-040)"
+  },
+  "status_counts": {
+    "FIXED_VERIFIED": 22,
+    "FIXED_OWNER_VERIFICATION_REQUIRED": 5,
+    "DEFERRED_PENDING_DECISION": 4,
+    "REFUTED": 1,
+    "OWNER_EXTERNAL_ONLY": 1
+  },
+  "findings": [
+    {
+      "finding_id": "TWZ-F-001",
+      "title": "Driver can download owner-only collections through the sync snapshot endpoint",
+      "original_severity": "HIGH",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G8",
+      "audit_ids": [
+        "TWZ-A-042",
+        "TWZ-A-055"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/sync.py",
+        "docs/phase-7/requirements-audit.md",
+        "docs/contracts/sync-protocol.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_sync_driver_projection.py (new, 5 tests)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_sync_driver_projection.py -q -p no:cacheprovider",
+        "preserved audit module audit_adv_sync_driver.py::test_a042_driver_cannot_download_owner_snapshot_collections (re-run on the recreated audit DB)",
+        "preserved audit module audit_adv_recon.py::test_a055_driver_snapshot_payments_page_after_supplier_payment"
+      ],
+      "verification_result": "PASS — new tests reproduce the leak on the pre-fix service (200 with customer rows and the SUPPLIER_PAYMENT row) and pass after it; preserved A-042/A-055 modules PASS (every collection 403 for a driver; owner unchanged)",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "a3d545c"
+      ],
+      "note": "Attack path: driver bearer + registered device -> GET /api/v1/sync/bootstrap/{collection} returned owner-only rows; snapshot_page never checked the membership role. Now: one role-scoped allowlist (permitted_collections) feeds the bootstrap answer and gates snapshot_page before any device/data access (403 TENANT_OWNER_REQUIRED). Registry/route-type pairing test prevents a future collection from escaping the gate."
+    },
+    {
+      "finding_id": "TWZ-F-002",
+      "title": "Production database role may bypass row-level security (FORCE RLS inert if role has BYPASSRLS)",
+      "original_severity": "HIGH",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-002"
+      ],
+      "classification": "OWNER_EXTERNAL",
+      "new_status": "FIXED_OWNER_VERIFICATION_REQUIRED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/db_role.py",
+        "apps/api/tawzeevo_api/main.py",
+        "apps/api/tawzeevo_api/config.py",
+        "docs/runbooks/database-role.md",
+        ".github/workflows/health-alerts.yml",
+        "docs/architecture.md",
+        "docs/contracts/tenant-isolation.md",
+        "docs/phase-9/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_db_role_preflight.py (new, 4 tests)",
+        "apps/api/tests/test_tenant_applications_rls.py::test_application_lifecycle_works_under_a_non_bypass_database_role"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_db_role_preflight.py tests/test_tenant_applications_rls.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS locally (mechanism). The hosted role's rolsuper/rolbypassrls were NOT queried (production never connected).",
+      "remaining_owner_action": "Run `select rolname, rolsuper, rolbypassrls from pg_roles where rolname = current_user` on the hosted database with the API's DATABASE_URL role, or read `database_role_rls_enforced` on the live /health/database after deploying this branch; if false, provision a NOSUPERUSER NOBYPASSRLS role (docs/runbooks/database-role.md) and then set DB_ROLE_REQUIRE_RLS_SUBJECT=true.",
+      "commit_sha": [
+        "ff3908d",
+        "e296cb9"
+      ],
+      "note": "CODE_HARDENED_OWNER_VERIFICATION_REQUIRED: startup preflight logs the role attributes, /health/database reports database_role_rls_enforced, DB_ROLE_REQUIRE_RLS_SUBJECT refuses a bypassing role (off by default so the current deployment is not taken down), alert probe prints a note; the application lifecycle is proven compatible with an RLS-subject role."
+    },
+    {
+      "finding_id": "TWZ-F-003",
+      "title": "Phase 9 evidence cites a test that does not exist; the D-088 Origin guard is untested",
+      "original_severity": "HIGH",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G8",
+      "audit_ids": [
+        "TWZ-A-007",
+        "TWZ-B-009"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "docs/phase-9/requirements-audit.md",
+        "docs/contracts/auth-session.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_auth.py::test_cookie_samesite_is_configurable_and_cross_site_origin_is_guarded (new, parametrized lax/none)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_auth.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS (29 tests) — forged Origin on /refresh and /logout -> 401 ORIGIN_NOT_ALLOWED, cookie cleared, session not consumed; allowed Origin refreshes with the configured SameSite; no Origin unchanged",
+      "remaining_owner_action": "D-088 remains PENDING OWNER CONFIRMATION (launch-gate item 3); the evidence keeps it marked pending.",
+      "commit_sha": [
+        "298ecaa"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-004",
+      "title": "D-080 object storage not implemented; Phase 9 evidence claims S3 media storage is live; media not durable on the hosting platform",
+      "original_severity": "HIGH",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-B-041",
+        "TWZ-B-009",
+        "TWZ-C-008"
+      ],
+      "classification": "DOCUMENTATION_CORRECTION",
+      "new_status": "DEFERRED_PENDING_DECISION",
+      "files_changed": [
+        "docs/phase-9/requirements-audit.md",
+        "docs/phase-9/demo-guide.md"
+      ],
+      "tests_added_or_changed": [],
+      "verification_commands": [
+        "grep -rn 'MEDIA_STORAGE_PROVIDER\\|boto\\|s3' apps/api (absent, as the audit found)"
+      ],
+      "verification_result": "Documentation now states LocalObjectStorage only, media not durable, D-080 target OPEN; launch-gate list names it.",
+      "remaining_owner_action": "Provision the S3-compatible bucket (D-080: Backblaze B2) and credentials in the service environment; schedule the adapter implementation (Design & Planning Agent plan) — the adapter was not implemented here because it cannot be verified without the owner's bucket and the brief forbids implementing it merely to make the document true.",
+      "commit_sha": [
+        "14a1e6c"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-005",
+      "title": "Login/recovery and public rate limits keyed on request.client.host with no trusted-proxy configuration",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-009",
+        "TWZ-A-050"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_OWNER_VERIFICATION_REQUIRED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/client_ip.py",
+        "apps/api/tawzeevo_api/config.py",
+        "apps/api/tawzeevo_api/routes/auth.py",
+        "apps/api/tawzeevo_api/public_invoice_security.py",
+        "apps/api/tawzeevo_api/main.py",
+        "render.yaml"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_client_ip.py (new, 12 tests)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_client_ip.py tests/test_password_recovery.py tests/test_phase5_freeze.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — direct exposure ignores forged X-Forwarded-For; behind one trusted hop the last address is the key, visitors are separate, spoofed prefixes cannot escape",
+      "remaining_owner_action": "Confirm on the hosting dashboard/docs that exactly one proxy hop sets X-Forwarded-For for the API service (render.yaml declares TRUSTED_PROXY_HOPS=1); adjust if the topology differs.",
+      "commit_sha": [
+        "8b184e9",
+        "dde9855"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-006",
+      "title": "uvicorn access log records raw request lines including query strings (tenant/device ids, arbitrary params)",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G12",
+      "audit_ids": [
+        "TWZ-A-058"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/public_invoice_security.py",
+        "render.yaml",
+        "docs/phase-9/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_observability.py::test_uvicorn_access_log_never_records_query_strings (new)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_observability.py -q -p no:cacheprovider",
+        "preserved audit module audit_adv_public.py::test_a037_a058_public_failures_are_byte_identical_and_secrets_stay_out_of_logs (re-run: PASS)"
+      ],
+      "verification_result": "PASS — uvicorn-style access record rendered without its query string; capability/secret sweep unchanged",
+      "remaining_owner_action": "none (the hosting start command now passes --no-access-log; takes effect on the next deploy)",
+      "commit_sha": [
+        "8a0a696"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-007",
+      "title": "render.yaml omits production-mandatory settings (EMAIL_PROVIDER/EMAIL_API_KEY/PASSWORD_RESET_URL) and REFRESH_COOKIE_SAMESITE for the two-site deployment",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-060",
+        "TWZ-A-007"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_OWNER_VERIFICATION_REQUIRED",
+      "files_changed": [
+        "render.yaml"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_deployment_config.py (new, 2 tests)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_deployment_config.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — blueprint declares every production-mandatory variable, secrets as sync:false, no secret value",
+      "remaining_owner_action": "Set the sync:false values in the service environment before the next live deploy: EMAIL_PROVIDER, EMAIL_API_KEY, CUSTOMER_OTP_PROVIDER (the dev adapter is now refused in production); confirm REFRESH_COOKIE_SAMESITE=none and PASSWORD_RESET_URL match the dashboard.",
+      "commit_sha": [
+        "dde9855"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-008",
+      "title": "Authorization matrix test covers 12 of ~182 route operations",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-003"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "docs/phase-9/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_route_authorization.py (new, 7 tests; 185 route operations registered)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_route_authorization.py tests/test_security_matrix.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — every route operation has an explicit expectation matching its resolved dependency; public routes only under known prefixes; deny cells probed for every non-public route with five actors",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "96abb68"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-009",
+      "title": "Production does not refuse the development OTP provider while owners can select VERIFIED",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-048"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_OWNER_VERIFICATION_REQUIRED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/config.py",
+        "apps/api/tawzeevo_api/services/otp_delivery.py",
+        "apps/api/tawzeevo_api/services/customer_access.py",
+        "apps/api/tawzeevo_api/routes/storefront.py",
+        "docs/phase-9/requirements-audit.md",
+        "render.yaml"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_auth.py::test_production_settings_require_secure_cookie_and_real_secret (extended)",
+        "apps/api/tests/test_customer_verification.py::test_link_policy_customers_are_unaffected_and_dev_code_is_guarded (extended)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_customer_verification.py tests/test_customer_access.py 'tests/test_auth.py::test_production_settings_require_secure_cookie_and_real_secret' -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — production Settings with the dev adapter raise; VERIFIED not offered/selectable (409 OTP_PROVIDER_NOT_CONFIGURED) without a usable provider; LINK unaffected",
+      "remaining_owner_action": "Decide the production OTP provider (launch-gate item 2) and set CUSTOMER_OTP_PROVIDER in the service environment before the next live deploy (the API refuses to start with `dev`); until an adapter exists for that provider VERIFIED stays unselectable in production.",
+      "commit_sha": [
+        "c85c7ae"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-010",
+      "title": "Deploy gate does not verify the migration head; live services also auto-deploy on commit",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_STATIC_G7",
+      "audit_ids": [
+        "TWZ-B-011"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_OWNER_VERIFICATION_REQUIRED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/migrations.py",
+        "apps/api/tawzeevo_api/main.py",
+        "apps/api/scripts/migration_head.py",
+        ".github/workflows/deploy.yml",
+        "render.yaml"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_migration_readiness.py (new, 3 tests)",
+        "apps/api/tests/test_deployment_config.py"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_migration_readiness.py tests/test_deployment_config.py tests/test_health.py tests/test_observability.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — expected head == alembic heads == workflow script; /health 503 MIGRATION_HEAD_MISMATCH when startup found another revision; deploy.yml waits for the exact head; autoDeployTrigger: off on the three live services",
+      "remaining_owner_action": "Confirm in the hosting dashboard that auto-deploy is off for the three live services (a blueprint sync applies render.yaml; a manually created service keeps its own setting).",
+      "commit_sha": [
+        "dde9855"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-011",
+      "title": "Operations PWA manifest declares no icons; Chromium installability criteria not met",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_STATIC_G7",
+      "audit_ids": [
+        "TWZ-B-024"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/operations-web/public/manifest.webmanifest",
+        "apps/operations-web/public/icons/*.png",
+        "apps/operations-web/index.html",
+        "docs/phase-4/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/operations-web/src/pwaManifest.test.ts (new, 2 tests)"
+      ],
+      "verification_commands": [
+        "cd apps/operations-web && npx vitest run src/pwaManifest.test.ts"
+      ],
+      "verification_result": "PASS — 192/512 px any + maskable PNG icons exist with the declared dimensions; installability members present",
+      "remaining_owner_action": "none (a browser install check on the deployed client is optional)",
+      "commit_sha": [
+        "02775a1"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-012",
+      "title": "Scheduled jobs: view rollup (D-051) is never scheduled and delivery reminders are never executed",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_STATIC_G7",
+      "audit_ids": [
+        "TWZ-B-029",
+        "TWZ-B-033"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/jobs.py",
+        "apps/api/tawzeevo_api/main.py",
+        "apps/api/tawzeevo_api/metrics.py",
+        "apps/api/tawzeevo_api/cli/backup_jobs.py",
+        "apps/api/tawzeevo_api/config.py",
+        "docs/contracts/jobs-reminders.md",
+        "docs/phase-5/requirements-audit.md",
+        "docs/phase-9/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_jobs.py (new, 3 tests)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_jobs.py tests/test_order_review.py tests/test_backup.py tests/test_storefront_signals.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — due reminder -> exactly one DELIVERY_REMINDER owner notification, SENT under a row lock, replay-safe, cancelled order closes it, re-dating re-arms it; scheduler table runs backups/rollup/reminders on intervals and isolates a failing job",
+      "remaining_owner_action": "none (BACKUP_SCHEDULER_ENABLED=true already enables the in-process scheduler on the live service)",
+      "commit_sha": [
+        "45cd1f4"
+      ],
+      "note": "Reminder cadence (5 min tick) and the 09:00 tenant-local reminder time are existing design constants; no new business rule was invented — the only reminder channel is the in-app owner notification (D-049)."
+    },
+    {
+      "finding_id": "TWZ-F-013",
+      "title": "D-060 Google Maps fallback is not implemented (configuration slot only)",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-B-032"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/routing.py",
+        "docs/phase-7/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_routing_chain.py (new, 10 tests)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_routing_chain.py tests/test_delivery_routes.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — ORS -> Google (only with key) -> offline; every Google failure class falls back deterministically; no provider called without a key; coordinates-only payload",
+      "remaining_owner_action": "Set GOOGLE_MAPS_API_KEY only if the owner wants the Google fallback live (D-060 says fallback only when its key is configured).",
+      "commit_sha": [
+        "693d2d2"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-014",
+      "title": "D-033 order/invoice uniqueness: schema disagreement resolved - unique partial index present (no defect)",
+      "original_severity": "LOW",
+      "original_status": "VERIFIED_CLOSED",
+      "original_verification": "REFUTED_RUNTIME_G8",
+      "audit_ids": [
+        "TWZ-A-038"
+      ],
+      "classification": "REFUTED_WITH_NEW_EVIDENCE",
+      "new_status": "REFUTED",
+      "files_changed": [],
+      "tests_added_or_changed": [],
+      "verification_commands": [
+        "audit G8 test_a038 (already closed by the audit); preserved module re-run: PASS"
+      ],
+      "verification_result": "Already refuted and closed by the audit (unique partial index present); re-run PASS.",
+      "remaining_owner_action": "none",
+      "commit_sha": [],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-015",
+      "title": "RLS sweep test covers 22 of ~47 tenant_id tables",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G8",
+      "audit_ids": [
+        "TWZ-A-001"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tests/test_hardening.py"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_hardening.py::test_all_tenant_owned_tables_have_forced_rls_and_a_policy (catalog-driven)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest 'tests/test_hardening.py::test_all_tenant_owned_tables_have_forced_rls_and_a_policy' -q -p no:cacheprovider",
+        "preserved audit module audit_adv_schema.py::test_a001_rls_sweep_over_every_table_with_a_tenant_id (re-run: PASS, 49 tables)"
+      ],
+      "verification_result": "PASS — sweep walks every public table with a tenant_id column (49) and requires enabled+forced+policy; explicit floor of 23 tables must still be present",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "e296cb9"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-016",
+      "title": "Forgot-password reveals account existence when the mail provider fails (503 vs 202) and by timing",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-010"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/password_reset.py",
+        "docs/phase-9/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_password_recovery.py::test_mail_provider_failure_is_counted_but_the_answer_stays_enumeration_safe (rewritten)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_password_recovery.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — known and unknown addresses answer the identical 202 under provider outage; mail_failures counted",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "8a0a696"
+      ],
+      "note": "Residual: timing differences (DB writes + send attempt only for known addresses) are not padded; recorded as accepted low risk."
+    },
+    {
+      "finding_id": "TWZ-F-017",
+      "title": "Invoice sequence year uses UTC while overdue/analytics use Asia/Beirut",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-022"
+      ],
+      "classification": "DEFERRED_BY_LOCKED_DECISION",
+      "new_status": "DEFERRED_PENDING_DECISION",
+      "files_changed": [],
+      "tests_added_or_changed": [],
+      "verification_commands": [],
+      "verification_result": "Not changed: invoice numbering year policy C-F04 is explicitly open in the financial-invariants catalog (FI-12); changing the numbering calendar is a financial rule the owner must decide.",
+      "remaining_owner_action": "Decide C-F04 (numbering year on UTC vs the Asia/Beirut calendar). If Beirut: a one-line change in invoice_finance.py plus a boundary test; existing numbers are never renumbered.",
+      "commit_sha": [],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-018",
+      "title": "User soft-delete revokes memberships and sessions but not the memberships' sync devices",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-011"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/users.py",
+        "apps/api/tawzeevo_api/services/sync.py"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_users.py::test_deleting_one_of_two_owners_revokes_membership_atomically (extended)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_users.py tests/test_sync_pull.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — the deleted user's registered devices are revoked (USER_DELETED) in every tenant",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "82b042f"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-019",
+      "title": "Draft-create idempotency conflict detection compares only product/name/quantity",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G8",
+      "audit_ids": [
+        "TWZ-A-033"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/invoice_editor.py",
+        "docs/phase-3/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_fa009_create_command.py (extended: six monetary variants -> 409)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_fa009_create_command.py tests/test_fa010_legacy_draft_parity.py tests/test_sync_push.py -q -p no:cacheprovider",
+        "preserved audit module audit_adv_finance.py::test_a033_concurrent_identical_creates_and_conflicting_replay (re-run: PASS)"
+      ],
+      "verification_result": "PASS — changed invoice/line discount or markup, manual unit price or cost override under the same command -> 409 IDEMPOTENCY_CONFLICT; identical request still replays the original header",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "ff8d8f2"
+      ],
+      "note": "Invariant protecting correctness: D-045 one header per command, unchanged; only the definition of 'same request' was widened to every monetary intent of the request — no stored row changes."
+    },
+    {
+      "finding_id": "TWZ-F-020",
+      "title": "Payment replay validation ignores allocations/method/paid_at",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G8",
+      "audit_ids": [
+        "TWZ-A-032"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/payments.py",
+        "docs/contracts/financial-invariants.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_invoice_editor.py::test_customer_receipt_retries_one_command_and_a_new_intent_posts_again (extended)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_invoice_editor.py tests/test_fa008_obligations.py -q -p no:cacheprovider",
+        "preserved audit module audit_adv_finance.py::test_a027_a028_a032_... (re-run: PASS)"
+      ],
+      "verification_result": "PASS — same key with another method, reference, paid_at or selected allocations -> 409 IDEMPOTENCY_KEY_REUSED; identical payload replays",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "ff8d8f2"
+      ],
+      "note": "Explained preserved-module failure: audit_adv_recon.py::test_a032 regenerates paid_at on every call of its _refund helper, so its 'replay' is a different command under the tightened rule (409, still exactly one refund). The operations client re-sends the stored command payload on retry, so real retries keep paid_at."
+    },
+    {
+      "finding_id": "TWZ-F-021",
+      "title": "Supplier purchases are immutable in code only (no DB trigger); reversal mutates the purchase row; reversed ACTUAL_PURCHASE still wins D-059 preload",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-B-027"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/alembic/versions/20260921_0031_supplier_purchase_immutability.py",
+        "apps/api/tawzeevo_api/services/supplier_purchases.py",
+        "apps/api/tawzeevo_api/services/invoice_editor.py",
+        "docs/phase-6/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_supplier_purchases.py (extended: six forbidden mutations + preload after reversal)",
+        "apps/api/tests/test_financial_schema.py (immutable set)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_supplier_purchases.py tests/test_financial_schema.py tests/test_procurement.py tests/test_sync_phase6.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS — purchase lines reject update/delete; headers reject delete, non-reversal updates, altered reversals and second reversals; reversed purchase never drives the D-059 preload",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "acb3baf"
+      ],
+      "note": "Invariant: append-only supplier purchase history at the database (same trigger family as the other financial rows); D-059 order unchanged, reversed purchases simply excluded."
+    },
+    {
+      "finding_id": "TWZ-F-022",
+      "title": "Google OAuth request includes userinfo.email in addition to drive.file",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-A-054",
+        "TWZ-C-006"
+      ],
+      "classification": "DEFERRED_BY_LOCKED_DECISION",
+      "new_status": "DEFERRED_PENDING_DECISION",
+      "files_changed": [],
+      "tests_added_or_changed": [],
+      "verification_commands": [],
+      "verification_result": "Not changed: dropping userinfo.email would remove the 'connected as {email}' display the backup screen relies on; adding the scope to D-055 is the owner's amendment.",
+      "remaining_owner_action": "Amend D-055 to name the identity scope (recommended: the e-mail only confirms which Google account holds the backup folder) or instruct removal of the scope and the connected-as display.",
+      "commit_sha": [],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-023",
+      "title": "Evidence documents contain stale or false statements (Phase 3 FA-009 open; Phase 4 decision numbering; vacuous branding assertion; dangling docs/audits links; phase index milestone count; RUN_TESTS layout)",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-B-003",
+        "TWZ-B-004",
+        "TWZ-B-008",
+        "TWZ-C-008"
+      ],
+      "classification": "DOCUMENTATION_CORRECTION",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "docs/phase-3/requirements-audit.md",
+        "docs/phase-4/requirements-audit.md",
+        "docs/phase-8/requirements-audit.md",
+        "docs/contracts/financial-invariants.md",
+        "02_PHASE_INDEX.md",
+        "03_IMPLEMENTATION_STATUS.md",
+        "RUN_TESTS.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_branding_public_stats.py (behavioural assertion, see F-033)"
+      ],
+      "verification_commands": [
+        "grep -rn 'docs/audits' docs 03_IMPLEMENTATION_STATUS.md (only the dated historical note remains)"
+      ],
+      "verification_result": "Corrected: FA-009 closed by D-045; dangling docs/audits links removed; Phase 4 decision numbers match the ledger; phase index 8 milestones; RUN_TESTS layout note; branding tautology replaced",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "f8d4a28",
+        "524eb14"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-024",
+      "title": "Demo gallery enabled on the live production client (VITE_DEMO_PREVIEW=true)",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-B-036"
+      ],
+      "classification": "OWNER_EXTERNAL",
+      "new_status": "DEFERRED_PENDING_DECISION",
+      "files_changed": [],
+      "tests_added_or_changed": [],
+      "verification_commands": [],
+      "verification_result": "Not changed: VITE_DEMO_PREVIEW=true on the production client is allowed by D-029 (environment-gated); whether the live audience should see the demo gallery is a presentation decision.",
+      "remaining_owner_action": "Decide; if not wanted on the live client set VITE_DEMO_PREVIEW=\"false\" in render.yaml (build-time variable, requires a client rebuild).",
+      "commit_sha": [],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-025",
+      "title": "slo_probe.py and pilot_drill.py accept the admin password as a positional argument",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-B-039"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/scripts/slo_probe.py",
+        "apps/api/scripts/pilot_drill.py",
+        "docs/phase-9/test-report.md",
+        "docs/phase-9/demo-guide.md"
+      ],
+      "tests_added_or_changed": [],
+      "verification_commands": [
+        "python apps/api/scripts/slo_probe.py http://127.0.0.1:8011 admin@example.com extra-arg  (exits refusing a password on argv)"
+      ],
+      "verification_result": "Scripts read TAWZEEVO_ADMIN_PASSWORD / TAWZEEVO_PILOT_PASSWORD or prompt; a password on the command line is refused; documents updated",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "82b042f"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-026",
+      "title": "Delivery task completion/assignment use an optimistic version check without a row lock",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "NOT_FALSIFIED_G8",
+      "audit_ids": [
+        "TWZ-A-043"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tawzeevo_api/services/delivery.py",
+        "apps/api/tawzeevo_api/services/sync_push.py"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_delivery_tasks.py::test_concurrent_transitions_with_the_same_expected_version_serialize (new)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_delivery_tasks.py -q -p no:cacheprovider",
+        "preserved audit module audit_adv_sync_driver.py::test_a043_... (re-run: PASS)"
+      ],
+      "verification_result": "PASS — two concurrent completions with the same expected version: exactly one 200 and one 409, three rounds",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "82b042f"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-027",
+      "title": "Public-repository neutrality: .gitignore names an assistant-product file; AGENTS.md references git-ignored private paths",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "STATIC_ONLY_UNIT_B",
+      "audit_ids": [
+        "TWZ-C-002"
+      ],
+      "classification": "DOCUMENTATION_CORRECTION",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        ".gitignore",
+        ".git/info/exclude (local, not committed)",
+        "AGENTS.md",
+        "docs/runbooks/local-agent-files.md"
+      ],
+      "tests_added_or_changed": [],
+      "verification_commands": [
+        "git check-ignore -v CLAUDE.md apps/storefront-web/CLAUDE.md (resolve to .git/info/exclude)",
+        "grep -n -i 'claude' .gitignore (no match)"
+      ],
+      "verification_result": "Assistant-specific names left the tracked ignore list; the files stay ignored per clone; AGENTS.md states private/ policies are optional owner tooling",
+      "remaining_owner_action": "On every other clone, add the same three lines to .git/info/exclude (docs/runbooks/local-agent-files.md) before staging anything.",
+      "commit_sha": [
+        "f8d4a28"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-028",
+      "title": "tenant_applications carries tenant_id but has no row-level security (cross-tenant read and write at the database level)",
+      "original_severity": "MEDIUM",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G8",
+      "audit_ids": [
+        "TWZ-A-001",
+        "TWZ-A-002"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/alembic/versions/20260921_0030_tenant_applications_rls.py",
+        "apps/api/tawzeevo_api/dependencies.py",
+        "apps/api/tawzeevo_api/repositories/tenancy.py",
+        "apps/api/tawzeevo_api/services/platform.py",
+        "docs/contracts/tenant-isolation.md",
+        "docs/phase-9/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_tenant_applications_rls.py (new, 4 tests incl. the API lifecycle under a NOBYPASSRLS login role)",
+        "apps/api/tests/test_hardening.py (catalog-driven sweep)",
+        "head-asserting tests repointed"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_tenant_applications_rls.py tests/test_platform.py tests/test_hardening.py -q -p no:cacheprovider",
+        "preserved audit modules audit_adv_schema.py::test_a001_* and ::test_a002_* on the recreated audit DB (PASS: 49 tables covered; leaks {}, writable {})"
+      ],
+      "verification_result": "PASS — tenant-B scope sees/changes nothing of tenant A; applicant sees/submits own rows only; platform-admin scope reviews all; submit/list/approve/reject work under an RLS-subject role",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "e296cb9"
+      ],
+      "note": "Attack path: any SQL under the application role scoped to tenant B could read/update/delete tenant A's application row. Now: FORCE RLS with ownership-true policies (platform admin scope bound by require_system_admin; applicant own rows; tenant reads its creating application). Found and fixed a latent defect on the way: platform audit inserts (tenant_id NULL) failed under a non-bypass role because RETURNING needs a SELECT policy — added."
+    },
+    {
+      "finding_id": "TWZ-F-029",
+      "title": "RUN_TESTS.md and financial-invariants.md cite a test that does not exist (E08 zero-value cancellation reversal)",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_STATIC_G9",
+      "audit_ids": [
+        "TWZ-A-030",
+        "TWZ-C-008"
+      ],
+      "classification": "DOCUMENTATION_CORRECTION",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "docs/contracts/financial-invariants.md",
+        "RUN_TESTS.md"
+      ],
+      "tests_added_or_changed": [],
+      "verification_commands": [
+        "grep -rn test_zero_value_confirmed_cancellation apps/api/tests (no match); grep -n test_confirmed_revision_rejects_zero_net_sales_and_cancellation_compensates apps/api/tests/test_invoice_editor.py (exists)"
+      ],
+      "verification_result": "E08 and the RUN_TESTS P3-M4 row cite the existing test",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "f8d4a28"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-030",
+      "title": "Six backend tests compute 'today' in UTC while the product resolves demand days in Asia/Beirut: the suite fails between 00:00 and 03:00 local time",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G9",
+      "audit_ids": [
+        "TWZ-B-020",
+        "TWZ-B-026",
+        "TWZ-B-027",
+        "TWZ-B-032",
+        "TWZ-A-042"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tests/test_procurement.py"
+      ],
+      "tests_added_or_changed": [
+        "shared _today() helper now on the Asia/Beirut calendar (used by the six affected tests)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_procurement.py tests/test_supplier_purchases.py tests/test_sync_phase6.py tests/test_delivery_routes.py -q -p no:cacheprovider"
+      ],
+      "verification_result": "PASS at 11:xx local; the helper no longer depends on the UTC date so the 00:00–03:00 window cannot recur",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "524eb14"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-031",
+      "title": "Operations client defaults the procurement demand range to the UTC date while the server uses the Asia/Beirut calendar (today's demand invisible between 00:00 and 03:00 local)",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_RUNTIME_G9",
+      "audit_ids": [
+        "TWZ-B-021",
+        "TWZ-B-026"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/operations-web/src/utils/tenantCalendar.ts",
+        "apps/operations-web/src/components/ProcurementPanel.tsx",
+        "docs/phase-6/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/operations-web/src/utils/tenantCalendar.test.ts (new, 2 tests)"
+      ],
+      "verification_commands": [
+        "cd apps/operations-web && npx vitest run src/utils/tenantCalendar.test.ts && npx eslint src && npx tsc -b"
+      ],
+      "verification_result": "PASS — Beirut date differs from the UTC date in the 00:00–03:00 window and the helper returns the Beirut day",
+      "remaining_owner_action": "none (the Playwright phase-6 flow is covered by CI; not re-run locally in this session)",
+      "commit_sha": [
+        "f0f7e54"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-032",
+      "title": "Live API and storefront were cold (503 'Application loading') at probe time despite the 10-minute health workflow meant to keep them awake",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "OBSERVED_RUNTIME_G9",
+      "audit_ids": [
+        "TWZ-B-012",
+        "TWZ-B-014"
+      ],
+      "classification": "OWNER_EXTERNAL",
+      "new_status": "OWNER_EXTERNAL_ONLY",
+      "files_changed": [
+        "docs/phase-9/demo-guide.md"
+      ],
+      "tests_added_or_changed": [],
+      "verification_commands": [],
+      "verification_result": "Documented: cold starts of the free-tier instances and what to do before a demo. The Actions schedule history is not visible without a token.",
+      "remaining_owner_action": "Open GitHub -> Actions -> 'Health and alerts' and check whether the schedule runs every 10 minutes; if disabled/delayed, re-enable it or move the probe to an external uptime monitor; then probe /health/metrics twice 8 minutes apart after idling and compare uptime_seconds.",
+      "commit_sha": [
+        "f8d4a28"
+      ],
+      "note": ""
+    },
+    {
+      "finding_id": "TWZ-F-033",
+      "title": "Branding regression test asserts a tautology instead of the confirmed invoice being unchanged",
+      "original_severity": "LOW",
+      "original_status": "TRIAGED",
+      "original_verification": "CONFIRMED_STATIC_G12",
+      "audit_ids": [
+        "TWZ-A-052"
+      ],
+      "classification": "FIX_LOCALLY",
+      "new_status": "FIXED_VERIFIED",
+      "files_changed": [
+        "apps/api/tests/test_branding_public_stats.py",
+        "docs/phase-8/requirements-audit.md"
+      ],
+      "tests_added_or_changed": [
+        "apps/api/tests/test_branding_public_stats.py::test_branding_is_owner_only_isolated_and_rendered_on_public_pages (before/after money capture)"
+      ],
+      "verification_commands": [
+        "cd apps/api && python -m pytest tests/test_branding_public_stats.py -q -p no:cacheprovider",
+        "preserved audit module audit_adv_recon.py::test_a052_... (re-run: PASS)"
+      ],
+      "verification_result": "PASS — invoice money and public price captured before any branding exists and asserted identical afterwards; the assertion can now fail",
+      "remaining_owner_action": "none",
+      "commit_sha": [
+        "524eb14"
+      ],
+      "note": ""
+    }
+  ],
+  "classification_counts": {
+    "FIX_LOCALLY": 23,
+    "OWNER_EXTERNAL": 3,
+    "DOCUMENTATION_CORRECTION": 4,
+    "REFUTED_WITH_NEW_EVIDENCE": 1,
+    "DEFERRED_BY_LOCKED_DECISION": 2
+  }
+}
