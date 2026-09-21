@@ -68,9 +68,10 @@ Phase 9 additions:
 
 ```powershell
 # SLO probe against a running API (never the production database from a test)
-.\.venv\Scripts\python.exe apps\api\scripts\slo_probe.py http://127.0.0.1:8011 admin-e2e@example.com 'E2eAdminPassword123!'
+$env:TAWZEEVO_ADMIN_PASSWORD = '<admin password>'   # never on the command line
+.\.venv\Scripts\python.exe apps\api\scripts\slo_probe.py http://127.0.0.1:8011 admin-e2e@example.com
 # pilot drill (two businesses, both operating models, boundaries)
-.\.venv\Scripts\python.exe apps\api\scripts\pilot_drill.py http://127.0.0.1:8011 admin-e2e@example.com 'E2eAdminPassword123!'
+.\.venv\Scripts\python.exe apps\api\scripts\pilot_drill.py http://127.0.0.1:8011 admin-e2e@example.com
 ```
 
 CI runs on every push to `main` (`.github/workflows/ci.yml`); the alert probe can be dispatched

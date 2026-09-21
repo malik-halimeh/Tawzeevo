@@ -21,6 +21,14 @@ This file records how to run each individual test from the repository root. It d
 
 ## Exact command formats
 
+> **Layout note (2026-09-21).** The backend suite lives flat under `apps/api/tests/` (there is no
+> `apps/api/tests/unit/` directory and no `unit` pytest marker; `pyproject.toml` declares only
+> `integration`). Every backend test runs from `apps/api` with `TEST_DATABASE_URL` pointing at a
+> disposable PostgreSQL database, e.g.
+> `python -m pytest tests/<test_file>.py -q -p no:cacheprovider`. The canonical, executed commands
+> are `.github/workflows/ci.yml` and `docs/phase-N/test-report.md`; the templates below are kept
+> as the historical ledger format and are superseded where they disagree.
+
 The following are templates. Replace every `<...>` placeholder before adding a real ledger entry.
 
 ### Backend — one test file
@@ -134,7 +142,7 @@ The full backend integration command requires a deliberately disposable PostgreS
 | P3-M4 | Pytest/PostgreSQL integration | `apps/api/tests/test_invoice_editor.py` | `test_cancellation_preserves_payment_releases_credit_and_refund_ceiling_is_concurrent` | `uv --system-certs run --extra dev pytest "tests/test_invoice_editor.py::test_cancellation_preserves_payment_releases_credit_and_refund_ceiling_is_concurrent" -q` (from `apps/api`) | Cancels a partially paid confirmed invoice, preserves the receipt, reverses allocations into credit, proves cancellation replay is harmless, and proves two concurrent refunds cannot spend the same credit. | PASS / 2026-08-27 |
 | P3-M4 | Pytest/PostgreSQL integration | `apps/api/tests/test_invoice_editor.py` | `test_unconfirmed_cancellation_has_no_financial_effect` | `uv --system-certs run --extra dev pytest "tests/test_invoice_editor.py::test_unconfirmed_cancellation_has_no_financial_effect" -q` (from `apps/api`) | Cancels a draft while preserving its provisional revision and proves no customer-ledger reversal or charge is invented. | PASS / 2026-08-27 |
 | P3-M4 | Pytest/PostgreSQL integration | `apps/api/tests/test_invoice_editor.py` | `test_confirmed_cancellation_matrix_handles_unpaid_and_fully_paid_invoices` | `uv --system-certs run --extra dev pytest "tests/test_invoice_editor.py::test_confirmed_cancellation_matrix_handles_unpaid_and_fully_paid_invoices" -q` (from `apps/api`) | Covers confirmed unpaid and fully paid cancellation: invoice value reaches zero, full-payment money remains immutable as customer credit, and no payment is deleted. | PASS / 2026-08-27 |
-| P3-M4 | Pytest/PostgreSQL integration | `apps/api/tests/test_invoice_editor.py` | `test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal` | `uv --system-certs run --extra dev pytest "tests/test_invoice_editor.py::test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal" -q` (from `apps/api`) | Revises a confirmed invoice to zero, cancels it, and proves the required zero-valued invoice-reversal effect remains explicit and immutable. | PASS / 2026-08-27 |
+| P3-M4 | Pytest/PostgreSQL integration | `apps/api/tests/test_invoice_editor.py` | `test_confirmed_revision_rejects_zero_net_sales_and_cancellation_compensates` | `uv --system-certs run --extra dev pytest "tests/test_invoice_editor.py::test_confirmed_revision_rejects_zero_net_sales_and_cancellation_compensates" -q` (from `apps/api`) | Refuses a zero-value confirmed revision, then cancels the confirmed invoice and proves the compensating reversal remains explicit and immutable (the row cited a test name that never existed until corrected on 2026-09-21). | PASS / 2026-08-27 |
 | P3-M4 | Vitest/jsdom component | `apps/operations-web/src/components/InvoiceEditor.test.tsx` | `owner records a selected receipt allocation and can reverse the immutable receipt` | `npm exec --workspace @tawzeevo/operations-web -- vitest run "src/components/InvoiceEditor.test.tsx" -t "owner records a selected receipt allocation and can reverse the immutable receipt"` | Uses the owner settlement desk to choose an obligation amount, record a partial receipt with unallocated value, inspect the payment slip, and submit a reasoned receipt reversal. | PASS / 2026-08-27 |
 <!-- Add one row per real test. Do not add example or fictional completed rows. -->
 

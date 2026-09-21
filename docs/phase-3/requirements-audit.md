@@ -7,9 +7,9 @@ Status: PASS (P3-M6 freeze)
 This document freezes requirement-to-code/test evidence for `PHASE_03.md`. It does not supersede
 the project contract, the decision ledger, or the phase contract. Backend paths are relative to
 `apps/api/tawzeevo_api/`, tests to `apps/api/tests/`, frontend to `apps/operations-web/src/`.
-Historical findings and their closures are in `docs/audits/AUDIT_REGISTER.md` and
-`docs/audits/PHASE_3_FINANCIAL_AUDIT.md`; the invariant catalog is
-`docs/contracts/financial-invariants.md`.
+Historical findings and their closures are kept in the owner's working records outside the
+public tree (the former `docs/audits/` register was moved out of the repository on 2026-09-18);
+the invariant catalog is `docs/contracts/financial-invariants.md`.
 
 ## A/B — Financial invariants and production invoice model
 
@@ -93,7 +93,7 @@ Historical findings and their closures are in `docs/audits/AUDIT_REGISTER.md` an
 
 ## Open items carried forward (not blockers)
 
-- FA-009 draft-create command idempotency across headers: CANDIDATE awaiting the owner's decision
+- FA-009 draft-create command idempotency across headers: closed by D-045 (approved 2026-09-17); since 2026-09-21 a replay must also match every monetary intent of the request (manual unit prices, line/invoice discounts and markups, cost overrides) or answer 409 (`test_fa009_create_command.py`)
   (`OWNER_ACTIONS.md` A1). Draft creation posts no money.
 - Durable notification cadence for overdue alerts and exact public rate-limit constants remain
   operational policy for a later phase.

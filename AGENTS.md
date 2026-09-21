@@ -221,12 +221,17 @@ Do not repeatedly reread all phase files.
 
 ## Lean continuous assurance
 
+The `private/` directory is the owner's git-ignored working area; it is not part of the public
+repository and nothing in the public tree depends on it. The policies named below are optional
+supplementary tooling that exists only on the owner's workstation; when they are absent, the rules
+in this file and the phase evidence procedure are complete on their own.
+
 The authority order and milestone protocol above remain controlling. When structural graph evidence
-is used, follow `private/docs/assurance/GRAPHIFY.md`; Graphify is supplemental and its recorded source SHA
-must match the intended audited commit. Never establish a critical finding from an inferred or
+is used, follow `private/docs/assurance/GRAPHIFY.md` where present; Graphify is supplemental and its
+recorded source SHA must match the intended audited commit. Never establish a critical finding from an inferred or
 ambiguous relationship without direct repository evidence.
 
-Use `private/docs/assurance/ASSURANCE_GATES.md` at milestone and phase checkpoints. After each completed
+Use `private/docs/assurance/ASSURANCE_GATES.md` (where present) at milestone and phase checkpoints. After each completed
 milestone commit, and after the material change classes listed in the Graphify policy, run the
 repository refresh script and verify its recorded SHA. The script and generated graph are development
 tooling only and must not be required by the application at runtime.

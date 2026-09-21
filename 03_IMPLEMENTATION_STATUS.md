@@ -260,6 +260,10 @@ The final checkpoint only adds this documentation evidence; tested runtime conte
 
 ### Continuity audit overlay — 2026-09-06
 
+> Historical note (2026-09-21): the paths `docs/TRACEABILITY_MATRIX.md` and
+> `docs/audits/AUDIT_REGISTER.md` referenced below were moved out of the public tree on
+> 2026-09-18 into the owner's working records; the sections are kept as written for history.
+
 Implementation audit baseline remains `2248c137e43c6c043725830c1303756da1d210ee`.
 The phase/milestone rows above are recorded state, not authorization to start P3-M6 during an
 audit. This documentation-only task does not implement a milestone or certify Phase 3 complete.

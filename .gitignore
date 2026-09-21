@@ -56,8 +56,7 @@ private/
 
 # Tool-generated agent notes (never committed)
 apps/storefront-web/AGENTS.md
-apps/storefront-web/CLAUDE.md
 
-# Local agent loader and private role mapping (D-025: never in the public repository)
-/CLAUDE.md
-.claude/
+# Local agent loader files and private role mapping (D-025: never in the public repository).
+# The assistant-specific file names are excluded per clone through .git/info/exclude so the
+# public ignore list stays product-neutral; see docs/runbooks/local-agent-files.md.
