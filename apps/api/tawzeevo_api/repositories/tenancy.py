@@ -5,7 +5,21 @@ from uuid import UUID
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from tawzeevo_api.models import TenantMembership, TenantRole, User
+from tawzeevo_api.models import Tenant, TenantMembership, TenantRole, User
+
+
+def all_tenant_ids(db: Session) -> list[UUID]:
+    """Every tenant id, read from the global `tenants` table.
+
+    `tenants` carries no `tenant_id` column, so it has no row-level policy: it is the one
+    legitimate source a scheduled job may enumerate *before* a tenant scope is bound. Jobs use
+    it to work tenant by tenant, binding `set_tenant_scope` before every scoped statement, so
+    they find the same work whether the API connects with a role that bypasses row-level
+    security or with the `NOSUPERUSER NOBYPASSRLS` role `docs/runbooks/database-role.md`
+    prescribes. No cross-tenant read is possible through this list: it contains identifiers
+    only, and every following statement runs inside one tenant's scope.
+    """
+    return list(db.scalars(select(Tenant.id).order_by(Tenant.id)))
 
 
 def set_tenant_scope(db: Session, tenant_id: UUID) -> None:

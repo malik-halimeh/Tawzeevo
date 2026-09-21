@@ -8,9 +8,13 @@ Three jobs run inside the API process for the pilot (a separate worker is a late
 - delivery reminders (`run_due_delivery_reminders`, D-049/PHASE_05.md I) — a SCHEDULED reminder
   whose UTC `remind_at` has passed becomes exactly one in-app owner notification.
 
-Every job is idempotent (a second run finds nothing due), tenant-scoped (RLS scope is set per
-row), and isolated (one failing tenant is logged and counted, the others still run). Nothing here
-touches financial rows.
+Every job is idempotent (a second run finds nothing due) and isolated (one failing tenant is
+logged and counted, the others still run). Scheduled work runs **tenant by tenant**: the job
+enumerates tenant ids from the global `tenants` table (no `tenant_id` column, therefore no
+row-level policy) and binds `set_tenant_scope` before every statement that touches a
+tenant-owned table. A job therefore finds the same work under a database role that is subject
+to row-level security (`NOSUPERUSER NOBYPASSRLS`, `docs/runbooks/database-role.md`) as under one
+that bypasses it; nothing here bypasses or weakens a policy. Nothing here touches financial rows.
 """
 
 from __future__ import annotations
@@ -21,13 +25,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import monotonic
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from tawzeevo_api import metrics
 from tawzeevo_api.models import DeliveryReminder, Order, OwnerNotification
-from tawzeevo_api.repositories.tenancy import set_tenant_scope
+from tawzeevo_api.repositories.tenancy import all_tenant_ids, set_tenant_scope
 from tawzeevo_api.services.backup import run_due_backups
 from tawzeevo_api.services.storefront_signals import rollup_views
 
@@ -39,20 +44,41 @@ DELIVERY_REMINDER_KIND = "DELIVERY_REMINDER"
 def run_due_delivery_reminders(db: Session, now: datetime | None = None) -> int:
     """Execute every SCHEDULED reminder whose `remind_at` has passed: one owner notification of
     kind DELIVERY_REMINDER per reminder, then SENT. A reminder whose order is no longer confirmed
-    is CANCELLED instead. Each reminder is its own transaction; the row lock (SKIP LOCKED) makes
-    concurrent runs and replays safe — a SENT reminder is never sent twice."""
+    is CANCELLED instead. The scan runs per tenant inside that tenant's RLS scope; each reminder
+    is its own transaction and the row lock (SKIP LOCKED) makes concurrent runs and replays
+    safe — a SENT reminder is never sent twice."""
     moment = now or datetime.now(UTC)
-    due_ids = list(
-        db.scalars(
-            select(DeliveryReminder.id)
-            .where(DeliveryReminder.status == "SCHEDULED", DeliveryReminder.remind_at <= moment)
-            .order_by(DeliveryReminder.remind_at.asc())
-        )
-    )
-    db.rollback()
+    sent = 0
+    for tenant_id in all_tenant_ids(db):
+        try:
+            set_tenant_scope(db, tenant_id)
+            due_ids = list(
+                db.scalars(
+                    select(DeliveryReminder.id)
+                    .where(
+                        DeliveryReminder.tenant_id == tenant_id,
+                        DeliveryReminder.status == "SCHEDULED",
+                        DeliveryReminder.remind_at <= moment,
+                    )
+                    .order_by(DeliveryReminder.remind_at.asc())
+                )
+            )
+            db.rollback()
+        except Exception:  # noqa: BLE001 - one tenant must not block the rest
+            db.rollback()
+            metrics.increment("reminder_failures")
+            logger.exception("delivery reminder scan failed for tenant %s", tenant_id)
+            continue
+        sent += _send_due_reminders(db, tenant_id, due_ids, moment)
+    return sent
+
+
+def _send_due_reminders(db: Session, tenant_id: UUID, due_ids: list[UUID], moment: datetime) -> int:
+    """One transaction per reminder, all of them inside this tenant's scope."""
     sent = 0
     for reminder_id in due_ids:
         try:
+            set_tenant_scope(db, tenant_id)
             reminder = db.scalar(
                 select(DeliveryReminder)
                 .where(DeliveryReminder.id == reminder_id, DeliveryReminder.status == "SCHEDULED")
@@ -61,7 +87,6 @@ def run_due_delivery_reminders(db: Session, now: datetime | None = None) -> int:
             if reminder is None:  # already taken by a concurrent run or rescheduled
                 db.rollback()
                 continue
-            set_tenant_scope(db, reminder.tenant_id)
             order = db.get(Order, reminder.order_id)
             if order is None or order.status != "CONFIRMED":
                 reminder.status = "CANCELLED"
@@ -69,7 +94,7 @@ def run_due_delivery_reminders(db: Session, now: datetime | None = None) -> int:
                 continue
             db.add(
                 OwnerNotification(
-                    tenant_id=reminder.tenant_id,
+                    tenant_id=tenant_id,
                     kind=DELIVERY_REMINDER_KIND,
                     order_id=reminder.order_id,
                 )

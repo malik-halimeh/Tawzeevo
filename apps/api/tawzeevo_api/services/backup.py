@@ -29,7 +29,7 @@ from tawzeevo_api.models import (
     TenantBackupRestore,
     TenantStatus,
 )
-from tawzeevo_api.repositories.tenancy import set_tenant_scope
+from tawzeevo_api.repositories.tenancy import all_tenant_ids, set_tenant_scope
 from tawzeevo_api.services import backup_crypto, backup_export
 from tawzeevo_api.services.backup_drive import DriveClient, drive_client, oauth_client
 from tawzeevo_api.services.sync import high_water
@@ -365,20 +365,23 @@ def _due_kind(db: Session, tenant_id: UUID, now: datetime) -> str | None:
 def run_due_backups(
     db: Session, now: datetime | None = None, settings: Settings | None = None
 ) -> list[UUID]:
-    """Scheduled entry: one backup per connected active tenant per 24 h; monthly first."""
+    """Scheduled entry: one backup per connected active tenant per 24 h; monthly first.
+
+    The tenant list comes from the global `tenants` table and this tenant's RLS scope is bound
+    before the connection lookup, so the job discovers the same connections under a database
+    role that is subject to row-level security as under one that bypasses it. No tenant ever
+    sees another tenant's rows: every read below runs inside one bound scope.
+    """
     active = settings or get_settings()
     moment = now or _now()
     done: list[UUID] = []
-    connections = list(
-        db.scalars(
-            select(TenantBackupConnection).where(TenantBackupConnection.disconnected_at.is_(None))
-        )
-    )
-    for connection in connections:
-        tenant = db.get(Tenant, connection.tenant_id)
+    for tenant_id in all_tenant_ids(db):
+        tenant = db.get(Tenant, tenant_id)
         if tenant is None or tenant.status is not TenantStatus.ACTIVE:
             continue
         set_tenant_scope(db, tenant.id)
+        if active_connection(db, tenant.id) is None:
+            continue
         kind = _due_kind(db, tenant.id, moment)
         if kind is None:
             continue

@@ -29,7 +29,7 @@ from tawzeevo_api.models import (
     Tenant,
     TenantProduct,
 )
-from tawzeevo_api.repositories.tenancy import set_tenant_scope
+from tawzeevo_api.repositories.tenancy import all_tenant_ids, set_tenant_scope
 
 PURCHASE_WEIGHT = 10
 VIEW_WEIGHT = 1
@@ -95,23 +95,37 @@ def record_view(
 
 
 def rollup_views(db: Session, now: datetime | None = None) -> int:
-    """D-051: fold raw views older than 90 days into monthly per-product counts, drop the rows."""
+    """D-051: fold raw views older than 90 days into monthly per-product counts, drop the rows.
+
+    Tenant by tenant, from the global tenant list, with this tenant's RLS scope bound before the
+    grouping read and before the rollup write, so the job folds the same rows under a database
+    role that is subject to row-level security as under one that bypasses it.
+    """
     moment = now or _now()
     cutoff = moment - RAW_VIEW_RETENTION
+    folded = 0
+    for tenant_id in all_tenant_ids(db):
+        folded += _rollup_tenant_views(db, tenant_id, cutoff)
+    return folded
+
+
+def _rollup_tenant_views(db: Session, tenant_id: UUID, cutoff: datetime) -> int:
+    set_tenant_scope(db, tenant_id)
     month_of = func.date_trunc(literal_column("'month'"), ProductInteraction.occurred_at)
     grouped = db.execute(
         select(
-            ProductInteraction.tenant_id,
             ProductInteraction.tenant_product_id,
             month_of.label("month"),
             func.count().label("views"),
         )
-        .where(ProductInteraction.occurred_at < cutoff)
-        .group_by(ProductInteraction.tenant_id, ProductInteraction.tenant_product_id, month_of)
+        .where(
+            ProductInteraction.tenant_id == tenant_id,
+            ProductInteraction.occurred_at < cutoff,
+        )
+        .group_by(ProductInteraction.tenant_product_id, month_of)
     ).all()
     folded = 0
-    for tenant_id, product_id, month, views in grouped:
-        set_tenant_scope(db, tenant_id)
+    for product_id, month, views in grouped:
         month_date = month.date() if isinstance(month, datetime) else date.fromisoformat(str(month))
         statement = pg_insert(ProductInteractionRollup).values(
             tenant_id=tenant_id, tenant_product_id=product_id, month=month_date, views=int(views)
@@ -123,9 +137,7 @@ def rollup_views(db: Session, now: datetime | None = None) -> int:
             )
         )
         folded += int(views)
-    tenants = {row[0] for row in grouped}
-    for tenant_id in tenants:
-        set_tenant_scope(db, tenant_id)
+    if grouped:
         db.execute(
             delete(ProductInteraction).where(
                 ProductInteraction.tenant_id == tenant_id,
