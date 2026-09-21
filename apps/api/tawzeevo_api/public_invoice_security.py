@@ -62,12 +62,20 @@ class AccessLogQueryStringFilter(logging.Filter):
     the message so the route path is kept and the parameters are not (PHASE_09.md G)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
+        if record.args:
+            # uvicorn passes the request target positionally; the format string itself is left
+            # alone so its placeholders keep matching the arguments.
+            if isinstance(record.args, tuple):
+                record.args = tuple(
+                    strip_query_string(a) if isinstance(a, str) else a for a in record.args
+                )
+            elif isinstance(record.args, dict):
+                record.args = {
+                    k: strip_query_string(v) if isinstance(v, str) else v
+                    for k, v in record.args.items()
+                }
+        elif isinstance(record.msg, str):
             record.msg = strip_query_string(record.msg)
-        if isinstance(record.args, tuple):
-            record.args = tuple(
-                strip_query_string(a) if isinstance(a, str) else a for a in record.args
-            )
         return True
 
 

@@ -66,7 +66,7 @@ def test_health_metrics_counts_without_content(client):
     assert "nobody@example.com" not in str(body)
 
 
-def test_uvicorn_access_log_never_records_query_strings(caplog):
+def test_uvicorn_access_log_never_records_query_strings(caplog, monkeypatch):
     """TWZ-A-058: the raw request line uvicorn logs is stripped of its query string (tenant and
     device ids, cursors, filters, anything a client put in the URL) while the path is kept."""
     import logging
@@ -75,6 +75,10 @@ def test_uvicorn_access_log_never_records_query_strings(caplog):
 
     install_capability_log_redaction()
     access = logging.getLogger("uvicorn.access")
+    # Alembic's fileConfig disables unrelated loggers during the migration tests of a full run;
+    # restore this test's capture surface without changing production logging policy.
+    monkeypatch.setattr(access, "disabled", False)
+    monkeypatch.setattr(access, "propagate", True)
     with caplog.at_level(logging.INFO, logger="uvicorn.access"):
         access.info(
             '%s - "%s %s HTTP/%s" %d',
@@ -84,6 +88,9 @@ def test_uvicorn_access_log_never_records_query_strings(caplog):
             "1.1",
             200,
         )
-    rendered = caplog.records[-1].getMessage()
+        # A record without arguments (message only) is stripped as well.
+        access.info("GET /api/v1/public/customer-context?x=1&device_installation_id=abc")
+    rendered = caplog.records[-2].getMessage()
     assert '"GET /api/v1/sync/pull HTTP/1.1" 200' in rendered
     assert "?" not in rendered and "tenant_id" not in rendered and "secret" not in rendered
+    assert caplog.records[-1].getMessage() == "GET /api/v1/public/customer-context"
