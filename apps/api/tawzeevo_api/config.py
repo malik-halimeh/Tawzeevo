@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     backup_master_key: str | None = None
     backup_kek_id: str = "kek-local-1"
     backup_drive_provider: str = "google"  # "memory" is the test double
+    # The in-process job scheduler (D-079): backups, storefront view rollup (D-051) and delivery
+    # reminders (D-049). Off in tests and local runs; the CLI jobs cover a hosting scheduler.
     backup_scheduler_enabled: bool = False
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None

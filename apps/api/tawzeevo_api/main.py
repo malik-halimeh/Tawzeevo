@@ -44,24 +44,12 @@ from tawzeevo_api.routes.suppliers import supplier_prices_router, suppliers_rout
 from tawzeevo_api.routes.sync import sync_router
 from tawzeevo_api.routes.team import team_router
 from tawzeevo_api.routes.users import stats_router, users_router
-from tawzeevo_api.services.backup import run_due_backups
+from tawzeevo_api.services.jobs import scheduler_loop
 from tawzeevo_api.services.sync_changes import register_change_tracking
 
 settings = get_settings()
 install_capability_log_redaction()
-logger = logging.getLogger("tawzeevo.backup")
-
-BACKUP_TICK_SECONDS = 3600
-
-
-def _backup_timer(stop: threading.Event) -> None:
-    """In-process daily backup timer for the pilot; a hosting scheduler may call the CLI instead."""
-    while not stop.wait(BACKUP_TICK_SECONDS):
-        try:
-            with SessionLocal() as db:
-                run_due_backups(db)
-        except Exception:  # noqa: BLE001 - the timer must survive one bad tick
-            logger.exception("scheduled backup tick failed")
+logger = logging.getLogger("tawzeevo.jobs")
 
 
 def database_preflight() -> None:
@@ -86,7 +74,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     stop = threading.Event()
     worker: threading.Thread | None = None
     if settings.backup_scheduler_enabled:
-        worker = threading.Thread(target=_backup_timer, args=(stop,), daemon=True)
+        # D-079: the in-process scheduler runs backups, the view rollup and delivery reminders
+        # (services/jobs.py); a hosting scheduler may call the CLI jobs instead.
+        worker = threading.Thread(
+            target=scheduler_loop, args=(stop, SessionLocal), daemon=True, name="tawzeevo-jobs"
+        )
         worker.start()
     try:
         yield

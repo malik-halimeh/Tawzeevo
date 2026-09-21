@@ -114,7 +114,7 @@ is **not yet decided**. Nothing was built; the assurance model already reserves 
 | Tenant lifecycle secure; RLS/two-tenant suite; owner/driver matrix | PASS |
 | Public abuse tests; financial/refund concurrency; offline/revocation | PASS |
 | Backup/restore | PASS against the double; live run pending (owner § L4; Supabase free plan has no hosted backups) |
-| Reliable jobs | PASS for the pilot scope (in-process scheduler, D-079; failure counters alerted) |
+| Reliable jobs | PASS for the pilot scope — in-process scheduler (D-079, `services/jobs.py`, enabled by `BACKUP_SCHEDULER_ENABLED`) runs backups (hourly check, one per tenant per day), the D-051 view rollup (hourly) and delivery reminders (every 5 minutes: a due SCHEDULED reminder becomes exactly one `DELIVERY_REMINDER` owner notification, SENT under a row lock; cancelled orders close the reminder); each job in its own session, failures counted (`job_failures`, `reminder_failures`) and alerted; `test_jobs.py`. Before 2026-09-21 only the backup timer ran and reminders were never executed |
 | EN/AR/accessibility | PASS (every new screen EN/AR; E2E in both directions) |
 | Performance SLOs or evidence-based adjustment | PARTIAL — measured; adjustment for the two-region, free-tier setup not yet approved |
 | Observability/alerts | PASS |
