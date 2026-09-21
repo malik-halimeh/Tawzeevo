@@ -83,7 +83,7 @@ environment master key).
 | Requirement | Implementation evidence | Test evidence | Result |
 |---|---|---|---:|
 | `/api/v1/sync/bootstrap`, `/push`, `/pull`; every request revalidates session and membership | `routes/sync.py` | sync test files | PASS |
-| PWA: service worker shell, sync state, pending/conflict/rejected/dead-letter UI, safe retry, re-bootstrap, restart persistence, pending local reference, media queue, revoked state, owner backup status | `public/sw.js`; `SyncPanel.tsx`; `BackupPanel.tsx`; `InvoiceEditor.tsx` | `BackupPanel.test.tsx`; offline unit suites; E2E | PASS |
+| PWA: service worker shell, sync state, pending/conflict/rejected/dead-letter UI, safe retry, re-bootstrap, restart persistence, pending local reference, media queue, revoked state, owner backup status | `public/sw.js`; `public/manifest.webmanifest` (192/512 px `any` + `maskable` PNG icons under `public/icons/`, added 2026-09-21 — the manifest previously declared no icons, so Chromium's installability criteria were not met); `SyncPanel.tsx`; `BackupPanel.tsx`; `InvoiceEditor.tsx` | `pwaManifest.test.ts` (manifest members, icon files and PNG dimensions); `BackupPanel.test.tsx`; offline unit suites; E2E | PASS |
 | EN/AR/RTL for every new string | `i18n.ts` (`sync.*`, `backup.*`, `invoiceEditor.*Offline`, `tenantWorkspace.*QueuedOffline`) | Phase 3 E2E Arabic/RTL switch still passes | PASS |
 | Alembic revisions `0014`, `0015`, `0016`; forced RLS on every new tenant-owned table; from-zero upgrade; drift check | migrations; `test_hardening.py` | `test_hardening.py::test_migrations_build_a_new_database_from_zero`; `alembic check` | PASS |
 
