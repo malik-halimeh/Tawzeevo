@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from tawzeevo_api import metrics
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import SessionLocal, get_db
+from tawzeevo_api.db_role import check_database_role, inspect_database_role
 from tawzeevo_api.errors import AppError, AuthenticationError
 from tawzeevo_api.observability import RequestContextMiddleware, configure_logging
 from tawzeevo_api.public_invoice_security import (
@@ -58,8 +59,20 @@ def _backup_timer(stop: threading.Event) -> None:
             logger.exception("scheduled backup tick failed")
 
 
+def database_role_preflight() -> None:
+    """Report (and, when required, enforce) that the application role is subject to RLS."""
+    try:
+        with SessionLocal() as db:
+            check_database_role(db, require_rls_subject=settings.db_role_require_rls_subject)
+    except SQLAlchemyError:
+        # An unreachable database is reported by /health/database; startup itself does not
+        # depend on the preflight succeeding.
+        logging.getLogger("tawzeevo.database").warning("database role preflight skipped")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    database_role_preflight()
     stop = threading.Event()
     worker: threading.Thread | None = None
     if settings.backup_scheduler_enabled:
@@ -207,13 +220,20 @@ def health_metrics() -> dict[str, object]:
 
 
 @app.get("/health/database", tags=["system"])
-def database_health(db: Session = Depends(get_db)) -> dict[str, str]:
+def database_health(db: Session = Depends(get_db)) -> dict[str, object]:
     try:
         head = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
+        role = inspect_database_role(db)
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"code": "DATABASE_UNAVAILABLE", "message": "Database is unavailable"},
         ) from exc
-    # The migration head lets a deploy check confirm the schema without reading logs (P9-M3).
-    return {"status": "ok", "database": "postgresql", "migration_head": head or "none"}
+    # The migration head lets a deploy check confirm the schema without reading logs (P9-M3);
+    # the role flag lets the alert probe confirm RLS is not bypassed. No names, no secrets.
+    return {
+        "status": "ok",
+        "database": "postgresql",
+        "migration_head": head or "none",
+        "database_role_rls_enforced": role.rls_enforced,
+    }

@@ -35,6 +35,8 @@ jobs:
           echo "$body"
           echo "$body" | grep -q '"status":"ok"'
           echo "$body" | grep -Eq '"migration_head":"[0-9]{8}_[0-9]{4}"'
+          # Informational until the restricted role is provisioned (docs/runbooks/database-role.md).
+          echo "$body" | grep -q '"database_role_rls_enforced":true' || echo "NOTE: the application database role bypasses row-level security; see docs/runbooks/database-role.md"
       - name: Error ratio and failure counters
         run: |
           set -e

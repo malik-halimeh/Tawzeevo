@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=5, ge=0, le=50)
     db_pool_recycle_seconds: int = Field(default=1800, ge=60)
     db_pool_timeout_seconds: int = Field(default=10, ge=1)
+    # Defense in depth only exists when the application role is subject to RLS (no SUPERUSER, no
+    # BYPASSRLS). The API always reports the role's attributes; with this flag it refuses to start
+    # otherwise. Off by default so an existing deployment is never taken down by a redeploy; the
+    # owner turns it on after provisioning such a role (docs/runbooks/database-role.md).
+    db_role_require_rls_subject: bool = False
     cors_allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     jwt_secret: str = "change-me"
     access_token_ttl_minutes: int = Field(default=15, ge=1)

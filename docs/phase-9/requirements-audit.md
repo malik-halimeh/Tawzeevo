@@ -44,6 +44,7 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 | Requirement | Evidence | Result |
 |---|---|---|
 | Constraints/FKs/indexes/RLS/migration history; pooling; contention | `database.py` bounded pool; `alembic check` clean at `20260921_0030`; migration from zero and upgrade from the Phase 7 head (`test_lifecycle_drill.py`) | PASS |
+| Application database role subject to RLS (no `SUPERUSER`/`BYPASSRLS`) | Startup preflight logs the role attributes and refuses to start when `DB_ROLE_REQUIRE_RLS_SUBJECT=true`; `/health/database` reports `database_role_rls_enforced`; `test_db_role_preflight.py`; runbook `docs/runbooks/database-role.md`. The **hosted** role's attributes are an owner check on the hosted database and were not verified here | OPEN (owner action) |
 | Invoice sequence race, refund concurrency, checkout/payment idempotency | `test_invoice_editor.py` (sequence, refund ceiling), `test_fa009_create_command.py`, `test_supplier_ledger.py`, `test_checkout.py`, `test_sync_push.py` | PASS |
 | Backup/PITR according to hosting; restore drill | app-level encrypted backup + restore verified against the in-memory double (`test_backup.py`); Supabase plan is **free — no hosted backups** (owner, 2026-09-20) → the Google Drive backup is mandatory before launch and its live run is pending (§ L4) | OPEN (owner action) |
 

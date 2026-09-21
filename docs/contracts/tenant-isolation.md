@@ -46,4 +46,4 @@ public table with a `tenant_id` column must have RLS enabled and forced with at 
 a new tenant-owned table cannot be forgotten silently. The application lifecycle
 (submit, list, approve, reject) is exercised under a `NOSUPERUSER NOBYPASSRLS` login role in
 `test_tenant_applications_rls.py`; whether the hosted application role has those attributes is an
-owner check on the hosted database (see `docs/runbooks/`).
+owner check on the hosted database (see `docs/runbooks/database-role.md`).

@@ -105,8 +105,11 @@ customer/supplier ledger entries, payments and allocations. Headers and capabili
 immutable financial records. 0009/0010 remain unchanged with exact Ruff exceptions and content
 guards. Never expand these exceptions to conceal a new failure.
 
-Tenant-owned rows use forced RLS and predicates; tests exercise non-bypass roles. The connection
-role is not proven by the DATABASE_URL variable name. Master/platform records have different
+Tenant-owned rows use forced RLS and predicates; tests exercise non-bypass roles (including the
+platform application lifecycle through the API). The connection role is not proven by the
+DATABASE_URL variable name: the API reads `pg_roles` at startup, logs whether the role bypasses
+RLS, reports `database_role_rls_enforced` on `/health/database`, and refuses to start with a
+bypassing role when `DB_ROLE_REQUIRE_RLS_SUBJECT=true` (`docs/runbooks/database-role.md`). Master/platform records have different
 policies; do not replace them with a generic Supabase auth.uid() policy. D-027 specifies direct
 PostgreSQL and Tawzeevo authentication, not Supabase Auth/Data API. Deployed grants/roles are
 CANNOT VERIFY from the baseline.
