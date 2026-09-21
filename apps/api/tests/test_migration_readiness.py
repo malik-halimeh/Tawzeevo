@@ -16,7 +16,7 @@ API_ROOT = Path(__file__).resolve().parents[1]
 
 def test_expected_head_matches_alembic_heads_and_the_repository_script():
     expected = expected_migration_head()
-    assert expected and expected == "20260921_0030"
+    assert expected and expected == "20260921_0031"
     cli = subprocess.run(
         [sys.executable, "-m", "alembic", "heads"], cwd=API_ROOT, capture_output=True, text=True
     )
@@ -43,7 +43,7 @@ def test_database_health_reports_expected_and_current_heads(client, session_fact
 
 def test_health_is_not_ready_when_startup_found_another_revision(client, monkeypatch):
     monkeypatch.setattr(
-        migrations, "_ready_state", MigrationState("20260921_0030", "20260920_0029")
+        migrations, "_ready_state", MigrationState("20260921_0031", "20260920_0029")
     )
     response = client.get("/health")
     assert response.status_code == 503
@@ -55,6 +55,6 @@ def test_health_is_not_ready_when_startup_found_another_revision(client, monkeyp
     monkeypatch.setattr(migrations, "_ready_state", None)
     assert client.get("/health").status_code == 200
     monkeypatch.setattr(
-        migrations, "_ready_state", MigrationState("20260921_0030", "20260921_0030")
+        migrations, "_ready_state", MigrationState("20260921_0031", "20260921_0031")
     )
     assert client.get("/health").json() == {"status": "ok", "service": "tawzeevo-api"}

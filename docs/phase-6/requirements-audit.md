@@ -56,7 +56,7 @@ with reason), D-059 (QUOTE / ACTUAL_PURCHASE provenance and invoice preload orde
 
 | Requirement | Implementation evidence | Test evidence | Result |
 |---|---|---|---:|
-| Immutable header/items; internal UUID; finalization: items → price history → ledger obligation → procurement progress → state → audit → commit | migration `0024`; `services/supplier_purchases.py::record_purchase` | `test_supplier_purchases.py::test_purchase_finalization_is_atomic_replay_safe_and_rolls_back` (rollback leaves no row anywhere; replay returns the stored purchase; changed body 409) | PASS |
+| Immutable header/items; internal UUID; finalization: items → price history → ledger obligation → procurement progress → state → audit → commit | migration `0024`; migration `0031` (2026-09-21: database triggers — purchase lines reject every update/delete, the header rejects delete and every update except the single reversal transition; the header is written once with its final total); D-059 preload and cost options skip entries of reversed purchases (`invoice_editor.py::_NOT_FROM_REVERSED_PURCHASE`); `services/supplier_purchases.py::record_purchase` | `test_supplier_purchases.py::test_purchase_finalization_is_atomic_replay_safe_and_rolls_back` (rollback leaves no row anywhere; replay returns the stored purchase; changed body 409) | PASS |
 
 ## H — Supplier ledger / payments
 

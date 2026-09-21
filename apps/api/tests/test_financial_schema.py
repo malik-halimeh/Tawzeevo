@@ -127,6 +127,10 @@ def test_financial_schema_is_canonical_numeric_and_database_immutable(
         "payments",
         "payment_allocations",
         "supplier_ledger_entries",
+        # Supplier purchases and their lines: immutable at the database since 20260921_0031
+        # (the header accepts exactly one reversal transition, nothing else).
+        "supplier_purchase_items",
+        "supplier_purchases",
     }
     with test_engine.connect() as connection:
         immutable_tables = set(

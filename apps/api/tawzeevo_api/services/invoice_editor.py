@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import case, func, select, text
+from sqlalchemy import case, exists, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,7 @@ from tawzeevo_api.models import (
     InvoiceStatus,
     PriceResolutionSource,
     ProductPriceBasis,
+    SupplierPurchase,
     TenantProduct,
     TenantProductCostEntry,
     TenantSupplier,
@@ -294,6 +295,7 @@ def product_cost_options(
                 TenantProductCostEntry.currency == currency,
                 TenantProductCostEntry.cost_basis == basis,
                 TenantProductCostEntry.effective_at <= datetime.now(UTC),
+                _NOT_FROM_REVERSED_PURCHASE,
             )
             .order_by(
                 TenantProductCostEntry.effective_at.desc(),
@@ -458,6 +460,14 @@ _COST_SOURCE_PRIORITY = case(
     else_=2,
 )
 
+# D-059 preload never uses the price of a purchase that was reversed: the entry stays as history
+# with its provenance, but a reversed purchase never happened commercially.
+_NOT_FROM_REVERSED_PURCHASE = ~exists().where(
+    SupplierPurchase.id == TenantProductCostEntry.source_reference_id,
+    SupplierPurchase.tenant_id == TenantProductCostEntry.tenant_id,
+    SupplierPurchase.reversed_at.is_not(None),
+)
+
 
 def _validate_supplier(db: Session, tenant_id: UUID, supplier_id: UUID) -> None:
     if (
@@ -515,6 +525,7 @@ def _prepare_cost(
             TenantProductCostEntry.currency == currency,
             TenantProductCostEntry.cost_basis == cost_basis,
             TenantProductCostEntry.effective_at <= datetime.now(UTC),
+            _NOT_FROM_REVERSED_PURCHASE,
         )
         # D-059: the latest actual purchase wins, then the latest quote, then manual entries.
         .order_by(
