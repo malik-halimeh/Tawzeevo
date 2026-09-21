@@ -1,0 +1,21 @@
+const { createRequire } = require('node:module');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const repo = process.env.TAWZEEVO_TOOL_ROOT || path.resolve(root, '../../..');
+const { chromium } = createRequire(path.join(repo, 'package.json'))('playwright');
+(async () => {
+ const browser = await chromium.launch({ headless: true });
+ const page = await browser.newPage({viewport:{width:1440,height:1050}});
+ const errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ page.on('requestfailed',req=>errors.push(req.url()+': '+req.failure().errorText));
+ page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+ await page.goto('http://127.0.0.1:4180');
+ await page.evaluate(()=>document.fonts.ready);
+ await page.screenshot({path:path.join(root,'screenshots','owner-desktop-en.png'),fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:path.join(root,'screenshots','owner-mobile-en.png'),fullPage:true});
+ console.log(JSON.stringify({errors,overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),title:await page.title()}));
+ await browser.close();
+ if(errors.length)process.exitCode=1;
+})();

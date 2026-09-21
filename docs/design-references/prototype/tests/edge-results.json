@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "date": "2026-09-21T21:11:43.514Z",
+  "checks": [
+    "LBP delivery 360 en",
+    "LBP balance 360 en",
+    "Payment field in short viewport en",
+    "Escape dismisses dialog en",
+    "LBP delivery 360 ar",
+    "LBP balance 360 ar",
+    "Payment field in short viewport ar",
+    "Escape dismisses dialog ar"
+  ]
+}
