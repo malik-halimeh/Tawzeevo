@@ -377,6 +377,7 @@ def test_production_settings_require_secure_cookie_and_real_secret() -> None:
         "email_api_key": "xkeysib-test",
         "password_reset_url": "https://ops.example/reset-password",
         "backup_drive_provider": "google",  # explicit: CI exports the memory double
+        "customer_otp_provider": "whatsapp",  # the dev adapter is refused in production
     }
     production = Settings(
         app_env="production",
@@ -385,6 +386,15 @@ def test_production_settings_require_secure_cookie_and_real_secret() -> None:
         **mail,
     )
     assert production.refresh_cookie_secure is True
+    # Customer verification (D-073): production must not start with the development OTP
+    # adapter, which delivers nothing and would lock VERIFIED customers out.
+    with pytest.raises(ValidationError, match="CUSTOMER_OTP_PROVIDER"):
+        Settings(
+            app_env="production",
+            jwt_secret="a-production-secret-placeholder-value",
+            refresh_cookie_secure=True,
+            **{**mail, "customer_otp_provider": "dev"},
+        )
     # Password recovery (D-077) needs a real mail provider and an https reset page in production.
     with pytest.raises(ValidationError):
         Settings(

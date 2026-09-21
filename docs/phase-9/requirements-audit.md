@@ -86,6 +86,19 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 | Two synthetic tenants for isolation; one-owner/zero-driver and owner+driver; barcode, phone search, invoice, payment, procurement, purchase, delivery, analytics | `scripts/pilot_drill.py` on staging: 30/30 (owner+driver "Pilot Van A" with the owner's pilot Gmail accounts, sole-owner "Pilot Van B"); Playwright flows cover post-confirm edit, offline/reconnect, storefront order, owner review, cancellation, delivery date, routes | PASS |
 | Real pilot where available; backup/restore | live business "Bekaa Fresh Water" with the owner's two accounts created; real usage and the live backup run are the owner's next steps | OPEN (owner usage) |
 
+## P9-M5 — Customer verification provider (D-073), production guard
+
+Only the development delivery adapter exists (the production provider is the owner's pending
+decision). Since 2026-09-21 production refuses to start with `CUSTOMER_OTP_PROVIDER=dev`
+(`config.py`, `test_auth.py::test_production_settings_require_secure_cookie_and_real_secret`),
+and the `VERIFIED` policy is offered and selectable only while a usable delivery adapter is
+configured (`customer_access.selectable_policies`, `409 OTP_PROVIDER_NOT_CONFIGURED`;
+`test_customer_verification.py::test_link_policy_customers_are_unaffected_and_dev_code_is_guarded`),
+so a business cannot lock its customers out of verification. `LINK` is unaffected. **The next
+live deploy needs `CUSTOMER_OTP_PROVIDER` set to the chosen provider in the service environment**
+(declared `sync: false` in `render.yaml`); until an adapter for that provider is implemented,
+`VERIFIED` stays unselectable in production. OPEN (owner provider decision).
+
 ## P9-M6 — Customer accounts and history claiming (D-074)
 
 Precondition "Gate G decision on account identity (email/phone), recovery and session lifetime"

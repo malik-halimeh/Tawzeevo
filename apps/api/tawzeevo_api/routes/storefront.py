@@ -384,7 +384,7 @@ def _status(db: Session, context: TenantContext, customer_id: UUID) -> CustomerL
         effective_policy=customer_access.effective_policy(context.tenant, customer).value,
         policy_override=customer.access_policy_override,
         tenant_policy=context.tenant.customer_access_policy,
-        available_policies=sorted(policy.value for policy in customer_access.AVAILABLE_POLICIES),
+        available_policies=sorted(policy.value for policy in customer_access.selectable_policies()),
         verified_sessions=customer_verification.count_active_sessions(
             db, context.tenant.id, customer_id
         ),

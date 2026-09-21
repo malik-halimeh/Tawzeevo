@@ -78,5 +78,17 @@ def get_otp_delivery(settings: Settings | None = None) -> OtpDelivery:
     return UnconfiguredDelivery(provider)
 
 
+def delivery_is_usable(settings: Settings | None = None) -> bool:
+    """Can a one-time code actually reach a customer with this configuration? The development
+    adapter only counts outside production (it never leaves the process); an unimplemented or
+    uncredentialed production channel never counts. Policies that depend on delivery (VERIFIED)
+    are only selectable when this is true, so a business cannot lock its customers out."""
+    active = settings or get_settings()
+    provider = active.customer_otp_provider.lower()
+    if provider == "dev":
+        return active.app_env.lower() != "production"
+    return False  # no production adapter is implemented yet (P9-M5 provider decision pending)
+
+
 def dev_delivery() -> DevOtpDelivery:
     return _dev

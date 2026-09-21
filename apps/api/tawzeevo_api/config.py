@@ -104,6 +104,13 @@ class Settings(BaseSettings):
                 )
             if not self.password_reset_url.startswith("https://"):
                 raise ValueError("PASSWORD_RESET_URL must be https in production")
+            if self.customer_otp_provider.lower() == "dev":
+                # The development adapter delivers nothing outside the process: a VERIFIED
+                # customer could never complete verification. Fail closed (D-073 gate).
+                raise ValueError(
+                    "CUSTOMER_OTP_PROVIDER must name a production delivery provider; "
+                    "the dev adapter is refused in production"
+                )
         return self
 
 
