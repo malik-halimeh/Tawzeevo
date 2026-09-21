@@ -74,8 +74,11 @@ def submit_application(
         status=TenantApplicationStatus.PENDING,
     )
     db.add(application)
-    db.commit()
+    # Refresh inside the applicant's transaction: the applicant read policy is bound to the
+    # request's user scope, which a commit would drop.
+    db.flush()
     db.refresh(application)
+    db.commit()
     return application
 
 
@@ -171,8 +174,9 @@ def approve_application(
             details={"tenant_id": str(tenant.id), "applicant_user_id": str(applicant.id)},
         )
     )
+    db.flush()
+    db.refresh(application)  # still under the platform-admin scope of this transaction
     db.commit()
-    db.refresh(application)
     return application
 
 
@@ -199,8 +203,9 @@ def reject_application(
             details={"applicant_user_id": str(application.applicant_user_id)},
         )
     )
+    db.flush()
+    db.refresh(application)  # still under the platform-admin scope of this transaction
     db.commit()
-    db.refresh(application)
     return application
 
 

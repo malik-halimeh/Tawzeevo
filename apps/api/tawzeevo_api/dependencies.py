@@ -22,7 +22,11 @@ from tawzeevo_api.models import (
     TenantStatus,
     User,
 )
-from tawzeevo_api.repositories.tenancy import get_scoped_membership, set_user_scope
+from tawzeevo_api.repositories.tenancy import (
+    get_scoped_membership,
+    set_platform_scope,
+    set_user_scope,
+)
 from tawzeevo_api.security import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False, scheme_name="BearerAuth")
@@ -87,9 +91,13 @@ def get_current_user(context: Annotated[AuthContext, Depends(get_auth_context)])
     return context.user
 
 
-def require_system_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
+def require_system_admin(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> User:
     if user.type is not SystemUserType.ADMIN:
         raise AppError(403, "ADMIN_REQUIRED", "System administrator access is required")
+    set_platform_scope(db)
     return user
 
 

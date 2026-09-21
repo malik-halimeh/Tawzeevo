@@ -190,7 +190,7 @@ def test_migrations_build_a_new_database_from_zero(test_engine: Engine) -> None:
         with target_engine.connect() as connection:
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("20260920_0029")
+            ).scalar_one() == ("20260921_0030")
         assert {
             "users",
             "auth_sessions",
@@ -462,7 +462,11 @@ def test_postgresql_rls_enforces_tenant_visibility_and_write_checks(
 
 @pytest.mark.integration
 def test_all_tenant_owned_tables_have_forced_rls_and_a_policy(test_engine: Engine) -> None:
-    expected = {
+    """Catalog-driven sweep (audit findings TWZ-F-015 / TWZ-F-028): every public table that
+    carries a tenant_id column must have row-level security enabled and forced with at least one
+    policy. Deriving the table set from the catalog means a future tenant-owned table cannot be
+    forgotten silently; the explicit set below is the floor the sweep must always still include."""
+    expected_floor = {
         "audit_events",
         "categories",
         "customers",
@@ -474,6 +478,7 @@ def test_all_tenant_owned_tables_have_forced_rls_and_a_policy(test_engine: Engin
         "payments",
         "payment_allocations",
         "supplier_ledger_entries",
+        "tenant_applications",
         "tenant_financial_settings",
         "tenant_suppliers",
         "tenant_product_cost_entries",
@@ -490,20 +495,23 @@ def test_all_tenant_owned_tables_have_forced_rls_and_a_policy(test_engine: Engin
         rows = connection.execute(
             text(
                 "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, "
-                "COUNT(p.policyname) AS policy_count "
+                "(SELECT count(*) FROM pg_policies p "
+                " WHERE p.schemaname = n.nspname AND p.tablename = c.relname) AS policy_count "
                 "FROM pg_class c "
                 "JOIN pg_namespace n ON n.oid = c.relnamespace "
-                "LEFT JOIN pg_policies p "
-                "ON p.schemaname = n.nspname AND p.tablename = c.relname "
-                "WHERE n.nspname = 'public' AND c.relname = ANY(:table_names) "
-                "GROUP BY c.relname, c.relrowsecurity, c.relforcerowsecurity"
-            ),
-            {"table_names": sorted(expected)},
+                "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') "
+                "AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid "
+                "            AND a.attname = 'tenant_id' AND NOT a.attisdropped) "
+                "ORDER BY c.relname"
+            )
         )
+        actual = {str(row[0]): (bool(row[1]), bool(row[2]), int(row[3])) for row in rows}
 
-    actual = {str(row[0]): (bool(row[1]), bool(row[2]), int(row[3])) for row in rows}
-    assert set(actual) == expected
-    assert all(
-        enabled and forced and policy_count >= 1
-        for enabled, forced, policy_count in actual.values()
+    assert expected_floor <= set(actual), sorted(expected_floor - set(actual))
+    unprotected = sorted(
+        table
+        for table, (enabled, forced, policy_count) in actual.items()
+        if not (enabled and forced and policy_count >= 1)
     )
+    assert unprotected == [], f"tenant_id tables without forced RLS and a policy: {unprotected}"
+    assert len(actual) >= 40  # the sweep really walked the catalog, not a stub

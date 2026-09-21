@@ -24,6 +24,15 @@ def set_user_scope(db: Session, user_id: UUID) -> None:
     )
 
 
+def set_platform_scope(db: Session) -> None:
+    """Bind platform-administration RLS paths (tenant applications) to the current transaction.
+
+    Only the system-admin dependency binds this scope; it is transaction-local like the tenant
+    and user scopes, so a commit drops it and any later read must restore it.
+    """
+    db.execute(text("SELECT set_config('app.platform_admin', 'true', true)"))
+
+
 def commit_and_restore_tenant_scope(db: Session, tenant_id: UUID) -> None:
     """Commit a tenant mutation and restore scope for any post-commit reads."""
     db.commit()

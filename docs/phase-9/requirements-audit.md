@@ -22,7 +22,7 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 | Requirement | Evidence | Result |
 |---|---|---|
 | Authorization matrix system role × tenant role × resource | `test_security_matrix.py` (12 resources × 6 actors, all cells; suspension/reactivation); every earlier per-feature denial test | PASS |
-| RLS suite | `test_hardening.py::test_postgresql_rls_enforces_tenant_visibility_and_write_checks`, `::test_all_tenant_owned_tables_have_forced_rls_and_a_policy` (now 2 more tables) | PASS |
+| RLS suite | `test_hardening.py::test_postgresql_rls_enforces_tenant_visibility_and_write_checks`, `::test_all_tenant_owned_tables_have_forced_rls_and_a_policy` (catalog-driven: every `tenant_id` table, 47+ tables; `tenant_applications` under forced RLS since `20260921_0030`), `test_tenant_applications_rls.py` (application lifecycle under a `NOBYPASSRLS` role) | PASS |
 | Session rotation/revocation, refresh reuse detection | `test_auth.py` (rotation, reuse revokes all sessions, security version) | PASS |
 | Rate limiting; login brute-force; public token abuse | `routes/auth.py` limiters (10 failed logins / 15 min per IP, 10 recovery calls / 15 min), `test_password_recovery.py`; public limits D-076 (`test_phase5_freeze.py`); OTP throttles (`test_customer_verification.py`) | PASS |
 | Guest checkout abuse controls | idempotency key, rate limit on private surfaces, constant failure responses (`test_checkout.py`, `test_phase5_freeze.py`) | PASS |
@@ -43,7 +43,7 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| Constraints/FKs/indexes/RLS/migration history; pooling; contention | `database.py` bounded pool; `alembic check` clean at `20260920_0029`; migration from zero and upgrade from the Phase 7 head (`test_lifecycle_drill.py`) | PASS |
+| Constraints/FKs/indexes/RLS/migration history; pooling; contention | `database.py` bounded pool; `alembic check` clean at `20260921_0030`; migration from zero and upgrade from the Phase 7 head (`test_lifecycle_drill.py`) | PASS |
 | Invoice sequence race, refund concurrency, checkout/payment idempotency | `test_invoice_editor.py` (sequence, refund ceiling), `test_fa009_create_command.py`, `test_supplier_ledger.py`, `test_checkout.py`, `test_sync_push.py` | PASS |
 | Backup/PITR according to hosting; restore drill | app-level encrypted backup + restore verified against the in-memory double (`test_backup.py`); Supabase plan is **free — no hosted backups** (owner, 2026-09-20) → the Google Drive backup is mandatory before launch and its live run is pending (§ L4) | OPEN (owner action) |
 
