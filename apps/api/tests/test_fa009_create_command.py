@@ -5,7 +5,13 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
-from test_invoice_editor import _auth, _catalog, _draft_payload, _owner_context
+from test_invoice_editor import (
+    _attach_latest_cost,
+    _auth,
+    _catalog,
+    _draft_payload,
+    _owner_context,
+)
 
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import Invoice
@@ -26,8 +32,9 @@ def _count(session_factory, tenant: str) -> int:
 def test_same_create_command_returns_the_same_header_and_conflicts_on_a_different_request(
     client, session_factory
 ):
-    _owner, tenant, token = _owner_context(client, session_factory, "fa009")
+    owner, tenant, token = _owner_context(client, session_factory, "fa009")
     _category, product, customer = _catalog(client, tenant, token)
+    _attach_latest_cost(session_factory, owner, tenant, product["id"])
     payload = _draft_payload(customer["id"], product["id"])
 
     first = client.post(f"/api/v1/invoices?tenant_id={tenant}", headers=_auth(token), json=payload)
@@ -47,6 +54,50 @@ def test_same_create_command_returns_the_same_header_and_conflicts_on_a_differen
     assert conflict.status_code == 409, conflict.text
     assert conflict.json()["detail"]["code"] == "IDEMPOTENCY_CONFLICT"
     assert _count(session_factory, tenant) == 1
+
+    # Same command, same lines, different money (audit row A-033): the invoice discount, a line
+    # discount/markup, a manual unit price or a cost override each make it a different request.
+    import copy
+
+    from tawzeevo_api.models import TenantSupplier
+
+    with session_factory() as db:
+        supplier_id = str(
+            db.scalar(select(TenantSupplier.id).where(TenantSupplier.tenant_id == UUID(tenant)))
+        )
+
+    variants = {
+        "invoice_discount_expression": lambda body: body.update(
+            {"invoice_discount_expression": "2"}
+        ),
+        "invoice_markup_expression": lambda body: body.update({"invoice_markup_expression": "0"}),
+        "line_discount_expression": lambda body: body["items"][0].update(
+            {"line_discount_expression": "0.75"}
+        ),
+        "line_markup_expression": lambda body: body["items"][0].update(
+            {"line_markup_expression": "0"}
+        ),
+        "manual_unit_price": lambda body: body["items"][1].update({"manual_unit_price": "3.0000"}),
+        "cost_override": lambda body: body["items"][0].update(
+            {
+                "supplier_id": supplier_id,
+                "cost_override": "0.5000",
+                "cost_override_reason": "audit",
+            }
+        ),
+    }
+    for label, mutate in variants.items():
+        body = copy.deepcopy(payload)
+        mutate(body)
+        answer = client.post(
+            f"/api/v1/invoices?tenant_id={tenant}", headers=_auth(token), json=body
+        )
+        assert answer.status_code == 409, (label, answer.status_code, answer.text)
+        assert answer.json()["detail"]["code"] == "IDEMPOTENCY_CONFLICT", label
+    assert _count(session_factory, tenant) == 1
+    # The unchanged request still replays to the original header.
+    again = client.post(f"/api/v1/invoices?tenant_id={tenant}", headers=_auth(token), json=payload)
+    assert again.status_code == 201 and again.json()["id"] == first.json()["id"]
 
     # A new command creates a new header as before.
     fresh = client.post(

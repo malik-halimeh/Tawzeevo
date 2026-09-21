@@ -910,9 +910,18 @@ def _create_command_matches(
     customer_id: UUID,
     currency: str,
     items: list[_PreparedItem],
+    discount_total: Decimal,
+    markup_total: Decimal,
 ) -> bool:
-    """A replay is the same logical request when customer, currency and line identities match."""
+    """A replay is the same logical request when customer, currency, the line identities and
+    every monetary intent the request carries match (D-045): manual unit prices, line and
+    invoice discounts/markups, and cost overrides. A retried command that changed any amount is
+    a different request and conflicts instead of silently yielding the earlier draft."""
     if revision.customer_id != customer_id or revision.currency != currency:
+        return False
+    if money(revision.discount_total) != money(discount_total):
+        return False
+    if money(revision.markup_total) != money(markup_total):
         return False
     stored = list(
         db.scalars(
@@ -924,10 +933,41 @@ def _create_command_matches(
             .order_by(InvoiceRevisionItem.line_number)
         )
     )
-    return [(row.tenant_product_id, row.product_name, money(row.quantity)) for row in stored] == [
-        (item.product.id if item.product else None, item.name, money(item.quantity))
+    stored_fingerprint = [
+        (
+            row.tenant_product_id,
+            row.product_name,
+            money(row.quantity),
+            row.price_basis,
+            row.pieces_per_box,
+            money(row.effective_unit_price) if row.tenant_product_id is None else None,
+            money(row.line_discount),
+            money(row.line_markup),
+            row.supplier_id,
+            bool(row.is_cost_override),
+            money(row.unit_cost) if row.is_cost_override and row.unit_cost is not None else None,
+        )
+        for row in stored
+    ]
+    requested_fingerprint = [
+        (
+            item.product.id if item.product else None,
+            item.name,
+            money(item.quantity),
+            item.basis,
+            item.pieces_per_box,
+            money(item.effective_price) if item.product is None else None,
+            money(item.line_discount),
+            money(item.line_markup),
+            item.cost.supplier_id,
+            bool(item.cost.is_override),
+            money(item.cost.unit_cost)
+            if item.cost.is_override and item.cost.unit_cost is not None
+            else None,
+        )
         for item in items
     ]
+    return stored_fingerprint == requested_fingerprint
 
 
 def create_editor_draft(
@@ -950,10 +990,20 @@ def create_editor_draft(
     items = _prepare_items(
         db, tenant_id, customer, request.currency, request.items, fuzzy_threshold
     )
+    subtotal, discount_total, markup_total, net_sales = _totals(
+        items, request.invoice_discount_expression, request.invoice_markup_expression
+    )
     existing = _existing_create_command(db, tenant_id, request.client_command_id)
     if existing is not None:
         if not _create_command_matches(
-            db, tenant_id, existing, customer.id, request.currency, items
+            db,
+            tenant_id,
+            existing,
+            customer.id,
+            request.currency,
+            items,
+            discount_total,
+            markup_total,
         ):
             raise AppError(
                 409,
@@ -964,9 +1014,6 @@ def create_editor_draft(
         if invoice is None:
             raise AppError(404, "INVOICE_NOT_FOUND", "Invoice was not found")
         return _editor_response(db, tenant_id, invoice)
-    subtotal, discount_total, markup_total, net_sales = _totals(
-        items, request.invoice_discount_expression, request.invoice_markup_expression
-    )
     prior_balance = _prior_balance(db, tenant_id, customer.id, request.currency)
     invoice_id = uuid4()
     revision_id = uuid4()

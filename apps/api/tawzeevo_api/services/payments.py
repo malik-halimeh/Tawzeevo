@@ -327,13 +327,43 @@ def _validate_replay(
     customer_id: UUID,
     currency: str,
     amount: Decimal,
+    method: str | None = None,
+    reference: str | None = None,
+    paid_at: datetime | None = None,
+    allocations: list[AllocationSelectionRequest] | None = None,
+    db: Session | None = None,
 ) -> None:
-    if (
+    """FI-32: a replay must be the same logical command. Beyond direction/customer/currency/
+    amount, the recorded method, reference, payment time and — when the request selects them —
+    the allocation targets must match; otherwise the key was reused for a different intent.
+    An omitted allocation list (automatic allocation) is not compared: it carries no intent."""
+    different = (
         payment.direction != direction
         or payment.customer_id != customer_id
         or payment.currency != currency
         or money(payment.amount) != money(amount)
-    ):
+    )
+    if method is not None and (payment.method or None) != (method or None):
+        different = True
+    if reference is not None and (payment.reference or None) != (reference or None):
+        different = True
+    if paid_at is not None and payment.paid_at.astimezone(UTC) != paid_at.astimezone(UTC):
+        different = True
+    if allocations is not None and db is not None:
+        stored = sorted(
+            (row.target_ledger_entry_id, money(row.amount))
+            for row in db.scalars(
+                select(PaymentAllocation).where(
+                    PaymentAllocation.tenant_id == payment.tenant_id,
+                    PaymentAllocation.payment_id == payment.id,
+                    PaymentAllocation.kind == AllocationKind.APPLY,
+                )
+            )
+        )
+        requested = sorted((row.target_ledger_entry_id, money(row.amount)) for row in allocations)
+        if stored != requested:
+            different = True
+    if different:
         raise AppError(
             409,
             "IDEMPOTENCY_KEY_REUSED",
@@ -407,6 +437,11 @@ def record_customer_receipt(
             customer_id=request.customer_id,
             currency=request.currency,
             amount=amount,
+            method=request.method or "",
+            reference=request.reference or "",
+            paid_at=request.paid_at,
+            allocations=request.allocations,
+            db=db,
         )
         return _payment_response(db, tenant_id, replay)
     selected = _selected_allocations(
@@ -622,6 +657,9 @@ def record_customer_refund(
             customer_id=request.customer_id,
             currency=request.currency,
             amount=amount,
+            method=request.method or "",
+            reference=request.reference or "",
+            paid_at=request.paid_at,
         )
         return _payment_response(db, tenant_id, replay)
     balance = _customer_balance(db, tenant_id, request.customer_id, request.currency)
