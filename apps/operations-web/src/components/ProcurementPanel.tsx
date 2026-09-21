@@ -6,6 +6,7 @@ import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from
 import { browserOffline } from "../offline/network";
 import { queueProcurementItemEdit } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
+import { tenantCalendarDate } from "../utils/tenantCalendar";
 
 /**
  * Demand-driven procurement (PHASE_06.md E/F; D-058). A list is built from confirmed customer
@@ -23,7 +24,8 @@ interface ListDetail { id: string; status: string; title: string; demand_from: s
 interface ListSummary { id: string; status: string; title: string; demand_from: string | null; demand_to: string | null; assignee: Assignee | null; created_at: string; line_count: number; open_line_count: number }
 interface Supplier { id: string; name: string }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// The default demand range is the tenant-calendar day the server resolves demand on (D-040).
+const today = () => tenantCalendarDate();
 
 export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string; membershipId?: string }) {
   const { t } = useTranslation();
