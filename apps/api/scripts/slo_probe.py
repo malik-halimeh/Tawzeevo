@@ -3,12 +3,15 @@ with a disposable database, using the public HTTP surface only.
 
 Targets: phone/barcode lookup p95 < 250 ms; CRUD < 400 ms; storefront checkout < 750 ms;
 sync of 100 operations < 2.5 s. Run: `python scripts/slo_probe.py http://127.0.0.1:8011
-admin@example.com 'AdminPassword'` (a platform admin must exist to approve the probe tenant).
-Never point this at the hosted database."""
+admin@example.com` (a platform admin must exist to approve the probe tenant). The admin password
+is read from TAWZEEVO_ADMIN_PASSWORD or prompted for — never from the command line, so it does
+not land in shell history or process lists. Never point this at the hosted database."""
 
 from __future__ import annotations
 
+import getpass
 import json
+import os
 import statistics
 import sys
 import time
@@ -19,7 +22,11 @@ import uuid
 
 API = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8011"
 ADMIN_EMAIL = sys.argv[2] if len(sys.argv) > 2 else "admin-e2e@example.com"
-ADMIN_PASSWORD = sys.argv[3] if len(sys.argv) > 3 else "E2eAdminPassword123!"
+if len(sys.argv) > 3:
+    raise SystemExit(
+        "do not pass the admin password on the command line; set TAWZEEVO_ADMIN_PASSWORD"
+    )
+ADMIN_PASSWORD = os.environ.get("TAWZEEVO_ADMIN_PASSWORD") or getpass.getpass("admin password: ")
 SAMPLES = 20
 stamp = uuid.uuid4().hex[:6]
 

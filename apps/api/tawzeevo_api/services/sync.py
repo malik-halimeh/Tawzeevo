@@ -255,6 +255,25 @@ def revoke_membership_devices(
     return count
 
 
+def revoke_user_devices(db: Session, tenant_id: UUID, user_id: UUID, reason: str) -> int:
+    """Revoke every active device a user registered in one tenant (user deletion).
+
+    The caller commits."""
+    now = datetime.now(UTC)
+    count = 0
+    for device in db.scalars(
+        select(SyncDevice).where(
+            SyncDevice.tenant_id == tenant_id,
+            SyncDevice.user_id == user_id,
+            SyncDevice.revoked_at.is_(None),
+        )
+    ):
+        device.revoked_at = now
+        device.revoked_reason = reason
+        count += 1
+    return count
+
+
 def pull_changes(
     db: Session,
     tenant_id: UUID,
