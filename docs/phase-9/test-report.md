@@ -12,7 +12,7 @@ used for tests.
 | Lane | Where | Result |
 |---|---|---|
 | Backend unit/integration | local | **253 passed** (9 min 04 s) |
-| Backend static | local + CI | ruff / format / mypy clean (102 source files); `alembic check` clean at `20260920_0029` |
+| Backend static | local + CI | ruff / format / mypy clean (102 source files) and `alembic check` clean at `20260920_0029` — **historical, as of this 2026-09-20 report date**; the current branch ships head `20260921_0031` with mypy clean over 106 source files (`docs/audit/remediation-20260920/REMEDIATION_TEST_RESULTS.md`, `FINAL_CLOSURE_FIX.md`) |
 | Operations client | local + CI | **82 passed**; lint/types clean; build OK |
 | Storefront | local + CI | **9 passed**; lint/types clean; build OK |
 | Real-browser E2E (Chromium) | local + CI | **8 passed**: Phase 3, Phase 4 offline, Phase 5 ×2, Phase 6, Phase 7, Phase 8, **Phase 9 verification** |

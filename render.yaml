@@ -22,6 +22,9 @@ services:
         value: production
       # One hosting proxy in front of the API: the client IP for the login/recovery throttles and
       # public rate limits is the last X-Forwarded-For hop (apps/api/tawzeevo_api/client_ip.py).
+      # Never set this higher than the number of proxies that really append to X-Forwarded-For:
+      # a too-high value keys the throttle on caller-supplied header text, letting a caller choose
+      # its own bucket. Too low is the safe error (a shared bucket); 0 ignores the header.
       - key: TRUSTED_PROXY_HOPS
         value: "1"
       # Turn on once the API connects with a NOSUPERUSER NOBYPASSRLS role

@@ -59,7 +59,20 @@ alter default privileges in schema public grant usage on sequences to tawzeevo_a
 Then point the API service's `DATABASE_URL` at that role, redeploy, confirm
 `database_role_rls_enforced` is `true`, and set `DB_ROLE_REQUIRE_RLS_SUBJECT=true`.
 
-The application lifecycle that platform administration depends on (tenant applications, audit
-events) is exercised under a `NOSUPERUSER NOBYPASSRLS` role by
-`apps/api/tests/test_tenant_applications_rls.py`, so a restricted role is known to be compatible
-with the API.
+## What is verified under a restricted role, and what is not
+
+Verified locally, against a disposable PostgreSQL database, with a real `NOSUPERUSER NOBYPASSRLS`
+login role:
+
+- the application lifecycle that platform administration depends on (tenant applications, audit
+  events) — `apps/api/tests/test_tenant_applications_rls.py`;
+- the three **scheduled jobs** — delivery reminders, the storefront view rollup and the encrypted
+  backups — `apps/api/tests/test_jobs_rls_role.py`. Each job enumerates tenant ids from the
+  global `tenants` table (no `tenant_id` column, therefore no policy) and binds the tenant scope
+  before every statement that touches a tenant-owned table, so it finds the same work under a
+  role that is subject to row-level security as under one that bypasses it.
+
+Not verified here: the **hosted** role itself. Its `rolsuper`/`rolbypassrls` attributes and its
+grants exist only on the hosted database; the owner check above is the only evidence for it. A
+restricted role must hold the grants in the table above — including `SELECT` on `tenants`, which
+the scheduled jobs enumerate — or the jobs cannot run.

@@ -6,7 +6,7 @@ the pilot drill. Customer accounts (P9-M6) are not part of it. Use synthetic dat
 
 ## Prepare the environment
 
-1. Follow the root `README.md` local setup; confirm Alembic head `20260920_0029`.
+1. Follow the root `README.md` local setup; confirm Alembic head `20260921_0031`.
 2. For the live demonstration you need: the operations client URL, the API URL, one owner
    account, one driver account (the pilot accounts in the owner's private file).
 
