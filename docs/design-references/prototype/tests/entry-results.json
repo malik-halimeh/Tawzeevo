@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "date": "2026-09-21T21:11:29.242Z",
+  "date": "2026-09-21T21:15:05.460Z",
   "browser": "141.0.7390.37",
   "checks": [
     "Correct requested screen: home 360 en",
@@ -67,6 +67,7 @@
     "No page overflow: signin 1440 ar",
     "No clipped text: signin 1440 ar",
     "axe WCAG A/AA: signin 1440 ar",
+    "Skip link retains sign-in screen and focuses main",
     "Validation restores first invalid field focus",
     "Password reveal is labelled",
     "Sign-in failure visible",

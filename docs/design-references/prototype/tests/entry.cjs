@@ -30,6 +30,8 @@ function check(label,result){assert.ok(result,label);checks.push(label);}
    await page.screenshot({path:path.join(root,'screenshots',`entry-${view}-${width}-${lang}.png`),fullPage:true});
   }
   await page.goto(url+'/welcome.html#signin');
+  await page.locator('.skip').focus();await page.keyboard.press('Enter');
+  check('Skip link retains sign-in screen and focuses main',await page.locator('#signin-form').isVisible()&&await page.locator('#main').evaluate(e=>e===document.activeElement));
   await page.locator('#email').fill('bad');await page.locator('#password').fill('');await page.locator('.submit').click();
   check('Validation restores first invalid field focus',await page.locator('#email').evaluate(e=>e===document.activeElement&&e.getAttribute('aria-invalid')==='true'));
   await page.locator('[data-action="reset"]').click();

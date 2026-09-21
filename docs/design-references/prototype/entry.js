@@ -98,6 +98,6 @@
       else {status(t('Preview complete. Your sample workday is ready. No account was signed in.','اكتملت المعاينة. يوم عملك التجريبي جاهز. لم يتم الدخول إلى أي حساب.'),'success');$('#form-status').insertAdjacentHTML('afterend',`<a class="button primary demo-enter" href="index.html">${t('Open sample workspace','افتح مساحة العمل التجريبية')}${icon('arrow','directional')}</a>`);}
     },650);
   });
-  window.addEventListener('hashchange',()=>{if(location.hash!=='#how'){view=hashView();render(true);}});
+  window.addEventListener('hashchange',()=>{if(['','#home','#signin','#recovery'].includes(location.hash)){view=hashView();render(true);}});
   render();
 })();
