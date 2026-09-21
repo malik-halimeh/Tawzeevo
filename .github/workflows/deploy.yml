@@ -22,6 +22,10 @@ jobs:
       WEB_SERVICE: srv-da3g89ht0dsc73fjona0
       SHOP_SERVICE: srv-damjm64ri2ms73dkoehg
     steps:
+      - uses: actions/checkout@v4
+      - name: Record the migration head this commit ships
+        id: head
+        run: echo "expected=$(python3 apps/api/scripts/migration_head.py)" >> "$GITHUB_OUTPUT"
       - name: Trigger deploys
         run: |
           set -e
@@ -33,10 +37,18 @@ jobs:
             test "$code" = "201" || { cat /tmp/out.json; exit 1; }
           done
       - name: Wait for the API to come back with the expected migration head
+        env:
+          EXPECTED_HEAD: ${{ steps.head.outputs.expected }}
         run: |
+          test -n "$EXPECTED_HEAD" || { echo "no migration head computed"; exit 1; }
           for i in $(seq 1 40); do
             body=$(curl -s --max-time 30 https://tawzeevo-api-malik-halimeh.onrender.com/health/database || true)
-            echo "$body" | grep -q '"status":"ok"' && echo "$body" && exit 0
+            if echo "$body" | grep -q '"status":"ok"'; then
+              echo "$body"
+              # The deployed schema must be exactly the head this commit ships (PHASE_09.md H).
+              echo "$body" | grep -q "\"migration_head\":\"$EXPECTED_HEAD\"" && exit 0
+              echo "API is healthy but not at migration head $EXPECTED_HEAD yet"
+            fi
             sleep 15
           done
-          echo "API did not report healthy within 10 minutes"; exit 1
+          echo "API did not report healthy at migration head $EXPECTED_HEAD within 10 minutes"; exit 1

@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -15,6 +14,12 @@ from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import SessionLocal, get_db
 from tawzeevo_api.db_role import check_database_role, inspect_database_role
 from tawzeevo_api.errors import AppError, AuthenticationError
+from tawzeevo_api.migrations import (
+    migration_state,
+    migrations_ready,
+    record_startup_state,
+    startup_state,
+)
 from tawzeevo_api.observability import RequestContextMiddleware, configure_logging
 from tawzeevo_api.public_invoice_security import (
     PublicInvoicePrivacyMiddleware,
@@ -59,20 +64,25 @@ def _backup_timer(stop: threading.Event) -> None:
             logger.exception("scheduled backup tick failed")
 
 
-def database_role_preflight() -> None:
-    """Report (and, when required, enforce) that the application role is subject to RLS."""
+def database_preflight() -> None:
+    """Startup checks against the database: the application role must be subject to RLS
+    (enforced only when configured) and the schema must be at the head this code expects
+    (recorded; `/health` answers 503 until it is, so a deploy never serves business traffic on
+    a partially migrated database)."""
     try:
         with SessionLocal() as db:
             check_database_role(db, require_rls_subject=settings.db_role_require_rls_subject)
+            record_startup_state(migration_state(db))
     except SQLAlchemyError:
         # An unreachable database is reported by /health/database; startup itself does not
         # depend on the preflight succeeding.
-        logging.getLogger("tawzeevo.database").warning("database role preflight skipped")
+        logging.getLogger("tawzeevo.database").warning("database preflight skipped")
+        record_startup_state(None)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    database_role_preflight()
+    database_preflight()
     stop = threading.Event()
     worker: threading.Thread | None = None
     if settings.backup_scheduler_enabled:
@@ -211,6 +221,19 @@ def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
 
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
+    """Liveness and readiness: 503 while the database schema is not at the head this code
+    expects (found at startup), so the hosting health check keeps the previous release serving."""
+    if not migrations_ready():
+        state = startup_state()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "MIGRATION_HEAD_MISMATCH",
+                "message": "Database schema is not at the expected migration head",
+                "expected_migration_head": state.expected if state else None,
+                "migration_head": state.current if state else None,
+            },
+        )
     return {"status": "ok", "service": "tawzeevo-api"}
 
 
@@ -223,7 +246,7 @@ def health_metrics() -> dict[str, object]:
 @app.get("/health/database", tags=["system"])
 def database_health(db: Session = Depends(get_db)) -> dict[str, object]:
     try:
-        head = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
+        state = migration_state(db)
         role = inspect_database_role(db)
     except SQLAlchemyError as exc:
         raise HTTPException(
@@ -231,10 +254,13 @@ def database_health(db: Session = Depends(get_db)) -> dict[str, object]:
             detail={"code": "DATABASE_UNAVAILABLE", "message": "Database is unavailable"},
         ) from exc
     # The migration head lets a deploy check confirm the schema without reading logs (P9-M3);
-    # the role flag lets the alert probe confirm RLS is not bypassed. No names, no secrets.
+    # the expected head and the role flag let the probes confirm the schema is current and RLS
+    # is not bypassed. No names, no secrets.
     return {
         "status": "ok",
         "database": "postgresql",
-        "migration_head": head or "none",
+        "migration_head": state.current or "none",
+        "expected_migration_head": state.expected or "unknown",
+        "migration_current": state.is_current,
         "database_role_rls_enforced": role.rls_enforced,
     }

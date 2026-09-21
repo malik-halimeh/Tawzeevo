@@ -9,11 +9,23 @@ services:
     # Migrations run before the API starts so every deploy carries its schema (free plan has no
     # separate pre-deploy step). Alembic is idempotent: an already-migrated database is a no-op.
     startCommand: alembic upgrade head && uvicorn tawzeevo_api.main:app --host 0.0.0.0 --port $PORT
+    # /health answers 503 until the schema is at the head the code expects, so a failed
+    # migration keeps the previous release serving (PHASE_09.md H).
     healthCheckPath: /health
-    autoDeployTrigger: commit
+    # Live deploys are triggered by .github/workflows/deploy.yml after green CI (PHASE_09.md H);
+    # a push must not deploy on its own. Confirm the dashboard setting matches after a sync.
+    autoDeployTrigger: off
     envVars:
       - key: APP_ENV
         value: production
+      # One hosting proxy in front of the API: the client IP for the login/recovery throttles and
+      # public rate limits is the last X-Forwarded-For hop (apps/api/tawzeevo_api/client_ip.py).
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      # Turn on once the API connects with a NOSUPERUSER NOBYPASSRLS role
+      # (docs/runbooks/database-role.md); the API refuses to start otherwise.
+      - key: DB_ROLE_REQUIRE_RLS_SUBJECT
+        value: "false"
       - key: PYTHON_VERSION
         value: 3.13.15
       - key: DATABASE_URL
@@ -24,6 +36,22 @@ services:
         value: '["https://tawzeevo-malik-halimeh.onrender.com","https://tawzeevo-shop-malik-halimeh.onrender.com"]'
       - key: REFRESH_COOKIE_SECURE
         value: "true"
+      # The operations client and the API are two onrender.com sites (D-088, pending owner
+      # confirmation): the refresh cookie must be SameSite=None and the Origin guard applies.
+      - key: REFRESH_COOKIE_SAMESITE
+        value: none
+      # Production refuses to start without these (config.py validate_production_security).
+      # Transactional e-mail (D-077): provider name and key live in the dashboard.
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: PASSWORD_RESET_URL
+        value: https://tawzeevo-malik-halimeh.onrender.com/reset-password
+      # Customer verification delivery provider (D-073): the development adapter is refused in
+      # production; the owner sets the chosen provider here (launch-gate item 2).
+      - key: CUSTOMER_OTP_PROVIDER
+        sync: false
       # Encrypted Google Drive backup (Phase 4). Set the three secrets in the dashboard when the
       # OAuth client exists; until then the Backup tab reports "not configured".
       - key: BACKUP_MASTER_KEY
@@ -44,7 +72,7 @@ services:
     runtime: static
     buildCommand: npm ci && npm run build:operations
     staticPublishPath: ./apps/operations-web/dist
-    autoDeployTrigger: commit
+    autoDeployTrigger: off
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
@@ -68,7 +96,7 @@ services:
     buildCommand: npm ci && npm run build:storefront
     startCommand: npm run start --workspace @tawzeevo/storefront-web -- -H 0.0.0.0 -p $PORT
     healthCheckPath: /
-    autoDeployTrigger: commit
+    autoDeployTrigger: off
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
