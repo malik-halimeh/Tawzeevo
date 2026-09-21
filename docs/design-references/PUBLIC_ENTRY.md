@@ -67,7 +67,7 @@ node docs/design-references/prototype/tests/entry.cjs
 node docs/design-references/prototype/tests/lint.cjs
 ```
 
-`prototype/tests/entry-results.json` records the actually executed 87 browser assertions. These cover both pages at 360, 390, 768 and 1440px in English/Arabic, correct view selection, page overflow, text bounds, axe WCAG A/AA scans, validation/failure/offline/loading/success/recovery, scope dialogs, focus restoration, keyboard navigation, short viewport, mixed direction, reduced motion and absence of network/storage/service workers. Actual full-page screenshots are in `prototype/screenshots/entry-*.png`.
+`prototype/tests/entry-results.json` records the actually executed 88 browser assertions. These cover both pages at 360, 390, 768 and 1440px in English/Arabic, correct view selection, page overflow, text bounds, axe WCAG A/AA scans, validation/failure/offline/loading/success/recovery, scope dialogs, focus restoration, keyboard navigation, short viewport, mixed direction, reduced motion and absence of network/storage/service workers. Actual full-page screenshots are in `prototype/screenshots/entry-*.png`.
 
 These checks apply to the prototype only. They do not replace physical-phone, software-keyboard, screen-reader, Safari, production authentication, accessibility or PWA regression testing.
 

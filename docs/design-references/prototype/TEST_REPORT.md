@@ -123,9 +123,9 @@ phase completion, deployment, or revision of frozen remediation evidence occurre
 ## Public-entry extension — 2026-09-22
 
 The landing and sign-in design extension is documented in `../PUBLIC_ENTRY.md`.
-`tests/entry.cjs` passed 87 browser assertions across 360/390/768/1440px in EN/AR, including
+`tests/entry.cjs` passed 88 browser assertions across 360/390/768/1440px in EN/AR, including
 axe WCAG A/AA scans and synthetic form states. `tests/verify.cjs` passed all 145 existing
-checks again; `tests/edge.cjs` passed its 8 existing checks again. Total: 240 passing assertions.
+checks again; `tests/edge.cjs` passed its 8 existing checks again. Total: 241 passing assertions.
 ESLint and JavaScript syntax checks passed. These are prototype checks, not production regression.
 Actual renders: `screenshots/entry-*.png`. Machine-readable evidence: `tests/entry-results.json`.
 The review caught and corrected hash-navigation screen selection, a narrow Arabic header, and
