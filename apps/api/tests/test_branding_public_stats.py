@@ -30,6 +30,17 @@ def test_branding_is_owner_only_isolated_and_rendered_on_public_pages(client, se
     slug = _slug(session_factory, tenant)
     path = f"/api/v1/tenants/{tenant}/branding"
 
+    # Money before any branding exists: a confirmed invoice and the public price. Branding is
+    # presentation only (PHASE_08.md F/G, D-070); these values must be identical afterwards.
+    confirmed = _confirm_invoice(client, tenant, token, customer["id"], product["id"], "1")
+    money_before = {
+        key: confirmed[key]
+        for key in ("net_sales", "subtotal", "discount_total", "total_due", "current_revision_id")
+        if key in confirmed
+    }
+    assert money_before["net_sales"] and money_before["current_revision_id"]
+    price_before = client.get(f"/api/v1/public/{slug}/catalog/products").json()["items"][0]["price"]
+
     # Defaults before anything is saved.
     initial = client.get(path, headers=_auth(token))
     assert initial.status_code == 200, initial.text
@@ -105,11 +116,15 @@ def test_branding_is_owner_only_isolated_and_rendered_on_public_pages(client, se
     assert branding["logo_path"] == logo.json()["logo_path"]
     assert "invoice_terms" not in branding and "timezone" not in branding
 
-    # Branding cannot change prices or money: public price and a confirmed invoice are as before.
+    # Branding cannot change prices or money: the public price and the confirmed invoice are
+    # byte-for-byte what they were before any branding was saved (no new revision either).
     listed = client.get(f"/api/v1/public/{slug}/catalog/products").json()["items"][0]
-    assert listed["price"] == product["unit_price"]
-    confirmed = _confirm_invoice(client, tenant, token, customer["id"], product["id"], "1")
-    assert confirmed["net_sales"] == confirmed["net_sales"]  # unchanged by presentation settings
+    assert listed["price"] == price_before == product["unit_price"]
+    after = client.get(
+        f"/api/v1/invoices/{confirmed['id']}?tenant_id={tenant}", headers=_auth(token)
+    )
+    assert after.status_code == 200, after.text
+    assert {key: after.json()[key] for key in money_before} == money_before
 
     # The customer invoice page carries the invoice presentation block.
     link = _post(client, tenant, token, f"/api/v1/invoices/{confirmed['id']}/capabilities", {})
