@@ -184,6 +184,7 @@ app.add_middleware(
     PublicInvoicePrivacyMiddleware,
     private_limit=get_settings().public_private_rate_limit_per_minute,
     catalog_limit=get_settings().public_catalog_rate_limit_per_minute,
+    trusted_proxy_hops=get_settings().trusted_proxy_hops,
 )
 # Outermost: every response carries X-Request-ID and one structured access-log line (P9-M3).
 app.add_middleware(RequestContextMiddleware)

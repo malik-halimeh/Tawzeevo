@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # anonymous storefront catalog. Never the sole control (hash-only lookups, constant 404s).
     public_private_rate_limit_per_minute: int = Field(default=60, ge=1)
     public_catalog_rate_limit_per_minute: int = Field(default=600, ge=1)
+    # How many trusted reverse-proxy hops sit in front of the API (0 = direct). The client IP for
+    # the throttles below is the n-th address from the right of X-Forwarded-For; see client_ip.py.
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=8)
     # Login and recovery abuse controls (PHASE_09.md B/C): per client IP per 15 minutes.
     auth_failed_logins_per_15_minutes: int = Field(default=10, ge=1)
     auth_reset_requests_per_15_minutes: int = Field(default=10, ge=1)

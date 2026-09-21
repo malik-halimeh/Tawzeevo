@@ -9,6 +9,8 @@ from time import monotonic
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from tawzeevo_api.client_ip import header_value, resolve_client_ip
+
 PRIVACY_HEADERS = {
     "Cache-Control": "no-store",
     "X-Robots-Tag": "noindex, nofollow",
@@ -86,8 +88,15 @@ class PublicInvoiceRateLimiter:
 
 
 class PublicInvoicePrivacyMiddleware:
-    def __init__(self, app: ASGIApp, private_limit: int = 60, catalog_limit: int = 600) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        private_limit: int = 60,
+        catalog_limit: int = 600,
+        trusted_proxy_hops: int = 0,
+    ) -> None:
         self.app = app
+        self.trusted_proxy_hops = trusted_proxy_hops
         self.limiter = PublicInvoiceRateLimiter(limit=private_limit, window=60)
         # Storefront catalog pages are shareable and image-heavy: a wider, separate budget.
         self.catalog_limiter = PublicInvoiceRateLimiter(limit=catalog_limit, window=60)
@@ -125,8 +134,13 @@ class PublicInvoicePrivacyMiddleware:
             await send(message)
 
         client = scope.get("client")
+        client_ip = resolve_client_ip(
+            client[0] if client else None,
+            header_value(scope.get("headers", []), b"x-forwarded-for"),
+            self.trusted_proxy_hops,
+        )
         limiter = self.limiter if private_public else self.catalog_limiter
-        if public and not limiter.allow(client[0] if client else "unknown"):
+        if public and not limiter.allow(client_ip):
             await JSONResponse(
                 {"detail": {"code": "RATE_LIMITED", "message": "Please try again later"}},
                 status_code=429,
