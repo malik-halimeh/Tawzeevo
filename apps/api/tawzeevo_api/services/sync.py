@@ -68,6 +68,19 @@ _SNAPSHOT_SOURCES: dict[str, tuple[type[Any], Callable[[Any], dict[str, Any]]]] 
 }
 
 
+def permitted_collections(membership: TenantMembership) -> list[str]:
+    """Snapshot collections this membership may download (PHASE_07.md D/I; D-021).
+
+    The owner projection is the full snapshot. A driver's device registers for the outbox but
+    never downloads the owner projection; its cache is fed only by the assigned-task change feed
+    (see pull_changes). Bootstrap advertises exactly this list and snapshot_page enforces it, so
+    a collection that is not advertised to a role can never be paged by that role.
+    """
+    if membership.role is TenantRole.OWNER:
+        return list(_SNAPSHOT_SOURCES)
+    return []
+
+
 def high_water(db: Session, tenant_id: UUID) -> int:
     value = db.scalar(
         select(func.coalesce(func.max(SyncChange.change_seq), 0)).where(
@@ -129,9 +142,7 @@ def bootstrap(
     water = high_water(db, tenant_id)
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(device)
-    # PHASE_07.md D/I: a driver's device registers for the outbox but never downloads the owner
-    # projection; its cache is fed only by the assigned-task change feed.
-    collections = list(_SNAPSHOT_SOURCES) if membership.role is TenantRole.OWNER else []
+    collections = permitted_collections(membership)
     return BootstrapResponse(
         device=DeviceResponse.model_validate(device),
         high_water_change_seq=water,
@@ -182,6 +193,14 @@ def snapshot_page(
     source = _SNAPSHOT_SOURCES.get(collection)
     if source is None:
         raise AppError(404, "SYNC_COLLECTION_UNKNOWN", "Unknown snapshot collection")
+    # Authorization before any device or data access: the role decides which collections exist
+    # for this membership, exactly as the bootstrap answer advertised them.
+    if collection not in permitted_collections(membership):
+        raise AppError(
+            403,
+            "TENANT_OWNER_REQUIRED",
+            "This snapshot collection is part of the owner projection",
+        )
     device = active_device(db, tenant_id, membership, device_installation_id)
     model, project = source
     page_size = max(1, min(page_size, PULL_PAGE_SIZE))
