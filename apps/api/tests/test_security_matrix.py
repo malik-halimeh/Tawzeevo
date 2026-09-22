@@ -26,6 +26,34 @@ MEMBER = (401, 403, 200, 200, 403, 403)
 ADMIN_ONLY = (401, 403, 403, 403, 403, 200)
 MATRIX = [
     ("analytics overview", "GET", "/api/v1/analytics/overview?tenant_id={a}", None, OWNER_ONLY),
+    (
+        "intelligence priorities",
+        "GET",
+        "/api/v1/intelligence/priorities?tenant_id={a}",
+        None,
+        OWNER_ONLY,
+    ),
+    (
+        "intelligence inactivity",
+        "GET",
+        "/api/v1/intelligence/inactivity?tenant_id={a}",
+        None,
+        OWNER_ONLY,
+    ),
+    (
+        "intelligence anomalies",
+        "GET",
+        "/api/v1/intelligence/anomalies?tenant_id={a}",
+        None,
+        OWNER_ONLY,
+    ),
+    (
+        "intelligence cash-flow",
+        "GET",
+        "/api/v1/intelligence/cash-flow?tenant_id={a}",
+        None,
+        OWNER_ONLY,
+    ),
     ("branding read", "GET", "/api/v1/tenants/{a}/branding", None, OWNER_ONLY),
     ("branding write", "PUT", "/api/v1/tenants/{a}/branding", {"banner_text": "x"}, OWNER_ONLY),
     (

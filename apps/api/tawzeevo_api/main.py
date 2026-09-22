@@ -32,6 +32,7 @@ from tawzeevo_api.routes.branding import branding_router
 from tawzeevo_api.routes.cash_van import cash_van_router, tenant_contexts_router
 from tawzeevo_api.routes.customer_ledger import customer_ledger_router
 from tawzeevo_api.routes.delivery import delivery_router, routes_router
+from tawzeevo_api.routes.intelligence import intelligence_router
 from tawzeevo_api.routes.invoices import invoices_router
 from tawzeevo_api.routes.payments import payments_router
 from tawzeevo_api.routes.platform import platform_router, tenant_applications_router
@@ -175,6 +176,7 @@ app.include_router(delivery_router)
 app.include_router(routes_router)
 app.include_router(team_router)
 app.include_router(analytics_router)
+app.include_router(intelligence_router)
 app.include_router(branding_router)
 app.include_router(sync_router)
 app.include_router(backup_router)
