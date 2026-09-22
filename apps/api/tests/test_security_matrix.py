@@ -48,6 +48,13 @@ MATRIX = [
         OWNER_ONLY,
     ),
     (
+        "intelligence copilot status",
+        "GET",
+        "/api/v1/intelligence/copilot/status?tenant_id={a}",
+        None,
+        OWNER_ONLY,
+    ),
+    (
         "intelligence cash-flow",
         "GET",
         "/api/v1/intelligence/cash-flow?tenant_id={a}",

@@ -8,10 +8,16 @@ from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.schemas.intelligence import (
     AnomaliesResponse,
     CashFlowResponse,
+    CopilotGrounding,
+    CopilotQueryRequest,
+    CopilotReference,
+    CopilotResponse,
+    CopilotStatus,
     InactivityResponse,
     PrioritiesResponse,
 )
 from tawzeevo_api.services.intelligence import responses
+from tawzeevo_api.services.intelligence.copilot import service as copilot
 
 intelligence_router = APIRouter(prefix="/api/v1/intelligence", tags=["intelligence"])
 
@@ -86,4 +92,31 @@ def get_cash_flow(
         period=period,
         planned_days=planned_days,
         currency=currency,
+    )
+
+
+@intelligence_router.get("/copilot/status", response_model=CopilotStatus)
+def get_copilot_status(context: Owner) -> CopilotStatus:
+    """Whether the business assistant is configured; never reveals the key."""
+    return CopilotStatus(**copilot.status())
+
+
+@intelligence_router.post("/copilot/query", response_model=CopilotResponse)
+def post_copilot_query(request: CopilotQueryRequest, db: Db, context: Owner) -> CopilotResponse:
+    """Owner-only, read-only natural-language answer grounded in the deterministic tools. The
+    tenant comes from the server-side context; nothing is stored (D-089)."""
+    result = copilot.ask(
+        db,
+        context.tenant.id,
+        context.membership.user_id,
+        request.message,
+        [turn.model_dump() for turn in request.conversation],
+    )
+    return CopilotResponse(
+        answer=result.answer,
+        conversation_text=result.conversation_text,
+        references=[CopilotReference(**row) for row in result.references],
+        grounding=[CopilotGrounding(**row) for row in result.grounding],
+        warnings=result.warnings,
+        unverified_numbers=result.unverified_numbers,
     )

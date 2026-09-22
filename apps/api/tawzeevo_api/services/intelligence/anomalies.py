@@ -581,6 +581,7 @@ def detect_anomalies(
                         "line_number": item.line_number,
                         "product_name": item.product_name,
                         "unit_cost_snapshot": money(Decimal(item.unit_cost)),
+                        "customer_id": str(customer_id) if customer_id else None,
                         "customer_name": names.get(customer_id) if customer_id else None,
                     },
                 )

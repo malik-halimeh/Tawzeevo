@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from tawzeevo_api.schemas.analytics import PeriodInfo
 
@@ -173,3 +174,48 @@ class CashFlowResponse(BaseModel):
     period: PeriodInfo
     overdue_threshold_days: int | None
     currencies: list[CurrencyCashFlow]
+
+
+class CopilotMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class CopilotQueryRequest(BaseModel):
+    """One question plus the client-held, bounded history (never stored on the server). The
+    history should carry each earlier answer's `conversation_text` (references, not names)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(min_length=1, max_length=1000)
+    conversation: list[CopilotMessage] = Field(default_factory=list, max_length=12)
+
+
+class CopilotReference(BaseModel):
+    ref: str
+    customer_id: UUID
+    customer_name: str
+
+
+class CopilotGrounding(BaseModel):
+    tool: str
+    period: str | None
+    currency: str | None
+    ok: bool
+
+
+class CopilotResponse(BaseModel):
+    answer: str
+    conversation_text: str
+    references: list[CopilotReference]
+    grounding: list[CopilotGrounding]
+    warnings: list[str]
+    unverified_numbers: list[str]
+
+
+class CopilotStatus(BaseModel):
+    configured: bool
+    provider: str | None
+    model: str | None
