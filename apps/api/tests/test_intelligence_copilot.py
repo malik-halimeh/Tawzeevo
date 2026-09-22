@@ -10,7 +10,7 @@ import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from test_delivery_tasks import _get
@@ -109,7 +109,6 @@ def test_priorities_question_is_grounded_and_names_never_leave(
 ):
     seed = seed_customer_history(client, session_factory, "copcall")
     tenant, token, customer = seed["tenant"], seed["token"], seed["customer"]
-    expected_ref = customer_ref(UUID(tenant), UUID(customer["id"]))
 
     def script(messages):
         result = _last_tool_result(messages)
@@ -138,6 +137,7 @@ def test_priorities_question_is_grounded_and_names_never_leave(
     assert response.status_code == 200, response.text
     body = response.json()
     assert canonical_counts(session_factory) == before  # read-only
+    expected_ref = customer_ref(UUID(tenant), UUID(body["conversation_id"]), UUID(customer["id"]))
 
     # Grounded in the deterministic tool; the same figure the priorities API shows.
     api = _get(client, tenant, token, "/api/v1/intelligence/priorities").json()
@@ -163,6 +163,7 @@ def test_priorities_question_is_grounded_and_names_never_leave(
         tenant,
         token,
         customer["id"],
+        body["conversation_id"],
     ):
         assert secret not in egress, secret
     assert expected_ref in egress  # the question's name was masked to the reference
@@ -230,9 +231,9 @@ def test_tools_are_bound_to_the_server_tenant(client, session_factory):
             db=db,
             tenant_id=UUID(other_tenant),
             as_of=datetime.now(UTC),
-            directory=CustomerDirectory.load(db, UUID(other_tenant)),
+            directory=CustomerDirectory.load(db, UUID(other_tenant), uuid4()),
         )
-        foreign_ref = customer_ref(UUID(seed["tenant"]), UUID(seed["customer"]["id"]))
+        foreign_ref = customer_ref(UUID(seed["tenant"]), uuid4(), UUID(seed["customer"]["id"]))
         assert run_tool(ctx, "get_customer_lifetime", {"customer_ref": foreign_ref}) == {
             "error": "UNKNOWN_CUSTOMER_REF"
         }
@@ -265,7 +266,7 @@ def test_every_tool_returns_compact_pseudonymous_facts(
     seed = seed_customer_history(client, session_factory, f"coptool{tool[4:12]}")
     tenant, customer = UUID(seed["tenant"]), seed["customer"]
     with session_factory() as db:
-        directory = CustomerDirectory.load(db, tenant)
+        directory = CustomerDirectory.load(db, tenant, uuid4())
         ctx = ToolContext(
             db=db,
             tenant_id=tenant,
@@ -335,3 +336,121 @@ def test_unverified_number_check_accepts_rounded_tool_figures():
     assert service.unverified_numbers("Owes 1,234.57 USD for 40 days (5 asked).", sources) == []
     assert service.unverified_numbers("Owes 1,300 USD.", sources) == ["1300"]
     assert service.unverified_numbers("Customer C-ABC234 owes 1235 USD.", sources) == []
+
+
+def test_references_are_scoped_to_one_conversation(client, session_factory, monkeypatch):
+    seed = seed_customer_history(client, session_factory, "copscope")
+    tenant, token, customer = seed["tenant"], seed["token"], seed["customer"]
+    seen_refs: list[str] = []
+
+    def script(messages):
+        result = _last_tool_result(messages)
+        if result is None:
+            return _call("get_customer_debts", {"currency": "USD"})
+        ref = result["debts"][0]["customer_ref"]  # the overdue customer sorts first
+        seen_refs.append(ref)
+        return _text(f"{ref} owes money.")
+
+    _use(monkeypatch, StubProvider(script))
+
+    def ask(conversation_id=None):
+        payload = {"message": "Who owes me?"}
+        if conversation_id:
+            payload["conversation_id"] = conversation_id
+        response = client.post(f"{QUERY}?tenant_id={tenant}", headers=_auth(token), json=payload)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    first = ask()
+    follow_up = ask(first["conversation_id"])
+    fresh = ask()
+    assert follow_up["conversation_id"] == first["conversation_id"]
+    assert fresh["conversation_id"] != first["conversation_id"]
+    assert seen_refs[0] == seen_refs[1]  # same conversation: same reference
+    assert seen_refs[2] != seen_refs[0]  # new conversation: unlinkable reference
+    for body in (first, follow_up, fresh):
+        assert body["references"][0]["customer_id"] == customer["id"]  # resolved inside only
+    # A reference from another conversation does not resolve.
+    with session_factory() as db:
+        ctx = ToolContext(
+            db=db,
+            tenant_id=UUID(tenant),
+            as_of=datetime.now(UTC),
+            directory=CustomerDirectory.load(db, UUID(tenant), UUID(fresh["conversation_id"])),
+        )
+        old = run_tool(ctx, "get_customer_lifetime", {"customer_ref": seen_refs[0]})
+    assert old == {"error": "UNKNOWN_CUSTOMER_REF"}
+
+
+def test_customer_names_inside_free_text_fields_are_masked_before_egress(
+    client, session_factory, monkeypatch
+):
+    """A product or manual invoice line may be named after a customer; the egress boundary masks
+    every tool-result string, not only the fields called customer_name."""
+    seed = seed_customer_history(client, session_factory, "copleak")
+    tenant, token, customer = seed["tenant"], seed["token"], seed["customer"]
+    named = client.post(
+        f"/api/v1/tenants/{tenant}/products",
+        headers=_auth(token),
+        json={
+            "category_id": seed["product"]["category_id"],
+            "name": f"{customer['name']} special crate",
+            "barcode": "5280000000999",
+            "unit_price": "3.0000",
+            "currency": "USD",
+            "price_basis": "PIECE",
+        },
+    )
+    assert named.status_code == 201, named.text
+    plan = [
+        ("lookup_product", {"query": "special crate"}),
+        ("get_top_products", {"period_key": "90d"}),
+        ("get_customer_lifetime", None),
+        ("get_anomalies", {}),
+    ]
+
+    def script(messages):
+        step = sum(1 for m in messages if m["role"] == "tool")
+        if step < len(plan):
+            name, arguments = plan[step]
+            if arguments is None:  # the reference the question's name was masked to
+                question = next(m["content"] for m in messages if m["role"] == "user")
+                arguments = {"customer_ref": REF.search(question).group(0)}
+            return _call(name, arguments, call_id=f"c{step}")
+        return _text("done")
+
+    stub = StubProvider(script)
+    _use(monkeypatch, stub)
+    monkeypatch.setattr(service.get_settings(), "copilot_max_tool_rounds", 8)
+    response = client.post(
+        f"{QUERY}?tenant_id={tenant}",
+        headers=_auth(token),
+        json={"message": f"Tell me about {customer['name']} and the special crate."},
+    )
+    assert response.status_code == 200, response.text
+    assert all(g["ok"] for g in response.json()["grounding"])
+    egress = "\n".join(stub.payloads)
+    assert customer["name"] not in egress and customer["name"].lower() not in egress.lower()
+    assert "special crate" in egress  # the product itself is still described
+
+
+@pytest.mark.parametrize(
+    ("answer", "unverified"),
+    [
+        ("Owed 1000 USD.", []),
+        ("Owed 1,000 USD.", []),
+        ("Owed 1000.00 USD.", []),
+        ("Owed 1,000.00 USD.", []),
+        ("A refund of -1,000.00 USD.", []),  # sign formatting is not a new figure
+        ("Owed 1,234.6 USD.", []),  # one-decimal rounding of 1234.5678
+        ("مستحق ١٬٠٠٠٫٠٠ دولار", []),  # Arabic-Indic digits and separators
+        ("1. C-ABC234 owes 1000 USD\n2. check again", []),  # list markers and references
+        ("As of 2026-09-23 they owe 1000 USD.", []),  # the year appears in the tool result
+        ("Owed 1,100 USD.", ["1100"]),
+        ("Sales grew 37% this month.", ["37"]),  # a derived percentage no tool returned
+        ("Next week you will collect 2500 USD.", ["2500"]),
+    ],
+)
+def test_unverified_number_normalization(answer, unverified):
+    sources = ['{"balance": "1000.0000", "other": "1234.5678", "as_of": "2026-09-23T10:00:00"}']
+    assert service.unverified_numbers(answer, sources) == unverified

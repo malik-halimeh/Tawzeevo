@@ -1,10 +1,12 @@
 """Product facts for the Copilot tools (D-089): top products and catalog lookup.
 
 Top products use the same semantics as the customer lifetime habits (D-069) but tenant-wide:
-current revisions of CONFIRMED invoices confirmed in the period, per currency, value = line
-totals (before invoice-level discounts/markups). `storefront_signals` is not reused because it
-reads the first confirmed revision rather than the current one. There is no stock model, so no
-availability is ever reported.
+current revisions of CONFIRMED invoices confirmed in the period, per currency. The value is
+`line_sales_before_invoice_adjustments` = the sum of stored line totals (after line discounts and
+markups, before invoice-level discounts and markups). It is not net sales, revenue or margin:
+invoice-level adjustments are not allocated to lines because no allocation rule is approved.
+`storefront_signals` is not reused because it reads the first confirmed revision rather than the
+current one. There is no stock model, so no availability is ever reported.
 """
 
 from __future__ import annotations
@@ -36,8 +38,9 @@ class ProductTotal:
     currency: str
     product_name: str
     quantity: Decimal
-    line_value: Decimal
+    line_sales_before_invoice_adjustments: Decimal
     invoice_count: int
+    is_catalog_product: bool  # False for a manual (free-text) invoice line
 
 
 def top_products(
@@ -88,12 +91,18 @@ def top_products(
                 currency=key[0],
                 product_name=names[key],
                 quantity=money(quantity[key]),
-                line_value=money(value[key]),
+                line_sales_before_invoice_adjustments=money(value[key]),
                 invoice_count=len(invoices[key]),
+                is_catalog_product=not key[1].startswith("manual:"),
             )
             for key in quantity
         ),
-        key=lambda r: (r.currency, -r.line_value, -r.quantity, r.product_name),
+        key=lambda r: (
+            r.currency,
+            -r.line_sales_before_invoice_adjustments,
+            -r.quantity,
+            r.product_name,
+        ),
     )
     kept: list[ProductTotal] = []
     per_currency: dict[str, int] = defaultdict(int)

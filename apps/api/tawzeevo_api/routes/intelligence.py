@@ -111,8 +111,10 @@ def post_copilot_query(request: CopilotQueryRequest, db: Db, context: Owner) -> 
         context.membership.user_id,
         request.message,
         [turn.model_dump() for turn in request.conversation],
+        conversation_id=request.conversation_id,
     )
     return CopilotResponse(
+        conversation_id=result.conversation_id,
         answer=result.answer,
         conversation_text=result.conversation_text,
         references=[CopilotReference(**row) for row in result.references],

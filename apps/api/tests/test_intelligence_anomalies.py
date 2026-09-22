@@ -43,8 +43,25 @@ def test_robust_z_scale_floors_and_severity_boundaries():
     assert z == Decimal("3")  # three events against a quiet history: one event is the unit
     _mid, _mad, z = robust_z(Decimal("5"), [Decimal("0")] * 6)
     assert z is None  # an all-zero money baseline has no scale
-    _mid, _mad, z = robust_z(Decimal("70"), [Decimal("0")] * 6 + [Decimal("70")])
-    assert z == Decimal("7")  # sporadic series: mean absolute value is the fallback scale
+
+
+def test_zero_heavy_money_series_scale_by_the_largest_past_value():
+    """median == MAD == 0: a repeat of past activity is ordinary; only a multiple of the largest
+    past block is unusual (WATCH >= 3x, HIGH >= 5x). Deterministic, never a division by zero."""
+    monthly = [Decimal("0")] * 3 + [Decimal("200")] + [Decimal("0")] * 3 + [Decimal("200")]
+    assert robust_z(Decimal("200"), monthly)[2] == Decimal("1")  # the usual monthly purchase
+    sporadic = [Decimal("0")] * 6 + [Decimal("100")]
+    assert _severity(robust_z(Decimal("299.99"), sporadic)[2]) is None
+    assert _severity(robust_z(Decimal("300"), sporadic)[2]) == "WATCH"
+    assert _severity(robust_z(Decimal("499.99"), sporadic)[2]) == "WATCH"
+    assert _severity(robust_z(Decimal("500"), sporadic)[2]) == "HIGH"
+    # Negative blocks (supplier payments) count by magnitude; an all-zero baseline has no scale.
+    assert robust_z(Decimal("150"), [Decimal("0")] * 6 + [Decimal("-50")])[2] == Decimal("3")
+    assert robust_z(Decimal("1000"), [Decimal("0")] * 7)[2] is None
+    # Once most blocks are non-zero the ordinary MAD path applies again.
+    busy = [Decimal(v) for v in ("0", "0", "0", "90", "100", "110", "100")]
+    mid, mad, z = robust_z(Decimal("100"), busy)
+    assert (mid, mad) == (Decimal("90"), Decimal("20")) and _severity(z) is None
 
 
 def test_minimum_history_counts_only_whole_blocks_after_first_activity():

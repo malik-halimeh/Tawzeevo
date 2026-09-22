@@ -183,8 +183,15 @@ def _customer_lifetime(ctx: ToolContext, args: CustomerLifetimeArgs) -> dict[str
             }
             for f in stats.financial
         ],
+        "top_products_meaning": "by line sales before invoice-level discounts/markups; not net "
+        "sales, revenue or margin",
         "top_products": [
-            {"currency": p.currency, "name": p.name, "quantity": p.quantity, "value": p.value}
+            {
+                "currency": p.currency,
+                "name": p.name,
+                "quantity": p.quantity,
+                "line_sales_before_invoice_adjustments": p.value,
+            }
             for p in stats.top_products
         ],
     }
@@ -341,8 +348,9 @@ def _top_products(ctx: ToolContext, args: TopProductsArgs) -> dict[str, Any]:
     )
     return {
         "period_key": args.period_key,
-        "value_meaning": "sum of line totals of confirmed invoices, before invoice-level "
-        "discounts/markups",
+        "value_meaning": "line_sales_before_invoice_adjustments = sum of confirmed invoice line "
+        "totals after line discounts/markups and before invoice-level discounts/markups; not net "
+        "sales, revenue or margin; no stock or availability is known",
         "products": [row.__dict__ for row in rows],
     }
 
@@ -427,7 +435,8 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             "get_top_products",
-            "Top products by confirmed sales value in a period, per currency.",
+            "Top products per currency by line sales before invoice-level discounts/markups "
+            "(not net sales, revenue or margin) on confirmed invoices in a period.",
             TopProductsArgs,
             _top_products,
         ),

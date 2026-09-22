@@ -191,6 +191,9 @@ class CopilotQueryRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=1000)
     conversation: list[CopilotMessage] = Field(default_factory=list, max_length=12)
+    # Echo the previous response's id to continue a conversation; omit it to start a new one
+    # (every customer then gets a fresh reference).
+    conversation_id: UUID | None = None
 
 
 class CopilotReference(BaseModel):
@@ -207,6 +210,7 @@ class CopilotGrounding(BaseModel):
 
 
 class CopilotResponse(BaseModel):
+    conversation_id: UUID
     answer: str
     conversation_text: str
     references: list[CopilotReference]

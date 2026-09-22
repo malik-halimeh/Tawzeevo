@@ -1,10 +1,14 @@
 """Customer pseudonymization for provider egress (D-089).
 
-A customer reference is `C-` plus six base32 characters of an HMAC over (tenant, customer) keyed
-by the server secret: opaque to the provider, stable across a client-held conversation so a
-follow-up question can name the same customer, and resolvable only inside Tawzeevo. Before any
-text leaves, every known customer name of the tenant is replaced by its reference; after the
-answer returns, references are replaced by names for display only.
+A customer reference is `C-` plus six base32 characters of an HMAC over (tenant, conversation,
+customer) keyed by the server secret. Within one Copilot conversation the same customer keeps the
+same reference, so a follow-up can name it; a new conversation (new server-issued
+`conversation_id`) gives every customer a fresh, unlinkable reference. Nothing is stored: the
+client echoes the conversation id with its history. References resolve only inside Tawzeevo.
+
+`mask`/`mask_value` are the single egress boundary: every text that leaves — the question, the
+client-held history and every tool result string — passes through them, so a customer name that
+appears in any free-text field (a product or manual line name, a category) is replaced too.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import hashlib
 import hmac
 import re
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -26,9 +31,10 @@ REF_PATTERN = re.compile(r"\bC-[A-Z2-7]{6}\b")
 MIN_NAME_LENGTH = 3  # shorter names are too likely to match ordinary words
 
 
-def customer_ref(tenant_id: UUID, customer_id: UUID) -> str:
+def customer_ref(tenant_id: UUID, conversation_id: UUID, customer_id: UUID) -> str:
     key = get_settings().jwt_secret.encode("utf-8")
-    digest = hmac.new(key, f"copilot:{tenant_id}:{customer_id}".encode(), hashlib.sha256).digest()
+    message = f"copilot:{tenant_id}:{conversation_id}:{customer_id}".encode()
+    digest = hmac.new(key, message, hashlib.sha256).digest()
     return "C-" + base64.b32encode(digest).decode("ascii")[:6]
 
 
@@ -43,14 +49,14 @@ class CustomerDirectory:
     _ref_by_name: dict[str, str]
 
     @classmethod
-    def load(cls, db: Session, tenant_id: UUID) -> CustomerDirectory:
+    def load(cls, db: Session, tenant_id: UUID, conversation_id: UUID) -> CustomerDirectory:
         by_ref: dict[str, tuple[UUID, str]] = {}
         ref_by_id: dict[UUID, str] = {}
         ref_by_name: dict[str, str] = {}
         for customer in db.scalars(
             select(Customer).where(Customer.tenant_id == tenant_id).order_by(Customer.id)
         ):
-            ref = customer_ref(tenant_id, customer.id)
+            ref = customer_ref(tenant_id, conversation_id, customer.id)
             by_ref[ref] = (customer.id, customer.name)
             ref_by_id[customer.id] = ref
             name = customer.name.strip()
@@ -80,6 +86,16 @@ class CustomerDirectory:
         if self._pattern is None:
             return text
         return self._pattern.sub(lambda m: self._ref_by_name[m.group(1).casefold()], text)
+
+    def mask_value(self, value: Any) -> Any:
+        """Mask every string inside a JSON-like structure (keys are fixed code names)."""
+        if isinstance(value, str):
+            return self.mask(value)
+        if isinstance(value, dict):
+            return {key: self.mask_value(inner) for key, inner in value.items()}
+        if isinstance(value, list):
+            return [self.mask_value(inner) for inner in value]
+        return value
 
     def unmask(self, text: str) -> tuple[str, list[str]]:
         """Replace references with display names (inside Tawzeevo only); unknown refs stay."""

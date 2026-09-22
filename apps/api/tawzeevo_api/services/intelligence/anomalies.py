@@ -120,16 +120,18 @@ def robust_z(
 ) -> tuple[Decimal, Decimal, Decimal | None]:
     """(median, MAD, z) with a floored scale.
 
-    Counts never scale below one event. A money series whose median and MAD are both zero (e.g.
-    sporadic supplier activity) falls back to the mean absolute baseline value; z is None only when
-    the whole baseline is zero."""
+    Counts never scale below one event. A money series whose median and MAD are both zero (most
+    baseline blocks are empty: sporadic sales, monthly supplier purchases) falls back to the
+    largest absolute value in the baseline, so a value only scores as unusual once it is several
+    times bigger than anything the business did before (WATCH >= 3x, HIGH >= 5x); an ordinary
+    repeat of past activity scores 1. z is None only when the whole baseline is zero."""
     mid = Decimal(median(baseline))
     mad = Decimal(median([abs(v - mid) for v in baseline]))
     scale = max(MAD_TO_SIGMA * mad, SCALE_FLOOR_FRACTION * abs(mid))
     if count_series:
         scale = max(scale, COUNT_SCALE_FLOOR)
     elif scale <= 0 and baseline:
-        scale = sum((abs(v) for v in baseline), Decimal(0)) / len(baseline)
+        scale = max(abs(v) for v in baseline)
     if scale <= 0:
         return mid, mad, None
     return mid, mad, (current - mid) / scale
