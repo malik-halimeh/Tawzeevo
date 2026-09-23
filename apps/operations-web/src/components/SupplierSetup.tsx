@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
@@ -8,6 +8,7 @@ import { queueCostAppend } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
 import { PurchasePanel } from "./PurchasePanel";
 import { SupplierLedgerPanel } from "./SupplierLedgerPanel";
+import { useKeepFocus } from "./useKeepFocus";
 
 export interface Supplier {
   id: string;
@@ -82,7 +83,9 @@ interface ProductCostSetup {
  */
 export function SupplierSetup({ tenantId, membershipId, initialProductId }: { tenantId: string; membershipId?: string; initialProductId?: string }) {
   const { t } = useTranslation();
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // Undefined until the first answer, so "no suppliers yet" is never shown while the list is still loading.
+  const [loadedSuppliers, setSuppliers] = useState<Supplier[]>();
+  const suppliers = loadedSuppliers ?? [];
   const [products, setProducts] = useState<TenantProduct[]>([]);
   const [profile, setProfile] = useState<SupplierProfileDraft>(emptyProfile());
   const [editing, setEditing] = useState<{ id: string; version: number; draft: SupplierProfileDraft }>();
@@ -102,6 +105,8 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
+  const root = useRef<HTMLElement>(null);
+  useKeepFocus(busy, root);
 
   const run = useCallback(async (operation: () => Promise<void>) => {
     setBusy(true); setError(undefined); setNotice(undefined);
@@ -206,7 +211,7 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
   const supplierName_ = (id: string) => suppliers.find((supplier) => supplier.id === id)?.name ?? "—";
 
   return (
-    <section className="supplier-setup" aria-labelledby="supplier-setup-title">
+    <section className="supplier-setup" aria-labelledby="supplier-setup-title" ref={root}>
       <header>
         <p className="section-kicker">{t("supplierSetup.kicker")}</p>
         <h3 id="supplier-setup-title">{t("supplierSetup.title")}</h3>
@@ -222,7 +227,7 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
             <ProfileFields draft={profile} idPrefix="new" onChange={setProfile} />
             <button className="button" disabled={busy} type="submit">{t("supplierSetup.addSupplier")}</button>
           </form>
-          {suppliers.length === 0 ? <p className="empty-note">{t("supplierSetup.noSuppliers")}</p> : (
+          {loadedSuppliers === undefined ? (error ? null : <p className="empty-note">{t("common.loading")}</p>) : suppliers.length === 0 ? <p className="empty-note">{t("supplierSetup.noSuppliers")}</p> : (
             <ul className="supplier-list">
               {suppliers.map((supplier) => (
                 <li key={supplier.id}>
@@ -289,21 +294,24 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
               </form>
               {suppliers.length === 0 ? <p className="empty-note">{t("supplierSetup.createSupplierFirst")}</p> : null}
               {setup.entries.length === 0 ? <p className="empty-note">{t("supplierSetup.noCosts")}</p> : (
-                <table className="cost-history">
-                  <thead><tr><th>{t("supplierSetup.supplier")}</th><th>{t("supplierSetup.unitCost")}</th><th>{t("tenantWorkspace.priceBasis")}</th><th>{t("supplierSetup.effectiveAt")}</th><th>{t("supplierSetup.source")}</th><th /></tr></thead>
-                  <tbody>
-                    {setup.entries.map((entry) => (
-                      <tr key={entry.id}>
-                        <td>{supplierName_(entry.supplier_id)}{setup.preferred_supplier_id === entry.supplier_id ? ` · ${t("invoiceEditor.preferred")}` : ""}</td>
-                        <td dir="ltr">{entry.unit_cost} {entry.currency}</td>
-                        <td>{entry.cost_basis}{entry.pieces_per_box ? ` ×${entry.pieces_per_box}` : ""}</td>
-                        <td><time dateTime={entry.effective_at}>{new Date(entry.effective_at).toLocaleString()}</time></td>
-                        <td>{t(`supplierSetup.sources.${entry.source_type}`, { defaultValue: entry.source_type })}{entry.quantity_context ? ` · ${t("supplierSetup.forQuantity", { quantity: entry.quantity_context })}` : ""}</td>
-                        <td>{setup.preferred_supplier_id !== entry.supplier_id ? <button className="text-button" disabled={busy} onClick={() => setPreferred(entry.supplier_id)} type="button">{t("supplierSetup.makePreferred")}</button> : null}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                // A real table: on a narrow screen it scrolls inside its own region instead of widening the page.
+                <div aria-label={t("supplierSetup.productCosts")} className="table-region" role="region" tabIndex={0}>
+                  <table className="cost-history">
+                    <thead><tr><th>{t("supplierSetup.supplier")}</th><th>{t("supplierSetup.unitCost")}</th><th>{t("tenantWorkspace.priceBasis")}</th><th>{t("supplierSetup.effectiveAt")}</th><th>{t("supplierSetup.source")}</th><th /></tr></thead>
+                    <tbody>
+                      {setup.entries.map((entry) => (
+                        <tr key={entry.id}>
+                          <td>{supplierName_(entry.supplier_id)}{setup.preferred_supplier_id === entry.supplier_id ? ` · ${t("invoiceEditor.preferred")}` : ""}</td>
+                          <td dir="ltr">{entry.unit_cost} {entry.currency}</td>
+                          <td>{entry.cost_basis}{entry.pieces_per_box ? ` ×${entry.pieces_per_box}` : ""}</td>
+                          <td><time dateTime={entry.effective_at}>{new Date(entry.effective_at).toLocaleString()}</time></td>
+                          <td>{t(`supplierSetup.sources.${entry.source_type}`, { defaultValue: entry.source_type })}{entry.quantity_context ? ` · ${t("supplierSetup.forQuantity", { quantity: entry.quantity_context })}` : ""}</td>
+                          <td>{setup.preferred_supplier_id !== entry.supplier_id ? <button className="text-button" disabled={busy} onClick={() => setPreferred(entry.supplier_id)} type="button">{t("supplierSetup.makePreferred")}</button> : null}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
               {setup.preferred_supplier_id ? <button className="text-button" disabled={busy} onClick={() => setPreferred(null)} type="button">{t("supplierSetup.clearPreferred")}</button> : null}
               {recommendation ? (
@@ -346,22 +354,24 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
                 <div className="price-insights">
                   <h5>{t("supplierSetup.insightsTitle")}</h5>
                   <p className="muted">{t("supplierSetup.insightsBody", { days: insights.stale_after_days })}</p>
-                  <table className="cost-history" aria-label={t("supplierSetup.insightsTitle")}>
-                    <thead><tr><th>{t("supplierSetup.supplier")}</th><th>{t("supplierSetup.comparable")}</th><th>{t("supplierSetup.latest")}</th><th>{t("supplierSetup.lowHigh")}</th><th>{t("supplierSetup.lastPurchase")}</th><th>{t("supplierSetup.trend")}</th><th>{t("supplierSetup.stability")}</th></tr></thead>
-                    <tbody>
-                      {insights.insights.map((row) => (
-                        <tr key={`${row.supplier_id}-${row.cost_basis}-${row.pieces_per_box ?? 0}`}>
-                          <td>{row.supplier_name}{row.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</td>
-                          <td>{row.currency} · {row.cost_basis}{row.pieces_per_box ? ` ×${row.pieces_per_box}` : ""}</td>
-                          <td dir="ltr">{row.latest_unit_cost} <small>{t(`supplierSetup.sources.${row.latest_source_type}`, { defaultValue: row.latest_source_type })} · {row.age_days >= insights.stale_after_days ? <mark>{t("supplierSetup.ageDays", { days: row.age_days })}</mark> : t("supplierSetup.ageDays", { days: row.age_days })}</small></td>
-                          <td dir="ltr">{row.lowest_unit_cost} – {row.highest_unit_cost}</td>
-                          <td>{row.last_purchase_at ? <><bdi dir="ltr">{row.last_purchase_unit_cost}</bdi> · <time dateTime={row.last_purchase_at}>{new Date(row.last_purchase_at).toLocaleDateString()}</time></> : t("supplierSetup.noPurchaseYet")}</td>
-                          <td dir="ltr">{row.recent_unit_costs.join(" ← ")}</td>
-                          <td>{t(`supplierSetup.stabilityLabels.${row.stability}`)}{row.variation_percent ? ` (${row.variation_percent}%)` : ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div aria-label={t("supplierSetup.insightsTitle")} className="table-region" role="region" tabIndex={0}>
+                    <table className="cost-history" aria-label={t("supplierSetup.insightsTitle")}>
+                      <thead><tr><th>{t("supplierSetup.supplier")}</th><th>{t("supplierSetup.comparable")}</th><th>{t("supplierSetup.latest")}</th><th>{t("supplierSetup.lowHigh")}</th><th>{t("supplierSetup.lastPurchase")}</th><th>{t("supplierSetup.trend")}</th><th>{t("supplierSetup.stability")}</th></tr></thead>
+                      <tbody>
+                        {insights.insights.map((row) => (
+                          <tr key={`${row.supplier_id}-${row.cost_basis}-${row.pieces_per_box ?? 0}`}>
+                            <td>{row.supplier_name}{row.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</td>
+                            <td>{row.currency} · {row.cost_basis}{row.pieces_per_box ? ` ×${row.pieces_per_box}` : ""}</td>
+                            <td dir="ltr">{row.latest_unit_cost} <small>{t(`supplierSetup.sources.${row.latest_source_type}`, { defaultValue: row.latest_source_type })} · {row.age_days >= insights.stale_after_days ? <mark>{t("supplierSetup.ageDays", { days: row.age_days })}</mark> : t("supplierSetup.ageDays", { days: row.age_days })}</small></td>
+                            <td dir="ltr">{row.lowest_unit_cost} – {row.highest_unit_cost}</td>
+                            <td>{row.last_purchase_at ? <><bdi dir="ltr">{row.last_purchase_unit_cost}</bdi> · <time dateTime={row.last_purchase_at}>{new Date(row.last_purchase_at).toLocaleDateString()}</time></> : t("supplierSetup.noPurchaseYet")}</td>
+                            <td dir="ltr">{row.recent_unit_costs.join(" ← ")}</td>
+                            <td>{t(`supplierSetup.stabilityLabels.${row.stability}`)}{row.variation_percent ? ` (${row.variation_percent}%)` : ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : null}
             </>

@@ -21,6 +21,16 @@ function requestUrl(input: RequestInfo | URL): string {
   return input.url;
 }
 
+/** The Invoices section shows one view at a time (Invoice first); a member opens a view before using it. */
+function openView(name: "Invoice" | "Payments" | "Balances") {
+  fireEvent.click(within(screen.getByRole("group", { name: "Invoice views" })).getByRole("button", { name }));
+}
+
+/** Item entry shows one method at a time (Barcode first); the others stay mounted with what was typed. */
+function openEntryMethod(name: "Barcode" | "Catalog search" | "Text list" | "Manual item") {
+  fireEvent.click(within(screen.getByRole("group", { name: "Item entry method" })).getByRole("button", { name }));
+}
+
 beforeEach(async () => {
   sessionStorage.clear();
   await i18n.changeLanguage("en");
@@ -195,6 +205,7 @@ test("owner confirms an ambiguous suggestion, saves a draft, and confirms its of
   await screen.findByRole("button", { name: /Maya Market/ });
   fireEvent.click(screen.getByRole("button", { name: /Maya Market/ }));
 
+  openEntryMethod("Text list");
   fireEvent.change(screen.getByRole("textbox", { name: "Text list" }), {
     target: { value: "2 Cedar watr" },
   });
@@ -321,6 +332,7 @@ test("owner records a selected receipt allocation and can reverse the immutable 
   fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
   fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
   fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  openView("Payments");
   fireEvent.click(await screen.findByRole("button", { name: "Choose amounts" }));
   fireEvent.change(screen.getByLabelText("Allocate to Invoice 2026-000001"), {
     target: { value: "7.0000" },
@@ -499,6 +511,7 @@ test.each([false, true])("lost financial responses retain one command while the 
     fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
     fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+    openView("Payments");
   };
   const remountCustomer = async () => {
     if (!remount) return;
@@ -595,6 +608,7 @@ test.each([
     fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
     fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+    openView("Payments");
     fireEvent.change(screen.getByLabelText(label), { target: { value: "10" } });
     fireEvent.click(screen.getByRole("button", { name: button }));
   };
@@ -626,6 +640,7 @@ test.each(["getItem", "setItem"] as const)("receipt and refund send nothing when
   fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
   fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
   fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  openView("Payments");
   vi.spyOn(Storage.prototype, method).mockImplementation(() => { throw new Error("storage unavailable"); });
   for (const [label, button] of [["Amount received", "Record receipt"], ["Refund amount", "Issue credit refund"]]) {
     fireEvent.change(screen.getByLabelText(label!), { target: { value: "10" } });
@@ -666,6 +681,8 @@ test("debt desk marks an overdue customer with text and a non-color alert mark",
   );
   const { container } = render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
   expect(await screen.findByText("Overdue · 40 days old")).toBeInTheDocument();
+  openView("Balances");
+  expect(screen.getByText("Overdue · 40 days old")).toBeVisible();
   expect(screen.getByText("75.0000 USD")).toBeInTheDocument();
   expect(container.querySelector(".debt-row.is-overdue .debt-alert-mark")).toHaveTextContent("!");
 });
@@ -708,6 +725,7 @@ test("a failed draft save retries with the same create command and a new invoice
   fireEvent.change(screen.getByRole("textbox", { name: "Phone" }), { target: { value: "+96170123456" } });
   fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
   fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  openEntryMethod("Manual item");
   fireEvent.change(screen.getByPlaceholderText("Item name"), { target: { value: "Ice" } });
   fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price" }), { target: { value: "3" } });
   fireEvent.click(screen.getByRole("button", { name: "Add manual line" }));
@@ -717,4 +735,202 @@ test("a failed draft save retries with the same create command and a new invoice
   await waitFor(() => expect(attempts).toBe(2));
   expect(commands[0]).toBe(commands[1]);
   expect(await screen.findByText("Draft invoice created from the server calculation.")).toBeInTheDocument();
+});
+
+// ---------- Views, confirmed document and revision detail (presentation over the same handlers) ----------
+
+const customerRow = { id: customerId, tenant_id: tenantId, name: "Maya Market", phone: "+96170123456", address: "Hamra", latitude: null, longitude: null, grade: "A", created_at: "2026-08-27T08:00:00Z", updated_at: "2026-08-27T08:00:00Z" };
+const invoiceId = "44444444-4444-4444-4444-444444444444";
+
+function crateLine(id: string, quantity: string, lineTotal: string) {
+  return { id, line_number: 1, product_id: null, product_name: "Water crate", barcode: null, media_snapshot: { images: [] }, quantity, price_basis: "PIECE", pieces_per_box: null, normal_unit_price: "5.0000", effective_unit_price: "5.0000", customer_grade: "A", price_source: "NORMAL", grade_discount_percent: null, line_discount: "0.0000", line_markup: "0.0000", line_total: lineTotal, supplier_id: null, product_cost_entry_id: null, unit_cost: null, cost_currency: null, cost_basis: null, cost_pieces_per_box: null, cost_source_type: null, is_cost_override: false, cost_override_reason: null };
+}
+
+/** Server answers for one invoice: R1 is 2 crates (10.0000 + 3.0000 carried = 13.0000), R2 is 4 crates. */
+function invoiceAnswer(overrides: Record<string, unknown> = {}) {
+  return { id: invoiceId, tenant_id: tenantId, status: "DRAFT", official_invoice_number: null, confirmed_at: null, customer_id: customerId, customer_snapshot: { id: customerId, name: "Maya Market", phone: "+96170123456", grade: "A" }, current_revision_id: "rev-1", server_revision_number: 1, pricing_version: "pricing-v1", currency: "USD", prior_balance: "3.0000", subtotal: "10.0000", discount_total: "0.0000", markup_total: "0.0000", net_sales: "10.0000", total_due: "13.0000", items: [crateLine("item-1", "2.0000", "10.0000")], created_at: "2026-09-23T08:00:00Z", updated_at: "2026-09-23T08:00:00Z", ...overrides };
+}
+const confirmedR1 = () => invoiceAnswer({ status: "CONFIRMED", official_invoice_number: "2026-000007", confirmed_at: "2026-09-23T08:10:00Z" });
+const confirmedR2 = () => invoiceAnswer({ status: "CONFIRMED", official_invoice_number: "2026-000007", confirmed_at: "2026-09-23T08:10:00Z", current_revision_id: "rev-2", server_revision_number: 2, subtotal: "20.0000", net_sales: "20.0000", total_due: "23.0000", items: [crateLine("item-2", "4.0000", "20.0000")] });
+
+/** A fetch double for the Invoices section; `routes` answers the invoice-specific calls first. */
+function sectionFetch(routes: (url: string, method: string, body: string | undefined) => Response | undefined) {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = requestUrl(input);
+    const method = init?.method ?? "GET";
+    const answer = routes(url, method, typeof init?.body === "string" ? init.body : undefined);
+    if (answer) return answer;
+    if (url.includes("/customer-ledger/settings")) return json({ tenant_id: tenantId, customer_overdue_threshold_days: null });
+    if (url.includes("/customer-ledger/debts")) return json({ debts: [] });
+    if (url.includes("/customers/search")) return json({ customers: [customerRow] });
+    if (url.includes("/balances")) return json({ customer_id: customerId, customer_name: "Maya Market", balances: [] });
+    if (url.includes("/obligations")) return json({ customer_id: customerId, currency: "USD", obligations: [] });
+    if (url.includes("/suppliers")) return json({ suppliers: [] });
+    throw new Error(`Unexpected request: ${method} ${url}`);
+  });
+}
+
+async function chooseCustomer() {
+  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+}
+
+function addManualLine(name: string, price: string) {
+  openEntryMethod("Manual item");
+  fireEvent.change(screen.getByRole("textbox", { name: "Item name" }), { target: { value: name } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price" }), { target: { value: price } });
+  fireEvent.click(screen.getByRole("button", { name: "Add manual line" }));
+}
+
+async function confirmOneInvoice(confirmAnswer: Record<string, unknown>) {
+  await chooseCustomer();
+  addManualLine("Water crate", "5");
+  fireEvent.click(screen.getByRole("button", { name: "Calculate and save draft" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Confirm and assign invoice number" }));
+  return screen.findByRole("article", { name: String(confirmAnswer.official_invoice_number) });
+}
+
+const renderEditor = () => render(<InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" />);
+
+test("switching views keeps what was typed: a receipt amount and reference, manual line fields, lines and the entry method", async () => {
+  vi.stubGlobal("fetch", sectionFetch(() => undefined));
+  renderEditor();
+  await chooseCustomer();
+  addManualLine("Ice", "3");
+  expect(await screen.findByText("Ice")).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("textbox", { name: "Item name" }), { target: { value: "Coal" } }); // typed, not yet added
+
+  openView("Payments");
+  fireEvent.change(screen.getByLabelText("Amount received"), { target: { value: "12.5" } });
+  fireEvent.change(screen.getByLabelText("Reference"), { target: { value: "R-17" } });
+  openView("Balances");
+  expect(screen.getByLabelText("Amount received")).not.toBeVisible();
+
+  openView("Invoice");
+  expect(screen.getByRole("textbox", { name: "Item name" })).toHaveValue("Coal");
+  expect(screen.getByText("Ice")).toBeVisible();
+  openView("Payments");
+  expect(screen.getByLabelText("Amount received")).toHaveValue(12.5);
+  expect(screen.getByLabelText("Reference")).toHaveValue("R-17");
+  expect(within(screen.getByRole("group", { name: "Invoice views" })).getByRole("button", { name: "Payments" })).toHaveAttribute("aria-pressed", "true");
+  expect(within(screen.getByRole("group", { name: "Invoice views" })).getByRole("button", { name: "Invoice" })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("a confirmed invoice reads as a document from the server's answer, and Create revision opens the existing revision editor", async () => {
+  const requests: Array<{ url: string; method: string; body?: string | undefined }> = [];
+  vi.stubGlobal("fetch", sectionFetch((url, method, body) => {
+    requests.push({ url, method, body });
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") return json(invoiceAnswer(), 201);
+    if (url.includes("/confirm") && method === "POST") return json(confirmedR1());
+    if (url.includes(`/invoices/${invoiceId}?`) && method === "PUT") return json(confirmedR2());
+    if (url.includes("/history")) return json({ revisions: [] });
+    return undefined;
+  }));
+  renderEditor();
+  const document = await confirmOneInvoice(confirmedR1());
+
+  expect(within(document).getByText("Confirmed · every change is recorded as a revision")).toBeVisible();
+  expect(within(document).getByText("Maya Market")).toBeVisible();
+  expect(within(document).getByText("USD")).toBeVisible();
+  expect(within(document).getByText("R1")).toBeVisible();
+  const lines = within(document).getByRole("table", { name: "Invoice lines" });
+  expect(within(lines).getByText("Water crate")).toBeVisible();
+  expect(within(lines).getByText("2.0000")).toBeVisible();
+  expect(within(document).getByText("3.0000 USD")).toBeVisible(); // previous balance, as the server returned it
+  expect(within(document).getByText("13.0000 USD")).toBeVisible(); // due at this revision
+  expect(within(document).getByText(/never this snapshot/)).toBeVisible();
+  expect(document.textContent).not.toMatch(/final|locked|closed/i);
+  expect(screen.queryByRole("button", { name: "Save an auditable revision" })).not.toBeInTheDocument();
+
+  fireEvent.click(within(document).getByRole("button", { name: "Create revision" }));
+  expect(screen.getByText("New revision of", { exact: false })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Invoice lines" })).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Quantity / calculator"), { target: { value: "4" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save an auditable revision" }));
+
+  const revised = await screen.findByRole("article", { name: "2026-000007" });
+  expect(within(revised).getByText("23.0000 USD")).toBeVisible();
+  expect(within(revised).getByText("R2")).toBeVisible();
+  const put = requests.find((request) => request.method === "PUT");
+  expect(JSON.parse(put?.body ?? "{}")).toMatchObject({ expected_predecessor_revision_id: "rev-1", items: [{ quantity_expression: "4" }] });
+  await waitFor(() => expect(screen.getByRole("heading", { name: "2026-000007" })).toHaveFocus());
+});
+
+test("an expanded past revision shows that revision's own items and totals, never the current ones", async () => {
+  const past = { ...confirmedR1(), predecessor_revision_id: null, reason: null, revision_created_at: "2026-09-23T08:10:00Z", is_current: false, ledger_delta: "13.0000" };
+  const current = { ...confirmedR2(), predecessor_revision_id: "rev-1", reason: "Customer asked for two more crates", revision_created_at: "2026-09-23T09:00:00Z", is_current: true, ledger_delta: "10.0000" };
+  vi.stubGlobal("fetch", sectionFetch((url, method) => {
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") return json(invoiceAnswer(), 201);
+    if (url.includes("/confirm") && method === "POST") return json(confirmedR2());
+    if (url.includes("/history")) return json({ revisions: [past, current] });
+    return undefined;
+  }));
+  renderEditor();
+  await confirmOneInvoice(confirmedR2());
+  const history = await screen.findByRole("region", { name: "Immutable revision history" });
+  const pastEntry = within(history).getByText("R1").closest("details")!;
+  const currentEntry = within(history).getByText("R2").closest("details")!;
+
+  expect(within(pastEntry).getByText("13.0000 USD")).not.toBeVisible(); // closed until the owner opens it
+  fireEvent.click(pastEntry.querySelector("summary")!);
+  expect(pastEntry).toHaveAttribute("open");
+  expect(within(pastEntry).getByText("13.0000 USD")).toBeVisible(); // R1's own due, not the current 23.0000
+  expect(within(pastEntry).getByText("2.0000")).toBeVisible(); // R1's own quantity
+  expect(within(pastEntry).queryByText("23.0000 USD")).not.toBeInTheDocument();
+  expect(within(pastEntry).queryByText("4.0000")).not.toBeInTheDocument();
+  expect(within(currentEntry).getByText("23.0000 USD")).toBeInTheDocument();
+  expect(within(currentEntry).getByText("Customer asked for two more crates")).toBeInTheDocument();
+});
+
+test("after confirmation, cancellation and sharing stay reachable, and a just-issued link survives view switches", async () => {
+  const cancelBodies: string[] = [];
+  const issued = { id: "link-1", expires_at: "2026-12-22T08:00:00Z", revoked_at: null, created_at: "2026-09-23T08:20:00Z", public_path: "/api/v1/public/invoice#secret-abc", customer_phone: "+96170123456", summary: "Invoice 2026-000007" };
+  let links: unknown[] = [];
+  vi.stubGlobal("fetch", sectionFetch((url, method, body) => {
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") return json(invoiceAnswer(), 201);
+    if (url.includes("/confirm") && method === "POST") return json(confirmedR1());
+    if (url.includes("/capabilities") && method === "POST") { links = [issued]; return json(issued, 201); }
+    if (url.includes("/capabilities")) return json(links);
+    if (url.includes("/cancel") && method === "POST") { cancelBodies.push(body ?? ""); return json({ ...confirmedR1(), status: "CANCELLED" }); }
+    if (url.includes("/history")) return json({ revisions: [] });
+    return undefined;
+  }));
+  renderEditor();
+  await confirmOneInvoice(confirmedR1());
+  expect(screen.getByRole("button", { name: "Cancel invoice" })).toBeVisible();
+  expect(screen.getByLabelText("Cancellation reason")).toBeVisible();
+
+  const sharing = screen.getByRole("region", { name: "Share invoice" });
+  fireEvent.click(within(sharing).getByRole("button", { name: "Manage invoice links" }));
+  fireEvent.click(await within(sharing).findByRole("button", { name: "Create private link" }));
+  const url = (await within(sharing).findByLabelText<HTMLInputElement>("Private invoice URL")).value;
+  expect(url).toContain("#secret-abc");
+
+  openView("Payments");
+  openView("Balances");
+  openView("Invoice");
+  expect(screen.getByLabelText("Private invoice URL")).toHaveValue(url); // the shown-once link is still here
+  fireEvent.click(screen.getByRole("button", { name: "Create revision" }));
+  fireEvent.click(screen.getByRole("button", { name: "Back to the invoice" }));
+  expect(screen.getByLabelText("Private invoice URL")).toHaveValue(url);
+
+  fireEvent.change(screen.getByLabelText("Cancellation reason"), { target: { value: "Customer withdrew" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel invoice" }));
+  expect(await screen.findByText("Cancelled · the invoice and its revisions stay on record")).toBeVisible();
+  expect(JSON.parse(cancelBodies[0] ?? "{}")).toMatchObject({ reason: "Customer withdrew" });
+  expect(screen.queryByRole("button", { name: "Create revision" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Cancel invoice" })).not.toBeInTheDocument();
+});
+
+test("Payments without a customer explains why and switches to the customer step", async () => {
+  vi.stubGlobal("fetch", sectionFetch(() => undefined));
+  renderEditor();
+  openView("Payments");
+  const guide = screen.getByRole("note");
+  expect(guide).toHaveTextContent("Choose a customer before saving.");
+  expect(screen.getByRole("button", { name: "Record receipt" })).toBeDisabled();
+  fireEvent.click(within(guide).getByRole("button", { name: "Choose the customer" }));
+  expect(within(screen.getByRole("group", { name: "Invoice views" })).getByRole("button", { name: "Invoice" })).toHaveAttribute("aria-pressed", "true");
+  await waitFor(() => expect(screen.getByLabelText("Phone")).toHaveFocus());
 });

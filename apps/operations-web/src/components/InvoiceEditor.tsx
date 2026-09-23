@@ -14,6 +14,7 @@ import type {
   FinancialSettingsResponse,
   InvoiceCatalogMatch,
   InvoiceCatalogSearchResponse,
+  InvoiceEditorItem,
   InvoiceEditorResponse,
   InvoiceHistoryResponse,
   InvoiceItemParserResponse,
@@ -22,6 +23,7 @@ import type {
   ProductPriceBasis,
   TenantProduct,
 } from "../api/types";
+import { Arrow } from "./Icon";
 import { ErrorState, SuccessNotice } from "./Ui";
 import { InvoiceSharing } from "./InvoiceSharing";
 import type { Supplier } from "./SupplierSetup";
@@ -58,6 +60,25 @@ interface EditorLine {
 function lineKey() {
   return crypto.randomUUID();
 }
+
+/**
+ * Presentation groupings of the one Invoices section (docs/design-references/DESIGN_DIRECTION.md;
+ * review-artifacts direction for slice 2): distinct views for the invoice itself, payments and
+ * balances, and one visible item-entry method at a time. They choose what is shown, never what is sent.
+ */
+type InvoiceView = "invoice" | "payments" | "balances";
+type EntryMethod = "barcode" | "catalog" | "text" | "manual";
+const INVOICE_VIEWS: readonly (readonly [InvoiceView, string])[] = [
+  ["invoice", "invoiceEditor.viewInvoice"],
+  ["payments", "invoiceEditor.viewPayments"],
+  ["balances", "invoiceEditor.viewBalances"],
+];
+const ENTRY_METHODS: readonly (readonly [EntryMethod, string])[] = [
+  ["barcode", "invoiceEditor.barcodeEntry"],
+  ["catalog", "invoiceEditor.catalogEntry"],
+  ["text", "invoiceEditor.textEntry"],
+  ["manual", "invoiceEditor.manualEntry"],
+];
 
 function money(value: string, currency: string) {
   return `${value} ${currency}`;
@@ -173,11 +194,35 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   const createCommandRef = useRef<string | undefined>(undefined);
   const [notice, setNotice] = useState<string>();
   const mounted = useRef(false);
+  // Presentation state only: the open view, the visible item-entry method and whether a confirmed
+  // invoice is open in the revision editor. Every view stays mounted, so inputs survive switching.
+  const [view, setView] = useState<InvoiceView>("invoice");
+  const [entryMethod, setEntryMethod] = useState<EntryMethod>("barcode");
+  const [revising, setRevising] = useState(false);
+  const customerPhoneInput = useRef<HTMLInputElement>(null);
+  const documentTitle = useRef<HTMLHeadingElement>(null);
+  const revisionTitle = useRef<HTMLParagraphElement>(null);
+  const revisingNow = useRef(false);
+  const focusDocumentTitle = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
+
+  // A saved revision or a cancellation ends the revision editor: the document shows the new state and
+  // takes focus once it is on screen, because the button that was used is no longer there.
+  useEffect(() => { revisingNow.current = revising; }, [revising]);
+  useEffect(() => {
+    if (!revisingNow.current) return;
+    focusDocumentTitle.current = true;
+    setRevising(false);
+  }, [saved?.current_revision_id, saved?.status]);
+  useEffect(() => {
+    if (!focusDocumentTitle.current || !documentTitle.current) return;
+    focusDocumentTitle.current = false;
+    documentTitle.current.focus();
+  });
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -729,13 +774,73 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
     });
   };
 
+  // ---------- presentation (slice 2): views over the same state and handlers ----------
+  const goToCustomerStep = () => {
+    setView("invoice");
+    requestAnimationFrame(() => customerPhoneInput.current?.focus());
+  };
+  const openRevision = () => {
+    setRevising(true);
+    requestAnimationFrame(() => revisionTitle.current?.focus());
+  };
+  const closeRevision = () => {
+    setRevising(false);
+    requestAnimationFrame(() => documentTitle.current?.focus());
+  };
+  // A confirmed or cancelled invoice reads as a document; a confirmed one reopens in the existing
+  // editor for a new revision. Drafts and new invoices stay in the editor.
+  const showDocument = saved !== undefined && (saved.status === "CANCELLED" || (saved.status === "CONFIRMED" && !revising));
+  const basisLabel = (basis: ProductPriceBasis) => t(basis === "BOX" ? "tenantWorkspace.box" : "tenantWorkspace.piece");
+  const priceSourceLabel = (item: InvoiceEditorItem) => item.price_source === "EXPLICIT_GRADE_PRICE" ? t("invoiceEditor.explicitGradePrice") : item.price_source === "GRADE_DISCOUNT" ? t("invoiceEditor.gradeDiscount", { value: item.grade_discount_percent }) : t("invoiceEditor.normalPrice");
+  const snapshotText = (key: string) => {
+    const value = saved?.customer_snapshot[key];
+    return typeof value === "string" ? value : undefined;
+  };
+  // Items and totals of one revision, exactly as the server returned them (never mixed with another revision).
+  const itemsTable = (items: InvoiceEditorItem[], currencyCode: string, caption: string) => items.length ? (
+    <table className="document-lines">
+      <caption className="sr-only">{caption}</caption>
+      <thead><tr><th scope="col">{t("orders.item")}</th><th scope="col">{t("orders.lineTotal")}</th></tr></thead>
+      <tbody>
+        {items.map((item) => (
+          <tr key={item.id}>
+            <td><strong>{item.product_name}</strong><small><bdi dir="ltr">{item.quantity}</bdi> {basisLabel(item.price_basis)} × <bdi dir="ltr">{money(item.effective_unit_price, currencyCode)}</bdi> · {priceSourceLabel(item)}</small></td>
+            <td><bdi dir="ltr">{money(item.line_total, currencyCode)}</bdi></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : <p className="empty-copy">{t("invoiceEditor.emptyTitle")}</p>;
+  const totalsList = (source: InvoiceEditorResponse) => (
+    <dl className="document-totals">
+      <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr">{money(source.prior_balance, source.currency)}</dd></div>
+      <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr">{money(source.subtotal, source.currency)}</dd></div>
+      <div><dt>{t("invoiceEditor.discounts")}</dt><dd dir="ltr">{`− ${money(source.discount_total, source.currency)}`}</dd></div>
+      <div><dt>{t("invoiceEditor.markups")}</dt><dd dir="ltr">{`+ ${money(source.markup_total, source.currency)}`}</dd></div>
+      <div className="net-sales"><dt>{t("invoiceEditor.netSales")}</dt><dd dir="ltr">{money(source.net_sales, source.currency)}</dd></div>
+      <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr">{money(source.total_due, source.currency)}</dd></div>
+    </dl>
+  );
+
   return (
-    <div className="invoice-editor" role="tabpanel">
+    <div className="invoice-editor">
       <header className="invoice-editor-heading">
         <div>
           <p className="section-kicker">{t("invoiceEditor.kicker")}</p>
-          <h3>{t("invoiceEditor.title")}</h3>
-          <p>{t("invoiceEditor.body")}</p>
+          <h3>{t("invoiceEditor.tab")}</h3>
+        </div>
+      </header>
+
+      {/* One shared context for every view: the selected customer and the invoice currency. */}
+      <section aria-label={t("invoiceEditor.context")} className="invoice-context">
+        <div className="invoice-context-customer">
+          {customer ? (
+            <>
+              <span className="grade-seal"><span className="sr-only">{t("tenantWorkspace.grade")} </span>{customer.grade ?? "—"}</span>
+              <div><strong>{customer.name}</strong><small><bdi dir="ltr">{customer.phone}</bdi>{customer.address ? <> · {customer.address}</> : null}</small></div>
+              {!saved || saved.status === "DRAFT" ? <button className="text-button" onClick={() => { setCustomer(undefined); goToCustomerStep(); }} type="button">{t("common.change")}</button> : null}
+            </>
+          ) : <span className="muted">{t("invoiceEditor.noCustomer")}</span>}
         </div>
         <label className="field currency-field">
           <span>{t("tenantWorkspace.currency")}</span>
@@ -748,28 +853,63 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
             onChange={(event) => setCurrency(event.target.value.toUpperCase())}
           />
         </label>
-      </header>
+      </section>
+
+      <div aria-label={t("invoiceEditor.views")} className="invoice-views" role="group">
+        {INVOICE_VIEWS.map(([id, label]) => <button aria-controls={`invoice-view-${id}`} aria-pressed={view === id} key={id} onClick={() => setView(id)} type="button">{t(label)}</button>)}
+      </div>
 
       {error ? <ErrorState error={error} /> : null}
       {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
 
+      <section aria-label={t("invoiceEditor.viewInvoice")} className="invoice-view" hidden={view !== "invoice"} id="invoice-view-invoice">
+      {showDocument && saved ? (
+        <article aria-labelledby="invoice-document-title" className="invoice-document">
+          <header className="document-head">
+            <div>
+              <p className="section-kicker">{t(saved.status === "CANCELLED" ? "invoiceEditor.cancelled" : "invoiceEditor.confirmed")}</p>
+              <h4 id="invoice-document-title" ref={documentTitle} tabIndex={-1}><bdi dir="ltr">{saved.official_invoice_number ?? `R${saved.server_revision_number}`}</bdi></h4>
+              <p className="document-tone">{t(saved.status === "CANCELLED" ? "invoiceEditor.cancelledTone" : "invoiceEditor.confirmedTone")}</p>
+            </div>
+          </header>
+          <dl className="document-meta">
+            <div><dt>{t("invoiceEditor.customerStep")}</dt><dd><strong>{snapshotText("name") ?? customer?.name ?? "—"}</strong>{snapshotText("phone") ?? customer?.phone ? <bdi dir="ltr">{snapshotText("phone") ?? customer?.phone}</bdi> : null}</dd></div>
+            <div><dt>{t("tenantWorkspace.currency")}</dt><dd><bdi dir="ltr">{saved.currency}</bdi></dd></div>
+            {saved.confirmed_at ? <div><dt>{t("invoiceEditor.confirmedAt")}</dt><dd><time dateTime={saved.confirmed_at}>{new Date(saved.confirmed_at).toLocaleString()}</time></dd></div> : null}
+            <div><dt>{t("invoiceEditor.revision")}</dt><dd><bdi dir="ltr">R{saved.server_revision_number}</bdi></dd></div>
+          </dl>
+          <div className="document-body">
+            {itemsTable(saved.items, saved.currency, t("invoiceEditor.invoiceLines"))}
+            <div className="document-summary">
+              {totalsList(saved)}
+              <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p>
+            </div>
+          </div>
+          {saved.status === "CONFIRMED" ? (
+            <footer className="document-actions">
+              <button className="button" disabled={busy} onClick={openRevision} type="button">{t("invoiceEditor.createRevision")}</button>
+              <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><button className="button button-danger" disabled={busy} onClick={cancelSaved} type="button">{t("invoiceEditor.cancelInvoice")}</button></div>
+            </footer>
+          ) : null}
+        </article>
+      ) : (
+      <>
+      {saved?.status === "CONFIRMED" ? (
+        <div className="revision-bar">
+          <p ref={revisionTitle} tabIndex={-1}>{t("invoiceEditor.revisingTitle")} <bdi dir="ltr">{saved.official_invoice_number}</bdi></p>
+          <button className="text-button" onClick={closeRevision} type="button"><Arrow back small />{t("invoiceEditor.backToDocument")}</button>
+        </div>
+      ) : null}
       <div className="invoice-editor-grid">
         <div className="invoice-entry-desk">
+          {customer ? null : (
           <article className="content-card invoice-customer-card">
             <p className="section-kicker">{t("invoiceEditor.customerStep")}</p>
-            <h4>{customer ? customer.name : t("invoiceEditor.findCustomer")}</h4>
-            {customer ? (
-              <div className="selected-customer">
-                <div><bdi dir="ltr">{customer.phone}</bdi><span>{customer.address ?? "—"}</span></div>
-                <span className="grade-seal">{customer.grade ?? "—"}</span>
-                {!saved || saved.status === "DRAFT" ? <button className="text-button" onClick={() => setCustomer(undefined)} type="button">{t("common.change")}</button> : null}
-              </div>
-            ) : (
-              <>
+            <h4>{t("invoiceEditor.findCustomer")}</h4>
                 <form className="inline-form" onSubmit={searchCustomers}>
                   <label className="field">
                     <span>{t("fields.phone")}</span>
-                    <input dir="ltr" required value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} />
+                    <input dir="ltr" ref={customerPhoneInput} required value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} />
                   </label>
                   <button className="button" disabled={busy} type="submit">{t("common.search")}</button>
                 </form>
@@ -780,31 +920,30 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
                     </button>
                   ))}
                 </div>
-              </>
-            )}
           </article>
+          )}
 
           <article className="content-card item-entry-card">
             <p className="section-kicker">{t("invoiceEditor.itemStep")}</p>
             <h4>{t("invoiceEditor.addItems")}</h4>
+            {/* One entry method at a time (barcode first); the others stay mounted, so typed values persist. */}
+            <div aria-label={t("invoiceEditor.entryMethods")} className="entry-switch" role="group">
+              {ENTRY_METHODS.map(([id, label]) => <button aria-controls={`entry-method-${id}`} aria-pressed={entryMethod === id} key={id} onClick={() => setEntryMethod(id)} type="button">{t(label)}</button>)}
+            </div>
             <div className="entry-methods">
-              <form className="entry-method" onSubmit={scanBarcode}>
-                <strong>{t("invoiceEditor.barcodeEntry")}</strong>
+              <form className="entry-method" hidden={entryMethod !== "barcode"} id="entry-method-barcode" onSubmit={scanBarcode}>
                 <div className="inline-form"><input aria-label={t("tenantWorkspace.barcode")} dir="ltr" required value={barcode} onChange={(event) => setBarcode(event.target.value)} /><button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button></div>
               </form>
-              <form className="entry-method" onSubmit={searchCatalog}>
-                <strong>{t("invoiceEditor.catalogEntry")}</strong>
+              <form className="entry-method" hidden={entryMethod !== "catalog"} id="entry-method-catalog" onSubmit={searchCatalog}>
                 <div className="inline-form"><input aria-label={t("invoiceEditor.catalogSearch")} required value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} /><button className="button button-secondary" disabled={busy} type="submit">{t("common.search")}</button></div>
                 <div className="catalog-match-buttons">{catalogMatches.map((match) => <button key={match.product_id} onClick={() => addLine(productLine(match))} type="button"><strong>{match.name}</strong><span>{money(match.unit_price, match.currency)}</span></button>)}</div>
               </form>
-              <form className="entry-method text-list-method" onSubmit={parseText}>
-                <strong>{t("invoiceEditor.textEntry")}</strong>
+              <form className="entry-method text-list-method" hidden={entryMethod !== "text"} id="entry-method-text" onSubmit={parseText}>
                 <textarea aria-label={t("invoiceEditor.textEntry")} placeholder={t("invoiceEditor.textPlaceholder")} required rows={4} value={textList} onChange={(event) => setTextList(event.target.value)} />
                 <button className="button button-secondary" disabled={busy} type="submit">{t("invoiceEditor.parseList")}</button>
               </form>
-              <form className="entry-method manual-entry-method" onSubmit={addManual}>
-                <strong>{t("invoiceEditor.manualEntry")}</strong>
-                <input placeholder={t("invoiceEditor.itemName")} required value={manualName} onChange={(event) => setManualName(event.target.value)} />
+              <form className="entry-method manual-entry-method" hidden={entryMethod !== "manual"} id="entry-method-manual" onSubmit={addManual}>
+                <input aria-label={t("invoiceEditor.itemName")} placeholder={t("invoiceEditor.itemName")} required value={manualName} onChange={(event) => setManualName(event.target.value)} />
                 <input aria-label={t("invoiceEditor.quantity")} dir="ltr" placeholder="1+1" required value={manualQuantity} onChange={(event) => setManualQuantity(event.target.value)} />
                 <input aria-label={t("invoiceEditor.unitPrice")} dir="ltr" min="0" placeholder="0.0000" required step="0.0001" type="number" value={manualPrice} onChange={(event) => setManualPrice(event.target.value)} />
                 <button className="button button-secondary" type="submit">{t("invoiceEditor.addManual")}</button>
@@ -830,10 +969,12 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
               <article className="invoice-line" key={line.key}>
                 <span className="line-number">{String(index + 1).padStart(2, "0")}</span>
                 <div className="line-main">{line.imageUrl ? <InvoiceLineImage name={line.name} url={line.imageUrl} /> : <span className="invoice-line-image invoice-line-image-empty" aria-hidden="true">□</span>}<span><strong>{line.name}</strong><code dir="ltr">{line.barcode ?? t("invoiceEditor.manual")}</code></span></div>
+                <div className="line-fields">
                 <label className="field"><span>{t("invoiceEditor.quantityExpression")}</span><input dir="ltr" value={line.quantity} onChange={(event) => changeLine(line.key, { quantity: event.target.value })} /></label>
                 <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={line.basis} onChange={(event) => { const basis = event.target.value as ProductPriceBasis; changeLine(line.key, { basis, barcode: undefined }); void loadCostOptions({ ...line, basis, barcode: undefined }).catch(setError); }}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
                 <label className="field"><span>{t("invoiceEditor.lineDiscount")}</span><input dir="ltr" value={line.lineDiscount} onChange={(event) => changeLine(line.key, { lineDiscount: event.target.value })} /></label>
                 <label className="field"><span>{t("invoiceEditor.lineMarkup")}</span><input dir="ltr" value={line.lineMarkup} onChange={(event) => changeLine(line.key, { lineMarkup: event.target.value })} /></label>
+                </div>
                 {line.costOptions.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.supplierCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value })}><option value="">—</option>{line.costOptions.map((option) => <option key={option.supplier_id} value={option.supplier_id}>{option.supplier_name} · {option.unit_cost ?? "—"} {option.currency}{option.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
                 {!line.productId && suppliers.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.manualLineCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value || undefined })}><option value="">—</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
                 {(line.productId ? !line.costOptions.some((option) => option.unit_cost !== null) : suppliers.length === 0) && !line.costOverride ? <p className="cost-missing" role="note">{t("invoiceEditor.costMissing")}{onOpenSupplierSetup ? <> <button className="text-button" onClick={onOpenSupplierSetup} type="button">{t("invoiceEditor.openSupplierSetup")}</button></> : null}</p> : null}
@@ -845,7 +986,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
         </div>
 
         <aside className="invoice-tally" aria-label={t("invoiceEditor.totals")}>
-          <div className="tally-top"><span>{t(saved?.status === "CONFIRMED" ? "invoiceEditor.confirmed" : saved?.status === "CANCELLED" ? "invoiceEditor.cancelled" : "invoiceEditor.draft")}</span><strong>{saved?.official_invoice_number ?? (saved ? `R${saved.server_revision_number}` : "R—")}</strong></div>
+          <div className="tally-top"><span>{t(saved?.status === "CONFIRMED" ? "invoiceEditor.confirmed" : saved?.status === "CANCELLED" ? "invoiceEditor.cancelled" : "invoiceEditor.draft")}</span><strong><bdi dir="ltr">{saved?.official_invoice_number ?? (saved ? `R${saved.server_revision_number}` : "R—")}</bdi></strong></div>
           <dl>
             <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr">{saved ? money(saved.prior_balance, saved.currency) : "—"}</dd></div>
             <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr">{saved ? money(saved.subtotal, saved.currency) : "—"}</dd></div>
@@ -861,16 +1002,42 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
           {saved?.status === "DRAFT" ? <button className="button button-confirm" disabled={busy} onClick={confirmSaved} type="button">{t("invoiceEditor.confirmInvoice")}</button> : null}
           {saved && saved.status !== "CANCELLED" ? <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><button className="button button-danger" disabled={busy} onClick={cancelSaved} type="button">{t("invoiceEditor.cancelInvoice")}</button></div> : null}
           <p className="backend-note">{t("invoiceEditor.backendNote")}</p>
-          {history?.revisions.length ? <section className="invoice-history" aria-label={t("invoiceEditor.revisionHistory")}><h4>{t("invoiceEditor.revisionHistory")}</h4>{history.revisions.map((revision) => <article className={revision.is_current ? "is-current" : ""} key={revision.current_revision_id}><div><strong>R{revision.server_revision_number}</strong>{revision.is_current ? <span>{t("invoiceEditor.currentRevision")}</span> : null}</div><time dateTime={revision.revision_created_at}>{new Date(revision.revision_created_at).toLocaleString()}</time><bdi dir="ltr">{money(revision.net_sales, revision.currency)}</bdi>{revision.ledger_delta !== null ? <small dir="ltr">Δ {money(revision.ledger_delta, revision.currency)}</small> : null}</article>)}</section> : null}
         </aside>
       </div>
+      </>
+      )}
+      {/* Mounted while the invoice is confirmed, whether the document or the revision editor shows, so a
+          just-issued link stays visible until the owner leaves. */}
       {saved?.status === "CONFIRMED" ? <InvoiceSharing key={saved.id} tenantId={tenantId} invoiceId={saved.id} /> : saved ? <p className="backend-note">{t("invoiceEditor.sharingAfterConfirmation")}</p> : null}
+      {history?.revisions.length ? (
+        <section aria-labelledby="invoice-history-title" className="invoice-history">
+          <h4 id="invoice-history-title">{t("invoiceEditor.revisionHistory")}</h4>
+          {/* Each entry opens to that revision's own items and totals, read-only, as the server kept them. */}
+          {history.revisions.map((revision) => (
+            <details className={revision.is_current ? "is-current" : undefined} key={revision.current_revision_id}>
+              <summary>
+                <span className="revision-name"><strong>R{revision.server_revision_number}</strong>{revision.is_current ? <span className="current-mark">{t("invoiceEditor.currentRevision")}</span> : null}</span>
+                <time dateTime={revision.revision_created_at}>{new Date(revision.revision_created_at).toLocaleString()}</time>
+                <bdi className="revision-amount" dir="ltr">{money(revision.net_sales, revision.currency)}</bdi>
+                {revision.ledger_delta !== null ? <small className="revision-delta" dir="ltr">Δ {money(revision.ledger_delta, revision.currency)}</small> : null}
+              </summary>
+              <div className="revision-detail">
+                {revision.reason ? <p className="revision-reason"><span>{t("invoiceEditor.revisionReason")}</span> {revision.reason}</p> : null}
+                {itemsTable(revision.items, revision.currency, `R${revision.server_revision_number} · ${t("invoiceEditor.invoiceLines")}`)}
+                {totalsList(revision)}
+              </div>
+            </details>
+          ))}
+        </section>
+      ) : null}
+      </section>
 
+      <section aria-label={t("invoiceEditor.viewPayments")} className="invoice-view" hidden={view !== "payments"} id="invoice-view-payments">
       <section className="settlement-desk" aria-labelledby="settlement-desk-title">
         <header>
           <div><p className="section-kicker">{t("invoiceEditor.settlementKicker")}</p><h3 id="settlement-desk-title">{t("invoiceEditor.settlementTitle")}</h3><p>{t("invoiceEditor.settlementBody")}</p></div>
-          {customer ? <div className="settlement-customer"><strong>{customer.name}</strong><bdi dir="ltr">{currency}</bdi></div> : <span>{t("invoiceEditor.chooseCustomerFirst")}</span>}
         </header>
+        {customer ? null : <div className="notice view-guide" role="note"><span>{t("invoiceEditor.chooseCustomerFirst")}</span><button className="text-button" onClick={goToCustomerStep} type="button">{t("invoiceEditor.goToCustomer")}</button></div>}
         <div className="settlement-grid">
           <article className="content-card obligation-card">
             <div className="settlement-card-heading"><div><span>01</span><h4>{t("invoiceEditor.openObligations")}</h4></div><div className="allocation-mode" role="group" aria-label={t("invoiceEditor.allocationMode")}><button aria-pressed={allocationMode === "FIFO"} onClick={() => setAllocationMode("FIFO")} type="button">{t("invoiceEditor.fifoAllocation")}</button><button aria-pressed={allocationMode === "OWNER"} onClick={() => setAllocationMode("OWNER")} type="button">{t("invoiceEditor.ownerAllocation")}</button></div></div>
@@ -893,12 +1060,16 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
         </div>
         {lastPayment ? <article className="payment-slip" aria-live="polite"><div><span>{t(`invoiceEditor.paymentDirection.${lastPayment.direction}`)}</span><strong dir="ltr">{money(lastPayment.amount, lastPayment.currency)}</strong></div><dl><div><dt>{t("invoiceEditor.allocated")}</dt><dd dir="ltr">{money(lastPayment.allocated_amount, lastPayment.currency)}</dd></div><div><dt>{t("invoiceEditor.unallocatedCredit")}</dt><dd dir="ltr">{money(lastPayment.unallocated_amount, lastPayment.currency)}</dd></div><div><dt>{t("invoiceEditor.customerBalance")}</dt><dd dir="ltr">{money(lastPayment.customer_balance, lastPayment.currency)}</dd></div><div><dt>{t("invoiceEditor.availableCredit")}</dt><dd dir="ltr">{money(lastPayment.available_credit, lastPayment.currency)}</dd></div></dl>{lastPayment.direction === "CUSTOMER_RECEIPT" ? <div className="receipt-reversal"><label className="field"><span>{t("invoiceEditor.reversalReason")}</span><input required value={reversalReason} onChange={(event) => setReversalReason(event.target.value)} /></label><button className="text-button danger-link" disabled={busy || !reversalReason.trim()} onClick={reverseLastReceipt} type="button">{t("invoiceEditor.reverseReceipt")}</button></div> : null}</article> : null}
       </section>
+      </section>
+
+      <section aria-label={t("invoiceEditor.viewBalances")} className="invoice-view" hidden={view !== "balances"} id="invoice-view-balances">
       <section className="debt-desk" aria-labelledby="debt-desk-title">
         <header><div><p className="section-kicker">{t("invoiceEditor.debtKicker")}</p><h3 id="debt-desk-title">{t("invoiceEditor.debtTitle")}</h3></div><form className="threshold-form" onSubmit={saveOverdueThreshold}><label className="field"><span>{t("invoiceEditor.overdueThreshold")}</span><input dir="ltr" min="0" type="number" value={overdueThreshold} onChange={(event) => setOverdueThreshold(event.target.value)} /></label><button className="button button-secondary" disabled={busy} type="submit">{t("common.saveChanges")}</button></form></header>
         <div className="debt-desk-grid">
           <article className="content-card opening-balance-card"><h4>{t("invoiceEditor.openingBalance")}</h4><p>{t("invoiceEditor.openingBalanceBody")}</p>{customer ? <><strong>{customer.name}</strong><div className="balance-chips">{balances?.balances.length ? balances.balances.map((balance) => <span dir="ltr" key={balance.currency}>{money(balance.balance, balance.currency)}</span>) : <span>{t("invoiceEditor.noLedgerBalance")}</span>}</div></> : null}<form className="form-grid" onSubmit={recordOpeningBalance}><label className="field"><span>{t("invoiceEditor.signedOpeningAmount")}</span><input dir="ltr" required step="0.0001" type="number" value={openingAmount} onChange={(event) => setOpeningAmount(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={openingCurrency} onChange={(event) => setOpeningCurrency(event.target.value.toUpperCase())} /></label><label className="field field-wide"><span>{t("invoiceEditor.effectiveAt")}</span><input required type="datetime-local" value={openingEffectiveAt} onChange={(event) => setOpeningEffectiveAt(event.target.value)} /></label><button className="button field-wide" disabled={busy || !customer} type="submit">{t("invoiceEditor.recordOpeningBalance")}</button></form></article>
           <article className="content-card debt-register"><h4>{t("invoiceEditor.customerDebt")}</h4>{debts.debts.length ? debts.debts.map((debt) => <div className={debt.is_overdue ? "debt-row is-overdue" : "debt-row"} key={`${debt.customer_id}-${debt.currency}`}><span className="debt-alert-mark" aria-hidden="true">{debt.is_overdue ? "!" : "·"}</span><div><strong>{debt.customer_name}</strong><bdi dir="ltr">{debt.customer_phone}</bdi></div><bdi className="debt-amount" dir="ltr">{money(debt.balance, debt.currency)}</bdi><span>{debt.is_overdue ? t("invoiceEditor.overdueBy", { days: debt.overdue_age_days }) : t("invoiceEditor.currentDebt")}</span></div>) : <p className="empty-copy">{t("invoiceEditor.noCustomerDebt")}</p>}</article>
         </div>
+      </section>
       </section>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { ApiError, apiBlobRequest, apiRequest } from "../api/client";
 import type {
@@ -31,12 +32,14 @@ import { BrandingPanel } from "./BrandingPanel";
 import { CampaignPanel } from "./CampaignPanel";
 import { CustomerLinkControls } from "./CustomerLinkControls";
 import { DeliveryPanel } from "./DeliveryPanel";
+import { Arrow, Icon } from "./Icon";
 import { MyWorkPanel } from "./MyWorkPanel";
 import { OrdersPanel } from "./OrdersPanel";
 import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
+import { SYNC_ANCHOR, type WorkspaceSection, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
 
 const grades: CustomerGrade[] = ["A+", "A", "B+", "B"];
 
@@ -336,12 +339,273 @@ function ProductPricingMediaControls({
   );
 }
 
+/** One pane below the 1100px list/detail layout, as on the work screen: an open record replaces the list. */
+const ONE_PANE = "(max-width: 1099px)";
+const singlePane = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(ONE_PANE).matches;
+
+/** The workspace's result and error notices sit directly above the customer panes; this is the topmost one. */
+function noticeAbove(node: Element | null): Element | undefined {
+  let top: Element | undefined;
+  let sibling = node?.previousElementSibling;
+  while (sibling && sibling.classList.contains("notice")) {
+    top = sibling;
+    sibling = sibling.previousElementSibling;
+  }
+  return top;
+}
+
+/** Where focus goes once the customer panes have rendered the member's last step. */
+type CustomerFocus =
+  | { to: "detail" | "form" | "edit" | "saved" | "failed" }
+  | { to: "list"; row: string | undefined; scrollY: number };
+
+interface CustomerDirectoryProps {
+  tenantId: string;
+  busy: boolean;
+  phoneSearch: string;
+  setPhoneSearch: (value: string) => void;
+  matches: Customer[];
+  searchCustomers: (event: FormEvent) => void;
+  customerDraft: CustomerDraft;
+  setCustomerDraft: (draft: CustomerDraft) => void;
+  editingCustomerId: string | undefined;
+  setEditingCustomerId: (id: string | undefined) => void;
+  saveCustomer: (event: FormEvent) => void;
+  editCustomer: (customer: Customer) => void;
+  linkCustomerId: string | undefined;
+  setLinkCustomerId: (id: string | undefined) => void;
+}
+
+/**
+ * Customers as a list and a record, like the work screen: the phone search and its results beside
+ * the chosen customer from 1100px, one pane at a time below. Presentation only — the search, save
+ * and edit handlers (with their offline paths), the notices and the storefront-link controls are the
+ * workspace's own, passed in unchanged; this component keeps which pane is open and where focus goes.
+ */
+function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matches, searchCustomers, customerDraft, setCustomerDraft, editingCustomerId, setEditingCustomerId, saveCustomer, editCustomer, linkCustomerId, setLinkCustomerId }: CustomerDirectoryProps) {
+  const { t } = useTranslation();
+  const [selectedId, setSelectedId] = useState(editingCustomerId);
+  const [creating, setCreating] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(editingCustomerId !== undefined);
+  const [, setFocusRequests] = useState(0);
+  const root = useRef<HTMLElement>(null);
+  const phoneInput = useRef<HTMLInputElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const detailHeading = useRef<HTMLHeadingElement>(null);
+  const formHeading = useRef<HTMLHeadingElement>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const saveButton = useRef<HTMLButtonElement>(null);
+  const rows = useRef(new Map<string, HTMLButtonElement>());
+  const listScroll = useRef(0);
+  const pendingSave = useRef<Customer[] | undefined>(undefined);
+  const pendingFocus = useRef<CustomerFocus | undefined>(undefined);
+  const focusAfterRender = useCallback((next: CustomerFocus) => {
+    pendingFocus.current = next;
+    setFocusRequests((count) => count + 1);
+  }, []);
+
+  const formMode = editingCustomerId ? "edit" : creating ? "create" : undefined;
+  const selected = matches.find((customer) => customer.id === selectedId);
+  // The record the detail pane shows, marked in the list; none while a new customer is being added.
+  const shownId = formMode === "edit" ? editingCustomerId : formMode ? undefined : selected?.id;
+  const initial = (name: string) => name.trim().slice(0, 1).toUpperCase();
+
+  // Focus and scrolling follow a step once its pane has rendered, before paint. Declared before the
+  // save handling below, so a request made there is carried out after the render it causes.
+  useLayoutEffect(() => {
+    const next = pendingFocus.current;
+    if (!next) return;
+    pendingFocus.current = undefined;
+    const onePane = singlePane();
+    const bringIntoView = (node: Element | null | undefined, block: ScrollLogicalPosition) => {
+      if (node && typeof node.scrollIntoView === "function") node.scrollIntoView({ block });
+    };
+    switch (next.to) {
+      case "list": {
+        // Back on the results: the same scroll position, with focus on the customer just viewed.
+        if (onePane) window.scrollTo(0, next.scrollY);
+        const target = (next.row ? rows.current.get(next.row) : undefined) ?? addButton.current;
+        target?.focus(onePane ? { preventScroll: true } : undefined);
+        // Moves only when the target is not fully visible (a saved record joins the end of the results);
+        // its scroll margin keeps it clear of the bottom bar.
+        if (onePane) bringIntoView(target, "nearest");
+        return;
+      }
+      case "failed":
+        // Save was disabled while sending, which can drop focus; the error itself is announced.
+        if (!root.current?.contains(document.activeElement)) saveButton.current?.focus({ preventScroll: true });
+        if (onePane) bringIntoView(noticeAbove(root.current), "nearest");
+        return;
+      case "edit":
+        editButton.current?.focus();
+        return;
+      default: {
+        const heading = next.to === "form" ? formHeading.current : detailHeading.current;
+        heading?.focus(onePane ? { preventScroll: true } : undefined);
+        if (!onePane) return;
+        // On a phone the pane is shown from its top; after a save, from the result notice above it.
+        const record = heading?.closest("article");
+        bringIntoView(next.to === "saved" ? noticeAbove(root.current) ?? record : record, "start");
+      }
+    }
+  });
+
+  // A save the workspace completed (online, or queued on this device) adds the record to the results
+  // and clears the form: the pane then shows that customer. A refused save keeps the form and its error.
+  useLayoutEffect(() => {
+    const before = pendingSave.current;
+    if (!before || busy) return;
+    pendingSave.current = undefined;
+    if (matches === before) { focusAfterRender({ to: "failed" }); return; }
+    const saved = matches[matches.length - 1];
+    setCreating(false);
+    setSelectedId(saved?.id);
+    if (saved) { focusAfterRender({ to: "saved" }); return; }
+    setDetailOpen(false);
+    focusAfterRender({ to: "list", row: undefined, scrollY: listScroll.current });
+  }, [busy, matches, focusAfterRender]);
+
+  const rememberListScroll = () => { if (singlePane()) listScroll.current = window.scrollY; };
+  const discardForm = () => { setEditingCustomerId(undefined); setCustomerDraft(emptyCustomer); setCreating(false); };
+  // The results change beneath the search, so the phone field keeps the focus (Search is busy meanwhile).
+  const submitSearch = (event: FormEvent) => {
+    phoneInput.current?.focus();
+    searchCustomers(event);
+  };
+  const openCustomer = (customer: Customer) => {
+    if (formMode) discardForm();
+    rememberListScroll();
+    setSelectedId(customer.id);
+    setDetailOpen(true);
+    // On a phone the record replaces the list and focus moves to its name; beside the list it stays on the row.
+    if (singlePane()) focusAfterRender({ to: "detail" });
+  };
+  const backToList = () => {
+    setDetailOpen(false);
+    focusAfterRender({ to: "list", row: selected?.id, scrollY: listScroll.current });
+  };
+  const addCustomer = () => {
+    rememberListScroll();
+    discardForm(); // an edit left open never leaks into a new customer
+    setCreating(true);
+    setDetailOpen(true);
+    focusAfterRender({ to: "form" });
+  };
+  const editSelected = (customer: Customer) => {
+    editCustomer(customer);
+    setCreating(false);
+    focusAfterRender({ to: "form" });
+  };
+  const cancelForm = () => {
+    const backToRecord = formMode === "edit" && selected !== undefined;
+    discardForm();
+    if (backToRecord) { focusAfterRender({ to: "edit" }); return; }
+    setDetailOpen(false);
+    focusAfterRender({ to: "list", row: undefined, scrollY: listScroll.current });
+  };
+  const submitCustomer = (event: FormEvent) => {
+    pendingSave.current = matches;
+    saveCustomer(event);
+  };
+
+  return (
+    <section aria-label={t("tenantWorkspace.customers")} className={`customers workspace${detailOpen && (formMode || selected) ? " show-detail" : ""}`} ref={root}>
+      <div className="workspace-list">
+        <article className="customer-search">
+          <p className="section-kicker">{t("tenantWorkspace.phoneLookup")}</p>
+          <h2>{t("tenantWorkspace.findCustomer")}</h2>
+          <p className="muted">{t("tenantWorkspace.chooseCustomer")}</p>
+          <form className="inline-form" onSubmit={submitSearch}>
+            <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" ref={phoneInput} required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label>
+            <button className="button button-secondary" disabled={busy} type="submit"><Icon name="search" small />{t("common.search")}</button>
+          </form>
+          <button className="button customer-add" onClick={addCustomer} ref={addButton} type="button"><Icon name="plus" small />{t("tenantWorkspace.addCustomer")}</button>
+        </article>
+        {matches.length ? (
+          <ul aria-label={t("tenantWorkspace.matchList")} className="stop-list customer-list">
+            {matches.map((customer) => (
+              <li className="stop-item" key={customer.id}>
+                <button aria-current={shownId === customer.id ? "true" : undefined} className={`stop-button customer-row${shownId === customer.id ? " selected" : ""}`} onClick={() => openCustomer(customer)} ref={(node) => { if (node) rows.current.set(customer.id, node); else rows.current.delete(customer.id); }} type="button">
+                  <span className="avatar" aria-hidden="true">{initial(customer.name)}</span>
+                  <span className="stop-copy"><strong>{customer.name}</strong><small><bdi dir="ltr">{customer.phone}</bdi></small>{customer.address ? <small>{customer.address}</small> : null}</span>
+                  {customer.grade ? <span className="badge">{t("tenantWorkspace.grade")} <bdi>{customer.grade}</bdi></span> : null}
+                  <Arrow />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+      {formMode ? (
+        <article aria-labelledby="customer-form-title" className="detail customer-detail">
+          <div className="detail-inner">
+            <p className="section-kicker">{formMode === "edit" ? t("common.edit") : t("tenantWorkspace.newStop")}</p>
+            <h2 className="customer-form-title" id="customer-form-title" ref={formHeading} tabIndex={-1}>{formMode === "edit" ? t("tenantWorkspace.editCustomer") : t("tenantWorkspace.addCustomer")}</h2>
+            <form className="form-grid" onSubmit={submitCustomer}>
+              <label className="field"><span>{t("tenantWorkspace.customerName")}</span><input required value={customerDraft.name} onChange={(event) => setCustomerDraft({ ...customerDraft, name: event.target.value })} /></label>
+              <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" required value={customerDraft.phone} onChange={(event) => setCustomerDraft({ ...customerDraft, phone: event.target.value })} /></label>
+              <label className="field field-wide"><span>{t("tenantWorkspace.address")}</span><input value={customerDraft.address} onChange={(event) => setCustomerDraft({ ...customerDraft, address: event.target.value })} /></label>
+              <label className="field"><span>{t("tenantWorkspace.latitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.latitude} onChange={(event) => setCustomerDraft({ ...customerDraft, latitude: event.target.value })} /></label>
+              <label className="field"><span>{t("tenantWorkspace.longitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.longitude} onChange={(event) => setCustomerDraft({ ...customerDraft, longitude: event.target.value })} /></label>
+              <label className="field"><span>{t("tenantWorkspace.grade")}</span><select value={customerDraft.grade} onChange={(event) => setCustomerDraft({ ...customerDraft, grade: event.target.value as CustomerDraft["grade"] })}><option value="">{t("tenantWorkspace.noGrade")}</option>{grades.map((grade) => <option key={grade}>{grade}</option>)}</select></label>
+              <div className="form-actions field-wide"><button className="button" disabled={busy} ref={saveButton} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button><button className="button button-secondary" onClick={cancelForm} type="button">{t("common.cancel")}</button></div>
+            </form>
+          </div>
+        </article>
+      ) : selected ? (
+        <article aria-labelledby="customer-detail-title" className="detail customer-detail">
+          <div className="detail-inner">
+            <button className="text-btn mobile-back" onClick={backToList} type="button"><Arrow back />{t("tenantWorkspace.allCustomers")}</button>
+            <div className="customer-identity">
+              <span className="avatar" aria-hidden="true">{initial(selected.name)}</span>
+              <h2 className="detail-name" id="customer-detail-title" ref={detailHeading} tabIndex={-1}>{selected.name}</h2>
+            </div>
+            <dl className="customer-facts">
+              <div><dt>{t("fields.phone")}</dt><dd><bdi dir="ltr">{selected.phone}</bdi></dd></div>
+              <div><dt>{t("tenantWorkspace.address")}</dt><dd>{selected.address ?? "—"}</dd></div>
+              <div><dt>{t("tenantWorkspace.grade")}</dt><dd>{selected.grade ? <bdi>{selected.grade}</bdi> : t("tenantWorkspace.noGrade")}</dd></div>
+            </dl>
+            <small className="customer-record-id">{t("tenantWorkspace.recordId")} <bdi dir="ltr">{selected.id}</bdi></small>
+            <div className="customer-actions">
+              <button className="button button-secondary" onClick={() => editSelected(selected)} ref={editButton} type="button"><Icon name="edit" small />{t("common.edit")}</button>
+              <button aria-expanded={linkCustomerId === selected.id} className="button button-secondary" onClick={() => setLinkCustomerId(linkCustomerId === selected.id ? undefined : selected.id)} type="button"><Icon name="shop" small />{t("customerLink.toggle")}</button>
+            </div>
+            {linkCustomerId === selected.id ? <CustomerLinkControls customerId={selected.id} tenantId={tenantId} /> : null}
+            {/* Balances and receipts belong to the Invoices section; nothing financial is fetched here. */}
+            <p className="muted customer-balances">{t("tenantWorkspace.balancesElsewhere")} <Link to={sectionHref("invoices", tenantId)}>{t("invoiceEditor.tab")} › {t("invoiceEditor.viewBalances")}</Link></p>
+          </div>
+        </article>
+      ) : (
+        <div className="detail customer-detail customer-detail-empty"><p className="empty-copy">{t("tenantWorkspace.noCustomerSelected")}</p></div>
+      )}
+    </section>
+  );
+}
+
 export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [tenantId, setTenantId] = useState(contexts[0]?.tenant_id ?? "");
-  const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
-  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "procurement" | "invoices" | "orders" | "deliveries" | "analytics" | "branding" | "sync" | "backup">("customers");
+  // The selected business and the open section are both carried by the route's query string
+  // (`tenant`, `section`) so the shell's phone bar, the desktop rail, this body and the browser
+  // history all agree; the first listed business and Work are the defaults. Which
+  // panels a membership gets is still read from the server's context (role, status) below.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const context = selectedContext(contexts, tenantFromSearch(searchParams)) ?? contexts[0]!;
+  const view = sectionFromSearch(searchParams);
+  const setView = useCallback((next: WorkspaceSection, replace = false) => {
+    setSearchParams((current) => workspaceSearch(next, tenantFromSearch(current)), { replace });
+  }, [setSearchParams]);
+  const chooseBusiness = (tenantId: string) => {
+    const next = contexts.find((item) => item.tenant_id === tenantId);
+    if (!next || next.tenant_id === context.tenant_id) return;
+    // Owner sections exist only for an owner membership: a switch to a driver business lands on
+    // that business's work view — its sync anchor when the owner's Offline section was open.
+    const keepsSection = next.role === "owner";
+    const hash = !keepsSection && view === "sync" ? `#${SYNC_ANCHOR}` : location.hash;
+    void navigate({ pathname: "/workspace", search: workspaceSearch(keepsSection ? view : "work", tenantId), hash });
+  };
   const [backupNotice, setBackupNotice] = useState<string>();
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
   useEffect(() => {
@@ -351,9 +615,9 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       if (!raw) return;
       sessionStorage.removeItem(CONNECT_RESULT_KEY);
       const result = JSON.parse(raw) as { tenant_id: string; email: string };
-      if (result.tenant_id === context.tenant_id) { setView("backup"); setBackupNotice(t("backup.connected", { email: result.email })); }
+      if (result.tenant_id === context.tenant_id) { setView("backup", true); setBackupNotice(t("backup.connected", { email: result.email })); }
     } catch { /* nothing to restore */ }
-  }, [context.tenant_id, t]);
+  }, [context.tenant_id, setView, t]);
   const [phoneSearch, setPhoneSearch] = useState("");
   const [matches, setMatches] = useState<Customer[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(emptyCustomer);
@@ -382,7 +646,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     setBarcodeProductId(undefined);
     setRequestError(undefined);
     setNotice(undefined);
-  }, [tenantId]);
+  }, [context.tenant_id]);
 
   const categories = useQuery({
     queryKey: ["tenant-categories", context.tenant_id],
@@ -618,75 +882,39 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
 
   return (
     <section className="tenant-workspace" aria-label={t("tenantWorkspace.label")}>
-      <header className="route-book-header">
-        <div>
-          <p className="section-kicker">{t("tenantWorkspace.routeBook")}</p>
-          <h2>{context.tenant_name}</h2>
-          <div className="badge-pair"><StatusBadge value={context.tenant_status} /><StatusBadge value={context.role} /></div>
+      {/* The page heading of an active workspace: the selected business, its state and the member's
+          role, with the picker beside it. Kept to one compact band so the day's work follows at once. */}
+      <header className="business-head">
+        <div className="business">
+          <span className="avatar business-avatar" aria-hidden="true">{context.tenant_name.trim().slice(0, 1).toUpperCase()}</span>
+          <div>
+            <h1>{context.tenant_name}</h1>
+            <div className="badge-pair"><StatusBadge value={context.tenant_status} /><StatusBadge value={context.role} /></div>
+          </div>
         </div>
         {contexts.length > 1 ? (
           <label className="field tenant-picker"><span>{t("tenantWorkspace.business")}</span>
-            <select value={context.tenant_id} onChange={(event) => setTenantId(event.target.value)}>
+            <select value={context.tenant_id} onChange={(event) => chooseBusiness(event.target.value)}>
               {contexts.map((item) => <option key={item.tenant_id} value={item.tenant_id}>{item.tenant_name}</option>)}
             </select>
           </label>
         ) : null}
       </header>
-      {context.role !== "owner" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.ownerOnly")}</div> : null}
-      {context.role === "driver" && context.tenant_status === "ACTIVE" ? <><MyWorkPanel membershipId={context.membership_id} tenantId={context.tenant_id} /><PickupPanel tenantId={context.tenant_id} /></> : null}
+      {/* A driver's own work needs no permission notice; it explains only an owner section requested in the address. */}
+      {context.role !== "owner" && view !== "work" ? <p className="notice" role="note">{t("tenantWorkspace.ownerOnly")}</p> : null}
+      {/* Keyed by business: the work screen's day meter, queued list and pickups never carry over to another membership. */}
+      {context.role === "driver" && context.tenant_status === "ACTIVE" ? <><MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} tenantId={context.tenant_id} /><PickupPanel key={`pickups-${context.tenant_id}`} tenantId={context.tenant_id} /></> : null}
       {context.tenant_status !== "ACTIVE" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.inactive")}</div> : null}
       {context.role === "owner" && context.tenant_status === "ACTIVE" ? (
         <>
-          <div className="workspace-tabs" role="tablist" aria-label={t("tenantWorkspace.sections")}>
-            <button aria-selected={view === "customers"} onClick={() => setView("customers")} role="tab" type="button">{t("tenantWorkspace.customers")}</button>
-            <button aria-selected={view === "categories"} onClick={() => setView("categories")} role="tab" type="button">{t("tenantWorkspace.categories")}</button>
-            <button aria-selected={view === "products"} onClick={() => setView("products")} role="tab" type="button">{t("tenantWorkspace.products")}</button>
-            <button aria-selected={view === "suppliers"} onClick={() => setView("suppliers")} role="tab" type="button">{t("supplierSetup.tab")}</button>
-            <button aria-selected={view === "procurement"} onClick={() => setView("procurement")} role="tab" type="button">{t("procurement.tab")}</button>
-            <button aria-selected={view === "invoices"} onClick={() => setView("invoices")} role="tab" type="button">{t("invoiceEditor.tab")}</button>
-            <button aria-selected={view === "orders"} onClick={() => setView("orders")} role="tab" type="button">{t("orders.tab")}</button>
-            <button aria-selected={view === "deliveries"} onClick={() => setView("deliveries")} role="tab" type="button">{t("delivery.tab")}</button>
-            <button aria-selected={view === "analytics"} onClick={() => setView("analytics")} role="tab" type="button">{t("analytics.tab")}</button>
-            <button aria-selected={view === "branding"} onClick={() => setView("branding")} role="tab" type="button">{t("branding.tab")}</button>
-            <button aria-selected={view === "sync"} onClick={() => setView("sync")} role="tab" type="button">{t("sync.tab")}</button>
-            <button aria-selected={view === "backup"} onClick={() => setView("backup")} role="tab" type="button">{t("backup.tab")}</button>
-          </div>
+          {/* Sections are chosen from the shell (desktop rail, phone bar and More), all carried by the address. */}
           {requestError ? <ErrorState error={requestError} /> : null}
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
           {view === "customers" ? (
-            <div className="route-book-grid" role="tabpanel">
-              <article className="content-card route-form-card">
-                <p className="section-kicker">{editingCustomerId ? t("common.edit") : t("tenantWorkspace.newStop")}</p>
-                <h3>{editingCustomerId ? t("tenantWorkspace.editCustomer") : t("tenantWorkspace.addCustomer")}</h3>
-                <form className="form-grid" onSubmit={saveCustomer}>
-                  <label className="field"><span>{t("tenantWorkspace.customerName")}</span><input required value={customerDraft.name} onChange={(event) => setCustomerDraft({ ...customerDraft, name: event.target.value })} /></label>
-                  <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" required value={customerDraft.phone} onChange={(event) => setCustomerDraft({ ...customerDraft, phone: event.target.value })} /></label>
-                  <label className="field field-wide"><span>{t("tenantWorkspace.address")}</span><input value={customerDraft.address} onChange={(event) => setCustomerDraft({ ...customerDraft, address: event.target.value })} /></label>
-                  <label className="field"><span>{t("tenantWorkspace.latitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.latitude} onChange={(event) => setCustomerDraft({ ...customerDraft, latitude: event.target.value })} /></label>
-                  <label className="field"><span>{t("tenantWorkspace.longitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.longitude} onChange={(event) => setCustomerDraft({ ...customerDraft, longitude: event.target.value })} /></label>
-                  <label className="field"><span>{t("tenantWorkspace.grade")}</span><select value={customerDraft.grade} onChange={(event) => setCustomerDraft({ ...customerDraft, grade: event.target.value as CustomerDraft["grade"] })}><option value="">{t("tenantWorkspace.noGrade")}</option>{grades.map((grade) => <option key={grade}>{grade}</option>)}</select></label>
-                  <div className="form-actions field-wide"><button className="button" disabled={busy} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button>{editingCustomerId ? <button className="button button-secondary" onClick={() => { setEditingCustomerId(undefined); setCustomerDraft(emptyCustomer); }} type="button">{t("common.cancel")}</button> : null}</div>
-                </form>
-              </article>
-              <article className="content-card lookup-card">
-                <p className="section-kicker">{t("tenantWorkspace.phoneLookup")}</p>
-                <h3>{t("tenantWorkspace.findCustomer")}</h3>
-                <form className="inline-form" onSubmit={searchCustomers}><label className="field"><span>{t("fields.phone")}</span><input dir="ltr" required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label><button className="button" disabled={busy} type="submit">{t("common.search")}</button></form>
-                <div className="customer-match-list">
-                  {matches.map((customer) => (
-                    <article className="customer-match" key={customer.id}>
-                      <div><h4>{customer.name}</h4><bdi dir="ltr">{customer.phone}</bdi></div>
-                      <dl><div><dt>{t("tenantWorkspace.address")}</dt><dd>{customer.address ?? "—"}</dd></div><div><dt>{t("tenantWorkspace.grade")}</dt><dd>{customer.grade ?? "—"}</dd></div><div><dt>ID</dt><dd dir="ltr">{customer.id}</dd></div></dl>
-                      <button className="text-button" onClick={() => editCustomer(customer)} type="button">{t("common.edit")}</button>
-                      <button aria-expanded={linkCustomerId === customer.id} className="text-button" onClick={() => setLinkCustomerId(linkCustomerId === customer.id ? undefined : customer.id)} type="button">{t("customerLink.toggle")}</button>
-                      {linkCustomerId === customer.id ? <CustomerLinkControls customerId={customer.id} tenantId={context.tenant_id} /> : null}
-                    </article>
-                  ))}
-                </div>
-              </article>
-            </div>
+            // Keyed by business: an open record or form never carries over to another membership.
+            <CustomerDirectory key={context.tenant_id} busy={busy} customerDraft={customerDraft} editCustomer={editCustomer} editingCustomerId={editingCustomerId} linkCustomerId={linkCustomerId} matches={matches} phoneSearch={phoneSearch} saveCustomer={saveCustomer} searchCustomers={searchCustomers} setCustomerDraft={setCustomerDraft} setEditingCustomerId={setEditingCustomerId} setLinkCustomerId={setLinkCustomerId} setPhoneSearch={setPhoneSearch} tenantId={context.tenant_id} />
           ) : view === "categories" ? (
-            <div className="route-book-grid" role="tabpanel">
+            <div className="route-book-grid">
               <article className="content-card route-form-card">
                 <p className="section-kicker">{editingCategoryId ? t("common.edit") : t("tenantWorkspace.newCategory")}</p>
                 <h3>{editingCategoryId ? t("tenantWorkspace.editCategory") : t("tenantWorkspace.addCategory")}</h3>
@@ -709,7 +937,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
               </article>
             </div>
           ) : view === "products" ? (
-            <div className="catalog-workspace" role="tabpanel">
+            <div className="catalog-workspace">
               <StorefrontSettings tenantId={context.tenant_id} />
               <CampaignPanel products={products.data?.products ?? []} tenantId={context.tenant_id} />
               <article className="content-card scan-desk">
@@ -762,11 +990,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <AnalyticsPanel tenantId={context.tenant_id} />
           ) : view === "branding" ? (
             <BrandingPanel tenantId={context.tenant_id} />
+          ) : view === "work" ? (
+            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
-            <>
-              <DeliveryPanel tenantId={context.tenant_id} />
-              <MyWorkPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
-            </>
+            <DeliveryPanel tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : (

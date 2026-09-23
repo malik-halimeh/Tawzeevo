@@ -45,7 +45,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await expect(page).toHaveURL(/\/workspace/);
 
   // ----- Browser: supplier and cost setup (D-041) -----
-  await page.getByRole("tab", { name: "Suppliers & costs" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Suppliers & costs", exact: true }).click();
   await page.getByRole("textbox", { name: "Supplier name" }).fill("Bekaa Wholesale");
   await page.getByRole("button", { name: "Add supplier" }).click();
   await expect(page.getByText("Supplier created.")).toBeVisible();
@@ -72,7 +72,9 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await expect(ledger.getByText("-5.0000")).toBeVisible();
 
   // ----- Browser: invoice create -> confirm -----
-  await page.getByRole("tab", { name: "Invoices" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Invoices", exact: true }).click();
+  // The section renders after the address changes; wait for it before using its fields.
+  await expect(page.getByRole("heading", { name: "Invoices", level: 3 })).toBeVisible();
   await page.getByRole("textbox", { name: "Phone", exact: true }).fill(customerPhone);
   await page.getByRole("button", { name: "Search" }).first().click();
   await page.getByRole("button", { name: /Maya Market/ }).click();
@@ -84,12 +86,14 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await page.getByRole("button", { name: "Confirm and assign invoice number" }).click();
   await expect(page.getByText(/Invoice \d{4}-\d{6} confirmed and posted to the customer ledger\./)).toBeVisible();
 
-  // ----- Browser: receipt -----
+  // ----- Browser: receipt (the Payments view of the Invoices section) -----
+  await page.getByRole("group", { name: "Invoice views" }).getByRole("button", { name: "Payments", exact: true }).click();
   await page.getByRole("spinbutton", { name: "Amount received" }).fill("5");
   await page.getByRole("button", { name: "Record receipt" }).click();
   await expect(page.getByText("Receipt recorded and allocated.")).toBeVisible();
 
   // ----- Browser: sharing is confirmed-only; cancellation revokes; Arabic/RTL renders -----
+  await page.getByRole("group", { name: "Invoice views" }).getByRole("button", { name: "Invoice", exact: true }).click();
   await page.getByRole("button", { name: "Manage invoice links" }).click();
   await page.getByRole("button", { name: "Create private link" }).click();
   const publicUrl = await page.getByLabel("Private invoice URL").inputValue();
@@ -104,7 +108,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
 
   await page.getByRole("button", { name: "العربية" }).first().click();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await expect(page.getByRole("tab", { name: "الفواتير" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "التنقل في مساحة العمل" }).getByRole("link", { name: "الفواتير", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "English" }).first().click();
   await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
 

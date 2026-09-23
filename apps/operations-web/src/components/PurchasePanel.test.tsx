@@ -41,3 +41,18 @@ test("owner records a purchase with an idempotency key and sees the payable tota
   expect(await screen.findByText("Owed to suppliers · USD")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Reverse" })).toBeDisabled(); // a reason is required
 });
+
+test("a recorded purchase keeps its supplier reference left to right", async () => {
+  await i18n.changeLanguage("en");
+  const recorded = { id: "buy-2", supplier_id: "s1", supplier_name: "Bekaa", procurement_list_id: null, purchased_at: "2026-09-19T05:00:00Z", currency: "USD", total_amount: "30.0000", supplier_reference: "BW-2026-00417", reversed_at: null, reversal_reason: null, replayed: false, items: [] };
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (path.endsWith("/supplier-purchases")) return Promise.resolve(Response.json({ purchases: [recorded] }));
+    if (path.endsWith("/supplier-ledger/totals")) return Promise.resolve(Response.json({ customers: [], suppliers: [] }));
+    if (path.includes("/tenants/t1/products")) return Promise.resolve(Response.json({ products: [product] }));
+    return Promise.resolve(Response.json({ lists: [] }));
+  }));
+
+  render(<PurchasePanel tenantId="t1" suppliers={[{ id: "s1", name: "Bekaa" }]} />);
+  expect(await screen.findByText("BW-2026-00417")).toHaveAttribute("dir", "ltr");
+});

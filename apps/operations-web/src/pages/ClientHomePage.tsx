@@ -21,6 +21,7 @@ export function ClientHomePage() {
     queryKey: ["tenant-contexts"],
     queryFn: () => apiRequest<TenantContextListResponse>("/api/v1/tenant-contexts"),
   });
+  const tenants = tenantContexts.data?.tenants;
   const schema = z.object({ business_name: z.string().trim().min(1, t("validation.required")).max(200) });
   const { formState: { errors, isSubmitting }, handleSubmit, register, reset } = useForm<{ business_name: string }>({ resolver: zodResolver(schema) });
 
@@ -38,13 +39,17 @@ export function ClientHomePage() {
     }
   };
 
+  // A member of a business opens straight onto that workspace: its compact business header is the
+  // page heading and follows the selected business, so no generic greeting or role summary sits
+  // between the member and the day's work. The greeting stays for loading, errors and onboarding.
+  if (tenants?.length) return <TenantWorkspace contexts={tenants} />;
+
   return (
     <div className="page-stack">
-      <PageHeader eyebrow={t("clientHome.eyebrow")} title={t("clientHome.title", { name: user?.first_name })} description={tenantContexts.data?.tenants.length ? t("clientHome.activeDescription") : t("clientHome.description")} />
+      <PageHeader eyebrow={t("clientHome.eyebrow")} title={t("clientHome.title", { name: user?.first_name })} {...(tenants ? { description: t("clientHome.description") } : {})} />
       {tenantContexts.isLoading ? <LoadingState /> : null}
       {tenantContexts.error ? <ErrorState error={tenantContexts.error} /> : null}
-      {tenantContexts.data?.tenants.length ? <TenantWorkspace contexts={tenantContexts.data.tenants} /> : null}
-      {tenantContexts.data && tenantContexts.data.tenants.length === 0 ? <section className="workspace-grid">
+      {tenants && tenants.length === 0 ? <section className="workspace-grid">
         <article className="content-card application-invite">
           <p className="section-kicker">{t("clientHome.tenantApplication")}</p>
           <h2>{t("clientHome.applicationTitle")}</h2>
@@ -62,7 +67,6 @@ export function ClientHomePage() {
           </form>
         </article>
         <aside className="content-card next-stop-card">
-          <span className="route-number">01</span>
           <p className="section-kicker">{t("clientHome.account")}</p>
           <h2>{t("clientHome.keepCurrent")}</h2>
           <p>{t("clientHome.profileBody")}</p>

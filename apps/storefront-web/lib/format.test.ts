@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 
 import type { PublicProduct } from "./catalog";
 import { isValidSlug } from "./catalog";
-import { money, priceLine, productName, secondaryPriceLine, shopHref } from "./format";
-import { dirFor, normalizeLang, otherLang, t } from "./i18n";
+import { money, priceLine, productName, secondaryPrice, secondaryPriceLine, shopHref } from "./format";
+import { dirFor, normalizeLang, otherLang, plural, t } from "./i18n";
 
 const product: PublicProduct = {
   id: "p1", category_id: "c1", name: "Cedar Water", name_ar: "مياه الأرز", barcode: "5280000000012",
@@ -28,6 +28,12 @@ describe("storefront formatting", () => {
     expect(secondaryPriceLine({ ...product, packaging: { pieces_per_box: null, piece_price: "12.5000", box_price: null } }, "en")).toBeNull();
   });
 
+  test("the secondary price comes as amount and basis, so pages can keep the amount left to right", () => {
+    expect(secondaryPrice(product, "ar")).toEqual({ amount: "150.00 USD", basis: "للصندوق (12 قطعة)" });
+    expect(secondaryPrice({ ...product, price: "150.0000", price_basis: "BOX" }, "en")).toEqual({ amount: "12.50 USD", basis: "per piece" });
+    expect(secondaryPrice({ ...product, packaging: { pieces_per_box: null, piece_price: "12.5000", box_price: null } }, "en")).toBeNull();
+  });
+
   test("names, language and direction", () => {
     expect(productName(product, "en")).toBe("Cedar Water");
     expect(productName(product, "ar")).toBe("مياه الأرز");
@@ -36,8 +42,18 @@ describe("storefront formatting", () => {
     expect(normalizeLang("fr")).toBe("en");
     expect(dirFor("ar")).toBe("rtl");
     expect(otherLang("en")).toBe("ar");
-    expect(t("ar", "products", { count: 3 })).toBe("3 منتج");
     expect(t("en", "searchResults", { query: "cedar" })).toBe("Results for “cedar”");
+  });
+
+  test("counted nouns use each language's real plural forms", () => {
+    expect(plural("en", "products", 1)).toBe("1 product");
+    expect(plural("en", "products", 3)).toBe("3 products");
+    expect(plural("en", "items", 0)).toBe("0 items");
+    expect(plural("ar", "products", 1)).toBe("منتج واحد");
+    expect(plural("ar", "products", 2)).toBe("منتجان");
+    expect(plural("ar", "products", 3)).toBe("3 منتجات");
+    expect(plural("ar", "items", 12)).toBe("12 منتجاً");
+    expect(plural("ar", "items", 100)).toBe("100 منتج");
   });
 
   test("links stay inside the shop and keep Arabic", () => {

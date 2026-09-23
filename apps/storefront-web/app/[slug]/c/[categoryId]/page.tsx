@@ -29,17 +29,18 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const { state: context, personal } = await visitorFor(shop.slug);
   const products = await fetchProducts(shop.slug, { categoryId, page, capability: personal });
   return (
-    <ShopFrame context={context} currentPath={`/${shop.slug}/c/${categoryId}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
-      <h2>{t(lang, "categories")}</h2>
-      <ul className="chips">
-        <li><Link href={shopHref(shop.slug, lang)}>{t(lang, "allProducts")}</Link></li>
-        {shop.categories.map((row) => (
-          <li key={row.id}>
-            <Link aria-current={row.id === categoryId ? "page" : undefined} href={shopHref(shop.slug, lang, `/c/${row.id}`)}>{lang === "ar" ? row.name_ar : row.name_en} · {row.product_count}</Link>
-          </li>
-        ))}
-      </ul>
-      <h2>{lang === "ar" ? category.name_ar : category.name_en}</h2>
+    <ShopFrame cartBar context={context} currentPath={`/${shop.slug}/c/${categoryId}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
+      <nav aria-label={t(lang, "categories")}>
+        <ul className="chips">
+          <li><Link href={shopHref(shop.slug, lang)}>{t(lang, "allProducts")}</Link></li>
+          {shop.categories.map((row) => (
+            <li key={row.id}>
+              <Link aria-current={row.id === categoryId ? "page" : undefined} href={shopHref(shop.slug, lang, `/c/${row.id}`)}>{lang === "ar" ? row.name_ar : row.name_en} · {row.product_count}</Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className="section-title"><h2>{lang === "ar" ? category.name_ar : category.name_en}</h2></div>
       <ProductGrid basePath={`/c/${categoryId}`} emptyKey="noProducts" lang={lang} page={products} slug={shop.slug} />
     </ShopFrame>
   );

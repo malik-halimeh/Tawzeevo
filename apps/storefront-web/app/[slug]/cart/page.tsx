@@ -21,7 +21,10 @@ export default async function CartPage({ params, searchParams }: Props) {
   const { state: context } = await visitorFor(shop.slug);
   return (
     <ShopFrame context={context} currentPath={`/${shop.slug}/cart`} lang={lang} shop={shop}>
-      <h2>{t(lang, "cart")}</h2>
+      <header className="page-head">
+        <h2>{t(lang, "cartTitle")}</h2>
+        <p>{t(lang, "cartLead")}</p>
+      </header>
       <CartCheckout acceptingOrders={shop.accepting_orders} lang={lang} slug={shop.slug} />
     </ShopFrame>
   );

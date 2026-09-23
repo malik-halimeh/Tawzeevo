@@ -18,15 +18,17 @@ export function PersonalBanner({ slug, lang, displayName, granted = true }: { sl
   if (!granted) {
     return (
       <div className="notice personal" role="status">
-        <span>{t(lang, "verifyOffer", { name: displayName })}</span>{" "}
-        <a className="link-button" href={shopHref(slug, lang, "/verify")}>{t(lang, "verifyLink")}</a>{" "}
-        <button className="link-button" disabled={busy} onClick={exit} type="button">{t(lang, "personalExit")}</button>
+        <span>{t(lang, "verifyOffer", { name: displayName })}</span>
+        <span className="notice-actions">
+          <a className="link-button" href={shopHref(slug, lang, "/verify")}>{t(lang, "verifyLink")}</a>
+          <button className="link-button" disabled={busy} onClick={exit} type="button">{t(lang, "personalExit")}</button>
+        </span>
       </div>
     );
   }
   return (
     <div className="notice personal" role="status">
-      <span>{t(lang, "personalPrices", { name: displayName })}</span>{" "}
+      <span>{t(lang, "personalPrices", { name: displayName })}</span>
       <button className="link-button" disabled={busy} onClick={exit} type="button">{t(lang, "personalExit")}</button>
     </div>
   );

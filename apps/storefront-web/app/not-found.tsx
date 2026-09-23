@@ -1,8 +1,12 @@
+import { t } from "@/lib/i18n";
+
 export default function NotFound() {
   return (
-    <main>
-      <h1>No shop at this address · لا يوجد متجر على هذا العنوان</h1>
-      <p className="muted">Check the link you were given; the shop may have changed its address.</p>
+    <main className="root-page">
+      <p className="brand"><span className="brand-symbol" aria-hidden="true"><i /><i /><i /></span>Tawzeevo</p>
+      <h1>{t("en", "notFoundTitle")} · <span dir="rtl" lang="ar">{t("ar", "notFoundTitle")}</span></h1>
+      <p className="muted">{t("en", "notFoundBody")}</p>
+      <p className="muted" dir="rtl" lang="ar">{t("ar", "notFoundBody")}</p>
     </main>
   );
 }

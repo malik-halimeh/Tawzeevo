@@ -86,10 +86,13 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
           <h4>{t("analytics.profitTitle")}</h4>
           <p className="muted">{t("analytics.profitBody")}</p>
           {overview.gross_profit.length === 0 ? <p className="muted">—</p> : (
-            <table className="order-lines" aria-label={t("analytics.profitTitle")}>
-              <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.grossProfit")}</th><th>{t("analytics.coverage")}</th><th>{t("analytics.uncovered")}</th></tr></thead>
-              <tbody>{overview.gross_profit.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.gross_profit}</td><td dir="ltr">{row.coverage_percent}% ({row.covered_lines}/{row.total_lines})</td><td dir="ltr">{row.uncovered_lines > 0 ? t("analytics.uncoveredLines", { count: row.uncovered_lines }) : t("analytics.allCovered")}</td></tr>)}</tbody>
-            </table>
+            // Real tables: on a narrow screen each scrolls inside its own region instead of widening the page.
+            <div aria-label={t("analytics.profitTitle")} className="table-region" role="region" tabIndex={0}>
+              <table className="order-lines" aria-label={t("analytics.profitTitle")}>
+                <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.grossProfit")}</th><th>{t("analytics.coverage")}</th><th>{t("analytics.uncovered")}</th></tr></thead>
+                <tbody>{overview.gross_profit.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.gross_profit}</td><td dir="ltr">{row.coverage_percent}% ({row.covered_lines}/{row.total_lines})</td><td dir="ltr">{row.uncovered_lines > 0 ? t("analytics.uncoveredLines", { count: row.uncovered_lines }) : t("analytics.allCovered")}</td></tr>)}</tbody>
+              </table>
+            </div>
           )}
           {currencies.length > 1 ? <p className="muted">{t("analytics.noMixing")}</p> : null}
         </>
@@ -121,10 +124,12 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
                 <div><dt>{t("analytics.latePayments")}</dt><dd dir="ltr">{lifetime.overdue_threshold_days === null ? t("analytics.noThreshold") : lifetime.late_payment_count}</dd></div>
                 <div><dt>{t("analytics.cancellationRequests")}</dt><dd dir="ltr">{lifetime.cancellation_requests}</dd></div>
               </dl>
-              <table className="order-lines" aria-label={t("analytics.lifetimeFinancial")}>
-                <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.totalPurchased")}</th><th>{t("analytics.largest")}</th><th>{t("analytics.average")}</th><th>{t("analytics.receipts")}</th><th>{t("analytics.customerOutstanding")}</th><th>{t("analytics.discounts")}</th><th>{t("analytics.markups")}</th></tr></thead>
-                <tbody>{lifetime.financial.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.total_purchased}</td><td dir="ltr">{row.largest_invoice ?? "—"}</td><td dir="ltr">{row.average_invoice ?? "—"}</td><td dir="ltr">{row.total_receipts}</td><td dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</td><td dir="ltr">{row.total_discounts}</td><td dir="ltr">{row.total_markups}</td></tr>)}</tbody>
-              </table>
+              <div aria-label={t("analytics.lifetimeFinancial")} className="table-region" role="region" tabIndex={0}>
+                <table className="order-lines" aria-label={t("analytics.lifetimeFinancial")}>
+                  <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.totalPurchased")}</th><th>{t("analytics.largest")}</th><th>{t("analytics.average")}</th><th>{t("analytics.receipts")}</th><th>{t("analytics.customerOutstanding")}</th><th>{t("analytics.discounts")}</th><th>{t("analytics.markups")}</th></tr></thead>
+                  <tbody>{lifetime.financial.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.total_purchased}</td><td dir="ltr">{row.largest_invoice ?? "—"}</td><td dir="ltr">{row.average_invoice ?? "—"}</td><td dir="ltr">{row.total_receipts}</td><td dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</td><td dir="ltr">{row.total_discounts}</td><td dir="ltr">{row.total_markups}</td></tr>)}</tbody>
+                </table>
+              </div>
               <div className="lifetime-habits">
                 <div><h5>{t("analytics.topProducts")}</h5><ol>{lifetime.top_products.map((row) => <li key={`${row.currency}-${row.name}`}>{row.name} · <bdi dir="ltr">{row.quantity}</bdi> · <bdi dir="ltr">{row.value} {row.currency}</bdi></li>)}</ol></div>
                 <div><h5>{t("analytics.topCategories")}</h5><ol>{lifetime.top_categories.map((row) => <li key={`${row.currency}-${row.name}`}>{row.name} · <bdi dir="ltr">{row.value} {row.currency}</bdi></li>)}</ol></div>
@@ -140,10 +145,12 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
           <h4>{t("analytics.eventFlow")}</h4>
           <p className="muted">{t("analytics.eventFlowBody")}</p>
           {flow.totals.length === 0 ? <p className="muted">—</p> : (
-            <table className="order-lines" aria-label={t("analytics.eventFlow")}>
-              <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.confirmations")}</th><th>{t("analytics.editDeltas")}</th><th>{t("analytics.cancellations")}</th><th>{t("analytics.netEffect")}</th></tr></thead>
-              <tbody>{flow.totals.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.confirmations}</td><td dir="ltr">{row.edit_deltas}</td><td dir="ltr">{row.cancellations}</td><td dir="ltr"><strong>{row.net_effect}</strong></td></tr>)}</tbody>
-            </table>
+            <div aria-label={t("analytics.eventFlow")} className="table-region" role="region" tabIndex={0}>
+              <table className="order-lines" aria-label={t("analytics.eventFlow")}>
+                <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.confirmations")}</th><th>{t("analytics.editDeltas")}</th><th>{t("analytics.cancellations")}</th><th>{t("analytics.netEffect")}</th></tr></thead>
+                <tbody>{flow.totals.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.confirmations}</td><td dir="ltr">{row.edit_deltas}</td><td dir="ltr">{row.cancellations}</td><td dir="ltr"><strong>{row.net_effect}</strong></td></tr>)}</tbody>
+              </table>
+            </div>
           )}
           {flow.monthly.length ? (
             <table className="order-lines" aria-label={t("analytics.monthly")}>

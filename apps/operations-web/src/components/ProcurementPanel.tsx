@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiBlobRequest, apiRequest } from "../api/client";
@@ -6,6 +6,7 @@ import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from
 import { browserOffline } from "../offline/network";
 import { queueProcurementItemEdit } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
+import { useKeepFocus } from "./useKeepFocus";
 import { tenantCalendarDate } from "../utils/tenantCalendar";
 
 /**
@@ -30,7 +31,9 @@ const today = () => tenantCalendarDate();
 export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string; membershipId?: string }) {
   const { t } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
-  const [lists, setLists] = useState<ListSummary[]>([]);
+  // Undefined until the first answer, so "no lists yet" is never shown while the lists are still loading.
+  const [loadedLists, setLists] = useState<ListSummary[]>();
+  const lists = loadedLists ?? [];
   const [detail, setDetail] = useState<ListDetail>();
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -44,6 +47,8 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
+  const root = useRef<HTMLElement>(null);
+  useKeepFocus(busy, root);
 
   const refresh = useCallback(async () => {
     const [page, people, sup, prod] = await Promise.all([
@@ -105,7 +110,7 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
   const groups = detail ? Object.entries(detail.items.reduce<Record<string, Line[]>>((acc, line) => { const key = groupBySupplier ? (line.supplier_name ?? t("procurement.noSupplier")) : t("procurement.allLines"); (acc[key] ??= []).push(line); return acc; }, {})) : [];
 
   return (
-    <section className="procurement-panel" aria-labelledby="procurement-title">
+    <section className="procurement-panel" aria-labelledby="procurement-title" ref={root}>
       <header>
         <p className="section-kicker">{t("procurement.kicker")}</p>
         <h3 id="procurement-title">{t("procurement.title")}</h3>
@@ -122,7 +127,7 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
 
       <div className="orders-layout">
         <ul className="outbox-list" aria-label={t("procurement.lists")}>
-          {lists.length === 0 ? <li className="muted">{t("procurement.empty")}</li> : null}
+          {loadedLists === undefined ? (error ? null : <li className="muted">{t("common.loading")}</li>) : lists.length === 0 ? <li className="muted">{t("procurement.empty")}</li> : null}
           {lists.map((row) => (
             <li className="outbox-row" key={row.id}>
               <button aria-current={detail?.id === row.id ? "true" : undefined} className="text-button" onClick={() => open(row.id)} type="button">
@@ -155,44 +160,48 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
                 return undefined;
               })} type="button">{t("procurement.exportCsv")}</button>
             </div>
-            <p className="muted">{t("procurement.estimateNote")}{Object.keys(detail.estimated_totals).length ? ` ${Object.entries(detail.estimated_totals).map(([currency, total]) => `${total} ${currency}`).join(" · ")}` : ""}</p>
+            <p className="muted">{t("procurement.estimateNote")}{Object.entries(detail.estimated_totals).map(([currency, total], index) => <span key={currency}>{index ? " · " : " "}<bdi dir="ltr">{total} {currency}</bdi></span>)}</p>
 
             {groups.map(([group, lines]) => (
               <div className="procurement-group" key={group}>
                 {groupBySupplier ? <h5>{group}</h5> : null}
-                <table className="order-lines procurement-lines">
-                  <thead><tr><th>{t("orders.item")}</th><th>{t("procurement.unit")}</th><th>{t("procurement.required")}</th><th>{t("procurement.target")}</th><th>{t("procurement.purchased")}</th><th>{t("procurement.remaining")}</th><th>{t("supplierSetup.supplier")}</th><th>{t("procurement.estimate")}</th><th>{t("procurement.state")}</th></tr></thead>
-                  <tbody>
-                    {lines.map((line) => (
-                      <tr className={`line-${state(line)}`} key={line.id}>
-                        <td>{line.product_name}{line.origin !== "DEMAND" ? <> <small className="muted">· {t(`procurement.origin.${line.origin}`)}</small></> : null}{line.demand_invoice_count ? <> <small className="muted">· {t("procurement.fromInvoices", { count: line.demand_invoice_count })}</small></> : null}</td>
-                        <td>{fmtUnit(line)}</td>
-                        <td dir="ltr">{line.required_quantity}</td>
-                        <td dir="ltr">{editable && state(line) === "open" ? <input aria-label={t("procurement.targetFor", { product: line.product_name })} className="qty-input" defaultValue={line.target_quantity} dir="ltr" inputMode="decimal" min="0" step="0.0001" type="number" onBlur={(event) => editTarget(line, event.target.value)} /> : line.target_quantity}</td>
-                        <td dir="ltr">{line.purchased_quantity}</td>
-                        <td dir="ltr"><strong>{line.remaining_quantity}</strong></td>
-                        <td>{editable && state(line) === "open" ? (
-                          <select aria-label={t("procurement.supplierFor", { product: line.product_name })} value={line.supplier_id ?? ""} onChange={(event) => chooseSupplier(line, event.target.value)}>
-                            <option value="">—</option>
-                            {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                          </select>
-                        ) : (line.supplier_name ?? "—")}</td>
-                        <td dir="ltr">{line.estimate ? <>{line.estimate.remaining_cost} {line.estimate.currency} <small className="muted">({line.estimate.unit_cost} · {line.estimate.supplier_is_recommended ? t("procurement.cheapest") : line.estimate.supplier_name} · {line.estimate.is_stale ? <mark>{t("supplierSetup.ageDays", { days: line.estimate.age_days })}</mark> : t("supplierSetup.ageDays", { days: line.estimate.age_days })})</small></> : <span className="muted">{t("procurement.noEstimate")}</span>}</td>
-                        <td>
-                          {t(`procurement.lineState.${state(line)}`)}
-                          {line.remove_reason ? <small className="muted"> · {line.remove_reason}</small> : null}
-                          {line.waive_reason ? <small className="muted"> · {line.waive_reason}</small> : null}
-                          {editable && state(line) === "open" ? (
-                            <span className="line-actions">
-                              {" "}<button className="text-button" disabled={busy || !reason} onClick={() => call(`${detail.id}/items/${line.id}/waive`, { method: "POST", body: JSON.stringify({ reason }) }, t("procurement.waived"))} type="button">{t("procurement.waive")}</button>
-                              {Number(line.purchased_quantity) === 0 ? <> {" "}<button className="text-button" disabled={busy || !reason} onClick={() => call(`${detail.id}/items/${line.id}/remove`, { method: "POST", body: JSON.stringify({ reason }) }, t("procurement.removed"))} type="button">{t("procurement.remove")}</button></> : null}
-                            </span>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {/* A real table: on a narrow screen it scrolls inside its own region instead of widening the page. */}
+                <div aria-label={group} className="table-region" role="region" tabIndex={0}>
+                  <table className="order-lines procurement-lines">
+                    <thead><tr><th>{t("orders.item")}</th><th>{t("procurement.unit")}</th><th>{t("procurement.required")}</th><th>{t("procurement.target")}</th><th>{t("procurement.purchased")}</th><th>{t("procurement.remaining")}</th><th>{t("supplierSetup.supplier")}</th><th>{t("procurement.estimate")}</th><th>{t("procurement.state")}</th></tr></thead>
+                    <tbody>
+                      {lines.map((line) => (
+                        <tr className={`line-${state(line)}`} key={line.id}>
+                          <td>{line.product_name}{line.origin !== "DEMAND" ? <> <small className="muted">· {t(`procurement.origin.${line.origin}`)}</small></> : null}{line.demand_invoice_count ? <> <small className="muted">· {t("procurement.fromInvoices", { count: line.demand_invoice_count })}</small></> : null}</td>
+                          <td>{fmtUnit(line)}</td>
+                          <td dir="ltr">{line.required_quantity}</td>
+                          {/* Keyed by version: a saved target shows the server's value, so tabbing past it later sends nothing. */}
+                          <td dir="ltr">{editable && state(line) === "open" ? <input aria-label={t("procurement.targetFor", { product: line.product_name })} className="qty-input" defaultValue={line.target_quantity} dir="ltr" inputMode="decimal" key={`${line.id}:${line.version}`} min="0" step="0.0001" type="number" onBlur={(event) => editTarget(line, event.target.value)} /> : line.target_quantity}</td>
+                          <td dir="ltr">{line.purchased_quantity}</td>
+                          <td dir="ltr"><strong>{line.remaining_quantity}</strong></td>
+                          <td>{editable && state(line) === "open" ? (
+                            <select aria-label={t("procurement.supplierFor", { product: line.product_name })} value={line.supplier_id ?? ""} onChange={(event) => chooseSupplier(line, event.target.value)}>
+                              <option value="">—</option>
+                              {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                            </select>
+                          ) : (line.supplier_name ?? "—")}</td>
+                          <td dir="ltr">{line.estimate ? <>{line.estimate.remaining_cost} {line.estimate.currency} <small className="muted">({line.estimate.unit_cost} · {line.estimate.supplier_is_recommended ? t("procurement.cheapest") : line.estimate.supplier_name} · {line.estimate.is_stale ? <mark>{t("supplierSetup.ageDays", { days: line.estimate.age_days })}</mark> : t("supplierSetup.ageDays", { days: line.estimate.age_days })})</small></> : <span className="muted">{t("procurement.noEstimate")}</span>}</td>
+                          <td>
+                            {t(`procurement.lineState.${state(line)}`)}
+                            {line.remove_reason ? <small className="muted"> · {line.remove_reason}</small> : null}
+                            {line.waive_reason ? <small className="muted"> · {line.waive_reason}</small> : null}
+                            {editable && state(line) === "open" ? (
+                              <span className="line-actions">
+                                {" "}<button className="text-button" disabled={busy || !reason} onClick={() => call(`${detail.id}/items/${line.id}/waive`, { method: "POST", body: JSON.stringify({ reason }) }, t("procurement.waived"))} type="button">{t("procurement.waive")}</button>
+                                {Number(line.purchased_quantity) === 0 ? <> {" "}<button className="text-button" disabled={busy || !reason} onClick={() => call(`${detail.id}/items/${line.id}/remove`, { method: "POST", body: JSON.stringify({ reason }) }, t("procurement.removed"))} type="button">{t("procurement.remove")}</button></> : null}
+                              </span>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ))}
 

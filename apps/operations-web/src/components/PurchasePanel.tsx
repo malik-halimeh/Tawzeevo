@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
@@ -6,6 +6,7 @@ import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from
 import { browserOffline } from "../offline/network";
 import { queuePurchase } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
+import { useKeepFocus } from "./useKeepFocus";
 
 /**
  * Actual supplier purchases (PHASE_06.md G/H). One immutable purchase writes the price history,
@@ -37,6 +38,8 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
+  const root = useRef<HTMLElement>(null);
+  useKeepFocus(busy, root);
 
   const refresh = useCallback(async () => {
     const [page, sums, prod, open] = await Promise.all([
@@ -99,7 +102,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
   };
 
   return (
-    <article className="panel purchase-panel" aria-labelledby="purchases-title">
+    <article className="panel purchase-panel" aria-labelledby="purchases-title" ref={root}>
       <h4 id="purchases-title">{t("purchases.title")}</h4>
       <p className="backend-note">{t("purchases.body")}</p>
       {error ? <ErrorState error={error} /> : null}
@@ -160,7 +163,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
               <li className="outbox-row" key={purchase.id}>
                 <span>
                   <strong>{purchase.supplier_name}</strong> · <bdi dir="ltr">{purchase.total_amount} {purchase.currency}</bdi> · <time dateTime={purchase.purchased_at}>{new Date(purchase.purchased_at).toLocaleDateString()}</time>
-                  {purchase.supplier_reference ? <> · {purchase.supplier_reference}</> : null}
+                  {purchase.supplier_reference ? <> · <bdi dir="ltr">{purchase.supplier_reference}</bdi></> : null}
                   <small className="muted"> · {purchase.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}</small>
                   {purchase.reversed_at ? <> · <span className="status-badge">{t("purchases.reversedBadge")}</span> <small className="muted">{purchase.reversal_reason}</small></> : null}
                 </span>

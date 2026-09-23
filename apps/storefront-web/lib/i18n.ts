@@ -24,7 +24,6 @@ const COPY = {
     searchResults: "Results for “{query}”",
     noResults: "No products match.",
     noProducts: "This shop has not published any products yet.",
-    products: "{count} product(s)",
     piece: "piece",
     box: "box",
     perPiece: "per piece",
@@ -39,6 +38,9 @@ const COPY = {
     language: "العربية",
     notFoundTitle: "No shop at this address",
     notFoundBody: "Check the link you were given; the shop may have changed its address.",
+    errorTitle: "This page could not be loaded",
+    errorBody: "Something went wrong while loading the shop. Please try again in a moment.",
+    tryAgain: "Try again",
     productNotFound: "This product is not available in this shop.",
     poweredBy: "Powered by Tawzeevo",
     skipToContent: "Skip to content",
@@ -109,6 +111,27 @@ const COPY = {
     cancelPending: "Cancellation requested — waiting for the shop.",
     cancelRejected: "The shop kept the order after your cancellation request.",
     cancelNote: "Only the shop can cancel an order; you can ask.",
+    home: "Home",
+    reviewCart: "Review your cart",
+    cartTitle: "Your cart.",
+    cartLead: "A final look before you send your order.",
+    orderSummary: "Order summary",
+    continueBrowsing: "Continue browsing",
+    checkoutTitle: "Where shall we deliver?",
+    checkoutLead: "Just the essentials. No account required.",
+    addressHint: "Include the area, street and a useful landmark.",
+    orderReceived: "Order received",
+    orderStatus: "Status",
+    deliveryDate: "Delivery date",
+    deliveryNotSet: "Not set yet",
+    provisionalSummary: "Provisional summary",
+    orderReference: "Order",
+    productDetails: "Product details",
+    backToProducts: "All products",
+    shopHome: "Storefront home",
+    rootTitle: "Bilingual storefronts for distribution businesses.",
+    rootBody: "Each business has its own address. Open the storefront link your supplier shared with you.",
+    verifyEyebrow: "One-time code",
   },
   ar: {
     storefront: "المتجر",
@@ -119,7 +142,6 @@ const COPY = {
     searchResults: "نتائج البحث عن «{query}»",
     noResults: "لا توجد منتجات مطابقة.",
     noProducts: "لم ينشر هذا المتجر أي منتجات بعد.",
-    products: "{count} منتج",
     piece: "قطعة",
     box: "صندوق",
     perPiece: "للقطعة",
@@ -134,6 +156,9 @@ const COPY = {
     language: "English",
     notFoundTitle: "لا يوجد متجر على هذا العنوان",
     notFoundBody: "تحقق من الرابط الذي وصلك؛ ربما غيّر المتجر عنوانه.",
+    errorTitle: "تعذّر تحميل هذه الصفحة",
+    errorBody: "حدث خطأ أثناء تحميل المتجر. حاول مجدداً بعد قليل.",
+    tryAgain: "حاول مجدداً",
     productNotFound: "هذا المنتج غير متاح في هذا المتجر.",
     poweredBy: "بدعم من توزيعو",
     skipToContent: "انتقل إلى المحتوى",
@@ -204,6 +229,27 @@ const COPY = {
     cancelPending: "طُلب الإلغاء — بانتظار المتجر.",
     cancelRejected: "أبقى المتجر على الطلب بعد طلب الإلغاء.",
     cancelNote: "المتجر وحده يمكنه إلغاء الطلب؛ يمكنك الطلب.",
+    home: "الرئيسية",
+    reviewCart: "راجع سلتك",
+    cartTitle: "سلّتك.",
+    cartLead: "نظرة أخيرة قبل إرسال طلبك.",
+    orderSummary: "ملخّص الطلب",
+    continueBrowsing: "تابع التصفح",
+    checkoutTitle: "أين نُسلّم طلبك؟",
+    checkoutLead: "المعلومات الأساسية فقط. لا حاجة إلى حساب.",
+    addressHint: "اذكر المنطقة والشارع ومعلماً قريباً.",
+    orderReceived: "تم استلام الطلب",
+    orderStatus: "الحالة",
+    deliveryDate: "موعد التوصيل",
+    deliveryNotSet: "لم يُحدّد بعد",
+    provisionalSummary: "ملخّص مبدئي",
+    orderReference: "الطلب",
+    productDetails: "تفاصيل المنتج",
+    backToProducts: "كل المنتجات",
+    shopHome: "الصفحة الرئيسية للمتجر",
+    rootTitle: "متاجر إلكترونية باللغتين لأعمال التوزيع.",
+    rootBody: "لكل منشأة عنوانها الخاص. افتح رابط المتجر الذي شاركه مورّدك معك.",
+    verifyEyebrow: "رمز لمرة واحدة",
   },
 } as const;
 
@@ -213,6 +259,28 @@ export function t(lang: Lang, key: CopyKey, values: Record<string, string | numb
   let text: string = COPY[lang][key];
   for (const [name, value] of Object.entries(values)) text = text.replaceAll(`{${name}}`, String(value));
   return text;
+}
+
+/**
+ * Counted nouns with the real plural forms of each language (English: one/other; Arabic: zero,
+ * one, two, few, many, other), chosen through Intl.PluralRules. No "(s)" shortcuts.
+ */
+type PluralForms = Partial<Record<Intl.LDMLPluralRule, string>> & { other: string };
+const PLURALS: Record<Lang, Record<"products" | "items", PluralForms>> = {
+  en: {
+    products: { one: "{count} product", other: "{count} products" },
+    items: { one: "{count} item", other: "{count} items" },
+  },
+  ar: {
+    products: { zero: "لا توجد منتجات", one: "منتج واحد", two: "منتجان", few: "{count} منتجات", many: "{count} منتجاً", other: "{count} منتج" },
+    items: { zero: "لا توجد منتجات", one: "منتج واحد", two: "منتجان", few: "{count} منتجات", many: "{count} منتجاً", other: "{count} منتج" },
+  },
+};
+
+export function plural(lang: Lang, key: keyof (typeof PLURALS)["en"], count: number): string {
+  const forms = PLURALS[lang][key];
+  const rule = new Intl.PluralRules(lang === "ar" ? "ar" : "en").select(count);
+  return (forms[rule] ?? forms.other).replaceAll("{count}", String(count));
 }
 
 export function otherLang(lang: Lang): Lang {

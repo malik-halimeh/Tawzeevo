@@ -1,9 +1,10 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import { ErrorState } from "./Ui";
 import type { Supplier } from "./SupplierSetup";
+import { useKeepFocus } from "./useKeepFocus";
 
 interface SupplierBalances {
   supplier_id: string;
@@ -36,6 +37,8 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
+  const root = useRef<HTMLElement>(null);
+  useKeepFocus(busy, root);
 
   const run = useCallback(async (operation: () => Promise<void>) => {
     setBusy(true); setError(undefined); setNotice(undefined);
@@ -90,7 +93,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
   };
 
   return (
-    <article className="panel supplier-ledger" aria-labelledby="supplier-ledger-title">
+    <article className="panel supplier-ledger" aria-labelledby="supplier-ledger-title" ref={root}>
       <h4 id="supplier-ledger-title">{t("supplierLedger.title")}</h4>
       <p className="backend-note">{t("supplierLedger.body")}</p>
       {error ? <ErrorState error={error} /> : null}

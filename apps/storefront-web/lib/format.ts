@@ -26,14 +26,20 @@ export function priceLine(product: PublicProduct, lang: Lang): string {
   return `${money(product.price, product.currency)} ${t(lang, "perPiece")}`;
 }
 
-export function secondaryPriceLine(product: PublicProduct, lang: Lang): string | null {
+/** The other packaging's price as amount and basis, so a page can keep the amount left to right on its own. */
+export function secondaryPrice(product: PublicProduct, lang: Lang): { amount: string; basis: string } | null {
   if (product.price_basis === "BOX") {
-    return `${money(product.packaging.piece_price, product.currency)} ${t(lang, "perPiece")}`;
+    return { amount: money(product.packaging.piece_price, product.currency), basis: t(lang, "perPiece") };
   }
   if (product.packaging.box_price && product.packaging.pieces_per_box) {
-    return `${money(product.packaging.box_price, product.currency)} ${t(lang, "perBox", { count: product.packaging.pieces_per_box })}`;
+    return { amount: money(product.packaging.box_price, product.currency), basis: t(lang, "perBox", { count: product.packaging.pieces_per_box }) };
   }
   return null;
+}
+
+export function secondaryPriceLine(product: PublicProduct, lang: Lang): string | null {
+  const price = secondaryPrice(product, lang);
+  return price ? `${price.amount} ${price.basis}` : null;
 }
 
 /** Keeps a link inside the same shop and language. */

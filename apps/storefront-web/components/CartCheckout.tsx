@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { type CartLine, checkoutKey, clearCart, readCart, resetCheckoutKey, setQuantity } from "@/lib/cart";
 import { shopHref } from "@/lib/format";
-import { type Lang, t } from "@/lib/i18n";
+import { type Lang, plural, t } from "@/lib/i18n";
+import { Arrow, Icon } from "./Icon";
 
 /**
  * Cart + guest checkout (PHASE_05.md E). Mandatory name, phone, address; the server prices every
@@ -20,8 +21,20 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const id = useId();
+  // Focus that would fall to the page — "Place order" is disabled while sending, a removed line takes its
+  // button with it — goes back to the button, or to the cart list (the way back to the shop once it is empty).
+  const focusNext = useRef<"submit" | "cart" | null>(null);
+  const submitButton = useRef<HTMLButtonElement>(null);
+  const cartList = useRef<HTMLUListElement>(null);
+  const backToShop = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (!focusNext.current || busy) return;
+    (focusNext.current === "submit" ? submitButton.current : cartList.current ?? backToShop.current)?.focus();
+    focusNext.current = null;
+  });
 
-  useEffect(() => { const id = window.setTimeout(() => setLines(readCart(slug)), 0); return () => window.clearTimeout(id); }, [slug]);
+  useEffect(() => { const timer = window.setTimeout(() => setLines(readCart(slug)), 0); return () => window.clearTimeout(timer); }, [slug]);
 
   const change = (line: CartLine, quantity: number) => setLines(setQuantity(slug, line.product_id, line.price_basis, quantity));
 
@@ -45,6 +58,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
         if (!response.ok || !body.provisional_path) {
           const code = body.detail?.code ?? "";
           setError(code === "STOREFRONT_NOT_ACCEPTING" ? t(lang, "notAccepting") : code === "INVALID_PHONE" ? t(lang, "invalidPhone") : code === "PRODUCT_NOT_AVAILABLE" ? t(lang, "productUnavailable") : t(lang, "checkoutFailed"));
+          focusNext.current = "submit";
           setBusy(false);
           return;
         }
@@ -52,40 +66,56 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
         const path = body.provisional_path;
         window.location.assign(lang === "ar" ? path.replace("#", "?lang=ar#") : path);
       })
-      .catch(() => { setError(t(lang, "checkoutFailed")); setBusy(false); });
+      .catch(() => { setError(t(lang, "checkoutFailed")); focusNext.current = "submit"; setBusy(false); });
   };
 
   if (lines.length === 0) {
-    return <p className="empty">{t(lang, "cartEmpty")} <Link href={shopHref(slug, lang)}>{t(lang, "backToShop")}</Link></p>;
+    return (
+      <section className="empty">
+        <Icon name="bag" />
+        <p>{t(lang, "cartEmpty")}</p>
+        <Link className="button" href={shopHref(slug, lang)} ref={backToShop}>{t(lang, "backToShop")}<Arrow small /></Link>
+      </section>
+    );
   }
+  const total = lines.reduce((sum, line) => sum + line.quantity, 0);
   return (
-    <div className="checkout">
-      <ul className="cart-lines" aria-label={t(lang, "cart")}>
-        {lines.map((line) => (
-          <li key={`${line.product_id}-${line.price_basis}`}>
-            <span className="name">{line.name} <small className="muted">· {line.unit_label}</small></span>
-            <span className="qty">
-              <button aria-label={t(lang, "decrease")} onClick={() => change(line, line.quantity - 1)} type="button">−</button>
-              <input aria-label={t(lang, "quantity")} inputMode="numeric" min={1} onChange={(event) => change(line, Math.max(1, Number(event.target.value) || 1))} type="number" value={line.quantity} />
-              <button aria-label={t(lang, "increase")} onClick={() => change(line, line.quantity + 1)} type="button">+</button>
-              <button className="link-button" onClick={() => change(line, 0)} type="button">{t(lang, "remove")}</button>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="muted">{t(lang, "pricesAtCheckout")}</p>
-      {!acceptingOrders ? <p className="notice" role="status">{t(lang, "notAccepting")}</p> : (
-        <form className="checkout-form" onSubmit={submit}>
-          <h2>{t(lang, "yourDetails")}</h2>
-          <label>{t(lang, "name")}<input autoComplete="name" maxLength={200} required value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label>{t(lang, "phone")}<input autoComplete="tel" dir="ltr" inputMode="tel" maxLength={64} required value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
-          <label>{t(lang, "address")}<input autoComplete="street-address" maxLength={500} required value={address} onChange={(event) => setAddress(event.target.value)} /></label>
-          <label>{t(lang, "notes")}<textarea maxLength={1000} rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
-          {error ? <p className="notice" role="alert">{error}</p> : null}
-          <button className="add-button" disabled={busy} type="submit">{busy ? t(lang, "sending") : t(lang, "placeOrder")}</button>
-          <p className="muted">{t(lang, "orderNote")}</p>
-        </form>
-      )}
+    <div className="cart-layout checkout">
+      <section>
+        <ul className="cart-lines" aria-label={t(lang, "cart")} ref={cartList} tabIndex={-1}>
+          {lines.map((line) => (
+            <li key={`${line.product_id}-${line.price_basis}`}>
+              <span className="name">{line.name} <small className="muted">{line.unit_label}</small></span>
+              <span className="qty">
+                <button aria-label={t(lang, "decrease")} onClick={() => change(line, line.quantity - 1)} type="button"><Icon name="minus" small /></button>
+                <input aria-label={t(lang, "quantity")} inputMode="numeric" min={1} onChange={(event) => change(line, Math.max(1, Number(event.target.value) || 1))} type="number" value={line.quantity} />
+                <button aria-label={t(lang, "increase")} onClick={() => change(line, line.quantity + 1)} type="button"><Icon name="plus" small /></button>
+                <button className="link-button" onClick={() => { focusNext.current = "cart"; change(line, 0); }} type="button">{t(lang, "remove")}</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="muted">{t(lang, "pricesAtCheckout")}</p>
+        <Link className="text-link" href={shopHref(slug, lang)}><Arrow back small />{t(lang, "continueBrowsing")}</Link>
+      </section>
+      <aside className="cart-summary" aria-label={t(lang, "orderSummary")}>
+        <h2>{t(lang, "orderSummary")}</h2>
+        <p><strong>{plural(lang, "items", total)}</strong></p>
+        <p className="muted">{t(lang, "checkoutLead")}</p>
+        {!acceptingOrders ? <p className="notice warn" role="status">{t(lang, "notAccepting")}</p> : (
+          <form className="checkout-form" onSubmit={submit}>
+            <h2>{t(lang, "yourDetails")}</h2>
+            <label htmlFor={`${id}-name`}>{t(lang, "name")}<input autoComplete="name" id={`${id}-name`} maxLength={200} required value={name} onChange={(event) => setName(event.target.value)} /></label>
+            <label htmlFor={`${id}-phone`}>{t(lang, "phone")}<input autoComplete="tel" dir="ltr" id={`${id}-phone`} inputMode="tel" maxLength={64} required value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+            <label htmlFor={`${id}-address`}>{t(lang, "address")}<input autoComplete="street-address" id={`${id}-address`} maxLength={500} required value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+            <p className="hint">{t(lang, "addressHint")}</p>
+            <label htmlFor={`${id}-notes`}>{t(lang, "notes")}<textarea id={`${id}-notes`} maxLength={1000} rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
+            {error ? <p className="notice notice-error" role="alert">{error}</p> : null}
+            <button className="button" disabled={busy} ref={submitButton} type="submit">{busy ? t(lang, "sending") : t(lang, "placeOrder")}<Arrow /></button>
+            <p className="muted">{t(lang, "orderNote")}</p>
+          </form>
+        )}
+      </aside>
     </div>
   );
 }

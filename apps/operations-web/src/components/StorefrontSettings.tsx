@@ -67,7 +67,7 @@ export function StorefrontSettings({ tenantId }: { tenantId: string }) {
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
       {settings ? (
         <dl className="sync-facts">
-          <div><dt>{t("storefront.address")}</dt><dd><a dir="ltr" href={url} rel="noreferrer" target="_blank">{url}</a></dd></div>
+          <div><dt>{t("storefront.address")}</dt><dd><a className="storefront-address" dir="ltr" href={url} rel="noreferrer" target="_blank">{url}</a></dd></div>
           <div><dt>{t("storefront.published")}</dt><dd>{settings.published_products}</dd></div>
           <div><dt>{t("storefront.orders")}</dt><dd>{t(settings.accepting_orders ? "storefront.accepting" : "storefront.paused")}</dd></div>
           {settings.previous_slugs.length ? <div><dt>{t("storefront.previous")}</dt><dd dir="ltr">{settings.previous_slugs.join(", ")}</dd></div> : null}

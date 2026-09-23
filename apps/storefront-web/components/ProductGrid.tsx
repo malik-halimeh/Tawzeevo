@@ -2,13 +2,19 @@ import Link from "next/link";
 
 import type { PublicProduct, PublicProductPage } from "@/lib/catalog";
 import { publicApiBase } from "@/lib/catalog";
-import { priceLine, productName, secondaryPriceLine, shopHref } from "@/lib/format";
-import { type Lang, t } from "@/lib/i18n";
+import { money, productName, secondaryPrice, shopHref } from "@/lib/format";
+import { type Lang, plural, t } from "@/lib/i18n";
 import { AddToCart } from "./CartControls";
+
+/** The server's price and basis, shown exactly as sent: the amount and the unit it is for. */
+function basisLabel(product: PublicProduct, lang: Lang): string {
+  return product.price_basis === "BOX" ? t(lang, "perBox", { count: product.packaging.pieces_per_box ?? 0 }) : t(lang, "perPiece");
+}
 
 export function ProductCard({ slug, product, lang }: { slug: string; product: PublicProduct; lang: Lang }) {
   const image = product.images[0];
   const name = productName(product, lang);
+  const secondary = secondaryPrice(product, lang);
   return (
     <li className="card">
       <Link href={shopHref(slug, lang, `/p/${product.id}`)}>
@@ -17,11 +23,13 @@ export function ProductCard({ slug, product, lang }: { slug: string; product: Pu
         </div>
         <div className="body">
           <span className="name">{name}</span>
-          <span className="price">{priceLine(product, lang)}</span>
-          {secondaryPriceLine(product, lang) ? <span className="sub">{secondaryPriceLine(product, lang)}</span> : null}
+          {secondary ? <span className="sub"><bdi dir="ltr">{secondary.amount}</bdi> {secondary.basis}</span> : null}
         </div>
       </Link>
-      <div className="card-actions"><AddToCart compact lang={lang} product={product} slug={slug} /></div>
+      <div className="card-buy">
+        <span><bdi className="price" dir="ltr">{money(product.price, product.currency)}</bdi><small>{basisLabel(product, lang)}</small></span>
+        <AddToCart compact lang={lang} product={product} slug={slug} />
+      </div>
     </li>
   );
 }
@@ -32,7 +40,7 @@ export function ProductGrid({ slug, page, lang, basePath, emptyKey }: { slug: st
   const pageHref = (number: number) => shopHref(slug, lang, `${basePath}${join}page=${number}`);
   return (
     <>
-      <p className="muted">{t(lang, "products", { count: page.total })}</p>
+      <p className="muted">{plural(lang, "products", page.total)}</p>
       <ul className="grid">
         {page.items.map((product) => <ProductCard key={product.id} lang={lang} product={product} slug={slug} />)}
       </ul>

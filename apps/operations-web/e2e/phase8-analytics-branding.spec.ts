@@ -77,7 +77,7 @@ test("dashboard reconciles, lifetime drilldown matches, branding renders on stor
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("tab", { name: "Analytics" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Analytics", exact: true }).click();
   const analytics = page.getByRole("region", { name: "Business figures" });
   await expect(analytics.getByText("50.0000 USD").first()).toBeVisible();
   await expect(analytics.getByText("15.0000 USD").first()).toBeVisible();
@@ -94,7 +94,7 @@ test("dashboard reconciles, lifetime drilldown matches, branding renders on stor
   await expect(analytics.getByText("Cedar Water 1.5L", { exact: false }).first()).toBeVisible();
 
   // ----- Owner: branding desk -----
-  await page.getByRole("tab", { name: "Branding" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Branding", exact: true }).click();
   const branding = page.getByRole("region", { name: "How your business looks" });
   await branding.getByLabel("Storefront title").fill("Cedar Van Beirut");
   await branding.getByLabel("Homepage banner").fill("Free delivery in Beirut this week");

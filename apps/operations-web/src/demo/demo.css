@@ -1,5 +1,4 @@
 .demo-gallery { min-height: 100vh; }
-.demo-gallery .brand-route i { background: var(--paper); }
 .demo-preview-banner { align-items: center; background: var(--ink); color: white; display: flex; font-size: .8rem; gap: .75rem; justify-content: center; min-height: 2.5rem; padding: .55rem 1rem; text-align: center; }
 .demo-preview-banner strong { color: #ff9b72; font-family: Consolas, "Courier New", monospace; letter-spacing: .06em; text-transform: uppercase; }
 .demo-preview-banner span { color: rgb(255 255 255 / 75%); }

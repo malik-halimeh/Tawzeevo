@@ -37,7 +37,7 @@ test("owner builds a list from demand, edits the target, waives with a reason an
   render(<ProcurementPanel tenantId="t1" />);
   fireEvent.click(await screen.findByRole("button", { name: "Build from confirmed demand" }));
   expect(await screen.findByText("List built from confirmed demand.")).toBeInTheDocument();
-  expect(screen.getByText((_, node) => node?.tagName === "SMALL" && /2 invoice\(s\)/.test(node.textContent ?? ""))).toBeInTheDocument();
+  expect(screen.getByText((_, node) => node?.tagName === "SMALL" && /2 invoices/.test(node.textContent ?? ""))).toBeInTheDocument();
   expect(screen.getAllByText(/40\.0000 USD/).length).toBeGreaterThan(0); // labelled estimate
   expect(screen.getByRole("table").textContent).not.toMatch(/stock|on hand|available/i); // demand and progress only
 
@@ -56,6 +56,39 @@ test("owner builds a list from demand, edits the target, waives with a reason an
   fireEvent.click(screen.getByRole("button", { name: "Mark complete" }));
   expect(await screen.findByText("List complete.")).toBeInTheDocument();
   await waitFor(() => expect(screen.getAllByText("Complete").length).toBeGreaterThan(0));
+});
+
+test("the lines scroll in a labelled region, and a saved target shows the server's value so moving past it sends nothing", async () => {
+  await i18n.changeLanguage("en");
+  const row = { id: "l9", product_id: "p1", product_name: "Cedar Water", supplier_id: "s1", supplier_name: "Bekaa", price_basis: "PIECE", pieces_per_box: null, origin: "DEMAND", required_quantity: "5.0000", target_quantity: "5.0000", purchased_quantity: "0.0000", remaining_quantity: "5.0000", demand_invoice_count: 1, removed_at: null, remove_reason: null, waived_at: null, waive_reason: null, carried_from_item_id: null, carried_to_item_id: null, notes: null, version: 1, estimate: null };
+  const list = { id: "list-9", status: "OPEN", title: "Saturday run", demand_from: null, demand_to: null, notes: null, assignee: null, carried_from_list_id: null, version: 1, created_at: "2026-09-20T00:00:00Z", cancel_reason: null, items: [row], estimated_totals: {}, open_line_count: 1 };
+  const patches: unknown[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (init?.method === "PATCH" && typeof init.body === "string") {
+      patches.push(JSON.parse(init.body));
+      Object.assign(row, { target_quantity: "8.0000", remaining_quantity: "8.0000", version: 2 });
+      return Promise.resolve(Response.json(list));
+    }
+    if (path.endsWith("/procurement/lists")) return Promise.resolve(Response.json({ lists: [{ id: "list-9", status: "OPEN", title: "Saturday run", demand_from: null, demand_to: null, assignee: null, created_at: "2026-09-20T00:00:00Z", line_count: 1, open_line_count: 1 }] }));
+    if (path.endsWith("/lists/list-9")) return Promise.resolve(Response.json(list));
+    if (path.endsWith("/procurement/assignees")) return Promise.resolve(Response.json({ assignees: [] }));
+    if (path.endsWith("/suppliers")) return Promise.resolve(Response.json({ suppliers: [] }));
+    return Promise.resolve(Response.json({ products: [] }));
+  }));
+
+  render(<ProcurementPanel tenantId="t1" />);
+  fireEvent.click(await screen.findByRole("button", { name: /Saturday run/ }));
+  const region = await screen.findByRole("region", { name: "Bekaa" });
+  expect(region).toHaveAttribute("tabindex", "0"); // reachable by keyboard when it scrolls on a phone
+  expect(region).toContainElement(screen.getByRole("table"));
+
+  fireEvent.change(screen.getByLabelText("Target for Cedar Water"), { target: { value: "8" } });
+  fireEvent.blur(screen.getByLabelText("Target for Cedar Water"));
+  expect(await screen.findByText("Target saved; the demand figure is unchanged.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByLabelText<HTMLInputElement>("Target for Cedar Water").value).toBe("8.0000"));
+  fireEvent.blur(screen.getByLabelText("Target for Cedar Water"));
+  expect(patches).toEqual([{ expected_version: 1, target_quantity: "8" }]);
 });
 
 test("driver pickup view shows suppliers and quantities only", async () => {

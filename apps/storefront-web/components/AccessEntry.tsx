@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { shopHref } from "@/lib/format";
 import { type Lang, t } from "@/lib/i18n";
+import { Icon } from "./Icon";
 
 /**
  * Reads the capability from the URL fragment (never sent to any server by the browser), posts it
@@ -35,9 +36,10 @@ export function AccessEntry({ slug, lang }: { slug: string; lang: Lang }) {
   if (state === "failed") {
     return (
       <section className="empty" role="alert">
+        <Icon name="info" />
         <h2>{t(lang, "linkUnavailableTitle")}</h2>
         <p>{t(lang, "linkUnavailableBody")}</p>
-        <p><a href={shopHref(slug, lang)}>{t(lang, "backToShop")}</a></p>
+        <p><a className="text-link" href={shopHref(slug, lang)}>{t(lang, "backToShop")}</a></p>
       </section>
     );
   }

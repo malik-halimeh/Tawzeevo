@@ -25,8 +25,8 @@ export default async function SearchPage({ params, searchParams }: Props) {
   const products = q ? await fetchProducts(shop.slug, { query: q, page, capability: personal }) : { items: [], page: 1, page_size: 24, total: 0, has_more: false };
   const path = `/search?q=${encodeURIComponent(q)}`;
   return (
-    <ShopFrame context={context} currentPath={`/${shop.slug}${path}${page > 1 ? `&page=${page}` : ""}`} lang={lang} query={q} shop={shop}>
-      <h2>{t(lang, "searchResults", { query: q })}</h2>
+    <ShopFrame cartBar context={context} currentPath={`/${shop.slug}${path}${page > 1 ? `&page=${page}` : ""}`} lang={lang} query={q} shop={shop}>
+      <div className="section-title"><h2>{t(lang, "searchResults", { query: q })}</h2></div>
       <ProductGrid basePath={path} emptyKey="noResults" lang={lang} page={products} slug={shop.slug} />
     </ShopFrame>
   );

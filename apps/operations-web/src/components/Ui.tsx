@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ApiError } from "../api/client";
+import { Icon, type IconName } from "./Icon";
 
 export function PageHeader({
   eyebrow,
@@ -15,7 +16,7 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="page-header">
+    <header className="page-head">
       <div>
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
@@ -26,15 +27,22 @@ export function PageHeader({
   );
 }
 
+/** Loading is shown as quiet placeholder bars plus text; nothing animates. */
 export function LoadingState() {
   const { t } = useTranslation();
-  return <div className="state-panel" role="status"><span className="spinner" />{t("common.loading")}</div>;
+  return (
+    <div className="state-panel loading-state" role="status">
+      <span className="skeleton" aria-hidden="true" />
+      <span className="skeleton short" aria-hidden="true" />
+      <span>{t("common.loading")}</span>
+    </div>
+  );
 }
 
-export function EmptyState({ title, body }: { title: string; body: string }) {
+export function EmptyState({ title, body, icon = "box" }: { title: string; body: string; icon?: IconName }) {
   return (
-    <div className="state-panel empty-state">
-      <span className="empty-route" aria-hidden="true" />
+    <div className="empty-state">
+      <Icon name={icon} />
       <strong>{title}</strong>
       <p>{body}</p>
     </div>
@@ -61,8 +69,8 @@ export function SuccessNotice({ children }: { children: ReactNode }) {
   return <div className="notice notice-success" role="status">{children}</div>;
 }
 
-export function FieldError({ message }: { message: string | undefined }) {
-  return message ? <span className="field-error" role="alert">{message}</span> : null;
+export function FieldError({ message, id }: { message: string | undefined; id?: string | undefined }) {
+  return message ? <span className="field-error" id={id} role="alert">{message}</span> : null;
 }
 
 export function StatusBadge({ value }: { value: string }) {
