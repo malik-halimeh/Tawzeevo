@@ -45,7 +45,7 @@ test("demand → procurement → purchase → payable → payment", async ({ pag
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("tab", { name: "Procurement" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Procurement", exact: true }).click();
   await page.getByRole("button", { name: "Build from confirmed demand" }).click();
   await expect(page.getByText("List built from confirmed demand.")).toBeVisible();
   const table = page.getByRole("table").first();
@@ -59,7 +59,7 @@ test("demand → procurement → purchase → payable → payment", async ({ pag
   await expect(page.getByText("Assignee saved.")).toBeVisible();
 
   // ----- Owner: record the purchase against the list (4 of 6 at 7.20) -----
-  await page.getByRole("tab", { name: "Suppliers & costs" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Suppliers & costs", exact: true }).click();
   const form = page.getByRole("form", { name: "Record purchase" });
   await form.getByRole("combobox", { name: "Supplier", exact: true }).selectOption({ label: "Bekaa Dairy" });
   await form.getByLabel("Procurement list (optional)").selectOption({ index: 1 });
@@ -77,14 +77,14 @@ test("demand → procurement → purchase → payable → payment", async ({ pag
   await expect(page.getByRole("table", { name: "Price insight per supplier" }).getByRole("cell", { name: /Actual purchase/ })).toBeVisible();
 
   // ----- Procurement progress: 4 purchased, 2 remaining, partly purchased -----
-  await page.getByRole("tab", { name: "Procurement" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Procurement", exact: true }).click();
   await page.getByRole("button", { name: /Procurement .*/ }).first().click();
   await expect(page.getByText("Partly purchased").first()).toBeVisible();
   await expect(page.getByRole("table").first().getByText("4.0000")).toBeVisible();
   await expect(page.getByRole("table").first().getByText("2.0000")).toBeVisible();
 
   // ----- Pay the supplier: capped at the payable, then a valid payment -----
-  await page.getByRole("tab", { name: "Suppliers & costs" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Suppliers & costs", exact: true }).click();
   const ledger = page.locator(".supplier-ledger");
   await ledger.getByRole("combobox", { name: "Supplier" }).selectOption({ label: "Bekaa Dairy" });
   await expect(ledger.getByText("28.8000")).toBeVisible();

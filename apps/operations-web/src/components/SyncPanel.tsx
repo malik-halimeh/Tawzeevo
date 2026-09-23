@@ -57,7 +57,7 @@ export function SyncPanel({ tenantId, membershipId }: { tenantId: string; member
       {error ? <ErrorState error={error} /> : null}
       {outcome?.kind === "revoked" ? <div className="notice notice-error" role="alert">{t("sync.revoked", { reason: outcome.reason })}</div> : null}
       {outcome?.kind === "offline" ? <p className="form-status" role="status">{t("sync.stillOffline")}</p> : null}
-      {outcome?.kind === "ok" ? <p className="form-status" role="status">{t("sync.synced", { sent: outcome.push.acknowledged, received: outcome.pull.applied, conflicts: outcome.push.conflicts })}</p> : null}
+      {outcome?.kind === "ok" ? <p className="form-status" role="status">{t("sync.synced", { changes: t("sync.syncedChanges", { count: outcome.push.acknowledged }), received: outcome.pull.applied, conflicts: t("sync.syncedConflicts", { count: outcome.push.conflicts }) })}</p> : null}
       <dl className="sync-facts">
         <div><dt>{t("sync.connection")}</dt><dd><span className={`status-badge ${online ? "status-current" : "status-closed"}`}>{t(online ? "sync.online" : "sync.offline")}</span></dd></div>
         <div><dt>{t("sync.device")}</dt><dd><code dir="ltr">{status?.device_installation_id ?? "—"}</code></dd></div>

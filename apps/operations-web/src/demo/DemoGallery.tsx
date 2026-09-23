@@ -1,6 +1,7 @@
 import { FormEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { LanguageButton } from "../components/AppShell";
 import "./demo.css";
 
 const roles = ["guest", "customer", "owner", "driver"] as const;
@@ -31,7 +32,7 @@ const categories: readonly CategoryId[] = ["all", "pantry", "home", "drinks"];
 
 const copy = {
   en: {
-    brandHome: "Tawzeevo home", skip: "Skip to demo content", language: "العربية",
+    brandHome: "Tawzeevo home", skip: "Skip to demo content",
     preview: "Synthetic preview", privacy: "Nothing on this page is saved or sent.",
     eyebrow: "Four perspectives · one distribution route", title: "See Tawzeevo from every stop.",
     intro: "Explore how one catalog moves from browsing to an order-facing view, then switch perspectives without touching live data.",
@@ -91,7 +92,7 @@ const copy = {
     later: { kicker: "Boundary preview", title: "Detailed view arrives in its demo milestone" },
   },
   ar: {
-    brandHome: "الصفحة الرئيسية لتوزيفو", skip: "انتقل إلى محتوى العرض", language: "English",
+    brandHome: "الصفحة الرئيسية لتوزيفو", skip: "انتقل إلى محتوى العرض",
     preview: "معاينة ببيانات تجريبية", privacy: "لا يتم حفظ أو إرسال أي شيء في هذه الصفحة.",
     eyebrow: "أربع وجهات نظر · مسار توزيع واحد", title: "شاهد توزيـفو من كل محطة.",
     intro: "استكشف انتقال الكتالوج من التصفح إلى عرض الطلب، ثم بدّل المنظور من دون لمس البيانات الفعلية.",
@@ -404,13 +405,6 @@ export function DemoGallery() {
   const [resetVersion, setResetVersion] = useState(0);
   const roleButtons = useRef<Array<HTMLButtonElement | null>>([]);
 
-  const switchLanguage = async () => {
-    const nextLanguage = language === "ar" ? "en" : "ar";
-    await i18n.changeLanguage(nextLanguage);
-    document.documentElement.lang = nextLanguage;
-    document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr";
-  };
-
   const resetPreview = () => { setSelectedRole("guest"); setBasket([]); setCheckoutDetails(undefined); setResetVersion((current) => current + 1); };
 
   const moveSelection = (currentIndex: number, key: string) => {
@@ -432,9 +426,10 @@ export function DemoGallery() {
     <div className="demo-gallery">
       <a className="skip-link" href="#demo-content">{text.skip}</a>
       <div className="demo-preview-banner" role="status"><strong>{text.preview}</strong><span>{text.privacy}</span></div>
+      {/* The shared three-node mark and language control; the gallery sits outside the router, so the mark is a plain link. */}
       <header className="demo-header">
-        <a aria-label={text.brandHome} className="brand-mark" href="/"><span className="brand-route" aria-hidden="true"><i /><i /><i /></span><span>Tawzeevo</span></a>
-        <button className="language-switch" onClick={() => void switchLanguage()} type="button"><span aria-hidden="true">{language === "ar" ? "EN" : "ع"}</span><span>{text.language}</span></button>
+        <a aria-label={text.brandHome} className="brand" href="/"><span className="brand-symbol" aria-hidden="true"><i /><i /><i /></span><span className="brand-name">Tawzeevo</span></a>
+        <LanguageButton />
       </header>
       <main className="demo-content" id="demo-content" tabIndex={-1}>
         <section className="demo-intro"><p className="eyebrow">{text.eyebrow}</p><h1>{text.title}</h1><p>{text.intro}</p></section>

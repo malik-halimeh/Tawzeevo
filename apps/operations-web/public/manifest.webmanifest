@@ -3,8 +3,8 @@
   "short_name": "Tawzeevo",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4f7f8",
-  "theme_color": "#102c3a",
+  "background_color": "#f5f7fa",
+  "theme_color": "#f5f7fa",
   "lang": "en",
   "dir": "auto",
   "icons": [

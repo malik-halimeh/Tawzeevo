@@ -21,7 +21,8 @@ test("owner sees per-currency figures, profit with coverage and the event flow, 
   render(<AnalyticsPanel tenantId="t1" />);
   expect(await screen.findByText("90000.0000 LBP · 24.2500 USD")).toBeInTheDocument(); // separate, never summed
   expect(screen.getByText("50.0000% (1/2)")).toBeInTheDocument(); // profit never without coverage
-  expect(screen.getByText("1 line(s) without a cost")).toBeInTheDocument();
+  expect(screen.getByText("1 line without a cost")).toBeInTheDocument();
+  expect(screen.getByText(/2 confirmed invoices in the period/)).toBeInTheDocument();
   expect(screen.getByText(/Currencies are listed separately on purpose/)).toBeInTheDocument();
   expect(screen.getByRole("table", { name: "Event flow" })).toHaveTextContent("-13.7500");
   fireEvent.change(screen.getByLabelText("Period"), { target: { value: "1y" } });

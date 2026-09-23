@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { shopHref } from "@/lib/format";
 import { type Lang, t } from "@/lib/i18n";
+import { Icon } from "./Icon";
 
 type Step = "idle" | "sending" | "sent" | "confirming" | "done";
 
@@ -13,6 +14,7 @@ export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: str
   const [step, setStep] = useState<Step>("idle");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const codeId = useId();
 
   const send = async () => {
     setStep("sending"); setError(null);
@@ -33,20 +35,22 @@ export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: str
 
   return (
     <section className="verify" aria-labelledby="verify-title">
+      <span className="welcome-icon" aria-hidden="true"><Icon name="lock" /></span>
+      <p className="eyebrow">{t(lang, "verifyEyebrow")}</p>
       <h2 id="verify-title">{t(lang, "verifyTitle", { name: displayName })}</h2>
       <p>{t(lang, "verifyBody", { hint: contactHint })}</p>
       {error ? <p className="notice notice-error" role="alert">{error}</p> : null}
       {step === "idle" || step === "sending" ? (
-        <button className="add-button" disabled={step === "sending"} onClick={() => void send()} type="button">{t(lang, "verifySend")}</button>
+        <button className="button add-button" disabled={step === "sending"} onClick={() => void send()} type="button">{t(lang, "verifySend")}</button>
       ) : (
         <form className="verify-form" onSubmit={(event) => { event.preventDefault(); void confirm(); }}>
-          <p className="notice" role="status">{t(lang, "verifySent", { hint: contactHint })}</p>
-          <label>
+          <p className="notice good" role="status">{t(lang, "verifySent", { hint: contactHint })}</p>
+          <label htmlFor={codeId}>
             <span>{t(lang, "verifyCode")}</span>
-            <input autoComplete="one-time-code" dir="ltr" inputMode="numeric" maxLength={6} minLength={6} pattern="[0-9]{6}" required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
+            <input autoComplete="one-time-code" dir="ltr" id={codeId} inputMode="numeric" maxLength={6} minLength={6} pattern="[0-9]{6}" required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
           </label>
           <div className="verify-actions">
-            <button className="add-button" disabled={step === "confirming" || code.length < 6} type="submit">{t(lang, "verifyConfirm")}</button>
+            <button className="button add-button" disabled={step === "confirming" || code.length < 6} type="submit">{t(lang, "verifyConfirm")}</button>
             <button className="link-button" disabled={step === "confirming"} onClick={() => void send()} type="button">{t(lang, "verifyResend")}</button>
           </div>
         </form>

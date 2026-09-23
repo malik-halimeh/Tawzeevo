@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Link, Route, Routes } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { AppShell, PublicHeader } from "./components/AppShell";
@@ -8,6 +8,7 @@ import { ApplicationsPage } from "./pages/ApplicationsPage";
 import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from "./pages/AuthPages";
 import { ClientHomePage } from "./pages/ClientHomePage";
 import { BackupCallbackPage } from "./pages/BackupCallbackPage";
+import { LandingPage } from "./pages/LandingPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PublicStatsPage } from "./pages/PublicStatsPage";
 import { TenantsPage } from "./pages/TenantsPage";
@@ -16,13 +17,13 @@ import { UsersPage } from "./pages/UsersPage";
 function NotFoundPage() {
   const { t } = useTranslation();
   return (
-    <div className="public-page">
+    <div className="entry-page public-page">
       <PublicHeader />
-      <main className="not-found">
-        <span>404</span>
+      <main className="not-found" id="main" tabIndex={-1}>
+        <p className="eyebrow">404</p>
         <h1>{t("notFound.title")}</h1>
         <p>{t("notFound.body")}</p>
-        <a className="button" href="/">{t("notFound.action")}</a>
+        <Link className="button" to="/">{t("notFound.action")}</Link>
       </main>
     </div>
   );
@@ -31,7 +32,7 @@ function NotFoundPage() {
 export function App() {
   return (
     <Routes>
-      <Route element={<Navigate replace to="/stats" />} path="/" />
+      <Route element={<LandingPage />} path="/" />
       <Route element={<PublicStatsPage />} path="/stats" />
       <Route element={<LoginPage />} path="/login" />
       <Route element={<RegisterPage />} path="/register" />

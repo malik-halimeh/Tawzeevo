@@ -51,7 +51,7 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("tab", { name: "Deliveries" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Deliveries", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My deliveries", level: 3 })).toBeVisible();
   await expect(page.getByLabel("Deliver by")).toHaveCount(0); // no driver setup demanded
   const pickInvoice = async (customer: string) => {
@@ -85,9 +85,9 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
   await driver.getByRole("button", { name: "Sign in" }).click();
   await expect(driver).toHaveURL(/\/workspace/);
   await expect(driver.getByRole("heading", { name: "My route", level: 3 })).toBeVisible();
-  await expect(driver.getByText("Achrafieh Market", { exact: true })).toBeVisible();
+  await expect(driver.getByText("Achrafieh Market", { exact: true }).first()).toBeVisible(); // the stop list and the selected-stop detail both name it
   await expect(driver.getByText("Hamra Grocer", { exact: true })).toHaveCount(0); // not theirs (already delivered by the owner)
-  await expect(driver.getByRole("tab", { name: "Suppliers & costs" })).toHaveCount(0);
+  await expect(driver.getByRole("link", { name: "Suppliers & costs" })).toHaveCount(0);
   const workText = await driver.locator(".my-work").innerText();
   expect(workText.toLowerCase()).not.toMatch(/cost|margin|profit|supplier price/);
   expect(workText).toContain("30.0000 USD"); // amount to collect

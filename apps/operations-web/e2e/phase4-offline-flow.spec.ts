@@ -45,7 +45,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("tab", { name: "Offline" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Offline", exact: true }).click();
   await page.getByRole("button", { name: "Download for offline use" }).click();
   await expect(page.getByRole("button", { name: "Download again" })).toBeVisible();
   await expect(page.getByText(/1 \/ 1 \/ 0/)).toBeVisible();
@@ -53,17 +53,17 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   // ----- Connection lost: a new customer is created on the device -----
   await context.setOffline(true);
   await expect(page.locator(".status-badge", { hasText: "Offline" })).toBeVisible();
-  await page.getByRole("tab", { name: "Customers" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Customers", exact: true }).click();
   await page.getByRole("textbox", { name: "Customer name" }).fill("Offline Corner Shop");
   await page.locator("form.form-grid").getByRole("textbox", { name: "Phone" }).fill(newCustomerPhone);
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByText("No connection: the customer was saved on this device and will be sent once when you are back online.")).toBeVisible();
 
   // ----- Still offline: search (device projection), scan (device catalog), queue the invoice -----
-  await page.getByRole("tab", { name: "Invoices" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Invoices", exact: true }).click();
   await page.getByRole("textbox", { name: "Phone", exact: true }).fill(newCustomerPhone);
   await page.getByRole("button", { name: "Search" }).first().click();
-  await expect(page.getByText("1 matching record(s) from this device (offline).")).toBeVisible();
+  await expect(page.getByText("1 matching record from this device (offline).")).toBeVisible();
   await page.getByRole("button", { name: /Offline Corner Shop/ }).click();
   await page.getByRole("textbox", { name: "Barcode", exact: true }).fill(barcode);
   await page.getByRole("button", { name: "Scan barcode" }).click();
@@ -72,7 +72,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await expect(page.getByText(/No connection: the invoice was saved on this device as PENDING-[0-9A-F]{8}/)).toBeVisible();
 
   // ----- The queued command is visible, never hidden -----
-  await page.getByRole("tab", { name: "Offline" }).click();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Offline", exact: true }).click();
   await expect(page.getByText("Waiting to send").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Sync now" })).toBeDisabled();
 
@@ -80,10 +80,10 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await context.setOffline(false);
   await expect(page.getByRole("button", { name: "Sync now" })).toBeEnabled();
   await page.getByRole("button", { name: "Sync now" }).click();
-  await expect(page.getByText(/Synced: 2 change\(s\) sent/)).toBeVisible();
+  await expect(page.getByText(/Synced: 2 changes sent/)).toBeVisible();
   await expect(page.getByText("Nothing waiting: every change has been sent and accepted.")).toBeVisible();
   await page.getByRole("button", { name: "Sync now" }).click();
-  await expect(page.getByText(/Synced: 0 change\(s\) sent/)).toBeVisible();
+  await expect(page.getByText(/Synced: 0 changes sent/)).toBeVisible();
 
   // ----- API: exactly one draft, for that customer, with that line, no official number yet -----
   const device = await page.evaluate(() => localStorage.getItem("tawzeevo.device_installation_id"));

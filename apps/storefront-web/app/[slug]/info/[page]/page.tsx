@@ -25,6 +25,7 @@ export default async function InfoPage({ params, searchParams }: Props) {
   return (
     <ShopFrame currentPath={`/${shop.slug}/info/${page}`} lang={lang} shop={shop}>
       <article className="info-page">
+        <p className="eyebrow">{t(lang, "aboutNav")}</p>
         <h2>{t(lang, `info_${page}` as "info_about")}</h2>
         {text.split(/\n{2,}/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
       </article>

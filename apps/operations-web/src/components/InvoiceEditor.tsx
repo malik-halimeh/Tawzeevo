@@ -730,7 +730,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   };
 
   return (
-    <div className="invoice-editor" role="tabpanel">
+    <div className="invoice-editor">
       <header className="invoice-editor-heading">
         <div>
           <p className="section-kicker">{t("invoiceEditor.kicker")}</p>

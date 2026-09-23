@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { ApiError, apiBlobRequest, apiRequest } from "../api/client";
 import type {
@@ -37,6 +38,7 @@ import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
+import { SYNC_ANCHOR, type WorkspaceSection, sectionFromSearch, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
 
 const grades: CustomerGrade[] = ["A+", "A", "B+", "B"];
 
@@ -339,9 +341,27 @@ function ProductPricingMediaControls({
 export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [tenantId, setTenantId] = useState(contexts[0]?.tenant_id ?? "");
-  const context = contexts.find((item) => item.tenant_id === tenantId) ?? contexts[0]!;
-  const [view, setView] = useState<"customers" | "categories" | "products" | "suppliers" | "procurement" | "invoices" | "orders" | "deliveries" | "analytics" | "branding" | "sync" | "backup">("customers");
+  // The selected business and the open section are both carried by the route's query string
+  // (`tenant`, `section`) so the shell's phone bar, the desktop rail, this body and the browser
+  // history all agree; the first listed business and Work are the defaults. Which
+  // panels a membership gets is still read from the server's context (role, status) below.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const context = selectedContext(contexts, tenantFromSearch(searchParams)) ?? contexts[0]!;
+  const view = sectionFromSearch(searchParams);
+  const setView = useCallback((next: WorkspaceSection, replace = false) => {
+    setSearchParams((current) => workspaceSearch(next, tenantFromSearch(current)), { replace });
+  }, [setSearchParams]);
+  const chooseBusiness = (tenantId: string) => {
+    const next = contexts.find((item) => item.tenant_id === tenantId);
+    if (!next || next.tenant_id === context.tenant_id) return;
+    // Owner sections exist only for an owner membership: a switch to a driver business lands on
+    // that business's work view — its sync anchor when the owner's Offline section was open.
+    const keepsSection = next.role === "owner";
+    const hash = !keepsSection && view === "sync" ? `#${SYNC_ANCHOR}` : location.hash;
+    void navigate({ pathname: "/workspace", search: workspaceSearch(keepsSection ? view : "work", tenantId), hash });
+  };
   const [backupNotice, setBackupNotice] = useState<string>();
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
   useEffect(() => {
@@ -351,9 +371,9 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       if (!raw) return;
       sessionStorage.removeItem(CONNECT_RESULT_KEY);
       const result = JSON.parse(raw) as { tenant_id: string; email: string };
-      if (result.tenant_id === context.tenant_id) { setView("backup"); setBackupNotice(t("backup.connected", { email: result.email })); }
+      if (result.tenant_id === context.tenant_id) { setView("backup", true); setBackupNotice(t("backup.connected", { email: result.email })); }
     } catch { /* nothing to restore */ }
-  }, [context.tenant_id, t]);
+  }, [context.tenant_id, setView, t]);
   const [phoneSearch, setPhoneSearch] = useState("");
   const [matches, setMatches] = useState<Customer[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(emptyCustomer);
@@ -382,7 +402,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     setBarcodeProductId(undefined);
     setRequestError(undefined);
     setNotice(undefined);
-  }, [tenantId]);
+  }, [context.tenant_id]);
 
   const categories = useQuery({
     queryKey: ["tenant-categories", context.tenant_id],
@@ -618,49 +638,61 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
 
   return (
     <section className="tenant-workspace" aria-label={t("tenantWorkspace.label")}>
-      <header className="route-book-header">
-        <div>
-          <p className="section-kicker">{t("tenantWorkspace.routeBook")}</p>
-          <h2>{context.tenant_name}</h2>
-          <div className="badge-pair"><StatusBadge value={context.tenant_status} /><StatusBadge value={context.role} /></div>
+      {/* The page heading of an active workspace: the selected business, its state and the member's
+          role, with the picker beside it. Kept to one compact band so the day's work follows at once. */}
+      <header className="business-head">
+        <div className="business">
+          <span className="avatar business-avatar" aria-hidden="true">{context.tenant_name.trim().slice(0, 1).toUpperCase()}</span>
+          <div>
+            <h1>{context.tenant_name}</h1>
+            <div className="badge-pair"><StatusBadge value={context.tenant_status} /><StatusBadge value={context.role} /></div>
+          </div>
         </div>
         {contexts.length > 1 ? (
           <label className="field tenant-picker"><span>{t("tenantWorkspace.business")}</span>
-            <select value={context.tenant_id} onChange={(event) => setTenantId(event.target.value)}>
+            <select value={context.tenant_id} onChange={(event) => chooseBusiness(event.target.value)}>
               {contexts.map((item) => <option key={item.tenant_id} value={item.tenant_id}>{item.tenant_name}</option>)}
             </select>
           </label>
         ) : null}
       </header>
-      {context.role !== "owner" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.ownerOnly")}</div> : null}
-      {context.role === "driver" && context.tenant_status === "ACTIVE" ? <><MyWorkPanel membershipId={context.membership_id} tenantId={context.tenant_id} /><PickupPanel tenantId={context.tenant_id} /></> : null}
+      {/* A driver's own work needs no permission notice; it explains only an owner section requested in the address. */}
+      {context.role !== "owner" && view !== "work" ? <p className="notice" role="note">{t("tenantWorkspace.ownerOnly")}</p> : null}
+      {/* Keyed by business: the work screen's day meter, queued list and pickups never carry over to another membership. */}
+      {context.role === "driver" && context.tenant_status === "ACTIVE" ? <><MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} tenantId={context.tenant_id} /><PickupPanel key={`pickups-${context.tenant_id}`} tenantId={context.tenant_id} /></> : null}
       {context.tenant_status !== "ACTIVE" ? <div className="notice notice-error" role="alert">{t("tenantWorkspace.inactive")}</div> : null}
       {context.role === "owner" && context.tenant_status === "ACTIVE" ? (
         <>
-          <div className="workspace-tabs" role="tablist" aria-label={t("tenantWorkspace.sections")}>
-            <button aria-selected={view === "customers"} onClick={() => setView("customers")} role="tab" type="button">{t("tenantWorkspace.customers")}</button>
-            <button aria-selected={view === "categories"} onClick={() => setView("categories")} role="tab" type="button">{t("tenantWorkspace.categories")}</button>
-            <button aria-selected={view === "products"} onClick={() => setView("products")} role="tab" type="button">{t("tenantWorkspace.products")}</button>
-            <button aria-selected={view === "suppliers"} onClick={() => setView("suppliers")} role="tab" type="button">{t("supplierSetup.tab")}</button>
-            <button aria-selected={view === "procurement"} onClick={() => setView("procurement")} role="tab" type="button">{t("procurement.tab")}</button>
-            <button aria-selected={view === "invoices"} onClick={() => setView("invoices")} role="tab" type="button">{t("invoiceEditor.tab")}</button>
-            <button aria-selected={view === "orders"} onClick={() => setView("orders")} role="tab" type="button">{t("orders.tab")}</button>
-            <button aria-selected={view === "deliveries"} onClick={() => setView("deliveries")} role="tab" type="button">{t("delivery.tab")}</button>
-            <button aria-selected={view === "analytics"} onClick={() => setView("analytics")} role="tab" type="button">{t("analytics.tab")}</button>
-            <button aria-selected={view === "branding"} onClick={() => setView("branding")} role="tab" type="button">{t("branding.tab")}</button>
-            <button aria-selected={view === "sync"} onClick={() => setView("sync")} role="tab" type="button">{t("sync.tab")}</button>
-            <button aria-selected={view === "backup"} onClick={() => setView("backup")} role="tab" type="button">{t("backup.tab")}</button>
-          </div>
+          {/* Sections are chosen from the shell (desktop rail, phone bar and More), all carried by the address. */}
           {requestError ? <ErrorState error={requestError} /> : null}
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
           {view === "customers" ? (
-            <div className="route-book-grid" role="tabpanel">
+            <div className="route-book-grid">
+              <article className="content-card lookup-card">
+                <p className="section-kicker">{t("tenantWorkspace.phoneLookup")}</p>
+                <h3>{t("tenantWorkspace.findCustomer")}</h3>
+                <p className="muted">{t("tenantWorkspace.chooseCustomer")}</p>
+                <form className="inline-form" onSubmit={searchCustomers}><label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label><button className="button" disabled={busy} type="submit">{t("common.search")}</button></form>
+                <div className="customer-match-list">
+                  {matches.map((customer) => (
+                    <article className="customer-match" key={customer.id}>
+                      <div className="customer-match-head"><span className="avatar" aria-hidden="true">{customer.name.trim().slice(0, 1).toUpperCase()}</span><div><h4>{customer.name}</h4><bdi dir="ltr">{customer.phone}</bdi></div>{customer.grade ? <span className="badge">{t("tenantWorkspace.grade")} <bdi>{customer.grade}</bdi></span> : null}</div>
+                      <dl><div><dt>{t("tenantWorkspace.address")}</dt><dd>{customer.address ?? "—"}</dd></div><div><dt>{t("tenantWorkspace.grade")}</dt><dd>{customer.grade ?? "—"}</dd></div><div><dt>ID</dt><dd dir="ltr">{customer.id}</dd></div></dl>
+                      <div className="category-actions">
+                        <button className="text-button" onClick={() => editCustomer(customer)} type="button">{t("common.edit")}</button>
+                        <button aria-expanded={linkCustomerId === customer.id} className="text-button" onClick={() => setLinkCustomerId(linkCustomerId === customer.id ? undefined : customer.id)} type="button">{t("customerLink.toggle")}</button>
+                      </div>
+                      {linkCustomerId === customer.id ? <CustomerLinkControls customerId={customer.id} tenantId={context.tenant_id} /> : null}
+                    </article>
+                  ))}
+                </div>
+              </article>
               <article className="content-card route-form-card">
                 <p className="section-kicker">{editingCustomerId ? t("common.edit") : t("tenantWorkspace.newStop")}</p>
                 <h3>{editingCustomerId ? t("tenantWorkspace.editCustomer") : t("tenantWorkspace.addCustomer")}</h3>
                 <form className="form-grid" onSubmit={saveCustomer}>
                   <label className="field"><span>{t("tenantWorkspace.customerName")}</span><input required value={customerDraft.name} onChange={(event) => setCustomerDraft({ ...customerDraft, name: event.target.value })} /></label>
-                  <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" required value={customerDraft.phone} onChange={(event) => setCustomerDraft({ ...customerDraft, phone: event.target.value })} /></label>
+                  <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" required value={customerDraft.phone} onChange={(event) => setCustomerDraft({ ...customerDraft, phone: event.target.value })} /></label>
                   <label className="field field-wide"><span>{t("tenantWorkspace.address")}</span><input value={customerDraft.address} onChange={(event) => setCustomerDraft({ ...customerDraft, address: event.target.value })} /></label>
                   <label className="field"><span>{t("tenantWorkspace.latitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.latitude} onChange={(event) => setCustomerDraft({ ...customerDraft, latitude: event.target.value })} /></label>
                   <label className="field"><span>{t("tenantWorkspace.longitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.longitude} onChange={(event) => setCustomerDraft({ ...customerDraft, longitude: event.target.value })} /></label>
@@ -668,25 +700,9 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                   <div className="form-actions field-wide"><button className="button" disabled={busy} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button>{editingCustomerId ? <button className="button button-secondary" onClick={() => { setEditingCustomerId(undefined); setCustomerDraft(emptyCustomer); }} type="button">{t("common.cancel")}</button> : null}</div>
                 </form>
               </article>
-              <article className="content-card lookup-card">
-                <p className="section-kicker">{t("tenantWorkspace.phoneLookup")}</p>
-                <h3>{t("tenantWorkspace.findCustomer")}</h3>
-                <form className="inline-form" onSubmit={searchCustomers}><label className="field"><span>{t("fields.phone")}</span><input dir="ltr" required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label><button className="button" disabled={busy} type="submit">{t("common.search")}</button></form>
-                <div className="customer-match-list">
-                  {matches.map((customer) => (
-                    <article className="customer-match" key={customer.id}>
-                      <div><h4>{customer.name}</h4><bdi dir="ltr">{customer.phone}</bdi></div>
-                      <dl><div><dt>{t("tenantWorkspace.address")}</dt><dd>{customer.address ?? "—"}</dd></div><div><dt>{t("tenantWorkspace.grade")}</dt><dd>{customer.grade ?? "—"}</dd></div><div><dt>ID</dt><dd dir="ltr">{customer.id}</dd></div></dl>
-                      <button className="text-button" onClick={() => editCustomer(customer)} type="button">{t("common.edit")}</button>
-                      <button aria-expanded={linkCustomerId === customer.id} className="text-button" onClick={() => setLinkCustomerId(linkCustomerId === customer.id ? undefined : customer.id)} type="button">{t("customerLink.toggle")}</button>
-                      {linkCustomerId === customer.id ? <CustomerLinkControls customerId={customer.id} tenantId={context.tenant_id} /> : null}
-                    </article>
-                  ))}
-                </div>
-              </article>
             </div>
           ) : view === "categories" ? (
-            <div className="route-book-grid" role="tabpanel">
+            <div className="route-book-grid">
               <article className="content-card route-form-card">
                 <p className="section-kicker">{editingCategoryId ? t("common.edit") : t("tenantWorkspace.newCategory")}</p>
                 <h3>{editingCategoryId ? t("tenantWorkspace.editCategory") : t("tenantWorkspace.addCategory")}</h3>
@@ -709,7 +725,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
               </article>
             </div>
           ) : view === "products" ? (
-            <div className="catalog-workspace" role="tabpanel">
+            <div className="catalog-workspace">
               <StorefrontSettings tenantId={context.tenant_id} />
               <CampaignPanel products={products.data?.products ?? []} tenantId={context.tenant_id} />
               <article className="content-card scan-desk">
@@ -762,11 +778,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <AnalyticsPanel tenantId={context.tenant_id} />
           ) : view === "branding" ? (
             <BrandingPanel tenantId={context.tenant_id} />
+          ) : view === "work" ? (
+            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
-            <>
-              <DeliveryPanel tenantId={context.tenant_id} />
-              <MyWorkPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
-            </>
+            <DeliveryPanel tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : (

@@ -145,8 +145,8 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
             <div>
               <strong>{task.customer_name}</strong> · <bdi dir="ltr">{task.customer_phone}</bdi>{task.customer_address ? ` · ${task.customer_address}` : ""}
               <div className="muted">
-                {task.official_invoice_number ?? "…"} · {t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi>
-                {task.delivery_date ? ` · ${task.delivery_date}` : ""} · {task.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}
+                <bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi> · {t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi>
+                {task.delivery_date ? <> · <bdi dir="ltr">{task.delivery_date}</bdi></> : null} · {task.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}
               </div>
               <div className="muted">
                 {t("delivery.assignedTo")}: {label(task.assignee)}

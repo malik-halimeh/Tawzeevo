@@ -21,27 +21,28 @@ async function loadStatistics(): Promise<Statistics> {
   return { count: count.count, averageAge: average.average_age, cities };
 }
 
+/** The required public statistics (Phase 1), kept as a secondary public destination. */
 export function PublicStatsPage() {
   const { t } = useTranslation();
   const statistics = useQuery({ queryKey: ["public-statistics"], queryFn: loadStatistics });
   const maxCityCount = Math.max(...(statistics.data?.cities.map((city) => city.count) ?? [1]));
 
   return (
-    <div className="public-page">
+    <div className="entry-page public-page">
       <PublicHeader />
-      <main className="public-content">
-        <section className="stats-hero">
+      <main className="public-content" id="main" tabIndex={-1}>
+        <header className="page-head stats-hero">
           <div>
             <p className="eyebrow">{t("stats.eyebrow")}</p>
             <h1>{t("stats.title")}</h1>
+            <p className="page-description">{t("stats.intro")}</p>
           </div>
-          <p>{t("stats.intro")}</p>
-        </section>
+        </header>
         {statistics.isPending ? <LoadingState /> : null}
         {statistics.error ? <ErrorState error={statistics.error} /> : null}
         {statistics.data ? (
           <section aria-label={t("stats.summary")} className="stats-grid">
-            <article className="metric-card metric-primary">
+            <article className="metric-card">
               <span>{t("stats.activeUsers")}</span>
               <strong>{statistics.data.count.toLocaleString()}</strong>
               <small>{t("stats.activeUsersNote")}</small>
@@ -51,7 +52,7 @@ export function PublicStatsPage() {
               <strong>{statistics.data.averageAge?.toFixed(1) ?? "—"}</strong>
               <small>{t("stats.years")}</small>
             </article>
-            <article className="city-card">
+            <article className="metric-card city-card">
               <header>
                 <span>{t("stats.topCities")}</span>
                 <small>{t("stats.byUsers")}</small>
@@ -71,11 +72,11 @@ export function PublicStatsPage() {
             </article>
           </section>
         ) : null}
-        <footer className="public-footer">
-          <span>Tawzeevo</span>
-          <p>{t("stats.footer")}</p>
-        </footer>
       </main>
+      <footer className="site-footer">
+        <span>{t("landing.footer")}</span>
+        <p>{t("stats.footer")}</p>
+      </footer>
     </div>
   );
 }

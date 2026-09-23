@@ -41,7 +41,7 @@ export function AdminDashboardPage() {
             <article><span>{t("admin.suspendedTenants")}</span><strong>{overview.data.suspended}</strong><Link to="/admin/tenants?status=SUSPENDED">{t("common.view")}</Link></article>
           </section>
           <section className="content-card route-brief">
-            <div className="route-brief-marker"><span>{overview.data.overdue}</span><small>{t("admin.overdue")}</small></div>
+            <div className={`route-brief-marker${overview.data.overdue ? " attention" : ""}`}><span>{overview.data.overdue}</span><small>{t("admin.overdue")}</small></div>
             <div><p className="section-kicker">{t("admin.accessDesk")}</p><h2>{t("admin.accessTitle")}</h2><p>{overview.data.overdue ? t("admin.accessAttention", { count: overview.data.overdue }) : t("admin.accessClear")}</p></div>
             <Link className="button button-secondary" to="/admin/tenants">{t("admin.openTenantDesk")}</Link>
           </section>
