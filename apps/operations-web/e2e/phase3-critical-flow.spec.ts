@@ -73,6 +73,8 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
 
   // ----- Browser: invoice create -> confirm -----
   await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Invoices", exact: true }).click();
+  // The section renders after the address changes; wait for it before using its fields.
+  await expect(page.getByRole("heading", { name: "Invoices", level: 3 })).toBeVisible();
   await page.getByRole("textbox", { name: "Phone", exact: true }).fill(customerPhone);
   await page.getByRole("button", { name: "Search" }).first().click();
   await page.getByRole("button", { name: /Maya Market/ }).click();

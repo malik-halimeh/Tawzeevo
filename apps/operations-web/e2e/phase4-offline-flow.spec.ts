@@ -62,6 +62,8 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
 
   // ----- Still offline: search (device projection), scan (device catalog), queue the invoice -----
   await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Invoices", exact: true }).click();
+  // The section renders after the address changes; until then the Customers phone search is still on screen.
+  await expect(page.getByRole("heading", { name: "Invoices", level: 3 })).toBeVisible();
   await page.getByRole("textbox", { name: "Phone", exact: true }).fill(newCustomerPhone);
   await page.getByRole("button", { name: "Search" }).first().click();
   await expect(page.getByText("1 matching record from this device (offline).")).toBeVisible();
