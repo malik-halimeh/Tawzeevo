@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { PublicProduct } from "./catalog";
 import { isValidSlug } from "./catalog";
-import { money, priceLine, productName, secondaryPriceLine, shopHref } from "./format";
+import { money, priceLine, productName, secondaryPrice, secondaryPriceLine, shopHref } from "./format";
 import { dirFor, normalizeLang, otherLang, plural, t } from "./i18n";
 
 const product: PublicProduct = {
@@ -26,6 +26,12 @@ describe("storefront formatting", () => {
     expect(priceLine(boxed, "ar")).toBe("150.00 USD للصندوق (12 قطعة)");
     expect(secondaryPriceLine(boxed, "en")).toBe("12.50 USD per piece");
     expect(secondaryPriceLine({ ...product, packaging: { pieces_per_box: null, piece_price: "12.5000", box_price: null } }, "en")).toBeNull();
+  });
+
+  test("the secondary price comes as amount and basis, so pages can keep the amount left to right", () => {
+    expect(secondaryPrice(product, "ar")).toEqual({ amount: "150.00 USD", basis: "للصندوق (12 قطعة)" });
+    expect(secondaryPrice({ ...product, price: "150.0000", price_basis: "BOX" }, "en")).toEqual({ amount: "12.50 USD", basis: "per piece" });
+    expect(secondaryPrice({ ...product, packaging: { pieces_per_box: null, piece_price: "12.5000", box_price: null } }, "en")).toBeNull();
   });
 
   test("names, language and direction", () => {

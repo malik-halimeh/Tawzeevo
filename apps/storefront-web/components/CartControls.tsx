@@ -70,10 +70,14 @@ export function AddToCart({ slug, product, lang, compact = false }: { slug: stri
       </button>
     );
   }
+  // The label change alone is not announced; a status message (outside the button, so its name stays single) is.
   return (
-    <button className="button add-button" onClick={add} type="button">
-      <Icon name={added ? "check" : "plus"} small />
-      {label}
-    </button>
+    <>
+      <button className="button add-button" onClick={add} type="button">
+        <Icon name={added ? "check" : "plus"} small />
+        {label}
+      </button>
+      <span className="sr-only" role="status">{added ? label : ""}</span>
+    </>
   );
 }

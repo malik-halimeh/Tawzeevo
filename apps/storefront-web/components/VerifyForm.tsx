@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { shopHref } from "@/lib/format";
 import { type Lang, t } from "@/lib/i18n";
@@ -15,12 +15,23 @@ export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: str
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const codeId = useId();
+  // The buttons are disabled while a request runs, so focus would fall to the page: it moves into the code
+  // field once a code is sent or refused, and back to "Send" when sending failed.
+  const focusNext = useRef<"code" | "send" | null>(null);
+  const codeInput = useRef<HTMLInputElement>(null);
+  const sendButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!focusNext.current || step === "sending" || step === "confirming") return;
+    (focusNext.current === "code" ? codeInput.current : sendButton.current)?.focus();
+    focusNext.current = null;
+  });
 
   const send = async () => {
     setStep("sending"); setError(null);
     const response = await fetch(`/${slug}/verify/start`, { method: "POST", headers: { "Accept-Language": lang } }).catch(() => null);
     const body = (await response?.json().catch(() => ({}))) as { ok?: boolean; code?: string | null } | undefined;
-    if (body?.ok) { setStep("sent"); return; }
+    if (body?.ok) { focusNext.current = "code"; setStep("sent"); return; }
+    focusNext.current = "send";
     setStep("idle");
     setError(t(lang, body?.code === "VERIFICATION_RATE_LIMITED" ? "verifyTooMany" : body?.code === "VERIFICATION_UNAVAILABLE" ? "verifyUnavailable" : "verifyFailed"));
   };
@@ -29,6 +40,7 @@ export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: str
     const response = await fetch(`/${slug}/verify/confirm`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) }).catch(() => null);
     const body = (await response?.json().catch(() => ({}))) as { ok?: boolean; code?: string | null } | undefined;
     if (body?.ok) { setStep("done"); window.location.replace(shopHref(slug, lang)); return; }
+    focusNext.current = "code";
     setStep("sent");
     setError(t(lang, body?.code === "VERIFICATION_RATE_LIMITED" ? "verifyTooMany" : "verifyWrongCode"));
   };
@@ -41,13 +53,13 @@ export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: str
       <p>{t(lang, "verifyBody", { hint: contactHint })}</p>
       {error ? <p className="notice notice-error" role="alert">{error}</p> : null}
       {step === "idle" || step === "sending" ? (
-        <button className="button add-button" disabled={step === "sending"} onClick={() => void send()} type="button">{t(lang, "verifySend")}</button>
+        <button className="button add-button" disabled={step === "sending"} onClick={() => void send()} ref={sendButton} type="button">{t(lang, "verifySend")}</button>
       ) : (
         <form className="verify-form" onSubmit={(event) => { event.preventDefault(); void confirm(); }}>
           <p className="notice good" role="status">{t(lang, "verifySent", { hint: contactHint })}</p>
           <label htmlFor={codeId}>
             <span>{t(lang, "verifyCode")}</span>
-            <input autoComplete="one-time-code" dir="ltr" id={codeId} inputMode="numeric" maxLength={6} minLength={6} pattern="[0-9]{6}" required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
+            <input autoComplete="one-time-code" dir="ltr" id={codeId} inputMode="numeric" maxLength={6} minLength={6} pattern="[0-9]{6}" ref={codeInput} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
           </label>
           <div className="verify-actions">
             <button className="button add-button" disabled={step === "confirming" || code.length < 6} type="submit">{t(lang, "verifyConfirm")}</button>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { type CartLine, checkoutKey, clearCart, readCart, resetCheckoutKey, setQuantity } from "@/lib/cart";
 import { shopHref } from "@/lib/format";
@@ -22,6 +22,17 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const id = useId();
+  // Focus that would fall to the page — "Place order" is disabled while sending, a removed line takes its
+  // button with it — goes back to the button, or to the cart list (the way back to the shop once it is empty).
+  const focusNext = useRef<"submit" | "cart" | null>(null);
+  const submitButton = useRef<HTMLButtonElement>(null);
+  const cartList = useRef<HTMLUListElement>(null);
+  const backToShop = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (!focusNext.current || busy) return;
+    (focusNext.current === "submit" ? submitButton.current : cartList.current ?? backToShop.current)?.focus();
+    focusNext.current = null;
+  });
 
   useEffect(() => { const timer = window.setTimeout(() => setLines(readCart(slug)), 0); return () => window.clearTimeout(timer); }, [slug]);
 
@@ -47,6 +58,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
         if (!response.ok || !body.provisional_path) {
           const code = body.detail?.code ?? "";
           setError(code === "STOREFRONT_NOT_ACCEPTING" ? t(lang, "notAccepting") : code === "INVALID_PHONE" ? t(lang, "invalidPhone") : code === "PRODUCT_NOT_AVAILABLE" ? t(lang, "productUnavailable") : t(lang, "checkoutFailed"));
+          focusNext.current = "submit";
           setBusy(false);
           return;
         }
@@ -54,7 +66,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
         const path = body.provisional_path;
         window.location.assign(lang === "ar" ? path.replace("#", "?lang=ar#") : path);
       })
-      .catch(() => { setError(t(lang, "checkoutFailed")); setBusy(false); });
+      .catch(() => { setError(t(lang, "checkoutFailed")); focusNext.current = "submit"; setBusy(false); });
   };
 
   if (lines.length === 0) {
@@ -62,7 +74,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
       <section className="empty">
         <Icon name="bag" />
         <p>{t(lang, "cartEmpty")}</p>
-        <Link className="button" href={shopHref(slug, lang)}>{t(lang, "backToShop")}<Arrow small /></Link>
+        <Link className="button" href={shopHref(slug, lang)} ref={backToShop}>{t(lang, "backToShop")}<Arrow small /></Link>
       </section>
     );
   }
@@ -70,7 +82,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
   return (
     <div className="cart-layout checkout">
       <section>
-        <ul className="cart-lines" aria-label={t(lang, "cart")}>
+        <ul className="cart-lines" aria-label={t(lang, "cart")} ref={cartList} tabIndex={-1}>
           {lines.map((line) => (
             <li key={`${line.product_id}-${line.price_basis}`}>
               <span className="name">{line.name} <small className="muted">· {line.unit_label}</small></span>
@@ -78,7 +90,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
                 <button aria-label={t(lang, "decrease")} onClick={() => change(line, line.quantity - 1)} type="button"><Icon name="minus" small /></button>
                 <input aria-label={t(lang, "quantity")} inputMode="numeric" min={1} onChange={(event) => change(line, Math.max(1, Number(event.target.value) || 1))} type="number" value={line.quantity} />
                 <button aria-label={t(lang, "increase")} onClick={() => change(line, line.quantity + 1)} type="button"><Icon name="plus" small /></button>
-                <button className="link-button" onClick={() => change(line, 0)} type="button">{t(lang, "remove")}</button>
+                <button className="link-button" onClick={() => { focusNext.current = "cart"; change(line, 0); }} type="button">{t(lang, "remove")}</button>
               </span>
             </li>
           ))}
@@ -99,7 +111,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
             <p className="hint">{t(lang, "addressHint")}</p>
             <label htmlFor={`${id}-notes`}>{t(lang, "notes")}<textarea id={`${id}-notes`} maxLength={1000} rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
             {error ? <p className="notice notice-error" role="alert">{error}</p> : null}
-            <button className="button" disabled={busy} type="submit">{busy ? t(lang, "sending") : t(lang, "placeOrder")}<Arrow /></button>
+            <button className="button" disabled={busy} ref={submitButton} type="submit">{busy ? t(lang, "sending") : t(lang, "placeOrder")}<Arrow /></button>
             <p className="muted">{t(lang, "orderNote")}</p>
           </form>
         )}

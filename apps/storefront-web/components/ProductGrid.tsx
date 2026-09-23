@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import type { PublicProduct, PublicProductPage } from "@/lib/catalog";
 import { publicApiBase } from "@/lib/catalog";
-import { money, productName, secondaryPriceLine, shopHref } from "@/lib/format";
+import { money, productName, secondaryPrice, shopHref } from "@/lib/format";
 import { type Lang, plural, t } from "@/lib/i18n";
 import { AddToCart } from "./CartControls";
 
@@ -14,7 +14,7 @@ function basisLabel(product: PublicProduct, lang: Lang): string {
 export function ProductCard({ slug, product, lang }: { slug: string; product: PublicProduct; lang: Lang }) {
   const image = product.images[0];
   const name = productName(product, lang);
-  const secondary = secondaryPriceLine(product, lang);
+  const secondary = secondaryPrice(product, lang);
   return (
     <li className="card">
       <Link href={shopHref(slug, lang, `/p/${product.id}`)}>
@@ -23,7 +23,7 @@ export function ProductCard({ slug, product, lang }: { slug: string; product: Pu
         </div>
         <div className="body">
           <span className="name">{name}</span>
-          {secondary ? <span className="sub">{secondary}</span> : null}
+          {secondary ? <span className="sub"><bdi dir="ltr">{secondary.amount}</bdi> {secondary.basis}</span> : null}
         </div>
       </Link>
       <div className="card-buy">

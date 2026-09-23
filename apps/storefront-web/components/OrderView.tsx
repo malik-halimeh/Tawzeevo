@@ -30,6 +30,16 @@ export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
   const [asking, setAsking] = useState(false);
   const [askResult, setAskResult] = useState<string>();
   const reasonId = useId();
+  // The request button is disabled while sending and the form is replaced once the request is sent, so focus
+  // would fall to the page: it moves to the pending notice, or back to the button when the request failed.
+  const focusNext = useRef<"notice" | "button" | null>(null);
+  const pendingNotice = useRef<HTMLParagraphElement>(null);
+  const requestButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!focusNext.current || asking) return;
+    (focusNext.current === "notice" ? pendingNotice.current : requestButton.current)?.focus();
+    focusNext.current = null;
+  });
 
   const requestCancellation = () => {
     const reference = referenceRef.current;
@@ -37,11 +47,12 @@ export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
     setAsking(true);
     fetch(`/${slug}/order/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference, reason: reason.trim() || null }) })
       .then(async (response) => {
-        if (!response.ok) { setAskResult(t(lang, "cancelFailed")); return; }
+        if (!response.ok) { setAskResult(t(lang, "cancelFailed")); focusNext.current = "button"; return; }
         setAskResult(t(lang, "cancelRequested"));
         setOrder((current) => (current ? { ...current, cancellation: "PENDING" } : current));
+        focusNext.current = "notice";
       })
-      .catch(() => setAskResult(t(lang, "cancelFailed")))
+      .catch(() => { setAskResult(t(lang, "cancelFailed")); focusNext.current = "button"; })
       .finally(() => setAsking(false));
   };
 
@@ -98,12 +109,12 @@ export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
       </table>
       {order.delivery_date ? <p className="notice good" role="status"><Icon name="clock" small />{t(lang, "deliveryOn", { date: order.delivery_date })}</p> : null}
       {order.decision_note ? <p className="notice">{order.decision_note}</p> : null}
-      {order.cancellation === "PENDING" ? <p className="notice warn" role="status">{t(lang, "cancelPending")}</p> : null}
+      {order.cancellation === "PENDING" ? <p className="notice warn" ref={pendingNotice} role="status" tabIndex={-1}>{t(lang, "cancelPending")}</p> : null}
       {order.cancellation === "REJECTED" ? <p className="muted">{t(lang, "cancelRejected")}</p> : null}
       {received && order.cancellation !== "PENDING" ? (
         <div className="cancel-form">
           <label htmlFor={reasonId}>{t(lang, "cancelReason")}<input id={reasonId} maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-          <button className="link-button" disabled={asking} onClick={requestCancellation} type="button">{t(lang, "requestCancel")}</button>
+          <button className="link-button" disabled={asking} onClick={requestCancellation} ref={requestButton} type="button">{t(lang, "requestCancel")}</button>
           {askResult ? <p className="muted" role="status">{askResult}</p> : null}
           <p className="muted">{t(lang, "cancelNote")}</p>
         </div>
