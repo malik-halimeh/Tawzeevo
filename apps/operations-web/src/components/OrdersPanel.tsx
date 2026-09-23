@@ -1,8 +1,9 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import { ErrorState } from "./Ui";
+import { useKeepFocus } from "./useKeepFocus";
 
 /**
  * Storefront order inbox and review (PHASE_05.md G–J; D-046, D-049, D-072). The owner links the
@@ -23,7 +24,9 @@ interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candid
 
 export function OrdersPanel({ tenantId }: { tenantId: string }) {
   const { t, i18n } = useTranslation();
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  // Undefined until the first answer, so "no orders yet" is never shown while the inbox is still loading.
+  const [loadedOrders, setOrders] = useState<OrderSummary[]>();
+  const orders = loadedOrders ?? [];
   const [unread, setUnread] = useState(0);
   const [selected, setSelected] = useState<OrderDetail>();
   const [busy, setBusy] = useState(false);
@@ -32,6 +35,8 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
   const [grade, setGrade] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [note, setNote] = useState("");
+  const root = useRef<HTMLElement>(null);
+  useKeepFocus(busy, root);
 
   const base = `/api/v1/tenants/${tenantId}`;
   const q = `?tenant_id=${tenantId}`;
@@ -96,7 +101,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
   const invoice = selected?.invoice;
 
   return (
-    <section className="orders-panel" aria-labelledby="orders-title">
+    <section className="orders-panel" aria-labelledby="orders-title" ref={root}>
       <header>
         <p className="section-kicker">{t("orders.kicker")}</p>
         <h3 id="orders-title">{t("orders.title")} {unread > 0 ? <span className="status-badge">{t("orders.unread", { count: unread })}</span> : null}</h3>
@@ -106,7 +111,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
       <div className="orders-layout">
         <ul className="outbox-list" aria-label={t("orders.inbox")}>
-          {orders.length === 0 ? <li className="muted">{t("orders.empty")}</li> : null}
+          {loadedOrders === undefined ? (error ? null : <li className="muted">{t("common.loading")}</li>) : orders.length === 0 ? <li className="muted">{t("orders.empty")}</li> : null}
           {orders.map((order) => (
             <li className="outbox-row" key={order.id}>
               <button aria-current={selected?.order.id === order.id ? "true" : undefined} className="text-button" onClick={() => { setError(undefined); setNotice(undefined); void open(order.id); }} type="button">

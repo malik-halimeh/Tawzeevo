@@ -89,6 +89,9 @@ bdi, .money, time, td[dir="ltr"], dd[dir="ltr"], [dir="ltr"] { font-variant-nume
 mark { background: var(--warn-bg); color: var(--warn); padding: 0 .2em; border-radius: 3px; }
 ::selection { background: var(--mist); color: var(--ink); }
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+/* Date and time fields take keyboard focus inside the browser's own control (moving from one such field into the
+   next, only :focus-within matches), so the ring goes on the field itself. */
+input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"], [type="week"]):focus-within { outline: 3px solid var(--blue); outline-offset: 3px; }
 main:focus, [tabindex="-1"]:focus { outline: none; }
 img { max-width: 100%; }
 
@@ -481,6 +484,10 @@ section > header > h3 { font-size: 24px; letter-spacing: -.5px; }
 .table-card { overflow: hidden; }
 .table-summary { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 12px 18px; }
 .table-scroll { overflow-x: auto; }
+/* A real table wider than its column (a phone, a narrow desktop column) scrolls inside its own keyboard-reachable
+   region instead of widening the page; columns keep a readable width rather than wrapping every word. */
+.table-region { max-width: 100%; overflow-x: auto; }
+.table-region > table { min-width: 32rem; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 .table-scroll table { min-width: 46rem; }
 th { color: var(--muted); font-size: 12px; font-weight: 500; padding: 10px 12px; text-align: start; border-bottom: 1px solid var(--line); }
@@ -610,12 +617,16 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .order-actions { display: grid; gap: 12px; margin-top: 16px; }
 .procurement-toolbar { align-items: end; flex-wrap: wrap; }
 .procurement-group h5 { margin: 18px 0 4px; }
-.procurement-lines .qty-input { width: 6rem; }
+.procurement-lines .qty-input { width: 7rem; } /* room for a four-decimal quantity beside the number spinner */
+/* A supplier picker is as wide as its longest supplier name; capped, it no longer stretches the whole table. */
+.procurement-lines select { max-width: 14rem; }
 .procurement-lines tr.line-removed td, .procurement-lines tr.line-waived td, .procurement-lines tr.line-carried td { color: var(--muted); text-decoration: line-through; }
 .procurement-lines tr.line-removed td:last-child, .procurement-lines tr.line-waived td:last-child, .procurement-lines tr.line-carried td:last-child { text-decoration: none; }
 .procurement-detail .order-lines td:first-child { display: table-cell; }
 .pickup-supplier { border-top: 1px solid var(--line); padding: 12px 0; }
 .pickup-supplier h5 { margin: 0 0 4px; }
+/* The driver calls or opens the map from the phone: both links are full-size touch targets. */
+.pickup-supplier a { align-items: center; color: var(--blue); display: inline-flex; font-weight: 500; min-height: 48px; text-underline-offset: 3px; vertical-align: middle; }
 .purchase-form { margin: 16px 0; }
 .purchase-lines select, .purchase-lines input { width: 100%; }
 .purchase-lines td:first-child { display: table-cell; }
@@ -648,6 +659,8 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .team { border: 1px solid var(--line); border-radius: 10px; padding: 0 16px; margin: 12px 0; background: var(--surface); }
 .team summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 500; }
 .team[open] summary { border-bottom: 1px solid var(--line); }
+/* The figures section may shrink to the screen; its wide tables then scroll inside their own regions. */
+.analytics-panel { min-width: 0; }
 .analytics-panel h4 { margin: 24px 0 6px; }
 .analytics-facts dd { font-variant-numeric: tabular-nums; }
 .lifetime-habits { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin-top: 16px; }
@@ -880,6 +893,8 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
   .mobile-back { display: inline-flex; margin: 0 0 14px; }
   /* Customers on one pane: every control keeps a 48px target, and a row brought back into view clears the bottom bar. */
   .customers .mobile-back, .customers .text-button { min-height: 48px; }
+  /* The same 48px targets for the text actions of suppliers, procurement, deliveries and orders. */
+  :is(.supplier-setup, .procurement-panel, .delivery-panel, .orders-panel) .text-button { min-height: 48px; }
   .customer-row, .customer-add { scroll-margin-bottom: calc(var(--bottom-nav) + 16px + env(safe-area-inset-bottom)); }
   .detail-name { font-size: 27px; }
   .action-area.attached { position: fixed; bottom: calc(var(--bottom-nav) + env(safe-area-inset-bottom)); inset-inline: 0; z-index: 19; border: 0; border-top: 1px solid #c9d5e5; padding: 14px 24px; }

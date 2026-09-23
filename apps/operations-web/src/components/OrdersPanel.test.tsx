@@ -44,3 +44,20 @@ test("owner links a suggested customer explicitly, then confirms the order", asy
   expect(calls.some((c) => c.includes("/orders/o1/link-customer") && c.startsWith("POST"))).toBe(true);
   expect(calls.some((c) => c.includes("/orders/o1/confirm") && c.startsWith("POST"))).toBe(true);
 });
+
+test("the inbox says it is loading, never that there are no orders, until the first answer", async () => {
+  await i18n.changeLanguage("en");
+  let answer: ((response: Response) => void) | undefined;
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = input instanceof Request ? input.url : input.toString();
+    if (path.includes("/notifications")) return Promise.resolve(Response.json({ notifications: [], unread: 0 }));
+    return new Promise<Response>((resolve) => { answer = resolve; });
+  }));
+
+  render(<OrdersPanel tenantId="t1" />);
+  expect(await screen.findByText("Loading current data…")).toBeInTheDocument();
+  expect(screen.queryByText("No storefront orders yet.")).not.toBeInTheDocument();
+  answer?.(Response.json({ orders: [] }));
+  expect(await screen.findByText("No storefront orders yet.")).toBeInTheDocument();
+  expect(screen.queryByText("Loading current data…")).not.toBeInTheDocument();
+});

@@ -1,9 +1,10 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
 import { ErrorState } from "./Ui";
+import { useKeepFocus } from "./useKeepFocus";
 
 /**
  * Owner delivery desk (PHASE_07.md A/B/C/J; D-063). A sole owner sees "My deliveries" and is the
@@ -25,7 +26,9 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
   const { t, i18n } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
   const [data, setData] = useState<TaskList>();
-  const [eligible, setEligible] = useState<Eligible[]>([]);
+  // Undefined until the first answer, so the invoice picker never says "nothing waiting" while it is loading.
+  const [loadedEligible, setEligible] = useState<Eligible[]>();
+  const eligible = loadedEligible ?? [];
   const [statusFilter, setStatusFilter] = useState<"ASSIGNED" | "COMPLETED" | "CANCELLED" | "">("ASSIGNED");
   const [invoiceId, setInvoiceId] = useState("");
   const [assignee, setAssignee] = useState("");
@@ -36,6 +39,8 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
+  const root = useRef<HTMLElement>(null);
+  useKeepFocus(busy, root);
 
   const refresh = useCallback(async () => {
     const [list, open, team] = await Promise.all([
@@ -82,7 +87,7 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
   const label = (person: Assignee) => `${person.display_name} · ${t(`procurement.roles.${person.role}`)}${person.is_self ? ` (${t("procurement.me")})` : ""}`;
 
   return (
-    <section className="delivery-panel" aria-labelledby="delivery-title">
+    <section className="delivery-panel" aria-labelledby="delivery-title" ref={root}>
       <header>
         <p className="section-kicker">{t("delivery.kicker")}</p>
         <h3 id="delivery-title">{sole ? t("delivery.titleSole") : t("delivery.title")}</h3>
@@ -94,7 +99,7 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
       <form className="inline-form delivery-create" onSubmit={create} aria-label={t("delivery.create")}>
         <label className="field"><span>{t("delivery.eligibleInvoice")}</span>
           <select required value={invoiceId} onChange={(event) => setInvoiceId(event.target.value)}>
-            <option value="">{eligible.length ? "—" : t("delivery.nothingEligible")}</option>
+            <option value="">{loadedEligible === undefined ? t("common.loading") : eligible.length ? "—" : t("delivery.nothingEligible")}</option>
             {eligible.map((row) => <option key={row.invoice_id} value={row.invoice_id}>{row.official_invoice_number ?? "…"} · {row.customer_name} · {row.net_sales} {row.currency}{row.delivery_date ? ` · ${row.delivery_date}` : ""}</option>)}
           </select>
         </label>
