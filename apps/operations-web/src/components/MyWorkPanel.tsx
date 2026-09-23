@@ -67,6 +67,7 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
+  const [revokedReason, setRevokedReason] = useState<string>();
   const [selectedId, setSelectedId] = useState<string>();
   const [detailOpen, setDetailOpen] = useState(false);
   const detailHeading = useRef<HTMLHeadingElement>(null);
@@ -112,7 +113,7 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
   useEffect(() => { load().catch(setError); }, [load]);
 
   const complete = (task: WorkTask) => {
-    setBusy(true); setError(undefined); setNotice(undefined);
+    setBusy(true); setError(undefined); setNotice(undefined); setRevokedReason(undefined);
     apiRequest<WorkTask>(`/api/v1/delivery-tasks/${task.id}/complete?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify({ expected_version: task.version, note: note || null }) })
       .then(() => { setNotice(t("myWork.completed")); setNote(""); setDoneIds((current) => [...current, task.id]); setDetailOpen(false); return load(); })
       .catch(async (problem: unknown) => {
@@ -125,8 +126,12 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
       .finally(() => setBusy(false));
   };
   const sync = () => {
-    setBusy(true); setError(undefined);
+    setBusy(true); setError(undefined); setRevokedReason(undefined);
     ensureDevice().then(() => syncNow(tenantId, membershipId)).then((outcome) => {
+      // Still offline: nothing was sent, so the queued completions stay listed and the member is told so.
+      if (outcome.kind === "offline") { setNotice(t("sync.stillOffline")); return load(); }
+      // This device lost access: its local outbox was set aside, so nothing waits here any more.
+      if (outcome.kind === "revoked") { setQueued([]); setNotice(undefined); setRevokedReason(outcome.reason); return load(); }
       // Only a sync the server accepted in full fills the day meter: a completion refused as a
       // conflict, rejected or failed is not a delivery, so the result is reported instead of counted.
       // The queued list itself is handled as before.
@@ -158,6 +163,7 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
     setDetailOpen(true);
     setError(undefined);
     setNotice(undefined); // an earlier stop's result never appears inside the next stop
+    setRevokedReason(undefined);
     if (singlePane()) requestAnimationFrame(() => {
       detailHeading.current?.focus({ preventScroll: true });
       const record = detailHeading.current?.closest("article");
@@ -174,12 +180,16 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
   // the open stop on one pane, where the list is hidden; otherwise at the top of the list. Exactly one
   // copy is rendered, so the alert/status is announced once.
   const feedbackInDetail = detailOpen && onePane;
-  const feedback = error || notice ? <>{error ? <ErrorState error={error} /> : null}{notice ? <p className="form-status" role="status">{notice}</p> : null}</> : null;
+  const feedback = error || notice || revokedReason ? <>
+    {error ? <ErrorState error={error} /> : null}
+    {revokedReason ? <div className="notice notice-error" role="alert">{t("sync.revoked", { reason: revokedReason })}</div> : null}
+    {notice ? <p className="form-status" role="status">{notice}</p> : null}
+  </> : null;
   useEffect(() => {
-    if (!feedbackInDetail || (!error && !notice)) return;
+    if (!feedbackInDetail || (!error && !notice && !revokedReason)) return;
     const node = detailFeedback.current;
     if (node && typeof node.scrollIntoView === "function") node.scrollIntoView({ block: "nearest" });
-  }, [feedbackInDetail, error, notice]);
+  }, [feedbackInDetail, error, notice, revokedReason]);
 
   return (
     <section aria-labelledby="my-work-title" className={`my-work workspace${detailOpen ? " show-detail" : ""}`} id={WORK_ANCHOR} tabIndex={-1}>

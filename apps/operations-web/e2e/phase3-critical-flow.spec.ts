@@ -84,12 +84,14 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await page.getByRole("button", { name: "Confirm and assign invoice number" }).click();
   await expect(page.getByText(/Invoice \d{4}-\d{6} confirmed and posted to the customer ledger\./)).toBeVisible();
 
-  // ----- Browser: receipt -----
+  // ----- Browser: receipt (the Payments view of the Invoices section) -----
+  await page.getByRole("group", { name: "Invoice views" }).getByRole("button", { name: "Payments", exact: true }).click();
   await page.getByRole("spinbutton", { name: "Amount received" }).fill("5");
   await page.getByRole("button", { name: "Record receipt" }).click();
   await expect(page.getByText("Receipt recorded and allocated.")).toBeVisible();
 
   // ----- Browser: sharing is confirmed-only; cancellation revokes; Arabic/RTL renders -----
+  await page.getByRole("group", { name: "Invoice views" }).getByRole("button", { name: "Invoice", exact: true }).click();
   await page.getByRole("button", { name: "Manage invoice links" }).click();
   await page.getByRole("button", { name: "Create private link" }).click();
   const publicUrl = await page.getByLabel("Private invoice URL").inputValue();

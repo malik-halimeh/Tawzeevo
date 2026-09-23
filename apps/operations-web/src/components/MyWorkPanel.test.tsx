@@ -128,6 +128,29 @@ test("a queued completion the server accepts at sync fills the day meter", async
   expect(screen.queryByRole("button", { name: /02.*Corner Shop/ })).not.toBeInTheDocument();
 });
 
+test("a sync attempted while still offline keeps the completion queued and says so, never 'Sent.'", async () => {
+  await i18n.changeLanguage("en");
+  await queueFirstStopOffline({ value: false });
+  vi.mocked(syncNow).mockResolvedValue({ kind: "offline" });
+  fireEvent.click(screen.getByRole("button", { name: "Sync now" }));
+  expect(await screen.findByText("No connection. Your changes stay queued on this device.")).toHaveAttribute("role", "status");
+  expect(screen.queryByText("Sent.")).not.toBeInTheDocument();
+  expect(screen.getAllByText("1 completion waiting to send").length).toBeGreaterThan(0); // still listed: nothing was sent
+  expect(screen.getByText("0 of 2 completed")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled());
+});
+
+test("a sync refused because this device lost access clears the local queue and raises an alert", async () => {
+  await i18n.changeLanguage("en");
+  await queueFirstStopOffline({ value: false });
+  vi.mocked(syncNow).mockResolvedValue({ kind: "revoked", reason: "DEVICE_REVOKED" });
+  fireEvent.click(screen.getByRole("button", { name: "Sync now" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("This device no longer has access (DEVICE_REVOKED)");
+  expect(screen.queryByText("Sent.")).not.toBeInTheDocument();
+  expect(screen.getByText("Nothing waiting to send.")).toBeInTheDocument(); // the outbox was set aside on this device
+  expect(screen.getByText("0 of 2 completed")).toBeInTheDocument();
+});
+
 test("on one pane, a stop's failed or queued completion is shown inside the open stop, which stays open", async () => {
   await i18n.changeLanguage("en");
   onePane();
