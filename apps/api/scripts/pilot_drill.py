@@ -9,15 +9,19 @@ businesses or to a driver:
 * Cross-checks — owner B cannot read A (analytics, customers, branding), the driver of A cannot
   read A's supplier prices or B's anything, the platform admin reads no tenant-private data.
 
-Usage: python scripts/pilot_drill.py <api_url> <admin_email> <admin_password>
-       [--owner-a email] [--driver-a email] [--owner-b email] [--password value]
+Usage: python scripts/pilot_drill.py <api_url> <admin_email>
+       [--owner-a email] [--driver-a email] [--owner-b email]
+The admin password is read from TAWZEEVO_ADMIN_PASSWORD or prompted for; the pilot accounts'
+password from TAWZEEVO_PILOT_PASSWORD or generated. Secrets never travel on the command line.
 Never point this at the production database from a test; on staging it is the rehearsal.
 Prints one line per check and a final PASS/FAIL; exit code 1 on any failure."""
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
+import os
 import secrets
 import time
 import urllib.error
@@ -253,23 +257,25 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("api_url")
     parser.add_argument("admin_email")
-    parser.add_argument("admin_password")
     parser.add_argument("--owner-a", default=None)
     parser.add_argument("--driver-a", default=None)
     parser.add_argument("--owner-b", default=None)
-    parser.add_argument("--password", default=None)
     args = parser.parse_args()
     api = Api(args.api_url)
     stamp = uuid.uuid4().hex[:6]
-    password = args.password or ("Pilot-" + secrets.token_urlsafe(12))
+    admin_password = os.environ.get("TAWZEEVO_ADMIN_PASSWORD") or getpass.getpass(
+        "admin password: "
+    )
+    pilot_password = os.environ.get("TAWZEEVO_PILOT_PASSWORD")
+    password = pilot_password or ("Pilot-" + secrets.token_urlsafe(12))
     owner_a_email = args.owner_a or f"pilot-owner-a-{stamp}@example.com"
     driver_a_email = args.driver_a or f"pilot-driver-a-{stamp}@example.com"
     owner_b_email = args.owner_b or f"pilot-owner-b-{stamp}@example.com"
-    if not args.password:
+    if not pilot_password:
         print(f"generated password for pilot accounts: {password}")
 
     status, body = api.call(
-        "POST", "/login", {"email": args.admin_email, "password": args.admin_password}
+        "POST", "/login", {"email": args.admin_email, "password": admin_password}
     )
     if status != 200:
         raise SystemExit(f"admin login failed: {status} {body}")

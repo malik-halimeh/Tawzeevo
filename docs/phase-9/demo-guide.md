@@ -6,7 +6,7 @@ the pilot drill. Customer accounts (P9-M6) are not part of it. Use synthetic dat
 
 ## Prepare the environment
 
-1. Follow the root `README.md` local setup; confirm Alembic head `20260920_0029`.
+1. Follow the root `README.md` local setup; confirm Alembic head `20260921_0031`.
 2. For the live demonstration you need: the operations client URL, the API URL, one owner
    account, one driver account (the pilot accounts in the owner's private file).
 
@@ -47,7 +47,7 @@ window: the storefront offers verification, prices stay public; *Send me the cod
 link ends every session; the production channel is an owner decision.
 
 ### 6. Pilot drill
-`python apps/api/scripts/pilot_drill.py <staging api> <admin> <password>` → 30 checks: two
+`python apps/api/scripts/pilot_drill.py <staging api> <admin>` (password from `TAWZEEVO_ADMIN_PASSWORD` or a prompt) → 30 checks: two
 businesses, owner+driver and sole owner, driver least privilege, analytics reconciliation,
 cross-tenant and admin boundaries.
 
@@ -75,8 +75,18 @@ cross-tenant and admin boundaries.
 ## Limitations to state plainly
 
 - P9-M6 customer accounts await gate decisions; `ACCOUNT_REQUIRED` cannot be selected.
-- OTP delivery is the development adapter until the owner picks a provider.
+- OTP delivery: no production provider exists yet; production refuses the development adapter,
+  so `VERIFIED` is not selectable on the live service until the owner picks a provider and its
+  adapter is implemented.
 - Hosted backups: Supabase free plan keeps none; the app's encrypted Google Drive backup must be
   run live by the owner before launch.
 - SLOs are met locally; on the free two-region hosting the network floor exceeds the lookup
   target and sync push needs optimisation or an evidence-based adjustment.
+- Cold starts: the free-tier API and storefront instances spin down when idle and answer
+  "Application loading" (HTTP 503) for up to about a minute on the first request afterwards (the
+  audit of 2026-09-21 observed both cold despite the 10-minute health probe). Open the API's
+  `/health` and the storefront a few minutes before a demo; the owner should check the *Health
+  and alerts* schedule history and, if it is not firing, re-enable it or move the probe to an
+  external uptime monitor.
+- Product/logo images are stored on the API instance's filesystem until the D-080 object-storage
+  adapter and bucket exist; they do not survive a restart of the hosting instance.

@@ -8,6 +8,7 @@ session and access token is invalid; audit events carry no token and no e-mail a
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -24,6 +25,7 @@ from tawzeevo_api.security import hash_password
 from tawzeevo_api.services.mailer import Mail, MailerError, get_mailer
 
 _TOKEN_BYTES = 32
+logger = logging.getLogger("tawzeevo.auth")
 
 
 def _hash(token: str) -> str:
@@ -76,10 +78,11 @@ def request_reset(db: Session, email: str, settings: Settings | None = None) -> 
     try:
         get_mailer(active).send(Mail(to=user.email, subject=mail.subject, text=mail.text))
     except MailerError as exc:
+        # The token exists but the holder cannot receive it. The answer stays the same 202 as for
+        # an unknown address (a distinct error would reveal that the address is registered); the
+        # outage is counted for the alert probe and logged without the address or the token.
         metrics.increment("mail_failures")
-        # The token exists but the holder cannot receive it; surface an operational error
-        # without revealing whether the address is registered.
-        raise AppError(503, "MAIL_UNAVAILABLE", "The e-mail service is unavailable") from exc
+        logger.warning("password reset mail could not be delivered: %s", type(exc).__name__)
 
 
 def reset_password(db: Session, token: str, new_password: str) -> UUID:

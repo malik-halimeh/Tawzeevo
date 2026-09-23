@@ -4,7 +4,7 @@ neutral assignee and the price-free runner projection (PHASE_06.md A/E/F)."""
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -25,6 +25,7 @@ from tawzeevo_api.models import (
     TenantMembership,
     TenantRole,
 )
+from tawzeevo_api.services.procurement import TENANT_TZ
 
 STOCK_WORDS = re.compile(r"stock|inventory|on_hand|on hand|reserved|warehouse|availability", re.I)
 
@@ -54,7 +55,10 @@ def _confirm_invoice(client, tenant, token, customer_id, product_id, quantity_ex
 
 
 def _today() -> str:
-    return datetime.now(UTC).date().isoformat()
+    """The tenant-calendar day (Asia/Beirut, D-040), which is the day the procurement service
+    resolves demand on. Between 00:00 and 03:00 local the UTC date is still yesterday, so a
+    UTC 'today' would find no confirmed demand and the suite would fail three hours a night."""
+    return datetime.now(TENANT_TZ).date().isoformat()
 
 
 def test_no_inventory_columns_exist_anywhere(session_factory):

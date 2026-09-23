@@ -468,3 +468,38 @@ def test_owner_team_api_adds_registered_driver_and_revocation_locks_access(clien
         headers=_auth(driver_token),
     )
     assert pull.status_code == 403
+
+
+def test_concurrent_transitions_with_the_same_expected_version_serialize(client, session_factory):
+    """D-063: the task row is locked for a state transition, so two concurrent completions (or a
+    completion racing a reassignment) with the same expected version yield exactly one success
+    and one 409 — never two winners with the last writer overwriting the first."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    owner, tenant, token = _owner_context(client, session_factory, "p7lock")
+    _category, product, customer = _catalog(client, tenant, token, name="Lock Water")
+    _attach_latest_cost(session_factory, owner, tenant, product["id"])
+    _d1, driver_token, driver_membership = _driver(
+        client, session_factory, tenant, "driver-p7lock@example.com"
+    )
+    for _round in range(3):
+        confirmed = _confirm_invoice(client, tenant, token, customer["id"], product["id"], "1")
+        task = _post(
+            client,
+            tenant,
+            token,
+            "/api/v1/delivery-tasks",
+            {"invoice_id": confirmed["id"], "assigned_membership_id": driver_membership},
+        ).json()
+        body = {"expected_version": task["version"], "note": "racing"}
+
+        def complete(actor_token: str, task_id: str = task["id"], payload: dict = body) -> int:
+            return _post(
+                client, tenant, actor_token, f"/api/v1/delivery-tasks/{task_id}/complete", payload
+            ).status_code
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            codes = sorted(pool.map(complete, [token, driver_token]))
+        assert codes == [200, 409], codes
+        final = _get(client, tenant, token, f"/api/v1/delivery-tasks/{task['id']}").json()
+        assert final["status"] == "COMPLETED" and final["version"] == task["version"] + 1

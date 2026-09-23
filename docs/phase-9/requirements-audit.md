@@ -21,14 +21,14 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| Authorization matrix system role × tenant role × resource | `test_security_matrix.py` (12 resources × 6 actors, all cells; suspension/reactivation); every earlier per-feature denial test | PASS |
-| RLS suite | `test_hardening.py::test_postgresql_rls_enforces_tenant_visibility_and_write_checks`, `::test_all_tenant_owned_tables_have_forced_rls_and_a_policy` (now 2 more tables) | PASS |
+| Authorization matrix system role × tenant role × resource | `test_security_matrix.py` (12 resources × 6 actors, allow and deny cells with real data; suspension/reactivation); `test_route_authorization.py` (every route operation — 185 — carries an explicit authorization expectation that must match the dependency it resolves through, public routes only under known public prefixes, and the deny cells anonymous / client without membership / other tenant's owner / driver / platform admin probed at runtime for every non-public route, so a new or widened route fails CI); every earlier per-feature denial test | PASS |
+| RLS suite | `test_hardening.py::test_postgresql_rls_enforces_tenant_visibility_and_write_checks`, `::test_all_tenant_owned_tables_have_forced_rls_and_a_policy` (catalog-driven: every `tenant_id` table, 47+ tables; `tenant_applications` under forced RLS since `20260921_0030`), `test_tenant_applications_rls.py` (application lifecycle under a `NOBYPASSRLS` role) | PASS |
 | Session rotation/revocation, refresh reuse detection | `test_auth.py` (rotation, reuse revokes all sessions, security version) | PASS |
-| Rate limiting; login brute-force; public token abuse | `routes/auth.py` limiters (10 failed logins / 15 min per IP, 10 recovery calls / 15 min), `test_password_recovery.py`; public limits D-076 (`test_phase5_freeze.py`); OTP throttles (`test_customer_verification.py`) | PASS |
+| Rate limiting; login brute-force; public token abuse | `routes/auth.py` limiters (10 failed logins / 15 min per IP, 10 recovery calls / 15 min), `test_password_recovery.py`; public limits D-076 (`test_phase5_freeze.py`); OTP throttles (`test_customer_verification.py`). Client IP behind the hosting proxy: `client_ip.py` trusted-hop rule (`TRUSTED_PROXY_HOPS`, n-th address from the right of `X-Forwarded-For`; direct deployments ignore the header), `test_client_ip.py`; `render.yaml` sets 1 hop — the hop count of the hosting proxy is an owner confirmation | PASS (proxy hop count: owner to confirm) |
 | Guest checkout abuse controls | idempotency key, rate limit on private surfaces, constant failure responses (`test_checkout.py`, `test_phase5_freeze.py`) | PASS |
-| CSP; locked CORS/CSRF/Origin | invoice page CSP (`test_branding_public_stats.py`); CORS with explicit origins; Origin guard on cookie routes when `SameSite=None` (`test_auth.py::test_cookie_samesite_is_configurable_and_cross_site_origin_is_guarded`) — **D-088 pending owner confirmation** | PASS (decision pending) |
+| CSP; locked CORS/CSRF/Origin | invoice page CSP (`test_branding_public_stats.py`); CORS with explicit origins; Origin guard on cookie routes, exercised under both `lax` and `none` (`test_auth.py::test_cookie_samesite_is_configurable_and_cross_site_origin_is_guarded`, added 2026-09-21 — the row previously cited this test before it existed) — **D-088 pending owner confirmation** | PASS (decision pending) |
 | Upload security | product/logo images re-encoded to WebP (`test_branding_public_stats.py`, Phase 2 tests) | PASS |
-| Secret management | Render env; production settings refuse to start without real secrets (`test_auth.py::test_production_settings_require_secure_cookie_and_real_secret`) | PASS |
+| Secret management | Render env; production settings refuse to start without real secrets (`test_auth.py::test_production_settings_require_secure_cookie_and_real_secret`); `render.yaml` declares every production-mandatory variable (`EMAIL_PROVIDER`, `EMAIL_API_KEY`, `PASSWORD_RESET_URL`, `REFRESH_COOKIE_SAMESITE`, `CUSTOMER_OTP_PROVIDER`, `TRUSTED_PROXY_HOPS`), secrets as `sync: false` (`test_deployment_config.py`) | PASS |
 | Dependency/security scanning | CI `pip-audit` (raised `cryptography` ≥ 50, `pytest` ≥ 9) and `npm audit --omit=dev` — green on `83c6adb` | PASS |
 | Object-authorization tests; suspension/closure; last-owner; driver least privilege | matrix + `test_lifecycle_drill.py` + `test_memberships.py` + `test_delivery_tasks.py`; pilot drill on staging (30/30) | PASS |
 | Platform admin is lifecycle manager, not tenant-private viewer | matrix (`admin` column 403 on every tenant resource); pilot drill "admin reads no tenant …" | PASS |
@@ -37,13 +37,14 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| Forgot password, one-time hashed token, short expiry, single use, rate limit, enumeration-safe, session invalidation, audit | `services/password_reset.py`, `services/mailer.py` (Brevo/Resend/memory), `routes/auth.py`; `test_password_recovery.py` (5); client `/forgot-password`, `/reset-password` (`App.test.tsx`); live: production settings accept the Brevo variables; the owner's live send test is pending (`private/OWNER_ACTIONS.md` § L2) | PASS (live mail delivery unverified) |
+| Forgot password, one-time hashed token, short expiry, single use, rate limit, enumeration-safe, session invalidation, audit | `services/password_reset.py`, `services/mailer.py` (Brevo/Resend/memory), `routes/auth.py`; `test_password_recovery.py` (5; since 2026-09-21 a mail-provider outage answers the same 202 as an unknown address and is counted in `mail_failures` instead of a distinct 503 that revealed registered addresses); client `/forgot-password`, `/reset-password` (`App.test.tsx`); live: production settings accept the Brevo variables; the owner's live send test is pending (`private/OWNER_ACTIONS.md` § L2) | PASS (live mail delivery unverified) |
 
 ## D — Database hardening
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| Constraints/FKs/indexes/RLS/migration history; pooling; contention | `database.py` bounded pool; `alembic check` clean at `20260920_0029`; migration from zero and upgrade from the Phase 7 head (`test_lifecycle_drill.py`) | PASS |
+| Constraints/FKs/indexes/RLS/migration history; pooling; contention | `database.py` bounded pool; `alembic check` clean at `20260921_0031`; migration from zero and upgrade from the Phase 7 head (`test_lifecycle_drill.py`) | PASS |
+| Application database role subject to RLS (no `SUPERUSER`/`BYPASSRLS`) | Startup preflight logs the role attributes and refuses to start when `DB_ROLE_REQUIRE_RLS_SUBJECT=true`; `/health/database` reports `database_role_rls_enforced`; `test_db_role_preflight.py`; runbook `docs/runbooks/database-role.md`. The **hosted** role's attributes are an owner check on the hosted database and were not verified here | OPEN (owner action) |
 | Invoice sequence race, refund concurrency, checkout/payment idempotency | `test_invoice_editor.py` (sequence, refund ceiling), `test_fa009_create_command.py`, `test_supplier_ledger.py`, `test_checkout.py`, `test_sync_push.py` | PASS |
 | Backup/PITR according to hosting; restore drill | app-level encrypted backup + restore verified against the in-memory double (`test_backup.py`); Supabase plan is **free — no hosted backups** (owner, 2026-09-20) → the Google Drive backup is mandatory before launch and its live run is pending (§ L4) | OPEN (owner action) |
 
@@ -63,20 +64,20 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| Structured logs, request ids, metrics, app/DB health, sync/backup/auth metrics, alert levels; no secrets in logs | `observability.py` (JSON access log, `X-Request-ID`, `configure_logging`), `metrics.py` + `/health/metrics`, `/health/database` with migration head, capability redaction filter; `health-alerts.yml` probes every 10 minutes and fails on DB down, 5xx ≥ 1 %, backup/mail failures, sync rejections, login throttling — a failed run e-mails the repository owner; `test_observability.py` (4) | PASS (no separate error-tracking SaaS; job health = backup counters) |
+| Structured logs, request ids, metrics, app/DB health, sync/backup/auth metrics, alert levels; no secrets in logs | `observability.py` (JSON access log, `X-Request-ID`, `configure_logging`), `metrics.py` + `/health/metrics`, `/health/database` with migration head, capability redaction filter, uvicorn access-log query-string filter (`AccessLogQueryStringFilter`, added 2026-09-21 after the audit found 253/443 uvicorn request lines carrying query strings; the hosting start command also passes `--no-access-log` so the structured line is the only access log); `health-alerts.yml` probes every 10 minutes and fails on DB down, 5xx ≥ 1 %, backup/mail failures, sync rejections, login throttling — a failed run e-mails the repository owner; `test_observability.py` (5) | PASS (no separate error-tracking SaaS; job health = backup/reminder/job counters) |
 
 ## H — CI/CD
 
 | Requirement | Evidence | Result |
 |---|---|---|
 | Pipeline steps 1–12 | `ci.yml`: ruff/format, mypy, `tsc`, backend unit + PostgreSQL integration (financial and sync properties are in the same suite), frontend unit, migration from zero + `alembic check`, Playwright critical flows (8), `pip-audit`, `npm audit`; green on `83c6adb` | PASS |
-| 13–15 staging deploy, staging smoke, controlled production release | staging auto-deploys on push (own database); live deploys only after green CI (`deploy.yml`, waits for the migration head); staging smoke = `slo_probe.py` + `pilot_drill.py` run by hand (not yet in the workflow) | PASS (staging smoke manual) |
+| 13–15 staging deploy, staging smoke, controlled production release | staging auto-deploys on push (own database); live deploys only after green CI: `deploy.yml` computes the head this commit ships (`scripts/migration_head.py`) and waits until `/health/database` reports exactly that `migration_head`; the API's startup preflight records the schema state and `/health` answers 503 `MIGRATION_HEAD_MISMATCH` until the database is at the expected head, so the hosting health check keeps the previous release serving (`migrations.py`, `test_migration_readiness.py`); `render.yaml` sets `autoDeployTrigger: off` on the three live services (the dashboard setting must match — owner to confirm after a blueprint sync); staging smoke = `slo_probe.py` + `pilot_drill.py` run by hand (not yet in the workflow) | PASS (staging smoke manual; dashboard auto-deploy: owner to confirm) |
 
 ## I — Deployment architecture (D-027/D-028/D-080)
 
 | Requirement | Evidence | Result |
 |---|---|---|
-| API, operations web, storefront as separate deployables; managed PostgreSQL; object storage; HTTPS; staging; never test against production | Render web service + two static/web sites; Supabase; S3-compatible media storage (`MEDIA_STORAGE_PROVIDER=s3` live); `tawzeevo-staging-api`/`-web` with `STAGING_DATABASE_URL`; tests run only on disposable or CI databases | PASS (no separate worker process — D-079 in-process scheduler for the pilot) |
+| API, operations web, storefront as separate deployables; managed PostgreSQL; object storage; HTTPS; staging; never test against production | Render web service + two static/web sites; Supabase; `tawzeevo-staging-api`/`-web` with `STAGING_DATABASE_URL`; tests run only on disposable or CI databases. **Object storage: NOT implemented** — `services/media.py` provides only `LocalObjectStorage` under `MEDIA_LOCAL_ROOT` (no `MEDIA_STORAGE_PROVIDER` setting, no S3 client); product/logo images are not durable across restarts of the hosting filesystem. D-080 (S3-compatible bucket) remains the locked target; the earlier claim that `MEDIA_STORAGE_PROVIDER=s3` was live was wrong (corrected 2026-09-21) | PARTIAL — object storage OPEN (D-080 adapter + bucket credentials pending; no separate worker process — D-079 in-process scheduler for the pilot) |
 
 ## J — Multi-tenant pilot (P9-M7)
 
@@ -84,6 +85,19 @@ storage, staging), D-081 (agent governance), D-086/D-087 (Phase 10 gate).
 |---|---|---|
 | Two synthetic tenants for isolation; one-owner/zero-driver and owner+driver; barcode, phone search, invoice, payment, procurement, purchase, delivery, analytics | `scripts/pilot_drill.py` on staging: 30/30 (owner+driver "Pilot Van A" with the owner's pilot Gmail accounts, sole-owner "Pilot Van B"); Playwright flows cover post-confirm edit, offline/reconnect, storefront order, owner review, cancellation, delivery date, routes | PASS |
 | Real pilot where available; backup/restore | live business "Bekaa Fresh Water" with the owner's two accounts created; real usage and the live backup run are the owner's next steps | OPEN (owner usage) |
+
+## P9-M5 — Customer verification provider (D-073), production guard
+
+Only the development delivery adapter exists (the production provider is the owner's pending
+decision). Since 2026-09-21 production refuses to start with `CUSTOMER_OTP_PROVIDER=dev`
+(`config.py`, `test_auth.py::test_production_settings_require_secure_cookie_and_real_secret`),
+and the `VERIFIED` policy is offered and selectable only while a usable delivery adapter is
+configured (`customer_access.selectable_policies`, `409 OTP_PROVIDER_NOT_CONFIGURED`;
+`test_customer_verification.py::test_link_policy_customers_are_unaffected_and_dev_code_is_guarded`),
+so a business cannot lock its customers out of verification. `LINK` is unaffected. **The next
+live deploy needs `CUSTOMER_OTP_PROVIDER` set to the chosen provider in the service environment**
+(declared `sync: false` in `render.yaml`); until an adapter for that provider is implemented,
+`VERIFIED` stays unselectable in production. OPEN (owner provider decision).
 
 ## P9-M6 — Customer accounts and history claiming (D-074)
 
@@ -100,7 +114,7 @@ is **not yet decided**. Nothing was built; the assurance model already reserves 
 | Tenant lifecycle secure; RLS/two-tenant suite; owner/driver matrix | PASS |
 | Public abuse tests; financial/refund concurrency; offline/revocation | PASS |
 | Backup/restore | PASS against the double; live run pending (owner § L4; Supabase free plan has no hosted backups) |
-| Reliable jobs | PASS for the pilot scope (in-process scheduler, D-079; failure counters alerted) |
+| Reliable jobs | PASS for the pilot scope — in-process scheduler (D-079, `services/jobs.py`, enabled by `BACKUP_SCHEDULER_ENABLED`) runs backups (hourly check, one per tenant per day), the D-051 view rollup (hourly) and delivery reminders (every 5 minutes: a due SCHEDULED reminder becomes exactly one `DELIVERY_REMINDER` owner notification, SENT under a row lock; cancelled orders close the reminder); each job in its own session, failures counted (`job_failures`, `reminder_failures`) and alerted; `test_jobs.py`. Before 2026-09-21 only the backup timer ran and reminders were never executed |
 | EN/AR/accessibility | PASS (every new screen EN/AR; E2E in both directions) |
 | Performance SLOs or evidence-based adjustment | PARTIAL — measured; adjustment for the two-region, free-tier setup not yet approved |
 | Observability/alerts | PASS |
@@ -109,10 +123,12 @@ is **not yet decided**. Nothing was built; the assurance model already reserves 
 | One-person + separate-driver pilot | PASS on staging; real pilot started |
 | Data lifecycle drill | PASS |
 | No stock/availability/tracking regression | PASS (`test_procurement.py` schema guard, Phase 5/7 privacy tests) |
-| No critical/high launch blocker | one HIGH open: no hosted database backup until the live Google Drive backup runs (owner § L3/L4); P9-M6 gate decisions; OTP production provider decision |
+| No critical/high launch blocker | open: no hosted database backup until the live Google Drive backup runs (owner § L3/L4); product/logo media not durable until the D-080 object-storage adapter and bucket exist (§ I); P9-M6 gate decisions; OTP production provider decision; hosted database role attributes (§ D) |
 
 **Launch gate verdict: NOT PASSED** until (1) the live encrypted backup has run and a restore
 drill succeeded, (2) the owner decides the P9-M5 provider / remembered-browser items and the
 P9-M6 gate items (or explicitly defers P9-M6 past launch), (3) D-088 is confirmed, (4) the SLO
-adjustment for the hosted setup is approved or the sync push is optimised. Explicit exclusions
-unchanged.
+adjustment for the hosted setup is approved or the sync push is optimised, (5) the D-080
+object-storage adapter is implemented against an owner-provisioned bucket so media survives
+restarts, (6) the hosted application database role is confirmed `NOSUPERUSER NOBYPASSRLS`
+(`docs/runbooks/database-role.md`). Explicit exclusions unchanged.

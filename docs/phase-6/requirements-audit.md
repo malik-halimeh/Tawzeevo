@@ -44,7 +44,7 @@ with reason), D-059 (QUOTE / ACTUAL_PURCHASE provenance and invoice preload orde
 |---|---|---|---:|
 | Lifecycle OPEN → PARTIALLY_PURCHASED → COMPLETE / CANCELLED (D-058) | migration `0023`; `services/procurement.py::refresh_status/complete_list/cancel_list` | `test_procurement.py`, `test_supplier_purchases.py` (auto complete on full purchase, reopen on reversal) | PASS |
 | required / target / purchased kept apart; remaining derived; unit snapshot | `models.py::ProcurementItem` (`remaining_quantity` property) | `test_procurement.py::test_demand_generation_quantities_edits_and_lifecycle` | PASS |
-| Generate from confirmed demand; manual items; remove without deleting history; edit target; select supplier; group/sort; labelled estimate; partial purchase; complete/waive; carry forward; print/export | `services/procurement.py::confirmed_demand/generate_list/add_manual_item/update_item/remove_item/waive_item/carry_forward/export_csv/_estimate`; `ProcurementPanel.tsx` | `test_procurement.py` (all three tests); `ProcurementPanel.test.tsx`; `e2e/phase6-procurement-flow.spec.ts` | PASS |
+| Generate from confirmed demand; manual items; remove without deleting history; edit target; select supplier; group/sort; labelled estimate; partial purchase; complete/waive; carry forward; print/export | `services/procurement.py::confirmed_demand/generate_list/add_manual_item/update_item/remove_item/waive_item/carry_forward/export_csv/_estimate`; `ProcurementPanel.tsx` (default demand range = the Asia/Beirut calendar day via `utils/tenantCalendar.ts`, D-040 — until 2026-09-21 it was the UTC date, so between 00:00 and 03:00 local the default found no demand; the six backend tests that built lists for a UTC 'today' now use the tenant day too) | `test_procurement.py` (all three tests); `ProcurementPanel.test.tsx`; `tenantCalendar.test.ts`; `e2e/phase6-procurement-flow.spec.ts` | PASS |
 
 ## F — Runner / assignee
 
@@ -56,7 +56,7 @@ with reason), D-059 (QUOTE / ACTUAL_PURCHASE provenance and invoice preload orde
 
 | Requirement | Implementation evidence | Test evidence | Result |
 |---|---|---|---:|
-| Immutable header/items; internal UUID; finalization: items → price history → ledger obligation → procurement progress → state → audit → commit | migration `0024`; `services/supplier_purchases.py::record_purchase` | `test_supplier_purchases.py::test_purchase_finalization_is_atomic_replay_safe_and_rolls_back` (rollback leaves no row anywhere; replay returns the stored purchase; changed body 409) | PASS |
+| Immutable header/items; internal UUID; finalization: items → price history → ledger obligation → procurement progress → state → audit → commit | migration `0024`; migration `0031` (2026-09-21: database triggers — purchase lines reject every update/delete, the header rejects delete and every update except the single reversal transition; the header is written once with its final total); D-059 preload and cost options skip entries of reversed purchases (`invoice_editor.py::_NOT_FROM_REVERSED_PURCHASE`); `services/supplier_purchases.py::record_purchase` | `test_supplier_purchases.py::test_purchase_finalization_is_atomic_replay_safe_and_rolls_back` (rollback leaves no row anywhere; replay returns the stored purchase; changed body 409) | PASS |
 
 ## H — Supplier ledger / payments
 

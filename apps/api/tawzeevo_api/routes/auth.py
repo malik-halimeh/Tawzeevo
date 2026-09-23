@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from tawzeevo_api import metrics
+from tawzeevo_api.client_ip import resolve_client_ip
 from tawzeevo_api.config import Settings, get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import AuthContext, get_auth_context
@@ -49,7 +50,11 @@ def reset_auth_limiters() -> None:
 
 
 def _client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+    return resolve_client_ip(
+        request.client.host if request.client else None,
+        request.headers.get("x-forwarded-for"),
+        get_settings().trusted_proxy_hops,
+    )
 
 
 def _too_many() -> AppError:

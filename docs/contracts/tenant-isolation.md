@@ -34,3 +34,16 @@ barcode table also has forced RLS and a same-tenant composite foreign key to its
 barcode value is unique only inside its tenant, while a master barcode is globally unique. Barcode
 lookup checks the tenant namespace first, then the master catalog, and never exposes another tenant's
 adoption, price, or publication state.
+
+`tenant_applications` is platform-owned with a tenant link written at approval, and is under forced
+RLS with policies that follow that ownership: the platform-admin scope (`app.platform_admin`, bound
+by the system-admin dependency for the request transaction) reads and reviews every application; an
+applicant inserts a `PENDING` application for themselves and reads their own rows
+(`app.current_user_id`); a tenant scope reads only the application that created it. Platform audit
+events (`tenant_id IS NULL` under `app.platform_audit`) are readable by the same scope so they can be
+written by an RLS-subject role. The RLS sweep test derives the table set from the catalog: every
+public table with a `tenant_id` column must have RLS enabled and forced with at least one policy, so
+a new tenant-owned table cannot be forgotten silently. The application lifecycle
+(submit, list, approve, reject) is exercised under a `NOSUPERUSER NOBYPASSRLS` login role in
+`test_tenant_applications_rls.py`; whether the hosted application role has those attributes is an
+owner check on the hosted database (see `docs/runbooks/database-role.md`).

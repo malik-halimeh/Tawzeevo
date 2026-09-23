@@ -7,8 +7,8 @@ Status: PASS (P4-M6 freeze)
 This document freezes requirement-to-code/test evidence for `PHASE_04.md`. It does not supersede
 the project contract, the decision ledger, or the phase contract. Backend paths are relative to
 `apps/api/tawzeevo_api/`, tests to `apps/api/tests/`, frontend to `apps/operations-web/src/`.
-Gate D decisions: D-052 (device lease 24 h, retirement 90 d), D-053 (tombstone retention 90 d with
-a per-tenant floor), D-054 (manual merge on version conflicts), D-055 (`drive.file` scope, one app
+Gate D decisions: D-052 (pull page size 500), D-053 (tombstone retention 90 d with a per-tenant
+floor), D-054 (device lease 24 h, retirement 90 d; the lease is never authentication), D-055 (`drive.file` scope, one app
 folder per business), D-056 (30 daily / 12 monthly backups), D-057 (per-tenant keys wrapped by an
 environment master key).
 
@@ -17,8 +17,8 @@ environment master key).
 | Requirement | Implementation evidence | Test evidence | Result |
 |---|---|---|---:|
 | Device installation id is dedup identity only; registered during authenticated bootstrap | `services/sync.py::bootstrap/active_device`; `routes/sync.py` (owner dependency on every route) | `test_sync_bootstrap.py::test_device_id_is_never_authorization...`; `test_sync_hardening.py::test_a_device_id_alone_is_never_authorization` | PASS |
-| No access/refresh token in localStorage/IndexedDB; only the installation id in localStorage | `offline/db.ts` (`getDeviceInstallationId`, no token stores); `offline/media.ts::setMediaTokenProvider` reads the in-memory token | `sync.test.ts` (database contents), review of `db.ts` stores | PASS |
-| Unique active tenant+user+device; stale devices retire and re-bootstrap (D-052) | migration `0014` partial unique index; `sync.py::active_device` (90 d retirement → 410) | `test_sync_bootstrap.py::test_retired_device_must_rebootstrap` | PASS |
+| No access/refresh token in localStorage/IndexedDB; localStorage holds only non-secret state (the installation id, the pull cursor, the My Work cache) | `offline/db.ts` (`getDeviceInstallationId`, no token stores); `offline/media.ts::setMediaTokenProvider` reads the in-memory token | `sync.test.ts` (database contents), review of `db.ts` stores | PASS |
+| Unique active tenant+user+device; stale devices retire and re-bootstrap (D-054) | migration `0014` partial unique index; `sync.py::active_device` (90 d retirement → 410) | `test_sync_bootstrap.py::test_retired_device_must_rebootstrap` | PASS |
 | Owner projection only (no driver role exists yet); minimum local projection per collection | `services/sync_changes.py::PROJECTIONS`; `sync.py::snapshot_page` role-filtered fields | `test_sync_bootstrap.py` snapshot field assertions | PASS |
 | Documented browser security expectations; no custom IndexedDB encryption as authorization | `docs/phase-4/demo-guide.md` § Security expectations; `db.ts` header comment | — (documentation) | PASS |
 
@@ -38,7 +38,7 @@ environment master key).
 | Create/edit customer, create/edit product offline with expected version | `offline/outbox.ts::createCustomerOffline/updateCustomerOffline/createProductOffline/updateProductOffline`; `TenantWorkspace.tsx` fallbacks | `outbox.test.ts`; `test_sync_push.py`; E2E offline customer creation | PASS |
 | Create/edit invoice draft, confirm, post-confirmation edit, authorized payment offline | `offline/commands.ts`; `services/sync_push.py::_apply_financial` (reuses Phase 3 services) | `commands.test.ts`; `test_sync_financial_push.py`; E2E offline draft | PASS |
 | Atomic local mutation + outbox command; restart preserves pending; states pending/sending/acknowledged/retryable/conflict/rejected/dead-letter | `offline/outbox.ts` (Dexie transactions, `MAX_ATTEMPTS`) | `outbox.test.ts` (four scenarios); `db.test.ts` restart persistence | PASS |
-| Canonical 409 conflict envelope; manual merge (D-054); ledger/payment never merged; stale invoice branch rejected | `sync_push.py::_Conflict/_check_version`; `schemas/sync.py::ConflictEnvelope`; `SyncPanel.tsx` keep-server / resend-mine | `test_sync_push.py::test_stale_expected_version_returns_conflict_envelope...`; `test_sync_financial_push.py` stale confirmation | PASS |
+| Canonical 409 conflict envelope; manual merge (PHASE_04.md F — no ledger decision names it); ledger/payment never merged; stale invoice branch rejected | `sync_push.py::_Conflict/_check_version`; `schemas/sync.py::ConflictEnvelope`; `SyncPanel.tsx` keep-server / resend-mine | `test_sync_push.py::test_stale_expected_version_returns_conflict_envelope...`; `test_sync_financial_push.py` stale confirmation | PASS |
 | Client never fabricates official numbers, revision numbers, change_seq; pending local reference shown | `commands.ts::pendingReference`; `outbox.ts::applyResult` replaces pending rows with the server projection | `commands.test.ts`; `test_sync_financial_push.py` (server assigns `-000001`) | PASS |
 | Offline queueing only when the browser is offline; lost responses online keep the D-044/D-045 stable command | `offline/network.ts::browserOffline`; `InvoiceEditor.tsx` | `InvoiceEditor.test.tsx` lost-response tests (unchanged) | PASS |
 | Excluded: storefront checkout, membership/platform admin, Google connect offline, driver/supplier/procurement commands | not implemented offline by design | — | PASS |
@@ -83,7 +83,7 @@ environment master key).
 | Requirement | Implementation evidence | Test evidence | Result |
 |---|---|---|---:|
 | `/api/v1/sync/bootstrap`, `/push`, `/pull`; every request revalidates session and membership | `routes/sync.py` | sync test files | PASS |
-| PWA: service worker shell, sync state, pending/conflict/rejected/dead-letter UI, safe retry, re-bootstrap, restart persistence, pending local reference, media queue, revoked state, owner backup status | `public/sw.js`; `SyncPanel.tsx`; `BackupPanel.tsx`; `InvoiceEditor.tsx` | `BackupPanel.test.tsx`; offline unit suites; E2E | PASS |
+| PWA: service worker shell, sync state, pending/conflict/rejected/dead-letter UI, safe retry, re-bootstrap, restart persistence, pending local reference, media queue, revoked state, owner backup status | `public/sw.js`; `public/manifest.webmanifest` (192/512 px `any` + `maskable` PNG icons under `public/icons/`, added 2026-09-21 — the manifest previously declared no icons, so Chromium's installability criteria were not met); `SyncPanel.tsx`; `BackupPanel.tsx`; `InvoiceEditor.tsx` | `pwaManifest.test.ts` (manifest members, icon files and PNG dimensions); `BackupPanel.test.tsx`; offline unit suites; E2E | PASS |
 | EN/AR/RTL for every new string | `i18n.ts` (`sync.*`, `backup.*`, `invoiceEditor.*Offline`, `tenantWorkspace.*QueuedOffline`) | Phase 3 E2E Arabic/RTL switch still passes | PASS |
 | Alembic revisions `0014`, `0015`, `0016`; forced RLS on every new tenant-owned table; from-zero upgrade; drift check | migrations; `test_hardening.py` | `test_hardening.py::test_migrations_build_a_new_database_from_zero`; `alembic check` | PASS |
 

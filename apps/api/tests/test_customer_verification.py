@@ -118,7 +118,9 @@ def test_link_alone_is_not_enough_under_verified_and_the_code_grants_a_session(
     )
     assert personalized.status_code == 200
     assert {r["name"]: r["price"] for r in personalized.json()["items"]}["Cedar Water"] == "10.0000"
-    assert personalized.headers["vary"] == f"{HEADER}, {SESSION}"
+    # Caches must key on both customer headers; the CORS middleware may add Origin to the list.
+    vary = {name.strip().lower() for name in personalized.headers["vary"].split(",")}
+    assert {HEADER.lower(), SESSION.lower()} <= vary
     order = _checkout(
         client, slug, _cart(product["id"]), extra={HEADER: secret, SESSION: session_secret}
     )
@@ -314,16 +316,37 @@ def test_link_policy_customers_are_unaffected_and_dev_code_is_guarded(
         json={"policy": "ACCOUNT_REQUIRED"},
     )
     assert refused.status_code == 409
+    # VERIFIED is selectable while the delivery adapter is usable (dev outside production) ...
+    selected = client.put(
+        f"/api/v1/tenants/{tenant}/storefront/access-policy",
+        headers=_auth(token),
+        json={"policy": "VERIFIED"},
+    )
+    assert selected.status_code == 200, selected.text
     # The dev code endpoint disappears outside the development adapter.
     from tawzeevo_api.config import get_settings
 
     monkeypatch.setattr(get_settings(), "customer_otp_provider", "whatsapp")
     assert client.get(DEV_CODE, headers={HEADER: secret}).status_code == 404
-    # ... and an unconfigured production channel fails safely (503, no code stored as usable).
-    client.put(
+    # ... an unconfigured production channel fails safely (503, no code stored as usable) ...
+    outage = client.post(START, headers={HEADER: secret})
+    assert outage.status_code == 503
+    # ... and VERIFIED is no longer offered or selectable until a provider is configured, so a
+    # business cannot lock its customers out (a LINK policy stays selectable).
+    status = client.get(
+        f"/api/v1/tenants/{tenant}/customers/{customer['id']}/access-link", headers=_auth(token)
+    )
+    assert status.status_code == 200 and status.json()["available_policies"] == ["LINK"]
+    refused = client.put(
         f"/api/v1/tenants/{tenant}/storefront/access-policy",
         headers=_auth(token),
         json={"policy": "VERIFIED"},
     )
-    outage = client.post(START, headers={HEADER: secret})
-    assert outage.status_code == 503
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["code"] == "OTP_PROVIDER_NOT_CONFIGURED"
+    back = client.put(
+        f"/api/v1/tenants/{tenant}/storefront/access-policy",
+        headers=_auth(token),
+        json={"policy": "LINK"},
+    )
+    assert back.status_code == 200, back.text

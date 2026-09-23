@@ -6,14 +6,20 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from tawzeevo_api import metrics
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import SessionLocal, get_db
+from tawzeevo_api.db_role import check_database_role, inspect_database_role
 from tawzeevo_api.errors import AppError, AuthenticationError
+from tawzeevo_api.migrations import (
+    migration_state,
+    migrations_ready,
+    record_startup_state,
+    startup_state,
+)
 from tawzeevo_api.observability import RequestContextMiddleware, configure_logging
 from tawzeevo_api.public_invoice_security import (
     PublicInvoicePrivacyMiddleware,
@@ -38,32 +44,41 @@ from tawzeevo_api.routes.suppliers import supplier_prices_router, suppliers_rout
 from tawzeevo_api.routes.sync import sync_router
 from tawzeevo_api.routes.team import team_router
 from tawzeevo_api.routes.users import stats_router, users_router
-from tawzeevo_api.services.backup import run_due_backups
+from tawzeevo_api.services.jobs import scheduler_loop
 from tawzeevo_api.services.sync_changes import register_change_tracking
 
 settings = get_settings()
 install_capability_log_redaction()
-logger = logging.getLogger("tawzeevo.backup")
-
-BACKUP_TICK_SECONDS = 3600
+logger = logging.getLogger("tawzeevo.jobs")
 
 
-def _backup_timer(stop: threading.Event) -> None:
-    """In-process daily backup timer for the pilot; a hosting scheduler may call the CLI instead."""
-    while not stop.wait(BACKUP_TICK_SECONDS):
-        try:
-            with SessionLocal() as db:
-                run_due_backups(db)
-        except Exception:  # noqa: BLE001 - the timer must survive one bad tick
-            logger.exception("scheduled backup tick failed")
+def database_preflight() -> None:
+    """Startup checks against the database: the application role must be subject to RLS
+    (enforced only when configured) and the schema must be at the head this code expects
+    (recorded; `/health` answers 503 until it is, so a deploy never serves business traffic on
+    a partially migrated database)."""
+    try:
+        with SessionLocal() as db:
+            check_database_role(db, require_rls_subject=settings.db_role_require_rls_subject)
+            record_startup_state(migration_state(db))
+    except SQLAlchemyError:
+        # An unreachable database is reported by /health/database; startup itself does not
+        # depend on the preflight succeeding.
+        logging.getLogger("tawzeevo.database").warning("database preflight skipped")
+        record_startup_state(None)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    database_preflight()
     stop = threading.Event()
     worker: threading.Thread | None = None
     if settings.backup_scheduler_enabled:
-        worker = threading.Thread(target=_backup_timer, args=(stop,), daemon=True)
+        # D-079: the in-process scheduler runs backups, the view rollup and delivery reminders
+        # (services/jobs.py); a hosting scheduler may call the CLI jobs instead.
+        worker = threading.Thread(
+            target=scheduler_loop, args=(stop, SessionLocal), daemon=True, name="tawzeevo-jobs"
+        )
         worker.start()
     try:
         yield
@@ -171,6 +186,7 @@ app.add_middleware(
     PublicInvoicePrivacyMiddleware,
     private_limit=get_settings().public_private_rate_limit_per_minute,
     catalog_limit=get_settings().public_catalog_rate_limit_per_minute,
+    trusted_proxy_hops=get_settings().trusted_proxy_hops,
 )
 # Outermost: every response carries X-Request-ID and one structured access-log line (P9-M3).
 app.add_middleware(RequestContextMiddleware)
@@ -197,6 +213,19 @@ def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
 
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
+    """Liveness and readiness: 503 while the database schema is not at the head this code
+    expects (found at startup), so the hosting health check keeps the previous release serving."""
+    if not migrations_ready():
+        state = startup_state()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "MIGRATION_HEAD_MISMATCH",
+                "message": "Database schema is not at the expected migration head",
+                "expected_migration_head": state.expected if state else None,
+                "migration_head": state.current if state else None,
+            },
+        )
     return {"status": "ok", "service": "tawzeevo-api"}
 
 
@@ -207,13 +236,23 @@ def health_metrics() -> dict[str, object]:
 
 
 @app.get("/health/database", tags=["system"])
-def database_health(db: Session = Depends(get_db)) -> dict[str, str]:
+def database_health(db: Session = Depends(get_db)) -> dict[str, object]:
     try:
-        head = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
+        state = migration_state(db)
+        role = inspect_database_role(db)
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"code": "DATABASE_UNAVAILABLE", "message": "Database is unavailable"},
         ) from exc
-    # The migration head lets a deploy check confirm the schema without reading logs (P9-M3).
-    return {"status": "ok", "database": "postgresql", "migration_head": head or "none"}
+    # The migration head lets a deploy check confirm the schema without reading logs (P9-M3);
+    # the expected head and the role flag let the probes confirm the schema is current and RLS
+    # is not bypassed. No names, no secrets.
+    return {
+        "status": "ok",
+        "database": "postgresql",
+        "migration_head": state.current or "none",
+        "expected_migration_head": state.expected or "unknown",
+        "migration_current": state.is_current,
+        "database_role_rls_enforced": role.rls_enforced,
+    }

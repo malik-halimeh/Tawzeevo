@@ -350,7 +350,7 @@ def _apply_delivery_task(
     membership = get_scoped_membership(db, tenant_id=tenant_id, user_id=actor, active_only=True)
     if membership is None:
         raise AppError(403, "TENANT_MEMBERSHIP_REQUIRED", "Active membership is required")
-    task = get_delivery_task(db, tenant_id, operation.entity_id)
+    task = get_delivery_task(db, tenant_id, operation.entity_id, for_update=True)
     note = operation.payload.get("note")
     complete_task_row(
         db, tenant_id, membership, task, operation.expected_version, str(note) if note else None

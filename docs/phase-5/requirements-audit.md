@@ -52,7 +52,7 @@ D-071/D-072/D-075/D-076 (personalized customer context, assurance model, cookie,
 | Confirmation only through the Phase 3 confirmation (official number, ledger); stale revision refused | `orders.py::confirm_order` → `invoice_finance.confirm_invoice` with `expected_revision_id` | `test_order_review.py`; E2E confirm | PASS |
 | Decline closes the draft | `orders.py::decline_order` → `cancel_invoice` | `test_order_review.py` | PASS |
 | Sole owner with zero drivers works | no driver dependency in any Phase 5 route; the E2E runs with an owner only | `e2e/phase5-storefront-flow.spec.ts` | PASS |
-| Delivery date only after confirmation; reminder job record (09:00 Asia/Beirut stored in UTC), one per order | migration `0021` `delivery_reminders`; `orders.py::set_delivery_date` | `test_order_review.py` (refused before confirmation, accepted after, UTC due) | PASS |
+| Delivery date only after confirmation; reminder job record (09:00 Asia/Beirut stored in UTC), one per order | migration `0021` `delivery_reminders`; `orders.py::set_delivery_date`; execution by `services/jobs.py::run_due_delivery_reminders` (one `DELIVERY_REMINDER` owner notification per due reminder, idempotent; scheduled in-process since 2026-09-21, previously never executed) | `test_order_review.py` (refused before confirmation, accepted after, UTC due); `test_jobs.py` (execution, replay, cancellation, reschedule) | PASS |
 | The customer can only request cancellation; the owner approves (Phase 3 reversal, reminder cancelled) or rejects | `routes/storefront.py` `POST /api/v1/public/order/cancellation-request`; `orders.py::request_cancellation/decide_cancellation`; storefront `app/[slug]/order/cancel/route.ts` | `test_order_review.py` (one pending per order; approval reverses; rejection keeps); E2E request then approval | PASS |
 
 ## K/L — Recommendations, featured campaigns, signals (D-048, D-051, D-062)
@@ -60,7 +60,7 @@ D-071/D-072/D-075/D-076 (personalized customer context, assurance model, cookie,
 | Requirement | Implementation evidence | Test evidence | Result |
 |---|---|---|---:|
 | Purchase 10 / view 1; cancelled sales excluded; 30-minute view window; tenant isolated; deterministic ties | migration `0018`; `services/storefront_signals.py` | `test_storefront_signals.py` | PASS |
-| Raw rows 90 days then monthly rollups (session ids dropped) | `cli/backup_jobs.py rollup-views`; `storefront_signals.py` | `test_storefront_signals.py` (rollup) | PASS |
+| Raw rows 90 days then monthly rollups (session ids dropped) | `cli/backup_jobs.py rollup-views`; `storefront_signals.py`; scheduled hourly by the in-process scheduler (`services/jobs.py`, since 2026-09-21 — previously CLI only, never scheduled) | `test_storefront_signals.py` (rollup); `test_jobs.py` (scheduler table) | PASS |
 | Featured campaigns: 7-day default, never alter availability | `storefront_signals.py`; `CampaignPanel.tsx` | `test_storefront_signals.py`; `CampaignPanel.test.tsx` | PASS |
 
 ## M/N — Confirmed-invoice capability (D-042) and abuse

@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=5, ge=0, le=50)
     db_pool_recycle_seconds: int = Field(default=1800, ge=60)
     db_pool_timeout_seconds: int = Field(default=10, ge=1)
+    # Defense in depth only exists when the application role is subject to RLS (no SUPERUSER, no
+    # BYPASSRLS). The API always reports the role's attributes; with this flag it refuses to start
+    # otherwise. Off by default so an existing deployment is never taken down by a redeploy; the
+    # owner turns it on after provisioning such a role (docs/runbooks/database-role.md).
+    db_role_require_rls_subject: bool = False
     cors_allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     jwt_secret: str = "change-me"
     access_token_ttl_minutes: int = Field(default=15, ge=1)
@@ -45,6 +50,9 @@ class Settings(BaseSettings):
     # anonymous storefront catalog. Never the sole control (hash-only lookups, constant 404s).
     public_private_rate_limit_per_minute: int = Field(default=60, ge=1)
     public_catalog_rate_limit_per_minute: int = Field(default=600, ge=1)
+    # How many trusted reverse-proxy hops sit in front of the API (0 = direct). The client IP for
+    # the throttles below is the n-th address from the right of X-Forwarded-For; see client_ip.py.
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=8)
     # Login and recovery abuse controls (PHASE_09.md B/C): per client IP per 15 minutes.
     auth_failed_logins_per_15_minutes: int = Field(default=10, ge=1)
     auth_reset_requests_per_15_minutes: int = Field(default=10, ge=1)
@@ -72,6 +80,8 @@ class Settings(BaseSettings):
     backup_master_key: str | None = None
     backup_kek_id: str = "kek-local-1"
     backup_drive_provider: str = "google"  # "memory" is the test double
+    # The in-process job scheduler (D-079): backups, storefront view rollup (D-051) and delivery
+    # reminders (D-049). Off in tests and local runs; the CLI jobs cover a hosting scheduler.
     backup_scheduler_enabled: bool = False
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
@@ -96,6 +106,13 @@ class Settings(BaseSettings):
                 )
             if not self.password_reset_url.startswith("https://"):
                 raise ValueError("PASSWORD_RESET_URL must be https in production")
+            if self.customer_otp_provider.lower() == "dev":
+                # The development adapter delivers nothing outside the process: a VERIFIED
+                # customer could never complete verification. Fail closed (D-073 gate).
+                raise ValueError(
+                    "CUSTOMER_OTP_PROVIDER must name a production delivery provider; "
+                    "the dev adapter is refused in production"
+                )
         return self
 
 

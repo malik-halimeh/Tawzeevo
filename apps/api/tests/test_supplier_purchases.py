@@ -248,6 +248,41 @@ def test_purchase_finalization_is_atomic_replay_safe_and_rolls_back(client, sess
         ]
         assert sorted(types) == ["PURCHASE_CHARGE", "PURCHASE_CHARGE", "PURCHASE_REVERSAL"]
 
+    # D-059 preload (audit finding on reversed purchases): the reversed second purchase (7.6000)
+    # no longer drives the preload; the latest non-reversed actual purchase (7.5000) does.
+    options = client.get(
+        f"/api/v1/invoices/products/{product['id']}/cost-options",
+        params={"tenant_id": tenant, "currency": "USD", "basis": "PIECE"},
+        headers=_auth(token),
+    )
+    assert options.status_code == 200, options.text
+    preload = [o for o in options.json()["options"] if o["supplier_id"] == supplier_id]
+    assert preload and preload[0]["unit_cost"] == "7.5000", options.text
+
+    # Immutable at the database (same guarantee as the other financial rows): purchase lines
+    # reject any update/delete; a header rejects delete, any non-reversal update, and a second
+    # reversal; the only accepted change is the reversal transition the service performs.
+    import pytest
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    with session_factory() as db:
+        db.execute(text("SELECT set_config('app.current_tenant_id', :t, true)"), {"t": tenant})
+        for statement in (
+            "UPDATE supplier_purchase_items SET quantity = quantity + 1 WHERE tenant_id = :t",
+            "DELETE FROM supplier_purchase_items WHERE tenant_id = :t",
+            "UPDATE supplier_purchases SET total_amount = 0 WHERE tenant_id = :t",
+            "DELETE FROM supplier_purchases WHERE tenant_id = :t",
+            # a reversal that also alters the purchase, and a second reversal of a reversed row
+            "UPDATE supplier_purchases SET reversed_at = now(), reversal_idempotency_key = :k, "
+            "total_amount = 1 WHERE tenant_id = :t AND reversed_at IS NULL",
+            "UPDATE supplier_purchases SET reversal_reason = 'again' "
+            "WHERE tenant_id = :t AND reversed_at IS NOT NULL",
+        ):
+            with pytest.raises(DBAPIError, match="immutable financial row"), db.begin_nested():
+                db.execute(text(statement), {"t": tenant, "k": str(uuid4())})
+        db.rollback()
+
     # Payments: an ordinary payment is capped at the payable (D-039); no per-purchase allocation.
     over = _post(
         client,

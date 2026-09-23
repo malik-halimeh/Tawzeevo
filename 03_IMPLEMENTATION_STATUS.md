@@ -44,14 +44,23 @@ Phase 9 starts with P9-M1 (D-077 password recovery approved; D-078 targets; D-07
 | 9-old | LOCKED | Phases 1–8 DoD |
 | 10 | GATED — WAITING FOR SUFFICIENT HISTORICAL DATA | D-082–D-087 recorded 2026-09-20 (`PHASE_10.md` gate addendum); no forecasting code before the gate; `Start Phase 10` only after the gate procedure |
 
+## Audit remediation (2026-09-21, branch `remediation/audit-20260920`, not merged)
+
+- Source: assurance audit run `20260920-1922-7a7596` (frozen ref `refs/audit/20260920-1922-7a7596`, owner HEAD `4d6ea0a9`); 32 open findings, all dispositioned — see `docs/audit/remediation-20260920/REMEDIATION_REPORT.md`, `REMEDIATION_FINDINGS.json`, `REMEDIATION_OWNER_ACTIONS.md`, `REMEDIATION_TEST_RESULTS.md`
+- Fixed and runtime-verified: 22 (incl. the two runtime-confirmed defects F-001 driver snapshot leak and F-028 `tenant_applications` RLS, re-proven with the audit's preserved modules on a recreated audit database); fixed pending hosted confirmation: 5 (F-002, F-005, F-007, F-009, F-010); deferred on owner decisions: 4 (F-004 D-080, F-017 C-F04, F-022 D-055, F-024 D-029); owner-external: 1 (F-032)
+- Migrations: `20260921_0030` (tenant_applications RLS + platform audit SELECT policy), `20260921_0031` (supplier purchase immutability) — head `20260921_0031`
+- Tests: backend 307 nodes, operations client 86, storefront 9; ruff/format/mypy/eslint/tsc/builds clean
+- **Before the next live deploy**: set `CUSTOMER_OTP_PROVIDER` (the dev adapter is refused in production), confirm the `sync:false` mail variables, `TRUSTED_PROXY_HOPS`, and that dashboard auto-deploy is off for the live services (`REMEDIATION_OWNER_ACTIONS.md` § A)
+- Launch gate: still NOT PASSED; items added: D-080 object storage, hosted database role check
+
 ## Current milestone evidence
 
 - Code areas changed (P9-M7 / P9-M8, 2026-09-20): `scripts/pilot_drill.py` (two businesses, owner+driver and sole-owner models, driver least privilege, analytics reconciliation, cross-tenant/driver/admin/anonymous boundaries, public catalogs); `docs/phase-9/{requirements-audit,test-report,demo-guide}.md`; README Phase 9 section; health probe fix
-- Migrations: none new (head `20260920_0029`)
+- Migrations: none new at P9-M7 (head `20260920_0029`; remediation of 2026-09-21 added `20260921_0030` and `20260921_0031`)
 - Tests run (2026-09-20): pilot drill on staging **30/30**; CI green on `83c6adb` (backend 253 in CI, both clients, Playwright 8, audits); alert probe normal run green, simulated failure fails as designed; live: `/health/database` head `20260920_0029`
 - Live pilot: business "Bekaa Fresh Water" with the owner's two pilot accounts (owner + driver) created on the live service; logins in `private/DEMO_ACCOUNTS.md`
 - Security/invariants: no leak in 30 boundary checks; admin reads no tenant data; drivers see assigned stops only
-- Known defects: none open
+- Known defects: see the audit remediation section above (owner items) — no open defect without a disposition
 - Contract deviations: Phase 9 is not marked COMPLETE — P9-M6 is blocked on gate decisions and the launch-gate verdict is NOT PASSED (live backup run, decisions, SLO adjustment) — see `docs/phase-9/requirements-audit.md`
 
 ## Latest completed milestone summary
@@ -259,6 +268,10 @@ The final checkpoint only adds this documentation evidence; tested runtime conte
 ## Rules for updating this file
 
 ### Continuity audit overlay — 2026-09-06
+
+> Historical note (2026-09-21): the paths `docs/TRACEABILITY_MATRIX.md` and
+> `docs/audits/AUDIT_REGISTER.md` referenced below were moved out of the public tree on
+> 2026-09-18 into the owner's working records; the sections are kept as written for history.
 
 Implementation audit baseline remains `2248c137e43c6c043725830c1303756da1d210ee`.
 The phase/milestone rows above are recorded state, not authorization to start P3-M6 during an

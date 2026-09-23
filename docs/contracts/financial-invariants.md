@@ -24,7 +24,7 @@ FA008_GRAPH_SOURCE_SHA=65b571488fc05247fad6f405f8d5733b597d98ef
 Counts: **32 EXPLICIT/BINDING invariants; 5 CANDIDATE invariants**. A test reference means relevant
 executable coverage, not complete proof of the row. Contrary test assumptions are identified.
 All 126 existing backend tests passed in this audit; all 34 existing frontend tests passed on a
-separate rerun. See [financial audit](../audits/PHASE_3_FINANCIAL_AUDIT.md) for results and findings.
+separate rerun. The Phase 3 financial audit results and findings are kept in the owner's working records outside the public tree (moved out of `docs/audits/` on 2026-09-18); the FA-xxx closures are summarised in the Status column.
 
 ## Reference conventions
 
@@ -71,7 +71,7 @@ section, accepted under AGENTS.md—not inferred from a passing test or recovere
 | FI-29 | At most one invoice header per order; nullable order reference; immutable revisions under it | EXPLICIT | BINDING | D-033; PHASE_03.md B | models.py::Invoice | partial tenant/order unique index | E03 | future real order confirmation transaction, Phase 5 | G01 | HIGH schema; future order integration absent as scheduled |
 | FI-30 | Preserve applied migrations; zero/Phase 2 upgrade validates canonical history | EXPLICIT | BINDING | AGENTS.md Repository safety; PHASE_03.md M | alembic 0008–0012 | migration immutability/content guards and tenant/financial constraints | E03/E17/E18 | deploy-role migration evidence remains CT-009, outside this local audit | none | HIGH local chain |
 | FI-31 | Supplier costs/profit owner-only, never driver or public projection | EXPLICIT | BINDING | D-031/034; PHASE_03.md J | dependencies.py::require_tenant_owner; public_invoices.py::resolve_public_invoice | RLS supplements source-level allowlist | E04/E16 | later driver/analytics projections; broad security audit deferred | G02/G05 | HIGH current scoped projection |
-| FI-32 | Replay of a logical payment must return original result without another financial effect | EXPLICIT | BINDING | PHASE_03.md H; P3-M4 Acceptance; 01_TECH_STACK.md Testing | payments.py::_lock_idempotency_key/_existing_payment; InvoiceEditor.tsx::recordReceipt/recordRefund | tenant/key uniqueness only; UI changes key on retry | E06; diagnostics P09/P12 | real lost-response UI→API receipt/refund E2E and persisted pending-command policy | G03 | HIGH; end-to-end CONTRADICTED FA-007 |
+| FI-32 | Replay of a logical payment must return original result without another financial effect | EXPLICIT | BINDING | PHASE_03.md H; P3-M4 Acceptance; 01_TECH_STACK.md Testing | payments.py::_lock_idempotency_key/_existing_payment/_validate_replay (since 2026-09-21 a replay must also match method, reference, paid_at and, when selected, the allocation targets — otherwise 409 IDEMPOTENCY_KEY_REUSED); InvoiceEditor.tsx::recordReceipt/recordRefund | tenant/key uniqueness only; UI changes key on retry | E06; diagnostics P09/P12; test_customer_receipt_retries_one_command_and_a_new_intent_posts_again | real lost-response UI→API receipt/refund E2E and persisted pending-command policy | G03 | HIGH; end-to-end CONTRADICTED FA-007 |
 
 ## Candidate questions — non-binding
 
@@ -101,7 +101,7 @@ Do not run the truncating fixture against the hosted application database.
 | E05 | apps/api/tests/test_supplier_ledger.py (all four tests: aggregate/replay/reversal/currency; tenant/concurrent reversal; schema; forced RLS) |
 | E06 | apps/api/tests/test_invoice_editor.py::test_receipt_fifo_owner_allocation_partial_multi_obligation_and_reversal_are_immutable |
 | E07 | apps/api/tests/test_invoice_editor.py::test_post_confirmation_revision_posts_exact_delta_and_keeps_old_balance_out_of_sales |
-| E08 | apps/api/tests/test_invoice_editor.py::test_unconfirmed_cancellation_has_no_financial_effect; test_confirmed_cancellation_matrix_handles_unpaid_and_fully_paid_invoices; test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal |
+| E08 | apps/api/tests/test_invoice_editor.py::test_unconfirmed_cancellation_has_no_financial_effect; test_confirmed_cancellation_matrix_handles_unpaid_and_fully_paid_invoices; test_confirmed_revision_rejects_zero_net_sales_and_cancellation_compensates (the zero-value cancellation reversal; the name `test_zero_value_confirmed_cancellation_keeps_an_explicit_immutable_reversal` cited until 2026-09-21 never existed) |
 | E09 | apps/api/tests/test_invoice_editor.py::test_editor_prefills_latest_tenant_cost_and_keeps_reasoned_override_revision_only |
 | E10 | apps/api/tests/test_invoice_editor.py::test_confirmation_is_idempotent_assigns_official_number_and_posts_one_charge |
 | E11 | apps/api/tests/test_invoice_editor.py::test_invoice_sequence_is_serialized_per_tenant_and_year_under_concurrency |

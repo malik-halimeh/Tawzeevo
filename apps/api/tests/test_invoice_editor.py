@@ -1169,6 +1169,26 @@ def test_customer_receipt_retries_one_command_and_a_new_intent_posts_again(
     assert all(attempt.status_code == 201 for attempt in attempts)
     assert len({attempt.json()["id"] for attempt in attempts}) == 1
 
+    # FI-32 (audit row A-032): the same key with a different method, reference, payment time
+    # or allocation intent is a different command and must not silently replay the original.
+    for label, change in (
+        ("method", {"method": "TRANSFER"}),
+        ("reference", {"reference": "another slip"}),
+        ("paid_at", {"paid_at": (datetime.now(UTC) - timedelta(days=1)).isoformat()}),
+        (
+            "allocations",
+            {"allocations": [{"target_ledger_entry_id": str(uuid4()), "amount": "1.0000"}]},
+        ),
+    ):
+        reused = client.post(
+            "/api/v1/payments/customer-receipts",
+            params={"tenant_id": tenant_id},
+            headers=_auth(token),
+            json={**first_intent, **change},
+        )
+        assert reused.status_code == 409, (label, reused.text)
+        assert reused.json()["detail"]["code"] == "IDEMPOTENCY_KEY_REUSED", label
+
     second_intent = client.post(
         "/api/v1/payments/customer-receipts",
         params={"tenant_id": tenant_id},

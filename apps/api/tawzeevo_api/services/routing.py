@@ -3,9 +3,11 @@
 Offline: a deterministic heuristic — nearest neighbour from the origin, then 2-opt improvement on
 straight-line (haversine) distance. It is labelled `offline stop-order suggestion` and never
 claims an optimal road route. Online: OpenRouteService's optimization endpoint through one
-adapter, with a timeout and any failure falling back to the heuristic; Google Maps only when its
-key is configured (adapter slot, not exercised by tests). The payload sent to a provider holds
-coordinates only — no names, phones or amounts. Manual reorder always remains.
+adapter, with a timeout; Google Maps Platform (Directions with optimised waypoints) is tried
+next, only when its key is configured; any failure falls back to the heuristic, and the answer
+names the provider that produced the order plus why the earlier ones were skipped. The payload
+sent to a provider holds coordinates only — no names, phones or amounts. Manual reorder always
+remains.
 """
 
 from __future__ import annotations
@@ -21,7 +23,9 @@ from tawzeevo_api.config import get_settings
 
 OFFLINE_METHOD = "offline stop-order suggestion"
 ORS_METHOD = "openrouteservice"
+GOOGLE_METHOD = "google-maps"
 ORS_URL = "https://api.openrouteservice.org/optimization"
+GOOGLE_DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
 
 
 @dataclass(frozen=True)
@@ -117,26 +121,67 @@ def openrouteservice_order(
     return ordered
 
 
+def google_maps_order(
+    origin: tuple[float, float], stops: list[Stop], api_key: str, timeout: float
+) -> list[Stop]:
+    """Google Maps Platform Directions with `optimize:true` waypoints: a round trip from the
+    origin over every stop; the answer's `waypoint_order` is the visiting order. Coordinates only
+    leave the server."""
+    point = f"{origin[0]},{origin[1]}"
+    params = {
+        "origin": point,
+        "destination": point,
+        "waypoints": "optimize:true|" + "|".join(f"{s.latitude},{s.longitude}" for s in stops),
+        "mode": "driving",
+        "key": api_key,
+    }
+    try:
+        response = httpx.get(GOOGLE_DIRECTIONS_URL, params=params, timeout=timeout)
+    except httpx.HTTPError as exc:
+        raise RoutingProviderError(str(exc)) from exc
+    if response.status_code != 200:
+        raise RoutingProviderError(f"status {response.status_code}")
+    try:
+        body = response.json()
+        if body.get("status") != "OK":
+            raise RoutingProviderError(f"status {body.get('status', 'unknown')}")
+        order = [stops[int(index)] for index in body["routes"][0]["waypoint_order"]]
+    except (KeyError, IndexError, ValueError, TypeError) as exc:
+        raise RoutingProviderError("unexpected provider response") from exc
+    if len(order) != len(stops) or len({s.id for s in order}) != len(stops):
+        raise RoutingProviderError("provider skipped stops")
+    return order
+
+
 def suggest_order(
     origin: tuple[float, float], stops: list[Stop], *, allow_online: bool = True
 ) -> tuple[list[Stop], str, str | None]:
-    """Returns (ordered stops, method, provider note). Provider failure never fails the call."""
+    """Returns (ordered stops, method, provider note). The chain is D-060: OpenRouteService,
+    then Google Maps, each only when its key is configured, then the offline heuristic; a
+    provider failure never fails the call, and the note records every provider that was
+    skipped and why, so the fallback is observable and the same input always answers the same
+    way for a given configuration."""
     settings = get_settings()
-    if allow_online and settings.openrouteservice_api_key and stops:
+    if not allow_online or not stops:
+        return offline_order(origin, stops), OFFLINE_METHOD, None
+    timeout = settings.routing_timeout_seconds
+    chain: list[tuple[str, str | None, object]] = [
+        (ORS_METHOD, settings.openrouteservice_api_key, openrouteservice_order),
+        (GOOGLE_METHOD, settings.google_maps_api_key, google_maps_order),
+    ]
+    skipped: list[str] = []
+    for method, api_key, provider in chain:
+        if not api_key:
+            continue
         try:
-            return (
-                openrouteservice_order(
-                    origin,
-                    stops,
-                    settings.openrouteservice_api_key,
-                    settings.routing_timeout_seconds,
-                ),
-                ORS_METHOD,
-                None,
-            )
+            ordered = provider(origin, stops, api_key, timeout)  # type: ignore[operator]
         except RoutingProviderError as exc:
-            return offline_order(origin, stops), OFFLINE_METHOD, f"provider unavailable: {exc}"
-    return offline_order(origin, stops), OFFLINE_METHOD, None
+            skipped.append(f"{method}: {exc}")
+            continue
+        note = "; ".join(skipped) + " unavailable" if skipped else None
+        return ordered, method, note
+    note = f"provider unavailable: {'; '.join(skipped)}" if skipped else None
+    return offline_order(origin, stops), OFFLINE_METHOD, note
 
 
 def as_float(value: Decimal | float | None) -> float | None:

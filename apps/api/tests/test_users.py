@@ -364,6 +364,20 @@ def test_deleting_one_of_two_owners_revokes_membership_atomically(
         )
         db.commit()
         first_membership_id = first_membership.id
+        tenant_id = tenant.id
+    # The first owner registered a sync device; deleting the user must revoke it like a
+    # membership revocation does (D-054), not leave it active for the retention accounting.
+    from uuid import uuid4
+
+    from test_sync_bootstrap import _bootstrap
+
+    device = str(uuid4())
+    assert (
+        _bootstrap(
+            client, str(tenant_id), access_token(client, first_owner.email), device
+        ).status_code
+        == 200
+    )
     token = access_token(client, admin.email)
 
     response = client.delete(f"/users/{first_owner.id}", headers=auth(token))
@@ -375,6 +389,11 @@ def test_deleting_one_of_two_owners_revokes_membership_atomically(
         assert stored_user is not None and stored_user.is_deleted is True
         assert membership is not None and membership.is_active is False
         assert membership.revoked_at is not None
+        from tawzeevo_api.models import SyncDevice
+
+        devices = list(db.scalars(select(SyncDevice).where(SyncDevice.user_id == first_owner.id)))
+        assert devices and all(d.revoked_at is not None for d in devices)
+        assert {d.revoked_reason for d in devices} == {"USER_DELETED"}
 
 
 def test_concurrent_owner_deletions_cannot_orphan_active_tenant(

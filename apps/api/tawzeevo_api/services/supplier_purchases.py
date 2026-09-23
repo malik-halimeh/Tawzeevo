@@ -119,6 +119,11 @@ def record_purchase(
             raise AppError(409, "PROCUREMENT_LIST_CLOSED", "That list is complete or cancelled")
 
     purchased_at = request.purchased_at or datetime.now(UTC)
+    # The header is written once with its final total: purchase rows are immutable at the
+    # database (only the reversal transition may update them), so no placeholder-then-update.
+    header_total = money(
+        sum((money(line.unit_cost * line.quantity) for line in request.items), Decimal("0"))
+    )
     purchase = SupplierPurchase(
         tenant_id=tenant_id,
         supplier_id=supplier.id,
@@ -126,7 +131,7 @@ def record_purchase(
         idempotency_key=request.idempotency_key,
         purchased_at=purchased_at,
         currency=request.currency,
-        total_amount=Decimal("0"),
+        total_amount=header_total,
         supplier_reference=request.supplier_reference,
         notes=request.notes,
         created_by_user_id=actor,
@@ -227,7 +232,7 @@ def record_purchase(
             owner_list = db.get(ProcurementList, procurement_item.list_id)
             if owner_list is not None:
                 touched_lists[owner_list.id] = owner_list
-    purchase.total_amount = money(total)
+    assert money(total) == header_total  # the lines are what the header was written with
     db.add(
         SupplierLedgerEntry(
             tenant_id=tenant_id,

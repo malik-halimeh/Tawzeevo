@@ -294,6 +294,75 @@ def test_refresh_requires_cookie(client: TestClient) -> None:
     assert "max-age=0" in response.headers["set-cookie"].lower()
 
 
+@pytest.mark.parametrize("samesite", ["lax", "none"])
+def test_cookie_samesite_is_configurable_and_cross_site_origin_is_guarded(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    samesite: str,
+) -> None:
+    """D-088 (pending owner confirmation): REFRESH_COOKIE_SAMESITE is configurable, and the
+    cookie-bearing auth routes refuse a request whose Origin is not a configured client origin
+    (CSRF guard for the two-site deployment). The refresh token must not be consumed by a refused
+    request, the cookie is cleared, and a call without Origin or from an allowed Origin proceeds."""
+    from tawzeevo_api.routes import auth as auth_routes
+
+    allowed = "https://operations.example.test"
+    configured = get_settings().model_copy(
+        update={"refresh_cookie_samesite": samesite, "cors_allowed_origins": [allowed]}
+    )
+    monkeypatch.setattr(auth_routes, "get_settings", lambda: configured)
+    register(client)
+    login_response = client.post(
+        "/login",
+        json={"email": "layla.haddad@example.com", "password": "correct horse battery staple"},
+    )
+    assert login_response.status_code == 200, login_response.text
+    assert f"samesite={samesite}" in login_response.headers["set-cookie"].lower()
+    access = str(login_response.json()["access_token"])
+    refresh_cookie = client.cookies.get(configured.refresh_cookie_name)
+    assert refresh_cookie is not None
+
+    # Forged cross-site Origin: refused, cookie cleared, token NOT consumed (still rotatable).
+    forged = client.post("/api/v1/auth/refresh", headers={"Origin": "https://evil.example"})
+    assert forged.status_code == 401, forged.text
+    assert forged.json()["detail"]["code"] == "ORIGIN_NOT_ALLOWED"
+    assert "max-age=0" in forged.headers["set-cookie"].lower()
+    forged_logout = client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {access}", "Origin": "https://evil.example"},
+    )
+    assert forged_logout.status_code == 401
+    assert forged_logout.json()["detail"]["code"] == "ORIGIN_NOT_ALLOWED"
+    with session_factory() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuthSession)
+                .where(AuthSession.revoked_at.is_(None))
+            )
+            == 1
+        ), "a refused request must not consume or revoke the session"
+
+    # The allowed client origin refreshes; the rotated cookie carries the configured attribute.
+    with TestClient(app, base_url="https://testserver") as browser:
+        allowed_refresh = browser.post(
+            "/api/v1/auth/refresh",
+            headers={
+                "Origin": allowed,
+                "Cookie": f"{configured.refresh_cookie_name}={refresh_cookie}",
+            },
+        )
+        assert allowed_refresh.status_code == 200, allowed_refresh.text
+        assert f"samesite={samesite}" in allowed_refresh.headers["set-cookie"].lower()
+        rotated = browser.cookies.get(configured.refresh_cookie_name)
+        assert rotated and rotated != refresh_cookie
+        # No Origin at all (same-site or non-browser caller): unchanged behaviour.
+        no_origin = browser.post("/api/v1/auth/refresh")
+        assert no_origin.status_code == 200, no_origin.text
+        assert browser.cookies.get(configured.refresh_cookie_name) != rotated
+
+
 def test_openapi_exposes_bearer_authentication(client: TestClient) -> None:
     document = client.get("/openapi.json").json()
 
@@ -308,6 +377,7 @@ def test_production_settings_require_secure_cookie_and_real_secret() -> None:
         "email_api_key": "xkeysib-test",
         "password_reset_url": "https://ops.example/reset-password",
         "backup_drive_provider": "google",  # explicit: CI exports the memory double
+        "customer_otp_provider": "whatsapp",  # the dev adapter is refused in production
     }
     production = Settings(
         app_env="production",
@@ -316,6 +386,15 @@ def test_production_settings_require_secure_cookie_and_real_secret() -> None:
         **mail,
     )
     assert production.refresh_cookie_secure is True
+    # Customer verification (D-073): production must not start with the development OTP
+    # adapter, which delivers nothing and would lock VERIFIED customers out.
+    with pytest.raises(ValidationError, match="CUSTOMER_OTP_PROVIDER"):
+        Settings(
+            app_env="production",
+            jwt_secret="a-production-secret-placeholder-value",
+            refresh_cookie_secure=True,
+            **{**mail, "customer_otp_provider": "dev"},
+        )
     # Password recovery (D-077) needs a real mail provider and an https reset page in production.
     with pytest.raises(ValidationError):
         Settings(

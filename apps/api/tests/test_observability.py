@@ -44,7 +44,7 @@ def test_access_log_has_route_template_and_no_query_or_secret(client, caplog, mo
 
 def test_database_health_reports_the_migration_head(client):
     body = client.get("/health/database").json()
-    assert body["status"] == "ok" and body["migration_head"] == "20260920_0029"
+    assert body["status"] == "ok" and body["migration_head"] == "20260921_0031"
 
 
 def test_health_metrics_counts_without_content(client):
@@ -64,3 +64,33 @@ def test_health_metrics_counts_without_content(client):
         "auth_login_throttled",
     }
     assert "nobody@example.com" not in str(body)
+
+
+def test_uvicorn_access_log_never_records_query_strings(caplog, monkeypatch):
+    """TWZ-A-058: the raw request line uvicorn logs is stripped of its query string (tenant and
+    device ids, cursors, filters, anything a client put in the URL) while the path is kept."""
+    import logging
+
+    from tawzeevo_api.public_invoice_security import install_capability_log_redaction
+
+    install_capability_log_redaction()
+    access = logging.getLogger("uvicorn.access")
+    # Alembic's fileConfig disables unrelated loggers during the migration tests of a full run;
+    # restore this test's capture surface without changing production logging policy.
+    monkeypatch.setattr(access, "disabled", False)
+    monkeypatch.setattr(access, "propagate", True)
+    with caplog.at_level(logging.INFO, logger="uvicorn.access"):
+        access.info(
+            '%s - "%s %s HTTP/%s" %d',
+            "10.0.0.7:1234",
+            "GET",
+            "/api/v1/sync/pull?tenant_id=abc&device_installation_id=def&cursor=0&secret=x",
+            "1.1",
+            200,
+        )
+        # A record without arguments (message only) is stripped as well.
+        access.info("GET /api/v1/public/customer-context?x=1&device_installation_id=abc")
+    rendered = caplog.records[-2].getMessage()
+    assert '"GET /api/v1/sync/pull HTTP/1.1" 200' in rendered
+    assert "?" not in rendered and "tenant_id" not in rendered and "secret" not in rendered
+    assert caplog.records[-1].getMessage() == "GET /api/v1/public/customer-context"

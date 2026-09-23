@@ -12,7 +12,7 @@ used for tests.
 | Lane | Where | Result |
 |---|---|---|
 | Backend unit/integration | local | **253 passed** (9 min 04 s) |
-| Backend static | local + CI | ruff / format / mypy clean (102 source files); `alembic check` clean at `20260920_0029` |
+| Backend static | local + CI | ruff / format / mypy clean (102 source files) and `alembic check` clean at `20260920_0029` — **historical, as of this 2026-09-20 report date**; the current branch ships head `20260921_0031` with mypy clean over 106 source files (`docs/audit/remediation-20260920/REMEDIATION_TEST_RESULTS.md`, `FINAL_CLOSURE_FIX.md`) |
 | Operations client | local + CI | **82 passed**; lint/types clean; build OK |
 | Storefront | local + CI | **9 passed**; lint/types clean; build OK |
 | Real-browser E2E (Chromium) | local + CI | **8 passed**: Phase 3, Phase 4 offline, Phase 5 ×2, Phase 6, Phase 7, Phase 8, **Phase 9 verification** |
@@ -68,9 +68,10 @@ Phase 9 additions:
 
 ```powershell
 # SLO probe against a running API (never the production database from a test)
-.\.venv\Scripts\python.exe apps\api\scripts\slo_probe.py http://127.0.0.1:8011 admin-e2e@example.com 'E2eAdminPassword123!'
+$env:TAWZEEVO_ADMIN_PASSWORD = '<admin password>'   # never on the command line
+.\.venv\Scripts\python.exe apps\api\scripts\slo_probe.py http://127.0.0.1:8011 admin-e2e@example.com
 # pilot drill (two businesses, both operating models, boundaries)
-.\.venv\Scripts\python.exe apps\api\scripts\pilot_drill.py http://127.0.0.1:8011 admin-e2e@example.com 'E2eAdminPassword123!'
+.\.venv\Scripts\python.exe apps\api\scripts\pilot_drill.py http://127.0.0.1:8011 admin-e2e@example.com
 ```
 
 CI runs on every push to `main` (`.github/workflows/ci.yml`); the alert probe can be dispatched

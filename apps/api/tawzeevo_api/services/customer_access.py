@@ -31,6 +31,7 @@ from tawzeevo_api.models import (
     TenantStatus,
 )
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
+from tawzeevo_api.services.otp_delivery import delivery_is_usable
 
 # Same shape as the invoice capability (tenant hex + 43 url-safe chars) so the existing access-log
 # redaction pattern covers it and the tenant scope can be set before the hashed lookup.
@@ -106,6 +107,14 @@ def effective_policy(tenant: Tenant, customer: Customer) -> AccessPolicy:
     return AccessPolicy(override) if override else AccessPolicy(tenant.customer_access_policy)
 
 
+def selectable_policies() -> frozenset[AccessPolicy]:
+    """Policies an owner may select right now: VERIFIED needs a usable one-time-code delivery
+    (otherwise a business would lock its customers out of verification)."""
+    if delivery_is_usable():
+        return AVAILABLE_POLICIES
+    return AVAILABLE_POLICIES - {AccessPolicy.VERIFIED}
+
+
 def validate_policy(value: str) -> AccessPolicy:
     try:
         policy = AccessPolicy(value)
@@ -116,6 +125,12 @@ def validate_policy(value: str) -> AccessPolicy:
             409,
             "ACCESS_POLICY_NOT_AVAILABLE",
             "This access policy is not available yet; only LINK can be enforced",
+        )
+    if policy not in selectable_policies():
+        raise AppError(
+            409,
+            "OTP_PROVIDER_NOT_CONFIGURED",
+            "VERIFIED needs a configured one-time-code delivery provider",
         )
     return policy
 

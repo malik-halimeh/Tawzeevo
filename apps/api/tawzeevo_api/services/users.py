@@ -25,6 +25,7 @@ from tawzeevo_api.repositories.auth import get_user_by_email, revoke_active_user
 from tawzeevo_api.repositories.tenancy import count_usable_owners, set_tenant_scope
 from tawzeevo_api.schemas.users import AdminCreateUserRequest, ProfileUpdateRequest
 from tawzeevo_api.security import hash_password
+from tawzeevo_api.services.sync import revoke_user_devices
 
 
 def _email_conflicts(db: Session, email: str, user_id: UUID | None = None) -> bool:
@@ -199,6 +200,9 @@ def soft_delete_user(db: Session, user_id: UUID) -> None:
             )
             .values(is_active=False, revoked_at=now)
         )
+        # Like a membership revocation, deleting the user closes its registered sync devices
+        # (D-054): access is already gone with the sessions; this keeps device accounting exact.
+        revoke_user_devices(db, tenant_id, user.id, "USER_DELETED")
     user.is_deleted = True
     user.deleted_at = now
     user.security_version += 1

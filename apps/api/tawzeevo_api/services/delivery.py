@@ -108,11 +108,17 @@ def _member(db: Session, tenant_id: UUID, membership_id: UUID) -> TenantMembersh
     return membership
 
 
-def get_task(db: Session, tenant_id: UUID, task_id: UUID) -> DeliveryTask:
+def get_task(
+    db: Session, tenant_id: UUID, task_id: UUID, *, for_update: bool = False
+) -> DeliveryTask:
+    """`for_update` locks the row for a state transition so two concurrent transitions with the
+    same expected version serialize: the second one sees the bumped version and gets 409."""
     set_tenant_scope(db, tenant_id)
-    row = db.get(DeliveryTask, task_id)
+    row = db.get(DeliveryTask, task_id, with_for_update=for_update or None)
     if row is None or row.tenant_id != tenant_id:
         raise AppError(404, "DELIVERY_TASK_NOT_FOUND", "Delivery task was not found")
+    if for_update:
+        db.refresh(row)  # the locked row's current version, not a stale identity-map copy
     return row
 
 
@@ -223,7 +229,7 @@ def assign_task(
     expected_version: int,
 ) -> DeliveryTask:
     """Owner act only (PHASE_07.md A rules 5–7); audited with the previous assignee."""
-    task = get_task(db, tenant_id, task_id)
+    task = get_task(db, tenant_id, task_id, for_update=True)
     _require_open(task)
     _check_version(task, expected_version)
     assignee = _member(db, tenant_id, membership_id)
@@ -255,7 +261,7 @@ def update_task(
     *,
     touch_date: bool,
 ) -> DeliveryTask:
-    task = get_task(db, tenant_id, task_id)
+    task = get_task(db, tenant_id, task_id, for_update=True)
     _require_open(task)
     _check_version(task, expected_version)
     changed: dict[str, object] = {}
@@ -281,7 +287,7 @@ def complete_task(
     note: str | None,
 ) -> DeliveryTask:
     """Owner or the assigned member; the performer is recorded (PHASE_07.md A rule 8)."""
-    task = get_task(db, tenant_id, task_id)
+    task = get_task(db, tenant_id, task_id, for_update=True)
     complete_task_row(db, tenant_id, membership, task, expected_version, note)
     commit_and_restore_tenant_scope(db, tenant_id)
     return get_task(db, tenant_id, task_id)
@@ -295,7 +301,7 @@ def cancel_task(
     expected_version: int | None,
     reason: str,
 ) -> DeliveryTask:
-    task = get_task(db, tenant_id, task_id)
+    task = get_task(db, tenant_id, task_id, for_update=True)
     _require_open(task)
     if expected_version is not None:
         _check_version(task, expected_version)
