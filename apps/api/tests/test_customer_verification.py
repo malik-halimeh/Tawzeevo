@@ -118,7 +118,9 @@ def test_link_alone_is_not_enough_under_verified_and_the_code_grants_a_session(
     )
     assert personalized.status_code == 200
     assert {r["name"]: r["price"] for r in personalized.json()["items"]}["Cedar Water"] == "10.0000"
-    assert personalized.headers["vary"] == f"{HEADER}, {SESSION}"
+    # Caches must key on both customer headers; the CORS middleware may add Origin to the list.
+    vary = {name.strip().lower() for name in personalized.headers["vary"].split(",")}
+    assert {HEADER.lower(), SESSION.lower()} <= vary
     order = _checkout(
         client, slug, _cart(product["id"]), extra={HEADER: secret, SESSION: session_secret}
     )
