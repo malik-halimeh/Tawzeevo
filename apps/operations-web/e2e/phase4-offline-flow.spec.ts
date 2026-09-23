@@ -54,6 +54,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await context.setOffline(true);
   await expect(page.locator(".status-badge", { hasText: "Offline" })).toBeVisible();
   await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Customers", exact: true }).click();
+  await page.getByRole("button", { name: "Add customer" }).click();
   await page.getByRole("textbox", { name: "Customer name" }).fill("Offline Corner Shop");
   await page.locator("form.form-grid").getByRole("textbox", { name: "Phone" }).fill(newCustomerPhone);
   await page.getByRole("button", { name: "Save changes" }).click();

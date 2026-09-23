@@ -314,6 +314,60 @@ describe("public and authentication flows", () => {
 });
 
 describe("tenant customer and category workspace", () => {
+  // Customers are a list and a record: each result row opens that customer's record.
+  const resultList = () => screen.getByRole("list", { name: "Matching customers" });
+  const customerRow = (name: string) => {
+    const row = within(resultList()).getByText(name).closest("button");
+    if (!row) throw new Error(`No result row for ${name}`);
+    return row;
+  };
+  const customerRecord = (name: string) => screen.getByRole("article", { name });
+  const customerSearch = () => {
+    const lookup = screen.getByRole("heading", { name: "Find every matching customer" }).closest("article");
+    if (!lookup) throw new Error("Customer lookup not found");
+    return lookup;
+  };
+  const searchPhone = async (phone: string) => {
+    await screen.findByRole("heading", { name: "Find every matching customer" });
+    const lookup = customerSearch();
+    fireEvent.change(within(lookup).getByLabelText("Phone"), { target: { value: phone } });
+    fireEvent.click(within(lookup).getByRole("button", { name: "Search" }));
+    await screen.findByRole("list", { name: "Matching customers" });
+  };
+  // A phone (one pane): the customer record replaces the list.
+  const onePane = () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    vi.stubGlobal("scrollTo", vi.fn());
+  };
+  const ownerContext = { membership_id: "55555555-5555-5555-5555-555555555555", tenant_id: tenant.id, tenant_name: tenant.name, tenant_status: "ACTIVE", role: "owner" };
+  // Two records sharing one phone number (synthetic).
+  const phoneMatches = [
+    { id: "66666666-6666-6666-6666-666666666666", tenant_id: tenant.id, name: "Maya Market", phone: "+96170123456", address: "Hamra, Beirut", latitude: null, longitude: null, grade: "A+", created_at: tenant.created_at, updated_at: tenant.updated_at },
+    { id: "77777777-7777-7777-7777-777777777777", tenant_id: tenant.id, name: "Maya Market — Branch 2", phone: "+96170123456", address: "Verdun, Beirut", latitude: null, longitude: null, grade: "B+", created_at: tenant.created_at, updated_at: tenant.updated_at },
+  ];
+  const createdId = "78787878-7878-4878-8878-787878787878";
+  /** Customer endpoints over fictional records; every request after sign-in is recorded. */
+  const customerApi = (contexts: unknown[] = [ownerContext], refuseUpdate = false) => {
+    const calls: { url: string; method: string; body?: Record<string, unknown> }[] = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
+      if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
+      if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: contexts }));
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : undefined;
+      calls.push({ url, method, ...(body ? { body } : {}) });
+      if (url.includes("/customers/search?")) return Promise.resolve(json({ customers: phoneMatches }));
+      if (url.endsWith("/customers") && method === "POST") return Promise.resolve(json({ ...phoneMatches[0], ...body, id: createdId }, 201));
+      const record = phoneMatches.find((customer) => url.endsWith(`/customers/${customer.id}`));
+      if (record && method === "PUT") return Promise.resolve(refuseUpdate ? json({ detail: { code: "VALIDATION_ERROR", message: "Phone number is not valid" } }, 422) : json({ ...record, ...body }));
+      if (url.includes("/access-link?")) return Promise.resolve(json({ active: null, effective_policy: "LINK", policy_override: null, tenant_policy: "LINK", available_policies: ["LINK", "VERIFIED"], verified_sessions: 0 }));
+      if (url.includes("/categories?")) return Promise.resolve(json({ categories: [] }));
+      throw new Error(`Unexpected request: ${method} ${url}`);
+    }));
+    return calls;
+  };
+
   test("keeps duplicate phone matches separate and updates the selected customer", async () => {
     const context = { membership_id: "55555555-5555-5555-5555-555555555555", tenant_id: tenant.id, tenant_name: tenant.name, tenant_status: "ACTIVE", role: "owner" };
     const customers = [
@@ -346,8 +400,10 @@ describe("tenant customer and category workspace", () => {
 
     expect(await screen.findByText("Hamra, Beirut")).toBeInTheDocument();
     expect(screen.getByText("Verdun, Beirut")).toBeInTheDocument();
+    fireEvent.click(customerRow("Maya Market"));
     expect(screen.getByText(customers[0]!.id)).toHaveAttribute("dir", "ltr");
-    const secondMatch = screen.getByText("Maya Market — Branch 2").closest("article");
+    fireEvent.click(customerRow("Maya Market — Branch 2"));
+    const secondMatch = screen.getByRole("heading", { name: "Maya Market — Branch 2" }).closest("article");
     if (!secondMatch) throw new Error("Second customer match not found");
     fireEvent.click(within(secondMatch).getByRole("button", { name: "Edit" }));
     const customerForm = screen.getByRole("heading", { name: "Edit customer" }).closest("article");
@@ -356,6 +412,151 @@ describe("tenant customer and category workspace", () => {
     fireEvent.change(within(customerForm).getByLabelText("Grade"), { target: { value: "A" } });
     fireEvent.click(within(customerForm).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(updateBody).toMatchObject({ address: "Achrafieh, Beirut", grade: "A" }));
+  });
+
+  test("a chosen result shows the customer's identity, then Edit and Storefront link, and points to Invoices › Balances", async () => {
+    const southRoute = { ...ownerContext, membership_id: "56565656-5656-4656-8656-565656565656", tenant_id: "45454545-4545-4545-8545-454545454545", tenant_name: "South Route" };
+    const calls = customerApi([ownerContext, southRoute]);
+    renderApp(`/workspace?tenant=${southRoute.tenant_id}&section=customers`);
+    expect(await screen.findByRole("heading", { level: 1, name: "South Route" })).toBeInTheDocument();
+    expect(screen.getByText("Choose a customer from the results to see their record, or add a new customer.")).toBeInTheDocument();
+
+    await searchPhone("70 123 456");
+    expect(calls.find((call) => call.url.includes("/customers/search?"))?.url).toContain(`/tenants/${southRoute.tenant_id}/customers/search?phone=70%20123%20456`);
+    fireEvent.click(customerRow("Maya Market — Branch 2"));
+    expect(customerRow("Maya Market — Branch 2")).toHaveAttribute("aria-current", "true");
+    expect(customerRow("Maya Market")).not.toHaveAttribute("aria-current");
+
+    // Identity first: the name as the heading, phone (left to right), address, grade and the record id.
+    const record = customerRecord("Maya Market — Branch 2");
+    const heading = within(record).getByRole("heading", { level: 2, name: "Maya Market — Branch 2" });
+    expect(within(record).getAllByRole("definition").map((value) => value.textContent)).toEqual(["+96170123456", "Verdun, Beirut", "B+"]);
+    expect(within(record).getByText("+96170123456")).toHaveAttribute("dir", "ltr");
+    expect(within(record).getByText(phoneMatches[1]!.id)).toHaveAttribute("dir", "ltr");
+    // Then the two actions; the storefront link opens the existing link controls.
+    const edit = within(record).getByRole("button", { name: "Edit" });
+    const storefront = within(record).getByRole("button", { name: "Storefront link" });
+    expect(heading.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(storefront).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(storefront);
+    expect(storefront).toHaveAttribute("aria-expanded", "true");
+    expect(await within(record).findByRole("button", { name: "Create personalized link" })).toBeInTheDocument();
+    expect(within(record).getByLabelText("Personalized storefront link")).toBeInTheDocument();
+
+    // Balances and receipts are not shown here: one line points to Invoices › Balances of this business.
+    const balances = within(record).getByRole("link", { name: "Invoices › Balances" });
+    expect(balances).toHaveAttribute("href", `/workspace?tenant=${southRoute.tenant_id}&section=invoices`);
+    expect(balances.closest("p")).toHaveTextContent("Balances and receipts for this customer are kept in Invoices › Balances");
+    expect(calls.map((call) => call.url).filter((url) => /ledger|payments|invoices/.test(url))).toEqual([]);
+  });
+
+  test("Edit opens the pre-filled form in the record and Save sends the same update as before", async () => {
+    const calls = customerApi();
+    renderApp("/workspace?section=customers");
+    await searchPhone("70 123 456");
+    fireEvent.click(customerRow("Maya Market — Branch 2"));
+    fireEvent.click(within(customerRecord("Maya Market — Branch 2")).getByRole("button", { name: "Edit" }));
+
+    const title = screen.getByRole("heading", { name: "Edit customer" });
+    await waitFor(() => expect(title).toHaveFocus());
+    const form = title.closest("article");
+    if (!form) throw new Error("Customer form not found");
+    expect(within(form).getByLabelText("Customer name")).toHaveValue("Maya Market — Branch 2");
+    expect(within(form).getByLabelText("Phone")).toHaveValue("+96170123456");
+    expect(within(form).getByLabelText("Address")).toHaveValue("Verdun, Beirut");
+    expect(within(form).getByLabelText("Latitude")).toHaveValue("");
+    expect(within(form).getByLabelText("Grade")).toHaveValue("B+");
+    fireEvent.change(within(form).getByLabelText("Address"), { target: { value: "Achrafieh, Beirut" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save changes" }));
+
+    // The saved customer is shown again as the record, with focus on its name.
+    expect(await screen.findByRole("status")).toHaveTextContent("Customer updated.");
+    const saved = within(customerRecord("Maya Market — Branch 2")).getByRole("heading", { level: 2, name: "Maya Market — Branch 2" });
+    await waitFor(() => expect(saved).toHaveFocus());
+    expect(within(customerRecord("Maya Market — Branch 2")).getByText("Achrafieh, Beirut")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Edit customer" })).not.toBeInTheDocument();
+    const update = calls.find((call) => call.method === "PUT");
+    expect(update?.url).toMatch(new RegExp(`/tenants/${tenant.id}/customers/${phoneMatches[1]!.id}$`));
+    expect(update?.body).toEqual({ name: "Maya Market — Branch 2", phone: "+96170123456", address: "Achrafieh, Beirut", latitude: null, longitude: null, grade: "B+" });
+  });
+
+  test("a refused save keeps the form and what was typed, with the error above", async () => {
+    customerApi([ownerContext], true);
+    renderApp("/workspace?section=customers");
+    await searchPhone("70 123 456");
+    fireEvent.click(customerRow("Maya Market"));
+    fireEvent.click(within(customerRecord("Maya Market")).getByRole("button", { name: "Edit" }));
+    const form = screen.getByRole("heading", { name: "Edit customer" }).closest("article");
+    if (!form) throw new Error("Customer form not found");
+    fireEvent.change(within(form).getByLabelText("Phone"), { target: { value: "+961 not a number" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Phone number is not valid");
+    expect(screen.getByRole("heading", { name: "Edit customer" })).toBeInTheDocument();
+    expect(within(form).getByLabelText("Phone")).toHaveValue("+961 not a number");
+    expect(within(form).getByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
+  test("on a phone a chosen record replaces the list, and All customers returns to the same row with the search intact", async () => {
+    onePane();
+    const calls = customerApi();
+    renderApp("/workspace?section=customers");
+    await searchPhone("70 123 456");
+    const customers = screen.getByRole("region", { name: "Customers" });
+    expect(customers).not.toHaveClass("show-detail");
+
+    fireEvent.click(customerRow("Maya Market — Branch 2"));
+    expect(customers).toHaveClass("show-detail");
+    await waitFor(() => expect(within(customerRecord("Maya Market — Branch 2")).getByRole("heading", { level: 2 })).toHaveFocus());
+
+    fireEvent.click(within(customerRecord("Maya Market — Branch 2")).getByRole("button", { name: "All customers" }));
+    expect(customers).not.toHaveClass("show-detail");
+    await waitFor(() => expect(customerRow("Maya Market — Branch 2")).toHaveFocus());
+    expect(within(customerSearch()).getByLabelText("Phone")).toHaveValue("70 123 456");
+    expect(within(resultList()).getAllByRole("button")).toHaveLength(2);
+    expect(calls.filter((call) => call.url.includes("/customers/search?"))).toHaveLength(1); // the results were kept, not fetched again
+  });
+
+  test("on a phone Add customer opens an empty form in place of the list, and Cancel returns to the list", async () => {
+    onePane();
+    const calls = customerApi();
+    renderApp("/workspace?section=customers");
+    await searchPhone("70 123 456");
+    const customers = screen.getByRole("region", { name: "Customers" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add customer" }));
+    expect(customers).toHaveClass("show-detail");
+    const title = screen.getByRole("heading", { name: "Add customer" });
+    await waitFor(() => expect(title).toHaveFocus());
+    const form = title.closest("article");
+    if (!form) throw new Error("Customer form not found");
+    for (const label of ["Customer name", "Phone", "Address", "Latitude", "Longitude", "Grade"]) expect(within(form).getByLabelText(label)).toHaveValue("");
+    fireEvent.change(within(form).getByLabelText("Customer name"), { target: { value: "Not kept" } });
+
+    fireEvent.click(within(form).getByRole("button", { name: "Cancel" }));
+    expect(customers).not.toHaveClass("show-detail");
+    expect(screen.queryByRole("heading", { name: "Add customer" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add customer" })).toHaveFocus());
+    expect(within(resultList()).getAllByRole("button")).toHaveLength(2);
+    expect(calls.filter((call) => call.method !== "GET")).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Add customer" }));
+    expect(within(screen.getByRole("heading", { name: "Add customer" }).closest("article")!).getByLabelText("Customer name")).toHaveValue("");
+  });
+
+  test("a customer saved from Add customer joins the results and opens as the record", async () => {
+    const calls = customerApi();
+    renderApp("/workspace?section=customers");
+    fireEvent.click(await screen.findByRole("button", { name: "Add customer" }));
+    const form = screen.getByRole("heading", { name: "Add customer" }).closest("article");
+    if (!form) throw new Error("Customer form not found");
+    fireEvent.change(within(form).getByLabelText("Customer name"), { target: { value: "Cedar Corner" } });
+    fireEvent.change(within(form).getByLabelText("Phone"), { target: { value: "+96171000000" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Customer created.");
+    await waitFor(() => expect(within(customerRecord("Cedar Corner")).getByRole("heading", { level: 2, name: "Cedar Corner" })).toHaveFocus());
+    expect(customerRow("Cedar Corner")).toHaveAttribute("aria-current", "true");
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Cedar Corner", phone: "+96171000000", address: null, latitude: null, longitude: null, grade: null });
   });
 
   test("shows bilingual ordered categories, archives safely, and remains usable in RTL", async () => {

@@ -76,6 +76,7 @@ test("VERIFIED policy: link offers verification, the code unlocks prices, the ow
   const finder = page.getByRole("heading", { name: "Find every matching customer" }).locator("..");
   await finder.getByLabel("Phone").fill(customer.phone as string);
   await finder.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("list", { name: "Matching customers" }).getByRole("button").first().click();
   await page.getByRole("button", { name: "Storefront link" }).first().click();
   const linkBox = page.getByLabel("Personalized storefront link");
   await expect(linkBox.getByText(/1 verified session/)).toBeVisible();

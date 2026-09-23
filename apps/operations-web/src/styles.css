@@ -395,16 +395,30 @@ section > header > h3 { font-size: 24px; letter-spacing: -.5px; }
 .field.tenant-picker select { width: auto; min-width: 15rem; max-width: 22rem; }
 .route-book-grid { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.1fr) minmax(18rem, .9fr); align-items: start; }
 .route-form-card h3, .lookup-card h3 { font-size: 20px; }
-.customer-match-list { display: grid; gap: 0; margin-block-start: 16px; }
-.customer-match { display: grid; gap: 10px; padding: 18px 0; border-top: 1px solid var(--line); }
-.customer-match-head { display: flex; align-items: center; gap: 12px; }
-.customer-match-head > div { flex: 1; min-width: 0; }
-.customer-match h4 { font-size: 16px; margin: 0; }
-.customer-match-head bdi { color: var(--muted); font-size: 14px; }
-.customer-match dl { display: grid; gap: 8px 16px; grid-template-columns: 1fr .5fr 1.4fr; margin: 0; }
-.customer-match dl div { min-width: 0; }
-.customer-match dt { color: var(--muted); font-size: 12px; }
-.customer-match dd { font-size: 14px; margin: 2px 0 0; overflow-wrap: anywhere; }
+/* Customers: the phone search and its results beside the chosen record (the work screen's list/detail). */
+.customer-search h2 { font-size: 24px; letter-spacing: -.5px; line-height: 1.25; margin: 0 0 6px; }
+.customer-search > p.muted { margin: 0; max-width: 640px; line-height: 1.6; }
+.customer-add { margin-block-start: 12px; }
+.customer-list { margin-block-start: 20px; border-top: 1px solid var(--line); }
+.customer-row .stop-copy strong, .customer-row .stop-copy small { overflow-wrap: anywhere; }
+.customer-row .badge { flex-shrink: 0; }
+.customer-detail .customer-form-title { font-size: 24px; letter-spacing: -.5px; margin: 0 0 18px; }
+.customer-identity { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.customer-identity .detail-name { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.customer-facts { margin: 0; }
+.customer-facts > div { display: grid; gap: 2px; min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.customer-facts dt { color: var(--muted); font-size: 12px; }
+.customer-facts dd { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.customer-record-id { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 20px; overflow-wrap: anywhere; }
+/* The id moves to its own line as one piece rather than splitting around the label (Arabic especially). */
+.customer-record-id bdi { display: inline-block; }
+.customer-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.customer-actions .button { flex: 1 1 11rem; }
+.customer-detail .customer-link { margin-bottom: 16px; }
+.customer-balances { border-top: 1px solid var(--line); font-size: 14px; line-height: 1.6; margin: 0; padding-top: 14px; }
+.customer-balances a { color: var(--blue); font-weight: 500; text-underline-offset: 3px; }
+.customer-detail-empty { padding: 26px; }
+.customer-detail-empty .empty-copy { margin: 0; }
 .customer-link { display: grid; gap: 10px; padding: 16px; background: var(--paper); border-radius: 10px; }
 .customer-link p { margin: 0; font-size: 14px; }
 .issued-link { display: grid; gap: 8px; }
@@ -864,6 +878,9 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
   .workspace.show-detail .workspace-list { display: none; }
   .workspace.show-detail .detail { display: block; }
   .mobile-back { display: inline-flex; margin: 0 0 14px; }
+  /* Customers on one pane: every control keeps a 48px target, and a row brought back into view clears the bottom bar. */
+  .customers .mobile-back, .customers .text-button { min-height: 48px; }
+  .customer-row, .customer-add { scroll-margin-bottom: calc(var(--bottom-nav) + 16px + env(safe-area-inset-bottom)); }
   .detail-name { font-size: 27px; }
   .action-area.attached { position: fixed; bottom: calc(var(--bottom-nav) + env(safe-area-inset-bottom)); inset-inline: 0; z-index: 19; border: 0; border-top: 1px solid #c9d5e5; padding: 14px 24px; }
   .has-action { padding-bottom: 120px; }
@@ -908,7 +925,7 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
   .manual-entry-method { grid-template-columns: 1fr; }
   .manual-entry-method > button { grid-column: auto; }
   .document-body { grid-template-columns: minmax(0, 1fr); }
-  .customer-match dl { grid-template-columns: 1fr; }
+  .customer-add { width: 100%; }
   .tally-adjustments { grid-template-columns: 1fr; }
   .settlement-grid, .payment-slip dl { grid-template-columns: 1fr; }
   .obligation-card, .receipt-reversal { grid-column: auto; }
