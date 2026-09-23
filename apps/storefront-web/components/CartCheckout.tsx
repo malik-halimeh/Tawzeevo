@@ -85,7 +85,7 @@ export function CartCheckout({ slug, lang, acceptingOrders }: { slug: string; la
         <ul className="cart-lines" aria-label={t(lang, "cart")} ref={cartList} tabIndex={-1}>
           {lines.map((line) => (
             <li key={`${line.product_id}-${line.price_basis}`}>
-              <span className="name">{line.name} <small className="muted">· {line.unit_label}</small></span>
+              <span className="name">{line.name} <small className="muted">{line.unit_label}</small></span>
               <span className="qty">
                 <button aria-label={t(lang, "decrease")} onClick={() => change(line, line.quantity - 1)} type="button"><Icon name="minus" small /></button>
                 <input aria-label={t(lang, "quantity")} inputMode="numeric" min={1} onChange={(event) => change(line, Math.max(1, Number(event.target.value) || 1))} type="number" value={line.quantity} />

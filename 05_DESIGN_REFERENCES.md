@@ -2,9 +2,18 @@
 
 ## Current status
 
-Final visual direction: **NOT YET PROVIDED**
+Visual direction: **Daylight (approved)**. The approved references are:
+- [`docs/design-references/DESIGN_DIRECTION.md`](docs/design-references/DESIGN_DIRECTION.md): tokens,
+  typography, composition, responsive and bilingual rules, protected boundaries;
+- [`docs/design-references/PUBLIC_ENTRY.md`](docs/design-references/PUBLIC_ENTRY.md): public landing and
+  sign-in;
+- [`docs/design-references/prototype/`](docs/design-references/prototype/): the interactive prototype, its
+  screenshots and its executed validation report.
 
-Until references are added:
+These references do not change the source-of-truth precedence in `AGENTS.md`, the Design-Agent
+Contract below, or any phase status.
+
+For screens the references do not cover:
 - build clean, accessible, functional layouts;
 - use semantic structure and design tokens/CSS variables;
 - do not create a final brand identity;

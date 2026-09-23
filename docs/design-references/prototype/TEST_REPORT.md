@@ -103,22 +103,23 @@ JavaScript checked by ESLint, syntax validation and browser tests.
   is shown. Production must preserve `theme.ts` validation/fallback and retest multiple tenant themes.
 - Only the planned representative workflows are included. Full pricing, refunds, cancellations,
   suppliers/procurement, administration, analytics, and settings remain separate work.
-- Fable 5 and remediation closure must precede merging. After integration, repeat real production
-  lint, TypeScript, builds, relevant tests, role-access/E2E journeys, mobile/RTL/accessibility, PWA,
-  and material performance/bundle checks.
+- The independent review and remediation closure must precede merging. After integration, repeat
+  real production lint, TypeScript, builds, relevant tests, role-access/E2E journeys,
+  mobile/RTL/accessibility, PWA, and material performance/bundle checks.
 
 ## Repository isolation
 
-Design branch: `codex/astra-ui-concept`. Baseline:
+Built on a separate design branch. Baseline:
 `aa5185edb493d0f3f3c779c64da337b28b21a7fe`.
 Changes are confined to `docs/design-references/` in the separate managed worktree. No tracked
 production or audit files were changed; the original remediation HEAD and its pre-existing
 untracked `docs/UI/` and `docs/mentor-defense/` remain unchanged.
 
 `graphify update .` was run in the design worktree using AST-only extraction. Its ignored local
-output is supplementary navigation, not a SHA-verified audit artifact for this uncommitted concept.
-No graph results were used to establish security or financial correctness. No commit, push, merge,
-phase completion, deployment, or revision of frozen remediation evidence occurred.
+output is supplementary navigation, not a SHA-verified audit artifact (the concept was not yet
+committed when it ran). No graph results were used to establish security or financial correctness.
+The validation made no merge, phase completion, deployment, or revision of frozen remediation
+evidence.
 
 ## Public-entry extension — 2026-09-22
 

@@ -1,6 +1,6 @@
 # Daylight public entry — design extension
 
-Date: 2026-09-22. Status: implemented as an isolated design prototype, pending visual approval.
+Written 2026-09-22. Status: implemented as an isolated design prototype and approved with the Daylight direction.
 
 ## Intent and scope
 
@@ -71,4 +71,4 @@ node docs/design-references/prototype/tests/lint.cjs
 
 These checks apply to the prototype only. They do not replace physical-phone, software-keyboard, screen-reader, Safari, production authentication, accessibility or PWA regression testing.
 
-The remediation branch and audit evidence remain unchanged. No merge or deployment is authorized by this design preview, and Fable 5/remediation closure remains the integration gate.
+The remediation branch and audit evidence remain unchanged. No merge or deployment is authorized by this design preview, and the independent review and remediation closure remain the integration gate.

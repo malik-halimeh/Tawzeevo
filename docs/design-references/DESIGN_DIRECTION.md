@@ -1,6 +1,7 @@
-# Daylight: draft design direction
+# Daylight: design direction
 
-Status: interactive concept implemented; awaiting visual approval. This is not a production UI freeze.
+Status: approved design direction. The interactive concept is its visual reference; production
+integration is reviewed and validated separately. This is not a production UI freeze.
 
 The public landing/sign-in extension requested on 2026-09-22 is documented in
 [PUBLIC_ENTRY.md](PUBLIC_ENTRY.md), with its own rendered screenshots and browser checks.
@@ -104,10 +105,10 @@ Full pricing, refund, cancellation, supplier, and admin workflows remain outside
 
 ## Isolation, delivery, and handoff
 
-The build lives on `codex/astra-ui-concept`, based on the verified remediation SHA above. The
-remediation checkout, Fable 5 audit target, audit evidence, and owner-supplied untracked documents
-were not changed. This branch must remain unmerged until the independent review and remediation
-closure. No commits, pushes, releases, or deployment changes are part of this delivery.
+The concept was built on a separate design branch, based on the verified remediation SHA above. The
+remediation checkout, the independent final-review target, audit evidence, and owner-supplied
+untracked documents were not changed. The design work stays unmerged until the independent review
+and remediation closure. The concept delivery itself made no release or deployment change.
 
 Open [the prototype](prototype/index.html), [reproduction guide](prototype/README.md), or
 [executed validation report](prototype/TEST_REPORT.md). The application is standalone HTML, CSS,
@@ -117,6 +118,6 @@ The persona picker is a demonstration tool, not authentication; synthetic fixtur
 The implementation agent should carry the approved tokens and interactions into existing
 components only after visual approval. Do not replace the frameworks or import a competing UI kit.
 Broader administration, procurement, analytics, settings, and production PWA work follow separately.
-After Fable 5 and remediation closure, reconcile against the corrected codebase and run fresh
-production lint, TypeScript, component, E2E, role-access, accessibility, RTL, mobile, PWA, and
-material bundle/performance checks. Prototype validation does not replace those gates.
+After the independent review and remediation closure, reconcile against the corrected codebase and
+run fresh production lint, TypeScript, component, E2E, role-access, accessibility, RTL, mobile, PWA,
+and material bundle/performance checks. Prototype validation does not replace those gates.
