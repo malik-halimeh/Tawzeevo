@@ -665,6 +665,16 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .delivery-create { margin: 16px 0; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto; }
 .delivery-row { align-items: flex-start; }
 .delivery-row .category-actions { margin-top: 8px; }
+.delivery-row.is-context { background: var(--mist); border-radius: 10px; padding-inline: 12px; }
+/* Next steps after an invoice becomes official (orders and invoices): links, never new rules. */
+.next-steps { display: grid; gap: 12px; margin-top: 16px; }
+.next-steps h5 { margin: 0; }
+.next-steps-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.next-steps-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.next-steps-list a:not(.button) { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--blue); }
+.order-links { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.order-links a { color: var(--blue); font-weight: 600; }
+.document-actions.read-only { align-items: center; }
 .team { border: 1px solid var(--line); border-radius: 10px; padding: 0 16px; margin: 12px 0; background: var(--surface); }
 .team summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 500; }
 .team[open] summary { border-bottom: 1px solid var(--line); }
@@ -834,6 +844,7 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
 .obligation-row time { color: var(--muted); font-size: 12px; }
 .obligation-row bdi { font-weight: 600; }
 .obligation-row input { min-width: 0; }
+.obligation-row.is-context { background: var(--mist); border-radius: 8px; padding-inline: 8px; }
 .fifo-mark { background: var(--good-bg); border-radius: 5px; color: var(--good); font-size: 12px; font-weight: 500; justify-self: end; padding: 4px 8px; }
 .refund-card > p { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
 .debt-desk { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-record); display: grid; gap: 16px; padding: 22px; }

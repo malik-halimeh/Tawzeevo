@@ -1,10 +1,15 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderBare, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
 import { DeliveryPanel } from "./DeliveryPanel";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+/** Delivery entries link to their invoice, so the panel renders inside a router. */
+const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>);
 
 const me = { membership_id: "m1", role: "owner", display_name: "Layla Haddad", is_self: true };
 const baseTask = { id: "t1", status: "ASSIGNED", invoice_id: "inv1", official_invoice_number: "2026-000001", order_id: null, customer_id: "c1", customer_name: "Corner Shop", customer_phone: "+96170000001", customer_address: "Hamra", customer_latitude: null, customer_longitude: null, assignee: me, delivery_date: "2026-09-20", route_sequence: null, currency: "USD", amount_to_collect: "30.0000", items: [{ product_name: "Labneh", quantity: "3.0000", price_basis: "PIECE", pieces_per_box: null }], notes: null, completed_at: null, performed_by: null, completion_note: null, cancelled_at: null, cancel_reason: null, version: 1, created_at: "2026-09-19T06:00:00Z" };
@@ -37,4 +42,34 @@ test("sole owner creates a delivery for a confirmed invoice with no driver setup
   fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
   expect(await screen.findByText("Delivery marked done.")).toBeInTheDocument();
   expect(bodies.find((b) => "expected_version" in b)).toEqual({ expected_version: 1, note: null });
+});
+
+test("opened for an invoice: it is preselected when deliverable, unknown ids are ignored, and entries link to their invoice", async () => {
+  await i18n.changeLanguage("en");
+  const bodies: Record<string, unknown>[] = [];
+  const listed: string[] = [];
+  const done = { ...baseTask, id: "t9", invoice_id: "inv9", official_invoice_number: "2026-000009", status: "COMPLETED" };
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    const path = url.split("?")[0]!;
+    if (typeof init?.body === "string") bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+    if (path.endsWith("/delivery-tasks") && init?.method === "POST") return Promise.resolve(Response.json({ ...baseTask }, { status: 201 }));
+    if (path.endsWith("/delivery-tasks")) { listed.push(url); return Promise.resolve(Response.json({ tasks: [done], eligible_members: [me], sole_operator: true })); }
+    if (path.endsWith("/memberships")) return Promise.resolve(Response.json({ members: [] }));
+    if (path.endsWith("/eligible-invoices")) return Promise.resolve(Response.json({ invoices: [{ invoice_id: "inv1", official_invoice_number: "2026-000001", customer_id: "c1", customer_name: "Corner Shop", currency: "USD", net_sales: "30.0000", confirmed_at: "2026-09-19T05:00:00Z", order_id: null, delivery_date: null }] }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+
+  render(<DeliveryPanel focusInvoiceId="inv1" tenantId="t1" />);
+  await waitFor(() => expect(screen.getByLabelText("Confirmed invoice")).toHaveValue("inv1"));
+  expect(listed[0]).not.toContain("status="); // every state, so the invoice's delivery is found
+  fireEvent.click(screen.getByRole("button", { name: "Create delivery" }));
+  expect(await screen.findByText("Delivery created.")).toBeInTheDocument();
+  expect(bodies[0]).toEqual({ invoice_id: "inv1", assigned_membership_id: null, delivery_date: null }); // same command as by hand
+  expect(screen.getByRole("link", { name: "Open invoice 2026-000009" })).toHaveAttribute("href", "/workspace?tenant=t1&section=invoices&invoice=inv9");
+
+  cleanup();
+  render(<DeliveryPanel focusInvoiceId="not-ours" tenantId="t1" />);
+  expect(await screen.findByRole("option", { name: /2026-000001/ })).toBeInTheDocument();
+  expect(screen.getByLabelText("Confirmed invoice")).toHaveValue("");
 });

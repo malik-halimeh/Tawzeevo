@@ -156,12 +156,23 @@ class OrderInvoiceView(BaseModel):
     items: list[OrderInvoiceLine]
 
 
+class OrderDeliveryRef(BaseModel):
+    """Enough to link the order to its delivery and resume later; no driver or route data."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    status: str
+    delivery_date: date | None
+
+
 class OrderDetailResponse(BaseModel):
     order: OrderSummary
     invoice: OrderInvoiceView | None
     candidates: list[CustomerCandidate]
     cancellation_requests: list[CancellationRequestResponse]
     linked_customer_name: str | None = None
+    deliveries: list[OrderDeliveryRef] = Field(default_factory=list)
 
 
 class LinkCustomerRequest(BaseModel):

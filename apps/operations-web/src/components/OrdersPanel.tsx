@@ -2,8 +2,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Link } from "react-router-dom";
+
 import { apiRequest } from "../api/client";
+import { NextSteps } from "./NextSteps";
 import { PENDING_ORDERS_KEY } from "./pendingOrders";
+import { sectionHref } from "./workspaceSections";
 import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 
@@ -22,7 +26,8 @@ interface Candidate { id: string; name: string; phone: string; grade: string | n
 interface CancellationRequest { id: string; order_id: string; status: "PENDING" | "APPROVED" | "REJECTED"; reason: string | null; created_at: string; decided_at: string | null; decision_note: string | null }
 interface InvoiceLine { id: string; product_name: string; quantity: string; effective_unit_price: string; line_total: string }
 interface InvoiceView { id: string; status: string; current_revision_id: string; official_invoice_number: string | null; net_sales: string; currency: string; items: InvoiceLine[] }
-interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[]; linked_customer_name?: string | null }
+interface OrderDelivery { id: string; status: "ASSIGNED" | "COMPLETED" | "CANCELLED"; delivery_date: string | null }
+interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[]; linked_customer_name?: string | null; deliveries?: OrderDelivery[] }
 
 export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; orderId?: string | null }) {
   const { t, i18n } = useTranslation();
@@ -178,6 +183,19 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
                 </div>
                 <p className="muted">{t("orders.editNote")}</p>
               </div>
+            ) : null}
+
+            {/* The official invoice and its delivery stay one click away, so the owner can stop and resume. */}
+            {invoice?.official_invoice_number && selected.order.status !== "CONFIRMED" ? (
+              <p className="order-links"><span>{t("nextSteps.linkedInvoice")}</span> <Link to={sectionHref("invoices", tenantId, { invoice: invoice.id })}><bdi dir="ltr">{invoice.official_invoice_number}</bdi></Link></p>
+            ) : null}
+            {selected.order.status === "CONFIRMED" && invoice ? <NextSteps invoice={invoice} tenantId={tenantId} /> : null}
+            {selected.deliveries?.length ? (
+              <ul aria-label={t("nextSteps.deliveries")} className="order-links">
+                {selected.deliveries.map((task) => (
+                  <li key={task.id}><Link to={sectionHref("deliveries", tenantId, { invoice: invoice?.id ?? null })}>{t("nextSteps.deliveries")} · {t(`delivery.status.${task.status}`)}{task.delivery_date ? <> · <bdi dir="ltr">{task.delivery_date}</bdi></> : null}</Link></li>
+                ))}
+              </ul>
             ) : null}
 
             {selected.order.status === "CONFIRMED" ? (

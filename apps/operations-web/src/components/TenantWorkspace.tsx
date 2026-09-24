@@ -993,11 +993,11 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "work" ? (
             <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
-            <DeliveryPanel tenantId={context.tenant_id} />
+            <DeliveryPanel focusInvoiceId={searchParams.get("invoice")} key={searchParams.get("invoice") ?? "all"} tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : (
-            <InvoiceEditor tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={() => setView("suppliers")} />
+            <InvoiceEditor initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={() => setView("suppliers")} />
           )}
         </>
       ) : null}
