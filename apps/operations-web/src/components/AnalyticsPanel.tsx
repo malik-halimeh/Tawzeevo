@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import type { Customer, CustomerSearchResponse } from "../api/types";
+import { AnomalySection, CashFlowSection } from "./IntelligencePanel";
 import { ErrorState } from "./Ui";
 
 /**
@@ -83,6 +84,9 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
             <div><dt>{t("analytics.customerOutstanding")}</dt><dd dir="ltr">{money(overview.customer_outstanding)}{overview.customer_credit.length ? ` (${t("purchases.credit")} ${money(overview.customer_credit)})` : ""}</dd></div>
             <div><dt>{t("analytics.supplierPayable")}</dt><dd dir="ltr">{money(overview.supplier_payable)}{overview.supplier_credit.length ? ` (${t("purchases.credit")} ${money(overview.supplier_credit)})` : ""}</dd></div>
           </dl>
+          {/* D-089: how old what customers owe is, what came in, and what this week did differently. */}
+          <CashFlowSection period={period} tenantId={tenantId} />
+          <AnomalySection tenantId={tenantId} />
           <h4>{t("analytics.profitTitle")}</h4>
           <p className="muted">{t("analytics.profitBody")}</p>
           {overview.gross_profit.length === 0 ? <p className="muted">—</p> : (
