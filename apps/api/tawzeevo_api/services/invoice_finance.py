@@ -216,9 +216,25 @@ def cancel_invoice(
     invoice_id: UUID,
     request: InvoiceCancelRequest,
 ) -> InvoiceEditorResponse:
+    invoice = apply_invoice_cancellation(db, tenant_id, actor_user_id, invoice_id, request)
+    commit_and_restore_tenant_scope(db, tenant_id)
+    db.refresh(invoice)
+    return _editor_response(db, tenant_id, invoice)
+
+
+def apply_invoice_cancellation(
+    db: Session,
+    tenant_id: UUID,
+    actor_user_id: UUID,
+    invoice_id: UUID,
+    request: InvoiceCancelRequest,
+) -> Invoice:
+    """Every effect of cancelling an invoice, without committing: the caller commits once with its
+    own state change (an order decision), so an order is never left behind a cancelled invoice.
+    A storefront draft may have no customer yet; only a confirmed invoice needs one."""
     invoice = _locked_invoice(db, tenant_id, invoice_id)
     if invoice.status is InvoiceStatus.CANCELLED:
-        return _editor_response(db, tenant_id, invoice)
+        return invoice
     revision = _revision(db, tenant_id, invoice)
     cancelled_at = datetime.now(UTC)
     released_credit = Decimal("0.0000")
@@ -338,9 +354,7 @@ def cancel_invoice(
             },
         )
     )
-    commit_and_restore_tenant_scope(db, tenant_id)
-    db.refresh(invoice)
-    return _editor_response(db, tenant_id, invoice)
+    return invoice
 
 
 def _balance_excluding_invoice(
