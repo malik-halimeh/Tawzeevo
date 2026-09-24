@@ -26,6 +26,7 @@ const copy = {
     once: "Copy or share this new link now. The secret cannot be retrieved later; replace the link if needed.",
     noPhone: "A valid customer phone snapshot is required for WhatsApp sharing.",
     empty: "No links have been created.", link: "Private invoice URL",
+    copyLink: "Copy share link", copied: "Share link copied", copyFailed: "Copy did not work; select the link and copy it.",
   },
   ar: {
     title: "مشاركة الفاتورة", manage: "إدارة روابط الفاتورة", create: "إنشاء رابط خاص",
@@ -35,6 +36,7 @@ const copy = {
     once: "انسخ أو شارك الرابط الجديد الآن. لا يمكن استرجاعه لاحقاً؛ استبدله عند الحاجة.",
     noPhone: "يلزم رقم هاتف عميل صالح محفوظ في الفاتورة للمشاركة عبر واتساب.",
     empty: "لم يتم إنشاء روابط.", link: "رابط الفاتورة الخاص",
+    copyLink: "نسخ رابط المشاركة", copied: "تم نسخ رابط المشاركة", copyFailed: "تعذّر النسخ؛ حدّد الرابط وانسخه.",
   },
 };
 
@@ -64,6 +66,13 @@ export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invo
     await load();
   };
   const url = issued ? `${API_BASE_URL}${issued.public_path}` : "";
+  // The customer view opens without signing in and shows only this invoice (verified end to end),
+  // so the copied link is the same share the WhatsApp button sends.
+  const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
+  const copyLink = () => {
+    if (!url) return;
+    void (navigator.clipboard?.writeText(url) ?? Promise.reject(new Error("no clipboard"))).then(() => setCopied("yes")).catch(() => setCopied("failed"));
+  };
   const whatsapp = issued?.customer_phone
     ? `https://wa.me/${issued.customer_phone.replace(/^\+/, "")}?text=${encodeURIComponent(`${issued.summary}\n${url}`)}`
     : undefined;
@@ -86,6 +95,8 @@ export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invo
     {issued ? <div className="invoice-share-issued" role="status">
       <p>{words.once}</p>
       <label className="field"><span>{words.link}</span><input dir="ltr" readOnly value={url} onFocus={event => event.target.select()} /></label>
+      <button className="text-button" onClick={copyLink} type="button">{copied === "yes" ? words.copied : words.copyLink}</button>
+      {copied === "failed" ? <p className="backend-note">{words.copyFailed}</p> : null}
       <a href={url} target="_blank" rel="noopener noreferrer">{words.preview}</a>
       {whatsapp ? <a className="button" href={whatsapp} target="_blank" rel="noopener noreferrer">{words.whatsapp}</a> : <p>{words.noPhone}</p>}
     </div> : null}

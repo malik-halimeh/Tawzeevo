@@ -89,6 +89,8 @@ test("Payments opened for the newer invoice selects its open amount and sends th
   await waitFor(() => expect(within(payments).getByLabelText(`Allocate to Invoice ${newer.number}`)).toHaveValue(22.5));
   expect(within(payments).getByRole("button", { name: "Choose amounts" })).toHaveAttribute("aria-pressed", "true");
   expect(within(payments).getByLabelText(`Allocate to Invoice ${older.number}`)).toHaveValue(null);
+  // M4: an invoice reference on a payment line opens that invoice.
+  expect(within(payments).getByRole("link", { name: `Invoice ${older.number}` })).toHaveAttribute("href", `/workspace?tenant=${tenantId}&section=invoices&invoice=${older.id}`);
   expect(within(payments).getByLabelText("Amount received")).toHaveValue(22.5);
   fireEvent.click(within(payments).getByRole("button", { name: "Record receipt" }));
   await waitFor(() => expect(receipts, `${requested.join(" | ")} || ${screen.queryByRole("alert")?.textContent ?? ""}`).toHaveLength(1));
