@@ -983,7 +983,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "backup" ? (
             <BackupPanel tenantId={context.tenant_id} initialNotice={backupNotice} />
           ) : view === "orders" ? (
-            <OrdersPanel tenantId={context.tenant_id} />
+            <OrdersPanel orderId={searchParams.get("order")} tenantId={context.tenant_id} />
           ) : view === "procurement" ? (
             <ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "analytics" ? (

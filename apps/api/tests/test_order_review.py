@@ -355,3 +355,61 @@ def test_cancellation_request_and_owner_decision_reverse_confirmed_sales(client,
         client.get(f"/api/v1/tenants/{tenant}/notifications", headers=_auth(token)).json()["unread"]
         == 2
     )  # arrival + 2 requests, 1 read
+
+
+def test_orders_awaiting_review_are_tenant_isolated_and_drop_after_a_decision(
+    client, session_factory
+):
+    """The owner's new-order badge polls `?status=RECEIVED`: only this business's orders that
+    still await the owner, with id, contact name and creation time; a decision removes one."""
+    owner, tenant, token = _owner_context(client, session_factory, "badge-one")
+    _category, product, _customer = _catalog(client, tenant, token, name="Cedar Water")
+    _publish(client, tenant, token, product["id"])
+    other_owner, other, other_token = _owner_context(client, session_factory, "badge-two")
+    _c2, other_product, _cu2 = _catalog(
+        client, other, other_token, name="Other Water", barcode="5280000000029"
+    )
+    _publish(client, other, other_token, other_product["id"])
+
+    first, _ = _place(client, session_factory, owner, tenant, token, product, name="First Buyer")
+    second, _ = _place(client, session_factory, owner, tenant, token, product, name="Second Buyer")
+    foreign, _ = _place(
+        client, session_factory, other_owner, other, other_token, other_product, name="Foreign"
+    )
+
+    def pending(tenant_id, auth_token):
+        r = client.get(
+            f"/api/v1/tenants/{tenant_id}/orders",
+            params={"status": "RECEIVED"},
+            headers=_auth(auth_token),
+        )
+        assert r.status_code == 200, r.text
+        return r.json()["orders"]
+
+    rows = pending(tenant, token)
+    assert {row["id"] for row in rows} == {first["order_id"], second["order_id"]}
+    assert {row["contact_name"] for row in rows} == {"First Buyer", "Second Buyer"}
+    assert all(row["status"] == "RECEIVED" and row["created_at"] for row in rows)
+    assert [row["id"] for row in pending(other, other_token)] == [foreign["order_id"]]
+    # Another business's owner cannot read this business's inbox at all.
+    assert client.get(
+        f"/api/v1/tenants/{tenant}/orders",
+        params={"status": "RECEIVED"},
+        headers=_auth(other_token),
+    ).status_code in (403, 404)
+
+    # A decision (here: link, then decline) removes the order from the awaiting set.
+    linked = client.post(
+        f"/api/v1/tenants/{tenant}/orders/{first['order_id']}/link-customer",
+        headers=_auth(token),
+        json={"create_from_snapshot": True, "grade": "B"},
+    )
+    assert linked.status_code == 200, linked.text
+    assert len(pending(tenant, token)) == 2, "linking alone is not a decision"
+    declined = client.post(
+        f"/api/v1/tenants/{tenant}/orders/{first['order_id']}/decline",
+        headers=_auth(token),
+        json={"note": None},
+    )
+    assert declined.status_code == 200, declined.text
+    assert [row["id"] for row in pending(tenant, token)] == [second["order_id"]]

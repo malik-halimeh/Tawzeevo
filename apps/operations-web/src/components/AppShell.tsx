@@ -7,6 +7,7 @@ import { apiRequest } from "../api/client";
 import type { TenantContextListResponse } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { Icon, type IconName } from "./Icon";
+import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
 import { PHONE_PRIMARY_SECTIONS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_SECTIONS, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
 
 type ShellLink = readonly [string, string, IconName];
@@ -143,6 +144,36 @@ export function AppShell() {
   const ownerNav = !isAdmin && activeSelection && selected?.role === "owner";
   const driverNav = !isAdmin && activeSelection && selected?.role === "driver";
   const links: readonly ShellLink[] = isAdmin ? adminLinks : [[sectionHref("work", tenantParam), "nav.overview", "work"]];
+  // Orders awaiting the owner of the business on screen: the Orders badge, the tab title and a
+  // notice for orders that arrive while the workspace is open (the first answer is the baseline).
+  const ownerTenant = ownerNav && selected ? selected.tenant_id : null;
+  const baseline = useRef<{ tenant: string; ids: Set<string> } | null>(null);
+  const [arrival, setArrival] = useState<{ tenant: string; orders: PendingOrder[] } | null>(null);
+  const pending = useQuery({
+    queryKey: [PENDING_ORDERS_KEY, ownerTenant],
+    queryFn: async () => {
+      const tenant = ownerTenant!;
+      const orders = await fetchPendingOrders(tenant);
+      const previous = baseline.current?.tenant === tenant ? baseline.current.ids : null;
+      const fresh = newArrivals(previous, orders);
+      baseline.current = { tenant, ids: new Set(orders.map((order) => order.id)) };
+      if (fresh.length) setArrival({ tenant, orders: fresh });
+      return orders;
+    },
+    enabled: ownerTenant !== null,
+    refetchInterval: PENDING_POLL_MS,
+    refetchIntervalInBackground: true, // the title keeps counting in a hidden tab (throttling is fine)
+  });
+  const pendingCount = ownerTenant ? pending.data?.length ?? 0 : 0;
+  const baseTitle = useRef(document.title);
+  useEffect(() => { document.title = titleWithCount(baseTitle.current, pendingCount); }, [pendingCount]);
+  useEffect(() => () => { document.title = baseTitle.current; }, []);
+  useEffect(() => {
+    if (!arrival) return;
+    const timer = window.setTimeout(() => setArrival(null), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [arrival]);
+  const shownArrival = arrival && arrival.tenant === ownerTenant ? arrival.orders : null;
   const initials = `${user?.first_name?.[0] ?? ""}${user?.last_name?.[0] ?? ""}`;
   const roleLabel = t(isAdmin ? "roles.platformAdmin" : "roles.client");
 
@@ -180,6 +211,7 @@ export function AppShell() {
       <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} key={id} to={sectionHref(id, tenantParam)}>
         <Icon name={meta.icon} />
         <span>{t(meta.label)}</span>
+        {id === "orders" && pendingCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{t("orders.awaitingBadge", { count: pendingCount })}</span></span> : null}
       </Link>
     );
   };
@@ -243,8 +275,21 @@ export function AppShell() {
         <button aria-controls="more-sheet" aria-expanded={moreOpen} className={`mobile-nav-item${moreOpen ? " active" : ""}`} onClick={() => setMoreOpen((open) => !open)} ref={moreButton} type="button">
           <Icon name="more" />
           <span>{t("nav.more")}</span>
+          {ownerNav && pendingCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{t("orders.awaitingBadge", { count: pendingCount })}</span></span> : null}
         </button>
       </nav>
+      {/* One polite live region, always present, so a new-order notice is announced once. */}
+      <div aria-live="polite" className="toast-region">
+        {shownArrival ? (
+          <div className="toast">
+            <Icon name="bag" />
+            <Link onClick={() => setArrival(null)} to={shownArrival.length === 1 ? sectionHref("orders", tenantParam, { order: shownArrival[0]!.id }) : sectionHref("orders", tenantParam)}>
+              {shownArrival.length === 1 ? t("orders.newOrderFrom", { name: shownArrival[0]!.contact_name }) : t("orders.newOrders", { count: shownArrival.length })}
+            </Link>
+            <button aria-label={t("orders.dismissNotice")} className="toast-close" onClick={() => setArrival(null)} type="button"><Icon name="close" /></button>
+          </div>
+        ) : null}
+      </div>
       {moreOpen ? (
         <div aria-label={t("nav.moreMenu")} className="more-sheet" id="more-sheet" ref={sheet} role="group">
           {ownerNav ? (

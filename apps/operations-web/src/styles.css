@@ -344,6 +344,15 @@ html[dir="rtl"] .hero-art::before { border-radius: 16px 100px 16px 16px; }
 .nav-item.active { background: var(--mist); color: var(--blue); font-weight: 600; }
 .nav-item.active::before { content: ""; position: absolute; inset-inline-start: 0; width: 3px; height: 19px; background: var(--blue); border-radius: 2px; }
 .nav-item-minor { min-height: 40px; padding-block: 8px; gap: 12px; font-size: 14px; }
+/* Orders awaiting review: a small count on the Orders entry (and on More, where Orders lives on phones). */
+.nav-badge { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; margin-inline-start: auto; border-radius: 11px; background: var(--blue); color: var(--surface); font-size: 12px; font-weight: 600; line-height: 1; }
+.mobile-nav-item .nav-badge { position: absolute; top: 4px; inset-inline-end: 8px; margin: 0; min-width: 18px; height: 18px; font-size: 11px; }
+.toast-region { position: fixed; inset-block-end: 24px; inset-inline-end: 24px; z-index: 30; max-width: min(420px, calc(100vw - 32px)); }
+.toast { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-inline-start: 4px solid var(--blue); border-radius: 10px; box-shadow: 0 8px 24px rgb(23 42 58 / 14%); }
+.toast a { color: var(--blue); font-weight: 600; flex: 1; }
+.toast-close { display: inline-grid; place-items: center; min-width: 40px; min-height: 40px; border: 0; background: transparent; color: var(--muted); border-radius: 8px; }
+.toast-close:hover { background: var(--paper); color: var(--ink); }
+@media (max-width: 1099px) { .toast-region { inset-block-end: calc(var(--bottom-nav) + 12px + env(safe-area-inset-bottom)); inset-inline: 16px; max-width: none; } }
 .nav-item-minor .icon { width: 19px; height: 19px; }
 .rail-bottom { margin-top: auto; border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 2px; font-size: 14px; }
 .rail-bottom .text-btn { min-height: 40px; padding: 6px 14px; }

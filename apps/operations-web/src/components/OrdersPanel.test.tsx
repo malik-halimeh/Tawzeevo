@@ -1,10 +1,14 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, render as renderBare, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
 import { OrdersPanel } from "./OrdersPanel";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+const render = (ui: ReactElement) => renderBare(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
 
 test("owner links a suggested customer explicitly, then confirms the order", async () => {
   await i18n.changeLanguage("en");
@@ -30,7 +34,7 @@ test("owner links a suggested customer explicitly, then confirms the order", asy
   }));
 
   render(<OrdersPanel tenantId="t1" />);
-  expect(await screen.findByText("1 new")).toBeInTheDocument();
+  expect(await screen.findByText("1 awaiting review")).toBeInTheDocument(); // same meaning as the Orders badge
   fireEvent.click(await screen.findByRole("button", { name: /Rami/ }));
   expect(await screen.findByText("Water")).toBeInTheDocument();
   const confirm = screen.getByRole("button", { name: "Confirm and assign invoice number" });
@@ -84,4 +88,21 @@ test("an order placed through a personalized link arrives linked: no customer pi
   expect(screen.queryByRole("button", { name: "Create a new customer from these details" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /suggested/ })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Confirm and assign invoice number" })).toBeEnabled();
+});
+
+test("a link naming an order (the new-order notice) opens that order directly", async () => {
+  await i18n.changeLanguage("en");
+  const order = {
+    id: "o7", status: "RECEIVED", contact_name: "Lina Market", contact_phone: "+96170000007", contact_address: "Saida", notes: null, currency: "USD",
+    intended_customer_id: null, intended_assurance: null, linked_customer_id: null, invoice_id: "inv7", delivery_date: null,
+    decision_note: null, created_at: "2026-09-24T00:00:00Z", decided_at: null,
+  };
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = input instanceof Request ? input.url : input.toString();
+    if (path.includes("/orders/o7")) return Promise.resolve(Response.json({ order, invoice: null, candidates: [], cancellation_requests: [] }));
+    if (path.includes("/orders")) return Promise.resolve(Response.json({ orders: [order] }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+  render(<OrdersPanel orderId="o7" tenantId="t1" />);
+  expect(await screen.findByRole("article", { name: "Order review" })).toHaveTextContent("Lina Market");
 });

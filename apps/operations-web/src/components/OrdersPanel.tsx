@@ -1,7 +1,9 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
+import { PENDING_ORDERS_KEY } from "./pendingOrders";
 import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 
@@ -22,12 +24,14 @@ interface InvoiceLine { id: string; product_name: string; quantity: string; effe
 interface InvoiceView { id: string; status: string; current_revision_id: string; official_invoice_number: string | null; net_sales: string; currency: string; items: InvoiceLine[] }
 interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[]; linked_customer_name?: string | null }
 
-export function OrdersPanel({ tenantId }: { tenantId: string }) {
+export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; orderId?: string | null }) {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   // Undefined until the first answer, so "no orders yet" is never shown while the inbox is still loading.
   const [loadedOrders, setOrders] = useState<OrderSummary[]>();
   const orders = loadedOrders ?? [];
-  const [unread, setUnread] = useState(0);
+  // The same meaning as the Orders badge: orders still awaiting the owner's decision.
+  const awaiting = orders.filter((order) => order.status === "RECEIVED").length;
   const [selected, setSelected] = useState<OrderDetail>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -43,12 +47,8 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [list, notes] = await Promise.all([
-        apiRequest<{ orders: OrderSummary[] }>(`${base}/orders${q}`),
-        apiRequest<{ unread: number }>(`${base}/notifications${q}&unread_only=true`),
-      ]);
+      const list = await apiRequest<{ orders: OrderSummary[] }>(`${base}/orders${q}`);
       setOrders(list.orders);
-      setUnread(notes.unread);
     } catch (caught) { setError(caught); }
   }, [base, q]);
 
@@ -64,9 +64,19 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
     } catch (caught) { setError(caught); }
   }, [base, q]);
 
+  // Opened from a link (the new-order notice, or a later resume): refresh the list, open that order.
+  useEffect(() => {
+    if (!orderId) return;
+    void refresh();
+    void open(orderId);
+  }, [orderId, open, refresh]);
+
   const run = (action: () => Promise<string | undefined>) => {
     setBusy(true); setError(undefined); setNotice(undefined);
-    action().then((message) => { if (message) setNotice(message); }).catch(setError).finally(() => { setBusy(false); void refresh(); if (selected) void open(selected.order.id); });
+    action().then((message) => { if (message) setNotice(message); }).catch(setError).finally(() => {
+      setBusy(false); void refresh(); if (selected) void open(selected.order.id);
+      void queryClient.invalidateQueries({ queryKey: [PENDING_ORDERS_KEY] }); // the badge drops at once
+    });
   };
   const link = (candidateId?: string) => run(async () => {
     if (!selected) return undefined;
@@ -104,7 +114,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
     <section className="orders-panel" aria-labelledby="orders-title" ref={root}>
       <header>
         <p className="section-kicker">{t("orders.kicker")}</p>
-        <h3 id="orders-title">{t("orders.title")} {unread > 0 ? <span className="status-badge">{t("orders.unread", { count: unread })}</span> : null}</h3>
+        <h3 id="orders-title">{t("orders.title")} {awaiting > 0 ? <span className="status-badge">{t("orders.awaiting", { count: awaiting })}</span> : null}</h3>
         <p>{t("orders.body")}</p>
       </header>
       {error ? <ErrorState error={error} /> : null}
