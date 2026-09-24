@@ -175,6 +175,8 @@ class CustomerContextResponse(BaseModel):
     required_policy: str = "LINK"
     granted: bool = True
     contact_hint: str = ""
+    # Granted contexts only: whether checkout may fall back to the saved address (D-090).
+    has_saved_address: bool = False
 
 
 class VerificationConfirmRequest(BaseModel):

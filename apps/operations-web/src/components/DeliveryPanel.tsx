@@ -1,10 +1,12 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
 import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
+import { sectionHref } from "./workspaceSections";
 
 /**
  * Owner delivery desk (PHASE_07.md A/B/C/J; D-063). A sole owner sees "My deliveries" and is the
@@ -22,14 +24,16 @@ interface TaskList { tasks: Task[]; eligible_members: Assignee[]; sole_operator:
 interface Member { id: string; role: string; is_active: boolean; display_name: string; email: string; is_self: boolean; revoked_at: string | null }
 interface Eligible { invoice_id: string; official_invoice_number: string | null; customer_id: string; customer_name: string; currency: string; net_sales: string; confirmed_at: string | null; order_id: string | null; delivery_date: string | null }
 
-export function DeliveryPanel({ tenantId }: { tenantId: string }) {
+export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: string; focusInvoiceId?: string | null }) {
   const { t, i18n } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
   const [data, setData] = useState<TaskList>();
   // Undefined until the first answer, so the invoice picker never says "nothing waiting" while it is loading.
   const [loadedEligible, setEligible] = useState<Eligible[]>();
   const eligible = loadedEligible ?? [];
-  const [statusFilter, setStatusFilter] = useState<"ASSIGNED" | "COMPLETED" | "CANCELLED" | "">("ASSIGNED");
+  // Opened for one invoice (order next steps, an order's delivery link): show every state so that
+  // invoice's delivery is found whether it is open or done.
+  const [statusFilter, setStatusFilter] = useState<"ASSIGNED" | "COMPLETED" | "CANCELLED" | "">(focusInvoiceId ? "" : "ASSIGNED");
   const [invoiceId, setInvoiceId] = useState("");
   const [assignee, setAssignee] = useState("");
   const [date, setDate] = useState("");
@@ -51,6 +55,15 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
     setData(list); setEligible(open.invoices); setTeam(team.members);
   }, [q, statusFilter, tenantId]);
   useEffect(() => { refresh().catch(setError); }, [refresh]);
+
+  // Preselect the linked invoice once, only when it is one this business may deliver now; anything
+  // else (already delivered, unknown, another business's) leaves the picker as it is.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !focusInvoiceId || loadedEligible === undefined) return;
+    prefilled.current = true;
+    if (loadedEligible.some((row) => row.invoice_id === focusInvoiceId)) setInvoiceId(focusInvoiceId);
+  }, [focusInvoiceId, loadedEligible]);
 
   const run = (action: () => Promise<string | undefined>) => {
     setBusy(true); setError(undefined); setNotice(undefined);
@@ -146,11 +159,11 @@ export function DeliveryPanel({ tenantId }: { tenantId: string }) {
       </details>
       <ul className="outbox-list delivery-list" aria-label={t("delivery.list")}>
         {data?.tasks.map((task) => (
-          <li className="outbox-row delivery-row" key={task.id}>
+          <li aria-current={task.invoice_id === focusInvoiceId ? "true" : undefined} className={`outbox-row delivery-row${task.invoice_id === focusInvoiceId ? " is-context" : ""}`} key={task.id}>
             <div>
               <strong>{task.customer_name}</strong> · <bdi dir="ltr">{task.customer_phone}</bdi>{task.customer_address ? ` · ${task.customer_address}` : ""}
               <div className="muted">
-                <bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi> · {t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi>
+                <Link aria-label={t("delivery.openInvoice", { number: task.official_invoice_number ?? "…" })} to={sectionHref("invoices", tenantId, { invoice: task.invoice_id })}><bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi></Link> · {t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi>
                 {task.delivery_date ? <> · <bdi dir="ltr">{task.delivery_date}</bdi></> : null} · {task.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}
               </div>
               <div className="muted">

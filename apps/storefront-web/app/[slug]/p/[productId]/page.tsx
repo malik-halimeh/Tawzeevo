@@ -10,7 +10,7 @@ import { CatalogError, type Personal, type PublicProduct, fetchProduct, publicAp
 import { money, priceLine, productName, secondaryPrice, shopHref } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { visitorFor } from "@/lib/personal";
-import { type SearchParams, loadShop } from "@/lib/shop";
+import { type SearchParams, contextParam, loadShop } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string; productId: string }>; searchParams: Promise<SearchParams> };
 
@@ -34,7 +34,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const { slug, productId } = await params;
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, `/p/${productId}`, query);
-  const { state: context, personal } = await visitorFor(shop.slug);
+  const { state: context, personal, ctx } = await visitorFor(shop.slug, contextParam(query));
   const product = await loadProduct(shop.slug, productId, personal);
   const category = shop.categories.find((row) => row.id === product.category_id);
   const name = productName(product, lang);
@@ -42,9 +42,9 @@ export default async function ProductPage({ params, searchParams }: Props) {
   const secondary = secondaryPrice(product, lang);
   const basis = product.price_basis === "BOX" ? t(lang, "perBox", { count: product.packaging.pieces_per_box ?? 0 }) : t(lang, "perPiece");
   return (
-    <ShopFrame cartBar context={context} currentPath={`/${shop.slug}/p/${productId}`} lang={lang} shop={shop}>
+    <ShopFrame cartBar context={context} ctx={ctx} currentPath={`/${shop.slug}/p/${productId}`} lang={lang} shop={shop}>
       <ViewBeacon productId={product.id} slug={shop.slug} />
-      <p><Link className="text-link" href={shopHref(shop.slug, lang)}><Arrow back small />{t(lang, "backToProducts")}</Link></p>
+      <p><Link className="text-link" href={shopHref(shop.slug, lang, "", ctx)}><Arrow back small />{t(lang, "backToProducts")}</Link></p>
       <article className="product" aria-labelledby="product-name">
         <div className="gallery">
           {image ? <img alt={image.alt_text ?? name} height={image.height} src={`${publicApiBase()}${image.url}`} width={image.width} /> : <div className="thumb" aria-hidden="true">{name.slice(0, 1)}</div>}
@@ -56,10 +56,10 @@ export default async function ProductPage({ params, searchParams }: Props) {
           </div>
           <p className="price"><bdi dir="ltr">{money(product.price, product.currency)}</bdi><small>{basis}</small></p>
           {secondary ? <p className="muted"><bdi dir="ltr">{secondary.amount}</bdi> {secondary.basis}</p> : null}
-          {shop.accepting_orders ? <AddToCart lang={lang} product={product} slug={shop.slug} /> : null}
+          {shop.accepting_orders ? <AddToCart ctx={ctx} lang={lang} product={product} slug={shop.slug} /> : null}
           <p className="note"><Icon name="info" small />{t(lang, "pricesAtCheckout")}</p>
           <dl>
-            {category ? <><dt>{t(lang, "categories")}</dt><dd><Link href={shopHref(shop.slug, lang, `/c/${category.id}`)}>{lang === "ar" ? category.name_ar : category.name_en}</Link></dd></> : null}
+            {category ? <><dt>{t(lang, "categories")}</dt><dd><Link href={shopHref(shop.slug, lang, `/c/${category.id}`, ctx)}>{lang === "ar" ? category.name_ar : category.name_en}</Link></dd></> : null}
             {product.barcode ? <><dt>{t(lang, "barcode")}</dt><dd dir="ltr">{product.barcode}</dd></> : null}
           </dl>
         </div>

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ShopFrame } from "@/components/ShopFrame";
 import { t } from "@/lib/i18n";
-import { type SearchParams, loadShop } from "@/lib/shop";
+import { type SearchParams, contextParam, loadShop } from "@/lib/shop";
 
 const PAGES = { about: "about_text", contact: "contact_text", privacy: "privacy_text", terms: "terms_text" } as const;
 type PageKey = keyof typeof PAGES;
@@ -19,11 +19,12 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function InfoPage({ params, searchParams }: Props) {
   const { slug, page } = await params;
   if (!(page in PAGES)) notFound();
-  const { shop, lang } = await loadShop(slug, `/info/${page}`, await searchParams);
+  const query = await searchParams;
+  const { shop, lang } = await loadShop(slug, `/info/${page}`, query);
   const text = shop.branding?.[PAGES[page as PageKey]];
   if (!text) notFound();
   return (
-    <ShopFrame currentPath={`/${shop.slug}/info/${page}`} lang={lang} shop={shop}>
+    <ShopFrame ctx={contextParam(query)} currentPath={`/${shop.slug}/info/${page}`} lang={lang} shop={shop}>
       <article className="info-page">
         <p className="eyebrow">{t(lang, "aboutNav")}</p>
         <h2>{t(lang, `info_${page}` as "info_about")}</h2>

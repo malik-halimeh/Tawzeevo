@@ -5,13 +5,14 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.errors import AppError
-from tawzeevo_api.models import AuditEvent, Customer
+from tawzeevo_api.models import AuditEvent, Customer, DeliveryTask
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.routes.cash_van import _storage_dependency
 from tawzeevo_api.schemas.cash_van import CustomerCreateRequest
@@ -28,6 +29,7 @@ from tawzeevo_api.schemas.checkout import (
     LinkCustomerRequest,
     NotificationListResponse,
     NotificationResponse,
+    OrderDeliveryRef,
     OrderDetailResponse,
     OrderListResponse,
     OrderSummary,
@@ -308,6 +310,7 @@ def read_customer_context(
         required_policy=context.required_policy.value,
         granted=context.granted,
         contact_hint=context.contact_hint if not context.granted else "",
+        has_saved_address=context.has_saved_address if context.granted else False,
     )
 
 
@@ -507,7 +510,7 @@ def guest_checkout(
     idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
 ) -> CheckoutResponse:
     """One order per Idempotency-Key: a replay returns the original; a different body is 409.
-    A valid personalized capability adds only the intended-customer hint."""
+    A granted personalized capability makes the order that customer's (D-090)."""
     response.headers["Cache-Control"] = PRIVATE_CACHE
     context = customer_access.resolve_context(
         db, http_request.headers.get(CAPABILITY_HEADER), http_request.headers.get(SESSION_HEADER)
@@ -564,6 +567,16 @@ def _detail(db: Session, tenant_id: UUID, order_id: UUID) -> OrderDetailResponse
     if order.intended_customer_id and all(c.id != order.intended_customer_id for c in candidates):
         hint = db.get(Customer, order.intended_customer_id)
     rows = ([hint] if hint else []) + candidates
+    linked = db.get(Customer, order.linked_customer_id) if order.linked_customer_id else None
+    deliveries = (
+        db.scalars(
+            select(DeliveryTask)
+            .where(DeliveryTask.tenant_id == tenant_id, DeliveryTask.invoice_id == order.invoice_id)
+            .order_by(DeliveryTask.created_at)
+        ).all()
+        if order.invoice_id
+        else []
+    )
     return OrderDetailResponse(
         order=OrderSummary.model_validate(order),
         invoice=orders.order_invoice_view(db, tenant_id, order),
@@ -581,6 +594,8 @@ def _detail(db: Session, tenant_id: UUID, order_id: UUID) -> OrderDetailResponse
             CancellationRequestResponse.model_validate(r)
             for r in orders.list_cancellation_requests(db, tenant_id, order.id)
         ],
+        linked_customer_name=linked.name if linked and linked.tenant_id == tenant_id else None,
+        deliveries=[OrderDeliveryRef.model_validate(task) for task in deliveries],
     )
 
 

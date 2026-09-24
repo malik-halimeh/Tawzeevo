@@ -17,6 +17,7 @@ from tawzeevo_api.models import (
     AuditEvent,
     CustomerVerificationChallenge,
     CustomerVerifiedSession,
+    Invoice,
     Order,
 )
 from tawzeevo_api.services.otp_delivery import dev_delivery
@@ -78,6 +79,15 @@ def test_link_alone_is_not_enough_under_verified_and_the_code_grants_a_session(
     with session_factory() as db:
         row = db.scalars(select(Order)).one()
         assert row.intended_customer_id is None and row.intended_assurance is None
+        # D-090: only a granted context associates the customer; this one is the public path.
+        assert row.linked_customer_id is None
+        invoice = db.get(Invoice, row.invoice_id)
+        assert invoice is not None and invoice.customer_id is None
+    ungranted = _checkout(
+        client, slug, {"items": _cart(product["id"])["items"]}, extra={HEADER: secret}
+    )
+    assert ungranted.status_code == 422
+    assert ungranted.json()["detail"]["code"] == "CONTACT_REQUIRED"
 
     # Start → the dev adapter holds the code; the code is stored hashed, never in audit.
     started = client.post(START, headers={HEADER: secret, "Accept-Language": "ar"})
@@ -118,6 +128,18 @@ def test_link_alone_is_not_enough_under_verified_and_the_code_grants_a_session(
     )
     assert personalized.status_code == 200
     assert {r["name"]: r["price"] for r in personalized.json()["items"]}["Cedar Water"] == "10.0000"
+    # Once granted (VERIFIED), the order through this link is the customer's (D-090).
+    granted = _checkout(
+        client,
+        slug,
+        {"contact_address": "Hamra 3", "items": _cart(product["id"])["items"]},
+        extra={HEADER: secret, SESSION: session_secret},
+    )
+    assert granted.status_code == 201, granted.text
+    with session_factory() as db:
+        linked = db.get(Order, granted.json()["order_id"])
+        assert linked is not None and str(linked.linked_customer_id) == customer["id"]
+        assert linked.intended_assurance == "VERIFIED"
     # Caches must key on both customer headers; the CORS middleware may add Origin to the list.
     vary = {name.strip().lower() for name in personalized.headers["vary"].split(",")}
     assert {HEADER.lower(), SESSION.lower()} <= vary
@@ -308,6 +330,7 @@ def test_link_policy_customers_are_unaffected_and_dev_code_is_guarded(
         "required_policy": "LINK",
         "granted": True,
         "contact_hint": "",
+        "has_saved_address": False,
     }
     # ACCOUNT_REQUIRED is still not selectable (P9-M6).
     refused = client.put(

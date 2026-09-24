@@ -66,8 +66,8 @@ test("guest checkout → owner link, confirm, delivery date → customer cancell
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Orders", exact: true }).click();
-  await expect(page.getByText("1 new")).toBeVisible();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: /^Orders/ }).click();
+  await expect(page.getByRole("heading", { name: /Order inbox/ })).toContainText("1 awaiting review");
   await page.getByRole("button", { name: /Guest Buyer/ }).click();
   await expect(page.getByRole("button", { name: "Confirm and assign invoice number" })).toBeDisabled();
   await page.getByRole("button", { name: "Create a new customer from these details" }).click();

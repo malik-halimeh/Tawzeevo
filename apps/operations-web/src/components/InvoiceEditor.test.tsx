@@ -1,8 +1,13 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render as renderBare, screen, waitFor, within } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
 import { InvoiceEditor } from "./InvoiceEditor";
+
+/** The editor links to other workspace sections (next steps), so it renders inside a router. */
+const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>);
 
 const tenantId = "11111111-1111-1111-1111-111111111111";
 const customerId = "22222222-2222-2222-2222-222222222222";

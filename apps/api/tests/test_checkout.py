@@ -1,4 +1,4 @@
-"""P5-M4: guest checkout, idempotency, provisional representation (D-046, D-049, D-072)."""
+"""P5-M4: guest checkout, idempotency, provisional representation (D-046, D-049, D-072, D-090)."""
 
 from __future__ import annotations
 
@@ -105,9 +105,12 @@ def test_guest_checkout_is_atomic_idempotent_and_provisional(client, session_fac
         assert r.status_code == 404 and r.json()["detail"]["code"] == "ORDER_REFERENCE_UNAVAILABLE"
 
     # Validation: mandatory fields, invalid phone, unpublished product, missing key.
-    assert (
-        _checkout(client, slug, {**_cart(product["id"]), "contact_address": " "}).status_code == 422
-    )
+    blank = _checkout(client, slug, {**_cart(product["id"]), "contact_address": " "})
+    assert blank.status_code == 422 and blank.json()["detail"]["code"] == "CONTACT_REQUIRED"
+    for field in ("contact_name", "contact_phone", "contact_address"):
+        missing = {key: value for key, value in _cart(product["id"]).items() if key != field}
+        refused = _checkout(client, slug, missing)
+        assert refused.status_code == 422 and refused.json()["detail"]["code"] == "CONTACT_REQUIRED"
     assert _checkout(client, slug, _cart(product["id"], phone="12")).status_code == 422
     assert _checkout(client, slug, {**_cart(product["id"]), "items": []}).status_code == 422
     _publish(client, tenant, token, product["id"], published=False)
@@ -120,9 +123,34 @@ def test_guest_checkout_is_atomic_idempotent_and_provisional(client, session_fac
     assert _count(session_factory, Order, tenant) == 1
 
 
-def test_personalized_checkout_carries_only_a_hint_and_phone_never_links(client, session_factory):
+def _customer(client, tenant, token, name, phone, address=None):
+    body = {"name": name, "phone": phone, "grade": "B"}
+    if address:
+        body["address"] = address
+    r = client.post(f"/api/v1/tenants/{tenant}/customers", headers=_auth(token), json=body)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _order_for(session_factory, order_id):
+    with session_factory() as db:
+        order = db.get(Order, UUID(order_id))
+        assert order is not None
+        invoice = db.get(Invoice, order.invoice_id)
+        assert invoice is not None
+        revision = db.get(InvoiceRevision, invoice.current_revision_id)
+        assert revision is not None
+        db.expunge_all()
+        return order, invoice, revision
+
+
+def test_personalized_checkout_belongs_to_the_link_customer_and_phone_never_links(
+    client, session_factory
+):
+    """D-090: a granted link makes the order that customer's; the browser never chooses it."""
     _owner, tenant, token = _owner_context(client, session_factory, "checkout-link")
     _category, product, customer = _catalog(client, tenant, token, name="Cedar Water")
+    other = _customer(client, tenant, token, "Other Buyer", "+96171999888", "Other Street 9")
     _publish(client, tenant, token, product["id"])
     slug = _slug(session_factory, tenant)
     assert client.put(
@@ -131,37 +159,66 @@ def test_personalized_checkout_carries_only_a_hint_and_phone_never_links(client,
         json={"discount_percent": "20.00"},
     ).status_code in (200, 201)
 
-    # A guest using the existing customer's phone gets public prices and no link to history.
+    # A guest using the existing customer's phone gets public prices and no customer at all.
     guest = _checkout(client, slug, _cart(product["id"], phone=customer["phone"]))
     assert guest.status_code == 201 and guest.json()["net_sales"] == "25.0000"
-    with session_factory() as db:
-        order = db.scalar(select(Order).where(Order.tenant_id == UUID(tenant)))
-        assert order is not None and order.intended_customer_id is None
+    order, invoice, _revision = _order_for(session_factory, guest.json()["order_id"])
+    assert order.intended_customer_id is None and order.linked_customer_id is None
+    assert invoice.customer_id is None
 
-    # Through the personalized link: customer's current price, and only a hint on the order.
+    # Through A's link with B's identity in the payload: the order is A's, priced for A.
     _link, secret = _issue(client, tenant, token, customer["id"])
-    personal = _checkout(client, slug, _cart(product["id"]), extra={HEADER: secret})
+    spoofed = _cart(product["id"], name=other["name"], phone=other["phone"])
+    personal = _checkout(client, slug, spoofed, extra={HEADER: secret})
     assert personal.status_code == 201, personal.text
     assert personal.json()["net_sales"] == "20.0000"  # 2 × (12.5 − 20 %)
-    with session_factory() as db:
-        hinted = db.scalar(
-            select(Order).where(
-                Order.tenant_id == UUID(tenant), Order.intended_customer_id.isnot(None)
-            )
-        )
-        assert hinted is not None
-        assert (
-            hinted.intended_customer_id == UUID(customer["id"])
-            and hinted.intended_assurance == "LINK"
-        )
-        invoice = db.get(Invoice, hinted.invoice_id)
-        assert invoice is not None and invoice.customer_id is None, "the hint never links"
-        assert invoice.status.value == "DRAFT" and invoice.official_invoice_number is None
-    # A revoked/rotated link at checkout time is simply anonymous; a foreign business's link too.
+    order, invoice, revision = _order_for(session_factory, personal.json()["order_id"])
+    assert order.linked_customer_id == UUID(customer["id"])
+    assert order.intended_customer_id == UUID(customer["id"]) and order.intended_assurance == "LINK"
+    assert order.contact_name == "Maya Market" and order.contact_phone == customer["phone"]
+    assert order.contact_address == "Hamra Street 12, Beirut"  # typed delivery address kept
+    assert (
+        invoice.customer_id == UUID(customer["id"]) and revision.customer_id == invoice.customer_id
+    )
+    assert revision.customer_snapshot["id"] == customer["id"]
+    assert revision.customer_snapshot["name"] == "Maya Market"
+    assert invoice.status.value == "DRAFT" and invoice.official_invoice_number is None
+    assert revision.amount_due_display == revision.prior_balance_snapshot + revision.net_sales
+
+    # Browser-supplied ids or pricing fields are refused outright, never merged.
+    for extra_field in ({"customer_id": other["id"]}, {"grade": "A"}, {"discount": "50"}):
+        refused = _checkout(client, slug, {**spoofed, **extra_field}, extra={HEADER: secret})
+        assert refused.status_code == 422
+
+    # Name and phone may be omitted; a blank address needs a saved one.
+    bare = {"items": spoofed["items"]}
+    no_address = _checkout(client, slug, bare, extra={HEADER: secret})
+    assert no_address.status_code == 422
+    assert no_address.json()["detail"]["code"] == "CONTACT_ADDRESS_REQUIRED"
+    assert (
+        client.put(
+            f"/api/v1/tenants/{tenant}/customers/{customer['id']}",
+            headers=_auth(token),
+            json={"name": "Maya Market", "phone": customer["phone"], "address": "Saved Road 4"},
+        ).status_code
+        == 200
+    )
+    saved = _checkout(client, slug, bare, extra={HEADER: secret})
+    assert saved.status_code == 201, saved.text
+    order, invoice, _revision = _order_for(session_factory, saved.json()["order_id"])
+    assert order.contact_address == "Saved Road 4" and order.linked_customer_id == UUID(
+        customer["id"]
+    )
+
+    # A revoked/rotated link at checkout time is simply the public storefront again.
     _issue(client, tenant, token, customer["id"])  # rotates → old secret dead
     stale = _checkout(client, slug, _cart(product["id"]), extra={HEADER: secret})
     assert stale.status_code == 201 and stale.json()["net_sales"] == "25.0000"
-    assert _count(session_factory, OwnerNotification, tenant) == 3
+    order, invoice, _revision = _order_for(session_factory, stale.json()["order_id"])
+    assert order.linked_customer_id is None and invoice.customer_id is None
+    lapsed = _checkout(client, slug, bare, extra={HEADER: secret})
+    assert lapsed.status_code == 422 and lapsed.json()["detail"]["code"] == "CONTACT_REQUIRED"
+    assert _count(session_factory, OwnerNotification, tenant) == 4
 
 
 def test_suspended_business_refuses_checkout_but_keeps_provisional_pages(client, session_factory):

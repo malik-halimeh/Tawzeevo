@@ -21,7 +21,7 @@ dependencies = [
   "python-multipart>=0.0.20,<1",
   "PyJWT>=2.10,<3",
   "qrcode>=8,<9",
-  "sqlalchemy>=2.0,<3",
+  "sqlalchemy>=2.0,<2.1",  # 2.1 removed the mypy plugin (sqlalchemy.ext.mypy) this package uses
   "uvicorn[standard]>=0.34,<1"
 ]
 

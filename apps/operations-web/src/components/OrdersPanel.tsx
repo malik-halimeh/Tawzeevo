@@ -1,15 +1,21 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Link } from "react-router-dom";
+
 import { apiRequest } from "../api/client";
+import { NextSteps } from "./NextSteps";
+import { PENDING_ORDERS_KEY } from "./pendingOrders";
+import { sectionHref } from "./workspaceSections";
 import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 
 /**
- * Storefront order inbox and review (PHASE_05.md G–J; D-046, D-049, D-072). The owner links the
- * customer explicitly (the hint from a personalized link is only a suggestion), confirms through
- * the Phase 3 confirmation, declines, sets the delivery date after confirmation, and decides
- * cancellation requests. A sole owner needs nothing else.
+ * Storefront order inbox and review (PHASE_05.md G–J; D-046, D-049, D-072, D-090). An order placed
+ * through a personalized link arrives already linked to that customer; a public order is linked by
+ * the owner explicitly. The owner confirms through the Phase 3 confirmation, declines, sets the
+ * delivery date after confirmation, and decides cancellation requests. A sole owner needs nothing else.
  */
 export interface OrderSummary {
   id: string; status: "RECEIVED" | "CONFIRMED" | "DECLINED" | "CANCELLED"; contact_name: string; contact_phone: string;
@@ -20,14 +26,17 @@ interface Candidate { id: string; name: string; phone: string; grade: string | n
 interface CancellationRequest { id: string; order_id: string; status: "PENDING" | "APPROVED" | "REJECTED"; reason: string | null; created_at: string; decided_at: string | null; decision_note: string | null }
 interface InvoiceLine { id: string; product_name: string; quantity: string; effective_unit_price: string; line_total: string }
 interface InvoiceView { id: string; status: string; current_revision_id: string; official_invoice_number: string | null; net_sales: string; currency: string; items: InvoiceLine[] }
-interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[] }
+interface OrderDelivery { id: string; status: "ASSIGNED" | "COMPLETED" | "CANCELLED"; delivery_date: string | null }
+interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[]; linked_customer_name?: string | null; deliveries?: OrderDelivery[] }
 
-export function OrdersPanel({ tenantId }: { tenantId: string }) {
+export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; orderId?: string | null }) {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   // Undefined until the first answer, so "no orders yet" is never shown while the inbox is still loading.
   const [loadedOrders, setOrders] = useState<OrderSummary[]>();
   const orders = loadedOrders ?? [];
-  const [unread, setUnread] = useState(0);
+  // The same meaning as the Orders badge: orders still awaiting the owner's decision.
+  const awaiting = orders.filter((order) => order.status === "RECEIVED").length;
   const [selected, setSelected] = useState<OrderDetail>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -43,12 +52,8 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [list, notes] = await Promise.all([
-        apiRequest<{ orders: OrderSummary[] }>(`${base}/orders${q}`),
-        apiRequest<{ unread: number }>(`${base}/notifications${q}&unread_only=true`),
-      ]);
+      const list = await apiRequest<{ orders: OrderSummary[] }>(`${base}/orders${q}`);
       setOrders(list.orders);
-      setUnread(notes.unread);
     } catch (caught) { setError(caught); }
   }, [base, q]);
 
@@ -64,9 +69,19 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
     } catch (caught) { setError(caught); }
   }, [base, q]);
 
+  // Opened from a link (the new-order notice, or a later resume): refresh the list, open that order.
+  useEffect(() => {
+    if (!orderId) return;
+    void refresh();
+    void open(orderId);
+  }, [orderId, open, refresh]);
+
   const run = (action: () => Promise<string | undefined>) => {
     setBusy(true); setError(undefined); setNotice(undefined);
-    action().then((message) => { if (message) setNotice(message); }).catch(setError).finally(() => { setBusy(false); void refresh(); if (selected) void open(selected.order.id); });
+    action().then((message) => { if (message) setNotice(message); }).catch(setError).finally(() => {
+      setBusy(false); void refresh(); if (selected) void open(selected.order.id);
+      void queryClient.invalidateQueries({ queryKey: [PENDING_ORDERS_KEY] }); // the badge drops at once
+    });
   };
   const link = (candidateId?: string) => run(async () => {
     if (!selected) return undefined;
@@ -104,7 +119,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
     <section className="orders-panel" aria-labelledby="orders-title" ref={root}>
       <header>
         <p className="section-kicker">{t("orders.kicker")}</p>
-        <h3 id="orders-title">{t("orders.title")} {unread > 0 ? <span className="status-badge">{t("orders.unread", { count: unread })}</span> : null}</h3>
+        <h3 id="orders-title">{t("orders.title")} {awaiting > 0 ? <span className="status-badge">{t("orders.awaiting", { count: awaiting })}</span> : null}</h3>
         <p>{t("orders.body")}</p>
       </header>
       {error ? <ErrorState error={error} /> : null}
@@ -159,7 +174,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
                     </form>
                   </>
                 ) : (
-                  <p className="form-status">{t("orders.linkedTo")}</p>
+                  <p className="form-status">{selected.linked_customer_name ? t("orders.linkedToName", { name: selected.linked_customer_name }) : t("orders.linkedTo")}</p>
                 )}
                 <div className="category-actions">
                   <button className="button" disabled={busy || !selected.order.linked_customer_id} onClick={confirm} type="button">{t("orders.confirm")}</button>
@@ -168,6 +183,19 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
                 </div>
                 <p className="muted">{t("orders.editNote")}</p>
               </div>
+            ) : null}
+
+            {/* The official invoice and its delivery stay one click away, so the owner can stop and resume. */}
+            {invoice?.official_invoice_number && selected.order.status !== "CONFIRMED" ? (
+              <p className="order-links"><span>{t("nextSteps.linkedInvoice")}</span> <Link to={sectionHref("invoices", tenantId, { invoice: invoice.id })}><bdi dir="ltr">{invoice.official_invoice_number}</bdi></Link></p>
+            ) : null}
+            {selected.order.status === "CONFIRMED" && invoice ? <NextSteps invoice={invoice} tenantId={tenantId} /> : null}
+            {selected.deliveries?.length ? (
+              <ul aria-label={t("nextSteps.deliveries")} className="order-links">
+                {selected.deliveries.map((task) => (
+                  <li key={task.id}><Link to={sectionHref("deliveries", tenantId, { invoice: invoice?.id ?? null })}>{t("nextSteps.deliveries")} · {t(`delivery.status.${task.status}`)}{task.delivery_date ? <> · <bdi dir="ltr">{task.delivery_date}</bdi></> : null}</Link></li>
+                ))}
+              </ul>
             ) : null}
 
             {selected.order.status === "CONFIRMED" ? (

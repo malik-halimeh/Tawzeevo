@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { shopHref } from "@/lib/format";
+import { CONTEXT_PARAM, isContextRef, shopHref } from "@/lib/format";
 import { type Lang, t } from "@/lib/i18n";
 import { Icon } from "./Icon";
 
@@ -10,7 +10,8 @@ type Step = "idle" | "sending" | "sent" | "confirming" | "done";
 
 /** Send a one-time code to the customer's own phone, then enter it. The secrets never touch
  * this component: the routes under /{slug}/verify keep them in HttpOnly cookies. */
-export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: string; lang: Lang; displayName: string; contactHint: string }) {
+export function VerifyForm({ slug, lang, displayName, contactHint, ctx = null }: { slug: string; lang: Lang; displayName: string; contactHint: string; ctx?: string | null }) {
+  const scope = isContextRef(ctx) ? `?${CONTEXT_PARAM}=${ctx}` : "";
   const [step, setStep] = useState<Step>("idle");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,7 @@ export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: str
 
   const send = async () => {
     setStep("sending"); setError(null);
-    const response = await fetch(`/${slug}/verify/start`, { method: "POST", headers: { "Accept-Language": lang } }).catch(() => null);
+    const response = await fetch(`/${slug}/verify/start${scope}`, { method: "POST", headers: { "Accept-Language": lang } }).catch(() => null);
     const body = (await response?.json().catch(() => ({}))) as { ok?: boolean; code?: string | null } | undefined;
     if (body?.ok) { focusNext.current = "code"; setStep("sent"); return; }
     focusNext.current = "send";
@@ -37,9 +38,9 @@ export function VerifyForm({ slug, lang, displayName, contactHint }: { slug: str
   };
   const confirm = async () => {
     setStep("confirming"); setError(null);
-    const response = await fetch(`/${slug}/verify/confirm`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) }).catch(() => null);
+    const response = await fetch(`/${slug}/verify/confirm${scope}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) }).catch(() => null);
     const body = (await response?.json().catch(() => ({}))) as { ok?: boolean; code?: string | null } | undefined;
-    if (body?.ok) { setStep("done"); window.location.replace(shopHref(slug, lang)); return; }
+    if (body?.ok) { setStep("done"); window.location.replace(shopHref(slug, lang, "", ctx)); return; }
     focusNext.current = "code";
     setStep("sent");
     setError(t(lang, body?.code === "VERIFICATION_RATE_LIMITED" ? "verifyTooMany" : "verifyWrongCode"));

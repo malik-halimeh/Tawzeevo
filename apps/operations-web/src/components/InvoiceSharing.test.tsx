@@ -51,3 +51,22 @@ test("invoice sharing supports Arabic labels and reports request failures", asyn
   expect(screen.getByRole("region", {name:"مشاركة الفاتورة"})).toBeVisible();
   await i18n.changeLanguage("en");
 });
+
+test("the issued share link can be copied, and a clipboard failure says how to copy it by hand", async () => {
+  await i18n.changeLanguage("en");
+  vi.stubGlobal("fetch", vi.fn((_input: RequestInfo | URL, init?: RequestInit) => init?.method === "POST"
+    ? Promise.resolve(Response.json({ id: "link-1", created_at: "2026-09-24T10:00:00Z", expires_at: "2026-12-23T10:00:00Z", revoked_at: null, public_path: "/api/v1/public/invoice#secret-9", customer_phone: null, summary: "Invoice 2026-000009" }))
+    : Promise.resolve(Response.json([]))));
+  const writeText = vi.fn(() => Promise.resolve());
+  vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+  render(<InvoiceSharing tenantId="tenant" invoiceId="invoice" />);
+  fireEvent.click(screen.getByRole("button", { name: "Manage invoice links" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Create private link" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Copy share link" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith("http://localhost:8000/api/v1/public/invoice#secret-9"));
+  expect(await screen.findByRole("button", { name: "Share link copied" })).toBeInTheDocument();
+
+  writeText.mockImplementationOnce(() => Promise.reject(new Error("denied")));
+  fireEvent.click(screen.getByRole("button", { name: "Share link copied" }));
+  expect(await screen.findByText("Copy did not work; select the link and copy it.")).toBeInTheDocument();
+});

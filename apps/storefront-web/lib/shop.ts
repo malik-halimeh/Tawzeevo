@@ -1,6 +1,7 @@
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { CatalogError, type PublicStorefront, fetchStorefront, isValidSlug } from "./catalog";
+import { CONTEXT_PARAM, isContextRef } from "./format";
 import { type Lang, normalizeLang } from "./i18n";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -13,6 +14,12 @@ export function langFrom(params: SearchParams): Lang {
 export function single(params: SearchParams, key: string): string | undefined {
   const raw = params[key];
   return Array.isArray(raw) ? raw[0] : raw;
+}
+
+/** The tab's personalized context reference from `?c=`, when well formed (D-090). */
+export function contextParam(params: SearchParams): string | null {
+  const value = single(params, CONTEXT_PARAM);
+  return isContextRef(value) ? value : null;
 }
 
 export function pageNumber(params: SearchParams): number {

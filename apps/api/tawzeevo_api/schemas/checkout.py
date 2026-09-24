@@ -19,19 +19,23 @@ class CheckoutItem(BaseModel):
 
 
 class CheckoutRequest(BaseModel):
-    """Mandatory contact snapshot (PHASE_05.md E); no account, no password, no age."""
+    """Contact snapshot (PHASE_05.md E); no account, no password, no age. A public order must send
+    name, phone and address (the service enforces it). A personalized order takes name and phone
+    from the customer record and may leave the address blank to use the saved one (D-090)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    contact_name: str = Field(max_length=200)
-    contact_phone: str = Field(max_length=64)
-    contact_address: str = Field(max_length=500)
+    contact_name: str | None = Field(default=None, max_length=200)
+    contact_phone: str | None = Field(default=None, max_length=64)
+    contact_address: str | None = Field(default=None, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)
     items: list[CheckoutItem] = Field(min_length=1, max_length=100)
 
     @field_validator("contact_name", "contact_phone", "contact_address", mode="before")
     @classmethod
-    def validate_required(cls, value: object, info: object) -> str:
+    def validate_optional(cls, value: object, info: object) -> str | None:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
         return normalize_required_text(value, getattr(info, "field_name", "field"))
 
 
@@ -152,11 +156,23 @@ class OrderInvoiceView(BaseModel):
     items: list[OrderInvoiceLine]
 
 
+class OrderDeliveryRef(BaseModel):
+    """Enough to link the order to its delivery and resume later; no driver or route data."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    status: str
+    delivery_date: date | None
+
+
 class OrderDetailResponse(BaseModel):
     order: OrderSummary
     invoice: OrderInvoiceView | None
     candidates: list[CustomerCandidate]
     cancellation_requests: list[CancellationRequestResponse]
+    linked_customer_name: str | None = None
+    deliveries: list[OrderDeliveryRef] = Field(default_factory=list)
 
 
 class LinkCustomerRequest(BaseModel):

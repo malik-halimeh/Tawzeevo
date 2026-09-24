@@ -62,7 +62,7 @@ test("VERIFIED policy: link offers verification, the code unlocks prices, the ow
   await expect(guest.getByRole("alert").filter({ hasText: "wrong or no longer valid" })).toBeVisible();
   await guest.getByLabel("6-digit code").fill(code.code);
   await guest.getByRole("button", { name: "Confirm", exact: true }).click();
-  await expect(guest).toHaveURL(new RegExp(`/${slug}$`));
+  await expect(guest).toHaveURL(new RegExp(`/${slug}([?]c=[a-f0-9]{24})?$`)); // the tab keeps its link context (D-090)
   await expect(guest.getByText("Prices shown for Verified Buyer.")).toBeVisible();
   await expect(guest.getByText("8.00", { exact: false }).first()).toBeVisible(); // 20 % off, personalized
 

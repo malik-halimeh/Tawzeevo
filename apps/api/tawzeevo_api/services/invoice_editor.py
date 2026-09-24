@@ -725,6 +725,27 @@ def _customer_snapshot(customer: Customer) -> dict[str, object]:
     }
 
 
+@dataclass(frozen=True)
+class CustomerApplication:
+    """The customer-dependent fields of a draft revision. One path for the editor and for a
+    personalized storefront checkout (D-090), so both snapshot the same way."""
+
+    customer_snapshot: dict[str, object]
+    prior_balance_snapshot: Decimal
+    amount_due_display: Decimal
+
+
+def apply_customer(
+    db: Session, tenant_id: UUID, customer: Customer, currency: str, net_sales: Decimal
+) -> CustomerApplication:
+    prior_balance = _prior_balance(db, tenant_id, customer.id, currency)
+    return CustomerApplication(
+        customer_snapshot=_customer_snapshot(customer),
+        prior_balance_snapshot=prior_balance,
+        amount_due_display=stored_money(prior_balance + net_sales),
+    )
+
+
 def _write_revision_items(
     db: Session, tenant_id: UUID, revision_id: UUID, items: list[_PreparedItem]
 ) -> None:
@@ -1025,7 +1046,7 @@ def create_editor_draft(
         if invoice is None:
             raise AppError(404, "INVOICE_NOT_FOUND", "Invoice was not found")
         return _editor_response(db, tenant_id, invoice)
-    prior_balance = _prior_balance(db, tenant_id, customer.id, request.currency)
+    applied = apply_customer(db, tenant_id, customer, request.currency, net_sales)
     invoice_id = uuid4()
     revision_id = uuid4()
     invoice = Invoice(
@@ -1047,13 +1068,13 @@ def create_editor_draft(
         pricing_version="pricing-v1",
         currency=request.currency,
         customer_id=customer.id,
-        customer_snapshot=_customer_snapshot(customer),
-        prior_balance_snapshot=prior_balance,
+        customer_snapshot=applied.customer_snapshot,
+        prior_balance_snapshot=applied.prior_balance_snapshot,
         subtotal=subtotal,
         discount_total=discount_total,
         markup_total=markup_total,
         net_sales=net_sales,
-        amount_due_display=stored_money(prior_balance + net_sales),
+        amount_due_display=applied.amount_due_display,
         created_by_user_id=actor_user_id,
         reason=request.reason,
     )
@@ -1114,7 +1135,7 @@ def update_editor_draft(
     subtotal, discount_total, markup_total, net_sales = _totals(
         items, request.invoice_discount_expression, request.invoice_markup_expression
     )
-    prior_balance = _prior_balance(db, tenant_id, customer.id, request.currency)
+    applied = apply_customer(db, tenant_id, customer, request.currency, net_sales)
     revision_id = uuid4()
     revision = InvoiceRevision(
         id=revision_id,
@@ -1126,13 +1147,13 @@ def update_editor_draft(
         pricing_version="pricing-v1",
         currency=request.currency,
         customer_id=customer.id,
-        customer_snapshot=_customer_snapshot(customer),
-        prior_balance_snapshot=prior_balance,
+        customer_snapshot=applied.customer_snapshot,
+        prior_balance_snapshot=applied.prior_balance_snapshot,
         subtotal=subtotal,
         discount_total=discount_total,
         markup_total=markup_total,
         net_sales=net_sales,
-        amount_due_display=stored_money(prior_balance + net_sales),
+        amount_due_display=applied.amount_due_display,
         created_by_user_id=actor_user_id,
         reason=request.reason,
     )

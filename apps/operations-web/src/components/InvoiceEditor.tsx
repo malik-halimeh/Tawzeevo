@@ -23,9 +23,13 @@ import type {
   ProductPriceBasis,
   TenantProduct,
 } from "../api/types";
+import { Link } from "react-router-dom";
+
 import { Arrow } from "./Icon";
 import { ErrorState, SuccessNotice } from "./Ui";
 import { InvoiceSharing } from "./InvoiceSharing";
+import { NextSteps } from "./NextSteps";
+import { sectionHref } from "./workspaceSections";
 import type { Supplier } from "./SupplierSetup";
 import { queueInvoiceConfirm, queueInvoiceDraft, queueInvoiceUpdate, queueReceipt } from "../offline/commands";
 import { browserOffline } from "../offline/network";
@@ -148,7 +152,7 @@ function InvoiceLineImage({ url, name }: { url: string; name: string }) {
   return source ? <img alt={name} className="invoice-line-image" src={source} /> : null;
 }
 
-export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: () => void }) {
+export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, invoiceId = null, initialView = null }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: () => void; invoiceId?: string | null; initialView?: string | null }) {
   const { t } = useTranslation();
   const [customerPhone, setCustomerPhone] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -197,6 +201,12 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   // Presentation state only: the open view, the visible item-entry method and whether a confirmed
   // invoice is open in the revision editor. Every view stays mounted, so inputs survive switching.
   const [view, setView] = useState<InvoiceView>("invoice");
+  // An official invoice opened from a link (order next steps, a delivery, a payment line) is shown
+  // read-only: nothing that depends on editor lines is offered, because they were never loaded.
+  const [openedByLink, setOpenedByLink] = useState(false);
+  // Entering payments for one invoice selects its open amount through the existing "choose amounts"
+  // allocation; the receipt command and its rules are the same as when the owner picks it by hand.
+  const [paymentFor, setPaymentFor] = useState<{ id: string; number: string | null; applied: boolean } | null>(null);
   const [entryMethod, setEntryMethod] = useState<EntryMethod>("barcode");
   const [revising, setRevising] = useState(false);
   const customerPhoneInput = useRef<HTMLInputElement>(null);
@@ -282,6 +292,44 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
   useEffect(() => {
     void loadDebtDesk().catch(setError);
   }, [loadDebtDesk]);
+
+  // Opened from a link: load that official invoice with its customer and currency. A draft, an
+  // unknown invoice or another business's invoice is ignored and the editor stays as it is.
+  useEffect(() => {
+    if (!invoiceId) return;
+    let live = true;
+    void (async () => {
+      try {
+        const loaded = await apiRequest<InvoiceEditorResponse>(`/api/v1/invoices/${invoiceId}?tenant_id=${tenantId}`);
+        if (!live || (loaded.status !== "CONFIRMED" && loaded.status !== "CANCELLED")) return;
+        const owner = await apiRequest<Customer>(`/api/v1/tenants/${tenantId}/customers/${loaded.customer_id}?tenant_id=${tenantId}`);
+        if (!live) return;
+        setOpenedByLink(true);
+        setSaved(loaded);
+        setCurrency(loaded.currency);
+        setCustomer(owner);
+        if (initialView === "payments" && loaded.status === "CONFIRMED") {
+          setPaymentFor({ id: loaded.id, number: loaded.official_invoice_number, applied: false });
+          setView("payments");
+        }
+        await loadHistory(loaded.id);
+      } catch {
+        // Not this business's invoice, or no longer available: nothing is selected.
+      }
+    })();
+    return () => { live = false; };
+  }, [invoiceId, initialView, tenantId, loadHistory]);
+
+  // Once the customer's open obligations are on screen, select this invoice's open amount once.
+  useEffect(() => {
+    if (!paymentFor || paymentFor.applied || !obligations) return;
+    const row = obligations.obligations.find((obligation) => obligation.source_type === "INVOICE" && obligation.source_id === paymentFor.id);
+    setPaymentFor({ ...paymentFor, applied: true });
+    if (!row) return;
+    setAllocationMode("OWNER");
+    setAllocationAmounts({ [row.target_ledger_entry_id]: row.outstanding_amount });
+    setReceiptAmount(row.outstanding_amount);
+  }, [obligations, paymentFor]);
 
   useEffect(() => {
     if (!customer) {
@@ -885,7 +933,12 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
               <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p>
             </div>
           </div>
-          {saved.status === "CONFIRMED" ? (
+          {openedByLink ? (
+            <footer className="document-actions read-only">
+              <p className="backend-note">{t("invoiceEditor.readOnlyFromLink")}</p>
+              <Link className="text-button" to={sectionHref("invoices", tenantId)}>{t("invoiceEditor.newInvoice")}</Link>
+            </footer>
+          ) : saved.status === "CONFIRMED" ? (
             <footer className="document-actions">
               <button className="button" disabled={busy} onClick={openRevision} type="button">{t("invoiceEditor.createRevision")}</button>
               <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><button className="button button-danger" disabled={busy} onClick={cancelSaved} type="button">{t("invoiceEditor.cancelInvoice")}</button></div>
@@ -1006,6 +1059,9 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
       </div>
       </>
       )}
+      {showDocument && saved?.status === "CONFIRMED" ? (
+        <NextSteps invoice={saved} onRecordPayment={() => { setPaymentFor({ id: saved.id, number: saved.official_invoice_number, applied: false }); setView("payments"); }} showInvoice={false} showSharing={false} tenantId={tenantId} />
+      ) : null}
       {/* Mounted while the invoice is confirmed, whether the document or the revision editor shows, so a
           just-issued link stays visible until the owner leaves. */}
       {saved?.status === "CONFIRMED" ? <InvoiceSharing key={saved.id} tenantId={tenantId} invoiceId={saved.id} /> : saved ? <p className="backend-note">{t("invoiceEditor.sharingAfterConfirmation")}</p> : null}
@@ -1037,11 +1093,12 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup }: {
         <header>
           <div><p className="section-kicker">{t("invoiceEditor.settlementKicker")}</p><h3 id="settlement-desk-title">{t("invoiceEditor.settlementTitle")}</h3><p>{t("invoiceEditor.settlementBody")}</p></div>
         </header>
+        {paymentFor && customer ? <p className="notice view-guide" role="note">{t("invoiceEditor.fromInvoice", { number: paymentFor.number ?? "…" })}</p> : null}
         {customer ? null : <div className="notice view-guide" role="note"><span>{t("invoiceEditor.chooseCustomerFirst")}</span><button className="text-button" onClick={goToCustomerStep} type="button">{t("invoiceEditor.goToCustomer")}</button></div>}
         <div className="settlement-grid">
           <article className="content-card obligation-card">
             <div className="settlement-card-heading"><div><span>01</span><h4>{t("invoiceEditor.openObligations")}</h4></div><div className="allocation-mode" role="group" aria-label={t("invoiceEditor.allocationMode")}><button aria-pressed={allocationMode === "FIFO"} onClick={() => setAllocationMode("FIFO")} type="button">{t("invoiceEditor.fifoAllocation")}</button><button aria-pressed={allocationMode === "OWNER"} onClick={() => setAllocationMode("OWNER")} type="button">{t("invoiceEditor.ownerAllocation")}</button></div></div>
-            {obligations?.obligations.length ? <div className="obligation-list">{obligations.obligations.map((obligation) => <label className="obligation-row" key={obligation.target_ledger_entry_id}><span><strong>{obligation.label}</strong><time dateTime={obligation.effective_at}>{new Date(obligation.effective_at).toLocaleDateString()}</time></span><bdi dir="ltr">{money(obligation.outstanding_amount, currency)}</bdi>{allocationMode === "OWNER" ? <input aria-label={t("invoiceEditor.allocateTo", { label: obligation.label })} dir="ltr" max={obligation.outstanding_amount} min="0" placeholder="0.0000" step="0.0001" type="number" value={allocationAmounts[obligation.target_ledger_entry_id] ?? ""} onChange={(event) => setAllocationAmounts((current) => ({ ...current, [obligation.target_ledger_entry_id]: event.target.value }))} /> : <span className="fifo-mark">{t("invoiceEditor.fifoQueued")}</span>}</label>)}</div> : <p className="empty-copy">{t("invoiceEditor.noOpenObligations")}</p>}
+            {obligations?.obligations.length ? <div className="obligation-list">{obligations.obligations.map((obligation) => <label className={`obligation-row${paymentFor && obligation.source_id === paymentFor.id ? " is-context" : ""}`} key={obligation.target_ledger_entry_id}><span>{obligation.source_type === "INVOICE" && obligation.source_id ? <Link to={sectionHref("invoices", tenantId, { invoice: obligation.source_id })}><strong>{obligation.label}</strong></Link> : <strong>{obligation.label}</strong>}<time dateTime={obligation.effective_at}>{new Date(obligation.effective_at).toLocaleDateString()}</time></span><bdi dir="ltr">{money(obligation.outstanding_amount, currency)}</bdi>{allocationMode === "OWNER" ? <input aria-label={t("invoiceEditor.allocateTo", { label: obligation.label })} dir="ltr" max={obligation.outstanding_amount} min="0" placeholder="0.0000" step="0.0001" type="number" value={allocationAmounts[obligation.target_ledger_entry_id] ?? ""} onChange={(event) => setAllocationAmounts((current) => ({ ...current, [obligation.target_ledger_entry_id]: event.target.value }))} /> : <span className="fifo-mark">{t("invoiceEditor.fifoQueued")}</span>}</label>)}</div> : <p className="empty-copy">{t("invoiceEditor.noOpenObligations")}</p>}
           </article>
           <form className="content-card receipt-card" onSubmit={recordReceipt}>
             <div className="settlement-card-heading"><div><span>02</span><h4>{t("invoiceEditor.recordReceipt")}</h4></div></div>

@@ -28,6 +28,19 @@ Phase 9 starts with P9-M1 (D-077 password recovery approved; D-078 targets; D-07
 | DRG-M4 | COMPLETE | Driver perspective and least privilege |
 | DRG-M5 | COMPLETE | Cross-role hardening, deployment, and teardown proof |
 
+## Order workflow fix (owner-scoped, 2026-09-24/25, D-090)
+
+| Milestone | Status | Scope |
+|---|---|---|
+| OWF-M1 | COMPLETE | Granted personalized link makes the order the customer's; per-tab storefront context; linked orders need no owner linking |
+| OWF-M2 | COMPLETE | Orders badge, `(n)` tab title and new-order notice from the existing RECEIVED order list |
+| OWF-M3 | COMPLETE | Next steps after confirmation; invoice, payment and delivery pages open with the invoice selected |
+| OWF-M4 | COMPLETE | Invoice references link to the read-only invoice; copy share link verified signed out |
+
+Branch `fix/order-workflow` (local, not pushed, not deployed). Decisions and deferred items:
+`docs/order-workflow/DECISIONS.md`, `docs/order-workflow/DEFERRED.md` (F-03 is a pre-existing
+decline defect for unlinked public orders that needs an owner-approved fix).
+
 ## Phase status
 
 | Phase | Status | Gate |

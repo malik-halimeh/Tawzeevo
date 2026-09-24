@@ -63,16 +63,32 @@ export function selectedContext<T extends Pick<TenantContext, "tenant_id">>(cont
   return contexts.find((context) => context.tenant_id === tenantId) ?? contexts[0];
 }
 
+/**
+ * What a section may open with, so the owner continues from where they were instead of choosing
+ * again: an order (Orders), an invoice and its view (Invoices), an invoice to deliver (Deliveries).
+ * These only select context; each panel still loads it from the API and ignores what it cannot find.
+ */
+export interface SectionContext { order?: string | null; invoice?: string | null; view?: string | null }
+const CONTEXT_PARAMS = ["order", "invoice", "view"] as const;
+
+export function contextFromSearch(search: URLSearchParams): SectionContext {
+  return { order: search.get("order"), invoice: search.get("invoice"), view: search.get("view") };
+}
+
 /** Query string for a business and section: Work is the bare section and the first business needs no parameter. */
-export function workspaceSearch(section: WorkspaceSection, tenantId: string | null): string {
+export function workspaceSearch(section: WorkspaceSection, tenantId: string | null, context: SectionContext = {}): string {
   const params = new URLSearchParams();
   if (tenantId) params.set(TENANT_PARAM, tenantId);
   if (section !== "work") params.set(SECTION_PARAM, section);
+  for (const key of CONTEXT_PARAMS) {
+    const value = context[key];
+    if (value) params.set(key, value);
+  }
   const query = params.toString();
   return query ? `?${query}` : "";
 }
 
 /** Sections are carried by a query parameter on the existing route; Work is the bare route. */
-export function sectionHref(section: WorkspaceSection, tenantId: string | null = null): string {
-  return `/workspace${workspaceSearch(section, tenantId)}`;
+export function sectionHref(section: WorkspaceSection, tenantId: string | null = null, context: SectionContext = {}): string {
+  return `/workspace${workspaceSearch(section, tenantId, context)}`;
 }
