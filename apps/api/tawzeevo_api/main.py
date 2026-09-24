@@ -72,6 +72,12 @@ def database_preflight() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     database_preflight()
+    # D-089: say once whether the business assistant can answer; never the key itself. The
+    # deterministic intelligence endpoints need no configuration either way.
+    logging.getLogger("tawzeevo.intelligence").info(
+        "business assistant %s",
+        "configured" if settings.groq_api_key else "not configured (GROQ_API_KEY unset)",
+    )
     stop = threading.Event()
     worker: threading.Thread | None = None
     if settings.backup_scheduler_enabled:
