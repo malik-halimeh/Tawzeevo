@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { apiBase, isValidSlug } from "@/lib/catalog";
-import { CAPABILITY_HEADER, COOKIE_MAX_AGE_SECONDS, capabilityFor, sessionCookieName } from "@/lib/personal";
+import { CONTEXT_PARAM } from "@/lib/format";
+import { CAPABILITY_HEADER, COOKIE_MAX_AGE_SECONDS, capabilityFor, contextRef, contextSessionCookieName } from "@/lib/personal";
 
-/** Trades the code for the verified session; the secret goes into an HttpOnly cookie only. */
+/** Trades the code for the verified session; the secret goes into an HttpOnly cookie only, named
+ * after the link's context so it never verifies another tab's customer (D-090). */
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   if (!isValidSlug(slug)) return NextResponse.json({ ok: false }, { status: 404 });
-  const capability = await capabilityFor(slug);
+  const capability = await capabilityFor(slug, new URL(request.url).searchParams.get(CONTEXT_PARAM));
   if (!capability) return NextResponse.json({ ok: false, code: "CUSTOMER_LINK_UNAVAILABLE" }, { status: 404 });
   const body = (await request.json().catch(() => ({}))) as { code?: unknown };
   const code = typeof body.code === "string" ? body.code.trim() : "";
@@ -24,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   const expires = payload.expires_at ? Math.max(60, Math.floor((new Date(payload.expires_at).getTime() - Date.now()) / 1000)) : COOKIE_MAX_AGE_SECONDS;
   const response = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   response.cookies.set({
-    name: sessionCookieName(slug),
+    name: contextSessionCookieName(slug, contextRef(capability)),
     value: payload.session,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

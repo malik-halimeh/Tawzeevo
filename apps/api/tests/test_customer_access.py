@@ -67,10 +67,23 @@ def test_link_gives_current_customer_pricing_without_exposing_anything_private(
         "required_policy": "LINK",
         "granted": True,
         "contact_hint": "",
+        "has_saved_address": False,
     }
     assert context.headers["cache-control"] == "no-store"
     for forbidden in ("grade", "balance", "debt", "phone", "invoice", "payment"):
         assert forbidden not in context.text.lower()
+    # D-090 limited disclosure: only whether an address is on file, never the address itself.
+    assert (
+        client.put(
+            f"/api/v1/tenants/{tenant}/customers/{customer['id']}",
+            headers=_auth(token),
+            json={"address": "Private Lane 7, Beirut"},
+        ).status_code
+        == 200
+    )
+    with_address = client.get("/api/v1/public/customer-context", headers={HEADER: secret})
+    assert with_address.json()["has_saved_address"] is True
+    assert "private lane" not in with_address.text.lower()
 
     personalized, prices = _catalog_prices(client, slug, secret)
     assert prices["Cedar Water"] == ("10.0000", "personalized")  # 12.5000 minus 20 %

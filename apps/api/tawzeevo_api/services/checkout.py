@@ -1,8 +1,9 @@
 """Guest checkout: RECEIVED order, draft invoice, provisional reference, one owner notification.
 
-PHASE_05.md E/F (D-046, D-049, D-072). No account is needed; name, phone and address are an
-immutable contact snapshot. A valid personalized context adds `intended_customer_id` as a hint
-for owner review — it never links, prices as final, or confirms. The whole checkout is one
+PHASE_05.md E/F (D-046, D-049, D-072, D-090). No account is needed; name, phone and address are
+an immutable contact snapshot. A granted personalized context makes the order that customer's
+(D-090): the customer comes only from the server-resolved link, never from the browser, and the
+owner still confirms or declines before anything financial happens. The whole checkout is one
 transaction keyed by the client's `Idempotency-Key`: the same key with the same request returns
 the original result, a different request under the same key is a 409. Nothing here creates
 confirmed financial truth; the owner's review (P5-M5) does, through the Phase 3 services.
@@ -90,10 +91,26 @@ def checkout(
     set_tenant_scope(db, tenant.id)
     if context is not None and context.tenant_id != tenant.id:
         context = None  # a link for another business never attaches to this order
-    try:
-        phone = normalize_phone(request.contact_phone)
-    except InvalidPhoneNumberError as exc:
-        raise AppError(422, "INVALID_PHONE", "Contact phone is invalid") from exc
+    customer = db.get(Customer, context.customer_id) if context is not None else None
+    if customer is not None:
+        # D-090: identity comes from the resolved link only; browser name/phone are ignored.
+        contact_name = customer.name
+        phone = customer.phone
+        phone_raw = customer.phone_raw or customer.phone
+        contact_address = request.contact_address or (customer.address or "").strip()
+        if not contact_address:
+            raise AppError(422, "CONTACT_ADDRESS_REQUIRED", "Enter a delivery address")
+    else:
+        context = None
+        if not (request.contact_name and request.contact_phone and request.contact_address):
+            raise AppError(422, "CONTACT_REQUIRED", "Name, phone and address are required")
+        try:
+            phone = normalize_phone(request.contact_phone)
+        except InvalidPhoneNumberError as exc:
+            raise AppError(422, "INVALID_PHONE", "Contact phone is invalid") from exc
+        contact_name = request.contact_name
+        phone_raw = request.contact_phone
+        contact_address = request.contact_address
     if not request.items or len(request.items) > MAX_ITEMS:
         raise AppError(422, "ITEMS_REQUIRED", "Add at least one item")
 
@@ -111,12 +128,7 @@ def checkout(
             )
         return CheckoutResponse.model_validate({**existing.response, "replayed": True})
 
-    pricing_customer = (
-        db.get(Customer, context.customer_id)
-        if context is not None
-        else _guest_customer(request.contact_name, phone, request.contact_address)
-    )
-    assert pricing_customer is not None
+    pricing_customer = customer or _guest_customer(contact_name, phone, contact_address)
     item_requests: list[InvoiceEditorItemRequest] = []
     for line in request.items:
         product = db.scalar(
@@ -153,25 +165,41 @@ def checkout(
         id=uuid4(),
         tenant_id=tenant.id,
         status="RECEIVED",
-        contact_name=request.contact_name.strip(),
+        contact_name=contact_name.strip(),
         contact_phone=phone,
-        contact_phone_raw=request.contact_phone.strip(),
-        contact_address=request.contact_address.strip(),
+        contact_phone_raw=phone_raw.strip(),
+        contact_address=contact_address.strip(),
         notes=(request.notes or "").strip() or None,
         currency=order_currency,
         intended_customer_id=context.customer_id if context else None,
         intended_assurance=context.assurance.value if context else None,
+        linked_customer_id=customer.id if customer else None,
         created_at=now,
     )
     db.add(order)
     db.flush()
-    # Draft invoice + first provisional revision (D-033: one order → one header). The customer
-    # stays unlinked until the owner resolves it; the hint lives on the order, not the invoice.
+    # Draft invoice + first provisional revision (D-033: one order → one header). A public order
+    # stays unlinked until the owner resolves it; a personalized one is applied to its customer
+    # through the editor's own customer path (D-090), exactly as an owner link would be.
+    customer_snapshot: dict[str, object]
+    if customer is not None:
+        applied = invoice_editor.apply_customer(db, tenant.id, customer, order_currency, net_sales)
+        customer_snapshot = applied.customer_snapshot
+        prior_balance, amount_due = applied.prior_balance_snapshot, applied.amount_due_display
+    else:
+        customer_snapshot = {
+            "name": order.contact_name,
+            "phone": order.contact_phone,
+            "address": order.contact_address,
+            "source": "storefront_checkout",
+        }
+        prior_balance = Decimal("0")
+        amount_due = invoice_editor.stored_money(net_sales)
     invoice_id, revision_id = uuid4(), uuid4()
     invoice = Invoice(
         id=invoice_id,
         tenant_id=tenant.id,
-        customer_id=None,
+        customer_id=customer.id if customer else None,
         order_id=order.id,
         current_revision_id=revision_id,
         status=InvoiceStatus.DRAFT,
@@ -187,19 +215,14 @@ def checkout(
         server_revision_number=1,
         pricing_version="pricing-v1",
         currency=order_currency,
-        customer_id=None,
-        customer_snapshot={
-            "name": order.contact_name,
-            "phone": order.contact_phone,
-            "address": order.contact_address,
-            "source": "storefront_checkout",
-        },
-        prior_balance_snapshot=Decimal("0"),
+        customer_id=customer.id if customer else None,
+        customer_snapshot=customer_snapshot,
+        prior_balance_snapshot=prior_balance,
         subtotal=subtotal,
         discount_total=discount_total,
         markup_total=markup_total,
         net_sales=net_sales,
-        amount_due_display=invoice_editor.stored_money(net_sales),
+        amount_due_display=amount_due,
         created_by_user_id=None,
         reason="storefront guest checkout",
     )

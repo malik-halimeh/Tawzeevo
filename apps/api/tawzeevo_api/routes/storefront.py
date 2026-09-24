@@ -308,6 +308,7 @@ def read_customer_context(
         required_policy=context.required_policy.value,
         granted=context.granted,
         contact_hint=context.contact_hint if not context.granted else "",
+        has_saved_address=context.has_saved_address if context.granted else False,
     )
 
 
@@ -507,7 +508,7 @@ def guest_checkout(
     idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
 ) -> CheckoutResponse:
     """One order per Idempotency-Key: a replay returns the original; a different body is 409.
-    A valid personalized capability adds only the intended-customer hint."""
+    A granted personalized capability makes the order that customer's (D-090)."""
     response.headers["Cache-Control"] = PRIVATE_CACHE
     context = customer_access.resolve_context(
         db, http_request.headers.get(CAPABILITY_HEADER), http_request.headers.get(SESSION_HEADER)
@@ -564,6 +565,7 @@ def _detail(db: Session, tenant_id: UUID, order_id: UUID) -> OrderDetailResponse
     if order.intended_customer_id and all(c.id != order.intended_customer_id for c in candidates):
         hint = db.get(Customer, order.intended_customer_id)
     rows = ([hint] if hint else []) + candidates
+    linked = db.get(Customer, order.linked_customer_id) if order.linked_customer_id else None
     return OrderDetailResponse(
         order=OrderSummary.model_validate(order),
         invoice=orders.order_invoice_view(db, tenant_id, order),
@@ -581,6 +583,7 @@ def _detail(db: Session, tenant_id: UUID, order_id: UUID) -> OrderDetailResponse
             CancellationRequestResponse.model_validate(r)
             for r in orders.list_cancellation_requests(db, tenant_id, order.id)
         ],
+        linked_customer_name=linked.name if linked and linked.tenant_id == tenant_id else None,
     )
 
 

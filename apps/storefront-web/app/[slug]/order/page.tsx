@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { OrderView } from "@/components/OrderView";
 import { ShopFrame } from "@/components/ShopFrame";
 import { t } from "@/lib/i18n";
-import { type SearchParams, loadShop } from "@/lib/shop";
+import { type SearchParams, contextParam, loadShop } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<SearchParams> };
 
@@ -18,9 +18,10 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, "/order", query);
+  const ctx = contextParam(query);
   return (
-    <ShopFrame currentPath={`/${shop.slug}/order`} lang={lang} shop={shop}>
-      <OrderView lang={lang} slug={shop.slug} />
+    <ShopFrame ctx={ctx} currentPath={`/${shop.slug}/order`} lang={lang} shop={shop}>
+      <OrderView ctx={ctx} lang={lang} slug={shop.slug} />
     </ShopFrame>
   );
 }

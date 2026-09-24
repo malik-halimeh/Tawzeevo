@@ -21,14 +21,13 @@ export function AccessEntry({ slug, lang }: { slug: string; lang: Lang }) {
       if (!secret) return false;
       const response = await fetch(`/${slug}/access/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capability: secret }) });
       if (!response.ok) return false;
-      const body = (await response.json().catch(() => ({}))) as { verification_required?: boolean };
-      return body.verification_required ? "verify" : true;
+      const body = (await response.json().catch(() => ({}))) as { verification_required?: boolean; ref?: string };
+      return { verify: Boolean(body.verification_required), ref: body.ref ?? null };
     };
     exchange()
       .then((result) => {
-        if (result === "verify") window.location.replace(shopHref(slug, lang, "/verify"));
-        else if (result) window.location.replace(shopHref(slug, lang));
-        else setState("failed");
+        if (!result) setState("failed");
+        else window.location.replace(shopHref(slug, lang, result.verify ? "/verify" : "", result.ref));
       })
       .catch(() => setState("failed"));
   }, [slug, lang]);

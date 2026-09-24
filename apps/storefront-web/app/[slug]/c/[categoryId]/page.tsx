@@ -8,7 +8,7 @@ import { fetchProducts } from "@/lib/catalog";
 import { shopHref } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { visitorFor } from "@/lib/personal";
-import { type SearchParams, loadShop, pageNumber } from "@/lib/shop";
+import { type SearchParams, contextParam, loadShop, pageNumber } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string; categoryId: string }>; searchParams: Promise<SearchParams> };
 
@@ -26,22 +26,22 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const category = shop.categories.find((row) => row.id === categoryId);
   if (!category) notFound();
   const page = pageNumber(query);
-  const { state: context, personal } = await visitorFor(shop.slug);
+  const { state: context, personal, ctx } = await visitorFor(shop.slug, contextParam(query));
   const products = await fetchProducts(shop.slug, { categoryId, page, capability: personal });
   return (
-    <ShopFrame cartBar context={context} currentPath={`/${shop.slug}/c/${categoryId}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
+    <ShopFrame cartBar context={context} ctx={ctx} currentPath={`/${shop.slug}/c/${categoryId}${page > 1 ? `?page=${page}` : ""}`} lang={lang} shop={shop}>
       <nav aria-label={t(lang, "categories")}>
         <ul className="chips">
-          <li><Link href={shopHref(shop.slug, lang)}>{t(lang, "allProducts")}</Link></li>
+          <li><Link href={shopHref(shop.slug, lang, "", ctx)}>{t(lang, "allProducts")}</Link></li>
           {shop.categories.map((row) => (
             <li key={row.id}>
-              <Link aria-current={row.id === categoryId ? "page" : undefined} href={shopHref(shop.slug, lang, `/c/${row.id}`)}>{lang === "ar" ? row.name_ar : row.name_en} · {row.product_count}</Link>
+              <Link aria-current={row.id === categoryId ? "page" : undefined} href={shopHref(shop.slug, lang, `/c/${row.id}`, ctx)}>{lang === "ar" ? row.name_ar : row.name_en} · {row.product_count}</Link>
             </li>
           ))}
         </ul>
       </nav>
       <div className="section-title"><h2>{lang === "ar" ? category.name_ar : category.name_en}</h2></div>
-      <ProductGrid basePath={`/c/${categoryId}`} emptyKey="noProducts" lang={lang} page={products} slug={shop.slug} />
+      <ProductGrid basePath={`/c/${categoryId}`} ctx={ctx} emptyKey="noProducts" lang={lang} page={products} slug={shop.slug} />
     </ShopFrame>
   );
 }

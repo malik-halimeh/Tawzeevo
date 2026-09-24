@@ -11,13 +11,13 @@ function basisLabel(product: PublicProduct, lang: Lang): string {
   return product.price_basis === "BOX" ? t(lang, "perBox", { count: product.packaging.pieces_per_box ?? 0 }) : t(lang, "perPiece");
 }
 
-export function ProductCard({ slug, product, lang }: { slug: string; product: PublicProduct; lang: Lang }) {
+export function ProductCard({ slug, product, lang, ctx = null }: { slug: string; product: PublicProduct; lang: Lang; ctx?: string | null }) {
   const image = product.images[0];
   const name = productName(product, lang);
   const secondary = secondaryPrice(product, lang);
   return (
     <li className="card">
-      <Link href={shopHref(slug, lang, `/p/${product.id}`)}>
+      <Link href={shopHref(slug, lang, `/p/${product.id}`, ctx)}>
         <div className="thumb" aria-hidden={image ? undefined : true}>
           {image ? <img alt={image.alt_text ?? name} height={image.height} loading="lazy" src={`${publicApiBase()}${image.url}`} width={image.width} /> : <span>{name.slice(0, 1)}</span>}
         </div>
@@ -28,21 +28,21 @@ export function ProductCard({ slug, product, lang }: { slug: string; product: Pu
       </Link>
       <div className="card-buy">
         <span><bdi className="price" dir="ltr">{money(product.price, product.currency)}</bdi><small>{basisLabel(product, lang)}</small></span>
-        <AddToCart compact lang={lang} product={product} slug={slug} />
+        <AddToCart compact ctx={ctx} lang={lang} product={product} slug={slug} />
       </div>
     </li>
   );
 }
 
-export function ProductGrid({ slug, page, lang, basePath, emptyKey }: { slug: string; page: PublicProductPage; lang: Lang; basePath: string; emptyKey: "noProducts" | "noResults" }) {
+export function ProductGrid({ slug, page, lang, basePath, emptyKey, ctx = null }: { slug: string; page: PublicProductPage; lang: Lang; basePath: string; emptyKey: "noProducts" | "noResults"; ctx?: string | null }) {
   if (page.items.length === 0) return <p className="empty">{t(lang, emptyKey)}</p>;
   const join = basePath.includes("?") ? "&" : "?";
-  const pageHref = (number: number) => shopHref(slug, lang, `${basePath}${join}page=${number}`);
+  const pageHref = (number: number) => shopHref(slug, lang, `${basePath}${join}page=${number}`, ctx);
   return (
     <>
       <p className="muted">{plural(lang, "products", page.total)}</p>
       <ul className="grid">
-        {page.items.map((product) => <ProductCard key={product.id} lang={lang} product={product} slug={slug} />)}
+        {page.items.map((product) => <ProductCard ctx={ctx} key={product.id} lang={lang} product={product} slug={slug} />)}
       </ul>
       {page.total > page.page_size ? (
         <nav aria-label={t(lang, "page", { page: page.page })} className="pager">

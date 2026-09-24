@@ -168,9 +168,10 @@ def test_owner_reviews_links_explicitly_and_confirms_through_phase_3(client, ses
     assert past.status_code == 422
 
 
-def test_hint_from_personalized_link_is_shown_but_never_auto_linked_and_snapshot_creates_customer(
+def test_link_order_arrives_linked_and_the_owner_may_still_relink_or_decline(
     client, session_factory
 ):
+    """D-090: the link's customer is linked at checkout; owner review stays authoritative."""
     owner, tenant, token = _owner_context(client, session_factory, "review-hint")
     _category, product, customer = _catalog(client, tenant, token, name="Cedar Water")
     _publish(client, tenant, token, product["id"])
@@ -186,10 +187,12 @@ def test_hint_from_personalized_link_is_shown_but_never_auto_linked_and_snapshot
     detail = _order(client, tenant, token, placed["order_id"])
     assert detail["order"]["intended_customer_id"] == customer["id"]
     assert detail["order"]["intended_assurance"] == "LINK"
-    assert detail["order"]["linked_customer_id"] is None
+    assert detail["order"]["linked_customer_id"] == customer["id"]
+    assert detail["linked_customer_name"] == "Maya Market"
+    assert detail["order"]["contact_name"] == "Maya Market", "the browser name is ignored"
     assert [c["is_hint"] for c in detail["candidates"]] == [True]
 
-    # The owner may ignore the hint and create a new customer from the contact snapshot.
+    # The owner may still link a different customer while the order awaits review.
     created = client.post(
         f"/api/v1/tenants/{tenant}/orders/{placed['order_id']}/link-customer",
         headers=_auth(token),
@@ -200,8 +203,8 @@ def test_hint_from_personalized_link_is_shown_but_never_auto_linked_and_snapshot
     assert new_id != customer["id"]
     with session_factory() as db:
         new_customer = db.get(Customer, UUID(new_id))
-        assert new_customer is not None and new_customer.name == "Abu Ahmad"
-        assert new_customer.phone == "+96170123900" and new_customer.grade.value == "B"
+        assert new_customer is not None and new_customer.name == "Maya Market"
+        assert new_customer.phone == customer["phone"] and new_customer.grade.value == "B"
     # Both choices are refused for a non-received order and without a choice.
     assert (
         client.post(

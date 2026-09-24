@@ -6,10 +6,10 @@ import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 
 /**
- * Storefront order inbox and review (PHASE_05.md G–J; D-046, D-049, D-072). The owner links the
- * customer explicitly (the hint from a personalized link is only a suggestion), confirms through
- * the Phase 3 confirmation, declines, sets the delivery date after confirmation, and decides
- * cancellation requests. A sole owner needs nothing else.
+ * Storefront order inbox and review (PHASE_05.md G–J; D-046, D-049, D-072, D-090). An order placed
+ * through a personalized link arrives already linked to that customer; a public order is linked by
+ * the owner explicitly. The owner confirms through the Phase 3 confirmation, declines, sets the
+ * delivery date after confirmation, and decides cancellation requests. A sole owner needs nothing else.
  */
 export interface OrderSummary {
   id: string; status: "RECEIVED" | "CONFIRMED" | "DECLINED" | "CANCELLED"; contact_name: string; contact_phone: string;
@@ -20,7 +20,7 @@ interface Candidate { id: string; name: string; phone: string; grade: string | n
 interface CancellationRequest { id: string; order_id: string; status: "PENDING" | "APPROVED" | "REJECTED"; reason: string | null; created_at: string; decided_at: string | null; decision_note: string | null }
 interface InvoiceLine { id: string; product_name: string; quantity: string; effective_unit_price: string; line_total: string }
 interface InvoiceView { id: string; status: string; current_revision_id: string; official_invoice_number: string | null; net_sales: string; currency: string; items: InvoiceLine[] }
-interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[] }
+interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[]; linked_customer_name?: string | null }
 
 export function OrdersPanel({ tenantId }: { tenantId: string }) {
   const { t, i18n } = useTranslation();
@@ -159,7 +159,7 @@ export function OrdersPanel({ tenantId }: { tenantId: string }) {
                     </form>
                   </>
                 ) : (
-                  <p className="form-status">{t("orders.linkedTo")}</p>
+                  <p className="form-status">{selected.linked_customer_name ? t("orders.linkedToName", { name: selected.linked_customer_name }) : t("orders.linkedTo")}</p>
                 )}
                 <div className="category-actions">
                   <button className="button" disabled={busy || !selected.order.linked_customer_id} onClick={confirm} type="button">{t("orders.confirm")}</button>

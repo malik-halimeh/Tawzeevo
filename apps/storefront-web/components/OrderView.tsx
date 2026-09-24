@@ -22,7 +22,7 @@ const KEY = (slug: string) => `tawzeevo.order-ref.${slug}`;
  * browser's sessionStorage for revisits within its lifetime, and is sent only in a private
  * header through the shop's proxy. It shows the order as submitted — not a confirmed invoice.
  */
-export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
+export function OrderView({ slug, lang, ctx = null }: { slug: string; lang: Lang; ctx?: string | null }) {
   const [order, setOrder] = useState<ProvisionalOrder>();
   const [state, setState] = useState<"loading" | "missing">("loading");
   const referenceRef = useRef("");
@@ -74,7 +74,7 @@ export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
 
   if (!order) {
     return state === "missing"
-      ? <section className="empty" role="alert"><Icon name="info" /><h2>{t(lang, "orderUnavailableTitle")}</h2><p>{t(lang, "orderUnavailableBody")}</p><p><Link className="text-link" href={shopHref(slug, lang)}>{t(lang, "backToShop")}</Link></p></section>
+      ? <section className="empty" role="alert"><Icon name="info" /><h2>{t(lang, "orderUnavailableTitle")}</h2><p>{t(lang, "orderUnavailableBody")}</p><p><Link className="text-link" href={shopHref(slug, lang, "", ctx)}>{t(lang, "backToShop")}</Link></p></section>
       : <p className="muted" role="status">{t(lang, "orderLoading")}</p>;
   }
   const statusKey = `orderStatus_${order.status}` as "orderStatus_RECEIVED" | "orderStatus_CONFIRMED" | "orderStatus_DECLINED" | "orderStatus_CANCELLED";
@@ -120,7 +120,7 @@ export function OrderView({ slug, lang }: { slug: string; lang: Lang }) {
         </div>
       ) : null}
       <p className="muted">{t(lang, "orderProvisionalNote")}</p>
-      <p><Link className="button secondary" href={shopHref(slug, lang)}><Arrow back small />{t(lang, "backToShop")}</Link></p>
+      <p><Link className="button secondary" href={shopHref(slug, lang, "", ctx)}><Arrow back small />{t(lang, "backToShop")}</Link></p>
     </article>
   );
 }

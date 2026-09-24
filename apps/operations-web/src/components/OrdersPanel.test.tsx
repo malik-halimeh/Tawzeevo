@@ -61,3 +61,27 @@ test("the inbox says it is loading, never that there are no orders, until the fi
   expect(await screen.findByText("No storefront orders yet.")).toBeInTheDocument();
   expect(screen.queryByText("Loading current data…")).not.toBeInTheDocument();
 });
+
+test("an order placed through a personalized link arrives linked: no customer picking, only review", async () => {
+  await i18n.changeLanguage("en");
+  const order = {
+    id: "o2", status: "RECEIVED", contact_name: "Maya Market", contact_phone: "+96170000002", contact_address: "Hamra", notes: null, currency: "USD",
+    intended_customer_id: "c9", intended_assurance: "LINK", linked_customer_id: "c9", invoice_id: "inv2", delivery_date: null,
+    decision_note: null, created_at: "2026-09-24T00:00:00Z", decided_at: null,
+  };
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = input instanceof Request ? input.url : input.toString();
+    if (path.includes("/notifications")) return Promise.resolve(Response.json({ notifications: [], unread: 0 }));
+    if (path.includes("/orders/o2")) return Promise.resolve(Response.json({ order, linked_customer_name: "Maya Market", invoice: { id: "inv2", status: "DRAFT", current_revision_id: "rev-1", official_invoice_number: null, net_sales: "8.50", currency: "USD", items: [] }, candidates: [{ id: "c9", name: "Maya Market", phone: "+96170000002", grade: "A", is_hint: true }], cancellation_requests: [] }));
+    if (path.includes("/orders")) return Promise.resolve(Response.json({ orders: [order] }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+
+  render(<OrdersPanel tenantId="t1" />);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  expect(await screen.findByText("Customer: Maya Market. Prices are this customer's.")).toBeInTheDocument();
+  expect(screen.queryByText("Which customer is this?")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Create a new customer from these details" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /suggested/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Confirm and assign invoice number" })).toBeEnabled();
+});

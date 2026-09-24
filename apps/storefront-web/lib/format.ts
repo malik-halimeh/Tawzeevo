@@ -42,8 +42,25 @@ export function secondaryPriceLine(product: PublicProduct, lang: Lang): string |
   return price ? `${price.amount} ${price.basis}` : null;
 }
 
-/** Keeps a link inside the same shop and language. */
-export function shopHref(slug: string, lang: Lang, path = ""): string {
-  const base = `/${slug}${path}`;
-  return lang === "ar" ? `${base}${base.includes("?") ? "&" : "?"}lang=ar` : base;
+/**
+ * A tab's personalized context reference (`c=`): a one-way digest of the link it was opened with,
+ * never the link secret itself. It pins a tab to one customer so two customers' storefronts can be
+ * open side by side in one browser without changing each other (D-090).
+ */
+export const CONTEXT_PARAM = "c";
+/** The header a tab uses to name its context to the storefront's own checkout route. */
+export const CONTEXT_HEADER = "X-Customer-Context";
+const CONTEXT_REF = /^[a-f0-9]{24}$/;
+
+export function isContextRef(value: unknown): value is string {
+  return typeof value === "string" && CONTEXT_REF.test(value);
+}
+
+/** Keeps a link inside the same shop, language and personalized context. */
+export function shopHref(slug: string, lang: Lang, path = "", ctx?: string | null): string {
+  let href = `/${slug}${path}`;
+  const add = (pair: string) => { href = `${href}${href.includes("?") ? "&" : "?"}${pair}`; };
+  if (isContextRef(ctx)) add(`${CONTEXT_PARAM}=${ctx}`);
+  if (lang === "ar") add("lang=ar");
+  return href;
 }

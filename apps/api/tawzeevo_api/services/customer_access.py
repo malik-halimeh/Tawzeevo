@@ -81,6 +81,8 @@ class CustomerContext:
     link_id: UUID
     required_policy: AccessPolicy = AccessPolicy.LINK
     phone: str = ""  # the customer's own number, for the verification challenge only
+    # Whether an address is on file; never the address itself (D-090 limited disclosure).
+    has_saved_address: bool = False
 
     @property
     def granted(self) -> bool:
@@ -348,6 +350,7 @@ def resolve_state(
         link_id=link.id,
         required_policy=policy,
         phone=customer.phone,
+        has_saved_address=bool((customer.address or "").strip()),
     )
 
 

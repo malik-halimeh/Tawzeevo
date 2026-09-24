@@ -5,7 +5,7 @@ import { ShopFrame } from "@/components/ShopFrame";
 import { VerifyForm } from "@/components/VerifyForm";
 import { shopHref } from "@/lib/format";
 import { visitorFor } from "@/lib/personal";
-import { type SearchParams, loadShop } from "@/lib/shop";
+import { type SearchParams, contextParam, loadShop } from "@/lib/shop";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<SearchParams> };
 
@@ -20,12 +20,12 @@ export default async function VerifyPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
   const { shop, lang } = await loadShop(slug, "/verify", query);
-  const { state } = await visitorFor(shop.slug);
+  const { state, ctx } = await visitorFor(shop.slug, contextParam(query));
   if (!state) redirect(shopHref(shop.slug, lang, "/access"));
-  if (state.granted) redirect(shopHref(shop.slug, lang));
+  if (state.granted) redirect(shopHref(shop.slug, lang, "", ctx));
   return (
-    <ShopFrame context={state} currentPath={`/${shop.slug}/verify`} lang={lang} shop={shop}>
-      <VerifyForm contactHint={state.contact_hint} displayName={state.display_name} lang={lang} slug={shop.slug} />
+    <ShopFrame context={state} ctx={ctx} currentPath={`/${shop.slug}/verify`} lang={lang} shop={shop}>
+      <VerifyForm contactHint={state.contact_hint} ctx={ctx} displayName={state.display_name} lang={lang} slug={shop.slug} />
     </ShopFrame>
   );
 }

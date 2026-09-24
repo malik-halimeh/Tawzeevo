@@ -1,12 +1,20 @@
+import { createHash } from "node:crypto";
+
 import { cookies } from "next/headers";
 
 import { apiBase } from "./catalog";
+import { isContextRef } from "./format";
 
 /**
- * Personalized customer context on the storefront (D-071, D-072, D-075). The opaque capability
- * lives only in a first-party HttpOnly cookie scoped to this shop; every request re-resolves it
- * on the API, so rotation/revocation/suspension end the context at once. The cookie never holds
- * customer data, and a valid context means assurance LINK — nothing more.
+ * Personalized customer context on the storefront (D-071, D-072, D-075, D-090). The opaque
+ * capability lives only in first-party HttpOnly cookies scoped to this shop; every request
+ * re-resolves it on the API, so rotation/revocation/suspension end the context at once. The cookies
+ * never hold customer data.
+ *
+ * Each opened link gets its own cookie, named after its context reference (a one-way digest, see
+ * `contextRef`), and a tab carries that reference in `?c=`. So two customers' storefronts can be
+ * open in two tabs of one browser without either tab changing the other's customer, cart or
+ * checkout. The shop-wide cookie keeps the most recently opened link for a bare address.
  */
 export const COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30-day maximum (D-075)
 export const CAPABILITY_HEADER = "X-Customer-Capability";
@@ -21,6 +29,8 @@ export interface CustomerContext {
   required_policy: "LINK" | "VERIFIED" | "ACCOUNT_REQUIRED";
   granted: boolean;
   contact_hint: string;
+  /** Granted contexts only: whether an address is on file (never the address itself; D-090). */
+  has_saved_address?: boolean;
 }
 
 export function cookieName(slug: string): string {
@@ -32,36 +42,62 @@ export function sessionCookieName(slug: string): string {
   return `tz_session_${slug}`;
 }
 
-export async function sessionFor(slug: string): Promise<string | null> {
-  try {
-    const value = (await cookies()).get(sessionCookieName(slug))?.value;
-    return isCapability(value) ? value : null;
-  } catch {
-    return null;
-  }
+/** A tab's context reference: a one-way digest of the capability, never the capability or its
+ * stored hash (the API keeps a plain SHA-256; this one is domain-separated and truncated). */
+export function contextRef(capability: string): string {
+  return createHash("sha256").update(`tawzeevo-ctx:${capability}`).digest("hex").slice(0, 24);
 }
 
-/** Headers that carry the visitor's secrets to the API (capability, and the session when any). */
-export async function personalHeaders(slug: string, capability: string | null): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {};
-  if (!capability) return headers;
-  headers[CAPABILITY_HEADER] = capability;
-  const session = await sessionFor(slug);
-  if (session) headers[SESSION_HEADER] = session;
-  return headers;
+export function contextCookieName(slug: string, ref: string): string {
+  return `${cookieName(slug)}_${ref}`;
+}
+
+export function contextSessionCookieName(slug: string, ref: string): string {
+  return `${sessionCookieName(slug)}_${ref}`;
 }
 
 export function isCapability(value: string | undefined | null): value is string {
   return Boolean(value && TOKEN.test(value));
 }
 
-export async function capabilityFor(slug: string): Promise<string | null> {
+async function jarValue(name: string): Promise<string | null> {
   try {
-    const value = (await cookies()).get(cookieName(slug))?.value;
+    const value = (await cookies()).get(name)?.value;
     return isCapability(value) ? value : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The capability for one tab. With a context reference only that context's link is used (or the
+ * shop-wide cookie when it is that same link, e.g. set before per-context cookies existed); an
+ * unknown reference is the public storefront, never another customer. Without a reference (a bare
+ * address) the most recently opened link applies, as before.
+ */
+export async function capabilityFor(slug: string, ref?: string | null): Promise<string | null> {
+  const latest = await jarValue(cookieName(slug));
+  if (ref === undefined || ref === null) return latest;
+  if (!isContextRef(ref)) return null;
+  const pinned = await jarValue(contextCookieName(slug, ref));
+  if (pinned) return pinned;
+  return latest && contextRef(latest) === ref ? latest : null;
+}
+
+export async function sessionFor(slug: string, ref?: string | null): Promise<string | null> {
+  const pinned = isContextRef(ref) ? await jarValue(contextSessionCookieName(slug, ref)) : null;
+  return pinned ?? (await jarValue(sessionCookieName(slug)));
+}
+
+/** Headers that carry the visitor's secrets to the API (capability, and the session when any).
+ * The API accepts a session only for the link it was issued to, so a mismatch is harmless. */
+export async function personalHeaders(slug: string, capability: string | null): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (!capability) return headers;
+  headers[CAPABILITY_HEADER] = capability;
+  const session = await sessionFor(slug, contextRef(capability));
+  if (session) headers[SESSION_HEADER] = session;
+  return headers;
 }
 
 /** Ask the API what this visitor holds; any failure means anonymous. */
@@ -85,12 +121,16 @@ export async function resolveContext(capability: string | null, session: string 
   return state?.granted ? state : null;
 }
 
-/** Everything a page needs in one call: the full state (for the banner/verification offer) and
- * the personal payload to send with catalog requests (null while nothing is granted). */
-export async function visitorFor(slug: string): Promise<{ state: CustomerContext | null; personal: { capability: string; session: string | null } | null }> {
-  const capability = await capabilityFor(slug);
-  if (!capability) return { state: null, personal: null };
-  const session = await sessionFor(slug);
+/** Everything a page needs in one call: the full state (for the banner/verification offer), the
+ * personal payload to send with catalog requests (null while nothing is granted), and the context
+ * reference every link on the page must carry (`ctx`; the requested one when it did not resolve,
+ * so the tab stays pinned to that context instead of picking up another customer's link). */
+export async function visitorFor(slug: string, requested?: string | null): Promise<{ state: CustomerContext | null; personal: { capability: string; session: string | null } | null; ctx: string | null }> {
+  const pinned = isContextRef(requested) ? requested : null;
+  const capability = await capabilityFor(slug, requested ?? null);
+  if (!capability) return { state: null, personal: null, ctx: pinned };
+  const ref = contextRef(capability);
+  const session = await sessionFor(slug, ref);
   const state = await resolveState(capability, session);
-  return { state, personal: state?.granted ? { capability, session } : null };
+  return { state, personal: state?.granted ? { capability, session } : null, ctx: state ? ref : pinned };
 }
