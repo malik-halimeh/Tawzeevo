@@ -398,14 +398,7 @@ def test_orders_awaiting_review_are_tenant_isolated_and_drop_after_a_decision(
         headers=_auth(other_token),
     ).status_code in (403, 404)
 
-    # A decision (here: link, then decline) removes the order from the awaiting set.
-    linked = client.post(
-        f"/api/v1/tenants/{tenant}/orders/{first['order_id']}/link-customer",
-        headers=_auth(token),
-        json={"create_from_snapshot": True, "grade": "B"},
-    )
-    assert linked.status_code == 200, linked.text
-    assert len(pending(tenant, token)) == 2, "linking alone is not a decision"
+    # A decision removes the order from the awaiting set; a public order needs no customer (F-03).
     declined = client.post(
         f"/api/v1/tenants/{tenant}/orders/{first['order_id']}/decline",
         headers=_auth(token),

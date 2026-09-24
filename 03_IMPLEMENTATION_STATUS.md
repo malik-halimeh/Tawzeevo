@@ -37,9 +37,9 @@ Phase 9 starts with P9-M1 (D-077 password recovery approved; D-078 targets; D-07
 | OWF-M3 | COMPLETE | Next steps after confirmation; invoice, payment and delivery pages open with the invoice selected |
 | OWF-M4 | COMPLETE | Invoice references link to the read-only invoice; copy share link verified signed out |
 
-Branch `fix/order-workflow` (local, not pushed, not deployed). Decisions and deferred items:
-`docs/order-workflow/DECISIONS.md`, `docs/order-workflow/DEFERRED.md` (F-03 is a pre-existing
-decline defect for unlinked public orders that needs an owner-approved fix).
+Merged to `main` through PR #3 (`c2d9073`, 2026-09-25). F-03 (declining an unlinked public order
+left it RECEIVED behind a cancelled invoice) fixed separately on `fix/public-order-decline`.
+Decisions and deferred items: `docs/order-workflow/DECISIONS.md`, `docs/order-workflow/DEFERRED.md`.
 
 ## Phase status
 

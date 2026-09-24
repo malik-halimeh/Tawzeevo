@@ -42,7 +42,7 @@ from tawzeevo_api.schemas.invoice_editor import (
 )
 from tawzeevo_api.services.cash_van import create_customer, get_customer
 from tawzeevo_api.services.invoice_editor import update_editor_draft
-from tawzeevo_api.services.invoice_finance import cancel_invoice, confirm_invoice
+from tawzeevo_api.services.invoice_finance import apply_invoice_cancellation, confirm_invoice
 
 TENANT_TZ = ZoneInfo("Asia/Beirut")
 REMINDER_LOCAL_TIME = time(hour=9, minute=0)  # the morning before the delivery date, tenant-local
@@ -247,7 +247,8 @@ def decline_order(
     if order.status != "RECEIVED":
         raise AppError(409, "ORDER_NOT_REVIEWABLE", "Only a received order can be declined")
     invoice = _invoice(db, tenant_id, order)
-    cancel_invoice(
+    # One transaction: the draft's cancellation and the decision commit together (F-03).
+    apply_invoice_cancellation(
         db, tenant_id, actor, invoice.id, InvoiceCancelRequest(idempotency_key=uuid4(), reason=note)
     )
     order = get_order(db, tenant_id, order_id)
@@ -347,13 +348,14 @@ def decide_cancellation(
     if approve:
         invoice = _invoice(db, tenant_id, order)
         if invoice.status is not InvoiceStatus.CANCELLED:
-            cancel_invoice(
+            apply_invoice_cancellation(
                 db,
                 tenant_id,
                 actor,
                 invoice.id,
                 InvoiceCancelRequest(idempotency_key=uuid4(), reason=note or request.reason),
-            )  # Phase 3 reversal accounting for confirmed invoices; drafts just close
+            )  # Phase 3 reversal accounting for confirmed invoices; drafts just close. Commits
+            # below together with the order and request decision (F-03).
         order = get_order(db, tenant_id, order_id=request.order_id)
         order.status = "CANCELLED"
         order.decided_at = _now()
