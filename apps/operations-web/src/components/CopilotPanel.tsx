@@ -24,8 +24,10 @@ const SUGGESTIONS = ["callToday", "overdue", "unusual", "collected"] as const;
 function AnswerText({ text }: { text: string }) {
   const blocks: { list: boolean; lines: string[] }[] = [];
   for (const raw of text.replace(/\*\*|__|`/g, "").split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) { blocks.push({ list: false, lines: [] }); continue; }
+    let line = raw.trim().replace(/^#{1,6}\s+/, ""); // a heading reads as its words
+    if (/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(line)) continue; // table rule line
+    if (line.startsWith("|") && line.endsWith("|")) line = `- ${line.slice(1, -1).split("|").map((cell) => cell.trim()).filter(Boolean).join(" · ")}`; // table row → list line
+    if (!line || line === "-") { blocks.push({ list: false, lines: [] }); continue; }
     const item = /^(?:[-*•]|\d{1,2}[.)])\s+(.*)$/.exec(line);
     const last = blocks[blocks.length - 1];
     if (item) {

@@ -27,7 +27,9 @@ from sqlalchemy.orm import Session
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.models import Customer
 
-REF_PATTERN = re.compile(r"\bC-[A-Z2-7]{6}\b")
+# Models sometimes typeset the hyphen (U+2010-U+2015, U+2212); any of them still names the same
+# reference, which is always stored and reported in its ASCII form.
+REF_PATTERN = re.compile(r"\bC[-\u2010-\u2015\u2212]([A-Z2-7]{6})\b")
 MIN_NAME_LENGTH = 3  # shorter names are too likely to match ordinary words
 
 
@@ -78,7 +80,8 @@ class CustomerDirectory:
         return self.ref_by_id.get(customer_id) if customer_id is not None else None
 
     def resolve(self, ref: str) -> UUID | None:
-        entry = self.by_ref.get(ref.strip().upper())
+        match = REF_PATTERN.fullmatch(ref.strip().upper())
+        entry = self.by_ref.get(f"C-{match.group(1)}") if match else None
         return entry[0] if entry else None
 
     def mask(self, text: str) -> str:
@@ -102,11 +105,12 @@ class CustomerDirectory:
         used: list[str] = []
 
         def swap(match: re.Match[str]) -> str:
-            entry = self.by_ref.get(match.group(0))
+            ref = f"C-{match.group(1)}"
+            entry = self.by_ref.get(ref)
             if entry is None:
                 return match.group(0)
-            if match.group(0) not in used:
-                used.append(match.group(0))
+            if ref not in used:
+                used.append(ref)
             return entry[1]
 
         return REF_PATTERN.sub(swap, text), used

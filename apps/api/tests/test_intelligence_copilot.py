@@ -317,6 +317,14 @@ def test_provider_failures_and_loops_are_controlled(client, session_factory, mon
     )
     assert bad.status_code == 422
 
+    def limited(_messages):
+        raise CopilotProviderError("PROVIDER_RATE_LIMITED")
+
+    _use(monkeypatch, StubProvider(limited))
+    busy = client.post(f"{QUERY}?tenant_id={tenant}", headers=_auth(token), json={"message": "x"})
+    assert busy.status_code == 503  # the provider account's quota, reported as such
+    assert busy.json()["detail"]["code"] == "COPILOT_PROVIDER_BUSY"
+
 
 def test_per_user_rate_limit(client, session_factory, monkeypatch):
     _owner, tenant, token = _owner_context(client, session_factory, "coprate")
@@ -349,7 +357,8 @@ def test_references_are_scoped_to_one_conversation(client, session_factory, monk
             return _call("get_customer_debts", {"currency": "USD"})
         ref = result["debts"][0]["customer_ref"]  # the overdue customer sorts first
         seen_refs.append(ref)
-        return _text(f"{ref} owes money.")
+        # Real providers sometimes typeset the hyphen; the reference must still resolve.
+        return _text(f"{ref.replace('-', chr(0x2011))} owes money.")
 
     _use(monkeypatch, StubProvider(script))
 
@@ -370,6 +379,8 @@ def test_references_are_scoped_to_one_conversation(client, session_factory, monk
     assert seen_refs[2] != seen_refs[0]  # new conversation: unlinkable reference
     for body in (first, follow_up, fresh):
         assert body["references"][0]["customer_id"] == customer["id"]  # resolved inside only
+        assert body["references"][0]["ref"].startswith("C-")  # reported in its ASCII form
+        assert body["answer"] == f"{customer['name']} owes money."
     # A reference from another conversation does not resolve.
     with session_factory() as db:
         ctx = ToolContext(
@@ -446,6 +457,11 @@ def test_customer_names_inside_free_text_fields_are_masked_before_egress(
         ("مستحق ١٬٠٠٠٫٠٠ دولار", []),  # Arabic-Indic digits and separators
         ("1. C-ABC234 owes 1000 USD\n2. check again", []),  # list markers and references
         ("As of 2026-09-23 they owe 1000 USD.", []),  # the year appears in the tool result
+        # Typeset output seen from a real provider: narrow no-break space thousands groups and a
+        # reference with a non-breaking hyphen whose suffix starts with digits.
+        ("C‑2ABC34 owes 1 000.0000 USD", []),
+        ("Owed 1 234.5678 USD", []),
+        ("Owed 1 100 USD", ["1100"]),
         ("Owed 1,100 USD.", ["1100"]),
         ("Sales grew 37% this month.", ["37"]),  # a derived percentage no tool returned
         ("Next week you will collect 2500 USD.", ["2500"]),

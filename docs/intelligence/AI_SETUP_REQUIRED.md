@@ -14,16 +14,25 @@ is set it shows **"The assistant is not switched on"**, and nothing else changes
 The provider is **Groq** (decision D-089 in `04_DECISIONS.md`). Changing provider is a new
 decision, not a setting.
 
+## Status on 2026-09-25 (after the release of `59a0d08`)
+
+| Item | State |
+|---|---|
+| Groq account and a Groq API key | **Done already.** An existing key was checked on 2026-09-25: it is valid and it answered a real grounded question. Do not create another one. |
+| Key on the **live** API service `tawzeevo-api-malik-halimeh` | **Missing.** After the deploy, the live status check returned `configured: false`. The key was found only in the owner's workstation environment (Windows user variable `GROQ_API_KEY`), which the hosted API cannot see. |
+| Model | The key's Groq account refuses `llama-3.3-70b-versatile` ("does not exist or you do not have access"). It can call `openai/gpt-oss-120b`, which answered correctly with tools. Change the setting (step 2). |
+| Limits | On the key's current plan, a second question a few seconds after the first was refused as over the rate limit. Check limits and billing (step 2). |
+
 ## Checklist
 
-- [ ] 1. Groq account and organization ready
-- [ ] 2. Model access and billing/limits checked
-- [ ] 3. API key created for the live service
-- [ ] 4. Key added to the live API service on Render (`GROQ_API_KEY`)
-- [ ] 5. (Recommended) a separate key added to the staging API service
+- [x] 1. Groq account and organization ready (done)
+- [ ] 2. Model and limits: use a model the account can call (`openai/gpt-oss-120b`) and check the rate limit / billing
+- [x] 3. API key exists (done — reuse it; see step 3 for a separate live key if you prefer)
+- [ ] 4. Key added to the live API service on Render (`GROQ_API_KEY`) — **the one missing step**
+- [ ] 5. (Recommended) a key on the staging API service
 - [ ] 6. Status check says the assistant is configured
 - [ ] 7. One real question answered in the workspace
-- [ ] 8. (Optional) local development key for trying it on your own computer
+- [x] 8. Local development key (done — present in the workstation's user environment)
 
 Nothing is needed in GitHub Actions: CI never calls the provider (see step 4, "CI").
 
@@ -54,16 +63,21 @@ Steps:
 | | |
 |---|---|
 | What | Permission to call the model Tawzeevo uses, with enough request quota |
-| Tawzeevo setting | `COPILOT_MODEL` (default `llama-3.3-70b-versatile`) |
+| Tawzeevo setting | `COPILOT_MODEL` (default `openai/gpt-oss-120b` from the follow-up fix; `llama-3.3-70b-versatile` in release `59a0d08`) |
 | Mandatory? | Yes for the assistant |
 
 Steps:
 
-1. In the console, open **Docs › Models** (<https://console.groq.com/docs/models>) and confirm
-   `llama-3.3-70b-versatile` is listed as a production model. It was listed on 2026-09-25.
-   It must support **tool use** (function calling); Tawzeevo depends on it.
+1. Use **`openai/gpt-oss-120b`**. On 2026-09-25 the existing key's account could call it and it
+   answered a grounded question correctly with tools; the same account refused
+   `llama-3.3-70b-versatile`. Set `COPILOT_MODEL=openai/gpt-oss-120b` on the API service
+   together with the key (step 4). This works whether or not the follow-up fix that makes it
+   the default has been released. Any other model must support **tool use** (function calling)
+   and appear in the account's model list (console › **Models**).
 2. Open **Settings › Limits** (or **Billing**) for the organization:
-   - On the free tier, check the per-minute and per-day request/token limits. One owner question
+   - On the free tier, check the per-minute and per-day request/token limits. On 2026-09-25 a
+     second question asked seconds after the first was refused as over the limit; Tawzeevo then
+     says the language service "has reached its usage limit for now". One owner question
      is usually 2–5 provider calls (the model asks for one or more figures, then writes the
      answer). Tawzeevo itself also caps each owner at **30 questions per hour**
      (`COPILOT_REQUESTS_PER_HOUR`).
@@ -72,7 +86,10 @@ Steps:
 3. If Groq ever retires this model, choose another production model that supports tool use and
    set `COPILOT_MODEL` to its exact id (same place as the key, step 4). No code change is needed.
 
-## 3. Create the API key
+## 3. The API key (already exists)
+
+**Already satisfied:** a valid key exists (checked 2026-09-25). Reuse it for step 4. Create a
+new one only if you want separate keys per environment:
 
 | | |
 |---|---|
@@ -80,7 +97,7 @@ Steps:
 | Name it | `tawzeevo-live` (and later `tawzeevo-staging`, `tawzeevo-local`) |
 | Format | A long secret string that starts with `gsk_` (never share or paste it anywhere but Render) |
 
-Steps:
+Steps (only for an additional key):
 
 1. Click **Create API Key**, name it `tawzeevo-live`, and create it.
 2. Copy the key immediately — Groq shows it only once.
@@ -100,16 +117,19 @@ Use one key per environment (live, staging, local) so each can be revoked alone.
 Steps:
 
 1. Open <https://dashboard.render.com> › **tawzeevo-api-malik-halimeh** › **Environment**.
-2. Find `GROQ_API_KEY` (or click **Add Environment Variable**), paste the `tawzeevo-live` key as
-   the value, and save.
-3. Deploy the change: Render offers **Save and deploy** (or **Save, rebuild and deploy**). The
+2. Find `GROQ_API_KEY` (or click **Add Environment Variable**) and paste the existing key as the
+   value. It is the value of the Windows user environment variable `GROQ_API_KEY` on your
+   workstation (System Properties › Environment Variables), or copy it again from the Groq
+   console if it is still shown there. Paste it only into Render.
+3. In the same screen add `COPILOT_MODEL` = `openai/gpt-oss-120b` (step 2), then save.
+4. Deploy the change: Render offers **Save and deploy** (or **Save, rebuild and deploy**). The
    live services have automatic deploys off (`autoDeployTrigger: off`), so if you choose
    **Save only**, the key takes effect on the next deploy.
-4. Optional settings on the same screen (leave them unset to keep the defaults):
+5. Other optional settings on the same screen (leave them unset to keep the defaults):
 
 | Variable | Default | What it does |
 |---|---|---|
-| `COPILOT_MODEL` | `llama-3.3-70b-versatile` | Groq model id |
+| `COPILOT_MODEL` | `openai/gpt-oss-120b` (set it explicitly; see step 2) | Groq model id |
 | `COPILOT_TIMEOUT_SECONDS` | `20` | How long one provider call may take (1–60) |
 | `COPILOT_REQUESTS_PER_HOUR` | `30` | Questions per owner per hour (1–500) |
 | `COPILOT_MAX_TOOL_ROUNDS` | `4` | How many figure look-ups one answer may make (1–8) |
@@ -138,7 +158,7 @@ Any of these, after the deploy finishes:
 - **In the workspace:** sign in as an owner › More › **Assistant**. The "not switched on" panel is
   replaced by suggested questions and a question box.
 - **API:** `GET /api/v1/intelligence/copilot/status?tenant_id=<your business id>` as the owner
-  returns `{"configured": true, "provider": "groq", "model": "llama-3.3-70b-versatile"}`. It never
+  returns `{"configured": true, "provider": "groq", "model": "openai/gpt-oss-120b"}`. It never
   returns the key.
 
 ## 7. One real question
@@ -154,7 +174,8 @@ What you may see instead:
 | Screen says | Meaning | What to do |
 |---|---|---|
 | The assistant is not switched on | `GROQ_API_KEY` is empty on the API service | Step 4, then deploy |
-| The assistant's language service did not answer in time | Groq timed out, refused the key, or is rate-limited (HTTP 502 `COPILOT_PROVIDER_UNAVAILABLE`) | Check the key is correct and active, check Groq limits/billing, look at `copilot_provider_failures` in `GET /health/metrics` |
+| The assistant's language service did not answer in time | Groq timed out, refused the key, or refused the model (HTTP 502 `COPILOT_PROVIDER_UNAVAILABLE`) | Check the key is correct and active and that `COPILOT_MODEL` is in the account's model list; look at `copilot_provider_failures` in `GET /health/metrics` |
+| The assistant's language service has reached its usage limit for now | Groq's rate limit for the account (HTTP 503 `COPILOT_PROVIDER_BUSY`, from the follow-up fix; before it, this showed as "did not answer in time") | Wait a minute; for regular use raise the Groq plan's limits |
 | You have asked many questions in the last hour | Tawzeevo's own 30/hour cap per owner (HTTP 429) | Wait, or raise `COPILOT_REQUESTS_PER_HOUR` |
 | The assistant could not finish this answer | The model needed more than `COPILOT_MAX_TOOL_ROUNDS` look-ups | Ask a narrower question |
 
