@@ -41,7 +41,7 @@ Merged to `main` through PR #3 (`c2d9073`, 2026-09-25). F-03 (declining an unlin
 left it RECEIVED behind a cancelled invoice) fixed separately on `fix/public-order-decline`.
 Decisions and deferred items: `docs/order-workflow/DECISIONS.md`, `docs/order-workflow/DEFERRED.md`.
 
-## Owner intelligence (D-089, 2026-09-23/25, branch `feature/intelligence`, not merged)
+## Owner intelligence (D-089, 2026-09-23/25, PR #5 merged `59a0d08` and live)
 
 | Milestone | Status | Scope |
 |---|---|---|
@@ -55,8 +55,16 @@ Decisions and deferred items: `docs/order-workflow/DECISIONS.md`, `docs/order-wo
 
 Validation 2026-09-25 (disposable PostgreSQL 18): backend 388 passed (381 + the 7 `caplog`
 tests re-run with the logging plugin), ruff/format/mypy clean; operations-web lint, typecheck,
-149 unit tests and build pass; Playwright 11/11. Owner-only remaining step:
-`docs/intelligence/AI_SETUP_REQUIRED.md`.
+149 unit tests and build pass; Playwright 11/11.
+
+Live 2026-09-25: PR #5 merged (`59a0d08`), CI and the gated deploy green, migration head
+`20260921_0031` unchanged; every intelligence surface verified on the Cedar demo business. The
+live API reports the assistant **not configured**: `GROQ_API_KEY` is absent on the live service
+(the valid key exists only in the owner's workstation environment). A real-provider test with that
+key found that its Groq account refuses `llama-3.3-70b-versatile` and that typeset hyphens and
+grouping spaces broke reference resolution and the figure check; follow-up fix
+`fix/copilot-real-provider` (default model `openai/gpt-oss-120b`). Owner step:
+`docs/intelligence/AI_SETUP_REQUIRED.md` step 4.
 
 ## Phase status
 
