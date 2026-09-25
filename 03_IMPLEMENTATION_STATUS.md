@@ -63,8 +63,10 @@ live API reports the assistant **not configured**: `GROQ_API_KEY` is absent on t
 (the valid key exists only in the owner's workstation environment). A real-provider test with that
 key found that its Groq account refuses `llama-3.3-70b-versatile` and that typeset hyphens and
 grouping spaces broke reference resolution and the figure check; follow-up fix
-`fix/copilot-real-provider` (default model `openai/gpt-oss-120b`). Owner step:
-`docs/intelligence/AI_SETUP_REQUIRED.md` step 4.
+`fix/copilot-real-provider` (default model `openai/gpt-oss-120b`, PR #6 `40b5b40`). The owner then
+set the key on Render; the live smoke test passed (configured, `openai/gpt-oss-120b`, answers match
+the deterministic figures, customer links work). PR #7 (`e43083a`) stopped the assistant presenting
+unchecked anomaly families as findings. Optional owner items: staging key, Groq plan limits.
 
 ## Phase status
 

@@ -21,7 +21,10 @@ const MAX_HISTORY_TURNS = 6; // the API accepts 12 messages: six questions and t
 const SUGGESTIONS = ["callToday", "overdue", "unusual", "collected"] as const;
 
 /** Plain text only: short paragraphs and list lines; markup characters are dropped, never rendered. */
-function AnswerText({ text }: { text: string }) {
+/** Arabic script in the question means an Arabic answer (the assistant answers in the question's language). */
+const questionDirection = (question: string) => (/[\u0600-\u06ff]/.test(question) ? "rtl" : "ltr");
+
+function AnswerText({ text, dir }: { text: string; dir: "rtl" | "ltr" }) {
   const blocks: { list: boolean; lines: string[] }[] = [];
   for (const raw of text.replace(/\*\*|__|`/g, "").split(/\r?\n/)) {
     let line = raw.trim().replace(/^#{1,6}\s+/, ""); // a heading reads as its words
@@ -36,7 +39,9 @@ function AnswerText({ text }: { text: string }) {
     else blocks.push({ list: false, lines: [line] });
   }
   return (
-    <div className="answer-text" dir="auto">
+    // The direction follows the language of the question, not the first letter of the answer, so an
+    // English sentence that starts with an Arabic customer name still reads left to right.
+    <div className="answer-text" dir={dir}>
       {blocks.filter((block) => block.lines.length).map((block, index) => block.list
         ? <ul key={index}>{block.lines.map((line, row) => <li key={row}>{line}</li>)}</ul>
         : <p key={index}>{block.lines.join(" ")}</p>)}
@@ -44,12 +49,12 @@ function AnswerText({ text }: { text: string }) {
   );
 }
 
-function Answer({ response, tenantId }: { response: CopilotResponse; tenantId: string }) {
+function Answer({ response, question, tenantId }: { response: CopilotResponse; question: string; tenantId: string }) {
   const { t } = useTranslation();
   const sources = response.grounding.filter((row) => row.ok);
   return (
     <div className="copilot-answer">
-      <AnswerText text={response.answer} />
+      <AnswerText dir={questionDirection(question)} text={response.answer} />
       {response.references.length ? (
         <p className="copilot-meta"><span>{t("copilot.customersMentioned")}</span>
           {response.references.map((ref) => <Link className="chip-link" key={ref.ref} to={sectionHref("customers", tenantId, { customer: ref.customer_id })}>{ref.customer_name}</Link>)}
@@ -148,7 +153,7 @@ export function CopilotPanel({ tenantId }: { tenantId: string }) {
               {turns.map((turn, index) => (
                 <li key={index}>
                   <p className="copilot-question" dir="auto"><span className="sr-only">{t("copilot.you")}: </span>{turn.question}</p>
-                  {turn.response ? <Answer response={turn.response} tenantId={tenantId} /> : null}
+                  {turn.response ? <Answer question={turn.question} response={turn.response} tenantId={tenantId} /> : null}
                   {turn.error ? (
                     <div className="copilot-error">
                       <ErrorState error={turn.error} />

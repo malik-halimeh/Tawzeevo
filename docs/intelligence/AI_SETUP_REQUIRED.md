@@ -14,25 +14,29 @@ is set it shows **"The assistant is not switched on"**, and nothing else changes
 The provider is **Groq** (decision D-089 in `04_DECISIONS.md`). Changing provider is a new
 decision, not a setting.
 
-## Status on 2026-09-25 (after the release of `59a0d08`)
+## Status: live and verified (2026-09-25)
 
 | Item | State |
 |---|---|
-| Groq account and a Groq API key | **Done already.** An existing key was checked on 2026-09-25: it is valid and it answered a real grounded question. Do not create another one. |
-| Key on the **live** API service `tawzeevo-api-malik-halimeh` | **Missing.** After the deploy, the live status check returned `configured: false`. The key was found only in the owner's workstation environment (Windows user variable `GROQ_API_KEY`), which the hosted API cannot see. |
-| Model | The key's Groq account refuses `llama-3.3-70b-versatile` ("does not exist or you do not have access"). It can call `openai/gpt-oss-120b`, which answered correctly with tools. Change the setting (step 2). |
-| Limits | On the key's current plan, a second question a few seconds after the first was refused as over the rate limit. Check limits and billing (step 2). |
+| Groq account and API key | **Done.** Reuse the existing key; do not create another one. |
+| Key on the live API service `tawzeevo-api-malik-halimeh` | **Done.** Set by the owner on 2026-09-25; the live status check reports `configured: true`, provider `groq`, model `openai/gpt-oss-120b`. |
+| Model | `openai/gpt-oss-120b` (the default since release `40b5b40`). The account refuses `llama-3.3-70b-versatile`. |
+| Real answers | **Verified live** on the Cedar demo business: balances, "who owes the most" and "anything unusual" answered from Tawzeevo's figures, customer links open the record. |
+| Limits | On the key's current plan a second question seconds after the first can hit Groq's rate limit; Tawzeevo then says the language service "has reached its usage limit for now". Raise the plan's limits for regular use (step 2). |
 
 ## Checklist
 
-- [x] 1. Groq account and organization ready (done)
-- [ ] 2. Model and limits: use a model the account can call (`openai/gpt-oss-120b`) and check the rate limit / billing
-- [x] 3. API key exists (done — reuse it; see step 3 for a separate live key if you prefer)
-- [ ] 4. Key added to the live API service on Render (`GROQ_API_KEY`) — **the one missing step**
-- [ ] 5. (Recommended) a key on the staging API service
-- [ ] 6. Status check says the assistant is configured
-- [ ] 7. One real question answered in the workspace
-- [x] 8. Local development key (done — present in the workstation's user environment)
+- [x] 1. Groq account and organization ready
+- [x] 2. Model: `openai/gpt-oss-120b` — [ ] optional: raise the Groq plan's rate limits for regular use
+- [x] 3. API key exists
+- [x] 4. Key added to the live API service on Render (`GROQ_API_KEY`)
+- [ ] 5. (Optional) a key on the staging API service — staging shows the "not switched on" state until then
+- [x] 6. Status check says the assistant is configured
+- [x] 7. Real questions answered in the live workspace
+- [x] 8. Local development key (in the workstation's user environment)
+
+The sections below remain as the reference for rotating the key, setting up staging or checking
+a problem later.
 
 Nothing is needed in GitHub Actions: CI never calls the provider (see step 4, "CI").
 
