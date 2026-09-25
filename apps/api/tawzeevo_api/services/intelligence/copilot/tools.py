@@ -42,6 +42,45 @@ AnomalyType = Literal[
     "SUPPLIER_PAYABLE_JUMP",
     "LINE_PRICE_BELOW_SNAPSHOT_COST",
 ]
+# Plain wording for anomaly types and for the checks that need more history, so the model never
+# has to guess what a code means (it once read "not checked yet" as "flagged").
+_ANOMALY_LABELS = {
+    "SALES_PERIOD_HIGH": "sales this week far above the usual week",
+    "SALES_PERIOD_LOW": "sales this week far below the usual week",
+    "CANCELLATION_SPIKE": "more invoice cancellations than usual",
+    "REVERSAL_SPIKE": "more reversed receipts than usual",
+    "REFUND_SPIKE": "more refunds than usual",
+    "CUSTOMER_INVOICE_VALUE_HIGH": "an invoice far above this customer's usual",
+    "BACKDATED_RECEIPT_LARGE": "a large receipt recorded long after its payment date",
+    "OVERDUE_THRESHOLD_CROSSED": "a balance that has just become overdue",
+    "SUPPLIER_PAYABLE_JUMP": "a jump in what is owed to suppliers",
+    "LINE_PRICE_BELOW_SNAPSHOT_COST": "a line sold below its recorded cost",
+}
+_CHECK_LABELS = {
+    "SALES_PERIOD": "weekly sales",
+    "CANCELLATION_SPIKE": "cancellations",
+    "REVERSAL_SPIKE": "reversed receipts",
+    "REFUND_SPIKE": "refunds",
+    "BACKDATED_RECEIPT_LARGE": "late-recorded receipts",
+    "SUPPLIER_PAYABLE_JUMP": "supplier balances",
+    "CUSTOMER_INVOICE_VALUE_HIGH": "invoice sizes",
+}
+
+
+def _anomaly_summary(currency: str, found: list[str], not_checked: list[str]) -> str:
+    text = (
+        f"{currency}: {len(found)} unusual value(s) this week: {'; '.join(found)}."
+        if found
+        else f"{currency}: nothing unusual was found this week."
+    )
+    if not_checked:
+        text += (
+            f" Not checked yet because there is too little history (these are NOT unusual "
+            f"findings): {', '.join(not_checked)}."
+        )
+    return text
+
+
 # Anomaly detail keys that may leave the server; everything else (names, ids) is dropped.
 _ANOMALY_DETAIL_KEYS = {
     "robust_z",
@@ -292,6 +331,9 @@ def _anomalies(ctx: ToolContext, args: AnomaliesArgs) -> dict[str, Any]:
         raw = item.details.get("customer_id")
         return ctx.directory.ref(UUID(raw)) if isinstance(raw, str) else None
 
+    def labels(codes: list[str], table: dict[str, str]) -> list[str]:
+        return [table.get(code, code.replace("_", " ").lower()) for code in codes]
+
     return {
         "as_of": body.as_of,
         "window": body.window.model_dump(),
@@ -299,10 +341,17 @@ def _anomalies(ctx: ToolContext, args: AnomaliesArgs) -> dict[str, Any]:
         "groups": [
             {
                 "currency": group.currency,
-                "insufficient_history": group.insufficient_history,
+                "summary": _anomaly_summary(
+                    group.currency,
+                    labels([item.type for item in group.items], _ANOMALY_LABELS),
+                    labels(group.insufficient_history, _CHECK_LABELS),
+                ),
+                "unusual_count": len(group.items),
+                "not_checked_too_little_history": labels(group.insufficient_history, _CHECK_LABELS),
                 "items": [
                     {
                         "type": item.type,
+                        "label": _ANOMALY_LABELS.get(item.type, item.type),
                         "severity": item.severity,
                         "subject_type": item.subject_type,
                         "customer_ref": subject_ref(item),

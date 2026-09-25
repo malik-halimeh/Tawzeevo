@@ -470,3 +470,34 @@ def test_customer_names_inside_free_text_fields_are_masked_before_egress(
 def test_unverified_number_normalization(answer, unverified):
     sources = ['{"balance": "1000.0000", "other": "1234.5678", "as_of": "2026-09-23T10:00:00"}']
     assert service.unverified_numbers(answer, sources) == unverified
+
+
+def test_anomaly_results_say_plainly_what_was_found_and_what_was_not_checked(
+    client, session_factory
+):
+    """A young business has no findings, only checks that need more history. The tool result
+    must not let a model read those checks as findings, and must not rely on codes."""
+    seed = seed_customer_history(client, session_factory, "copanomwords")
+    tenant = UUID(seed["tenant"])
+    with session_factory() as db:
+        ctx = ToolContext(
+            db=db,
+            tenant_id=tenant,
+            as_of=datetime.now(UTC),
+            directory=CustomerDirectory.load(db, tenant, uuid4()),
+        )
+        result = run_tool(ctx, "get_anomalies", {})
+    assert result["groups"], result
+    for group in result["groups"]:
+        assert "insufficient_history" not in group  # the ambiguous key is gone
+        assert group["unusual_count"] == len(group["items"])
+        for item in group["items"]:
+            assert item["label"] and item["label"] == item["label"].lower()
+        if not group["items"]:
+            assert "nothing unusual was found this week" in group["summary"]
+        if group["not_checked_too_little_history"]:
+            assert "these are NOT unusual findings" in group["summary"]
+            assert all("_" not in label for label in group["not_checked_too_little_history"])
+    young = [g for g in result["groups"] if not g["items"] and g["not_checked_too_little_history"]]
+    assert young, "the seeded history is too short for the weekly checks"
+    assert "weekly sales" in young[0]["not_checked_too_little_history"]
