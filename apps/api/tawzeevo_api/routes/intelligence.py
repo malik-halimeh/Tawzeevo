@@ -13,10 +13,14 @@ from tawzeevo_api.schemas.intelligence import (
     CopilotReference,
     CopilotResponse,
     CopilotStatus,
+    CustomerExplainRequest,
+    ExplainRequest,
+    ExplanationResponse,
     InactivityResponse,
     PrioritiesResponse,
 )
 from tawzeevo_api.services.intelligence import responses
+from tawzeevo_api.services.intelligence.copilot import explain
 from tawzeevo_api.services.intelligence.copilot import service as copilot
 
 intelligence_router = APIRouter(prefix="/api/v1/intelligence", tags=["intelligence"])
@@ -117,6 +121,47 @@ def post_copilot_query(request: CopilotQueryRequest, db: Db, context: Owner) -> 
         conversation_id=result.conversation_id,
         answer=result.answer,
         conversation_text=result.conversation_text,
+        references=[CopilotReference(**row) for row in result.references],
+        grounding=[CopilotGrounding(**row) for row in result.grounding],
+        warnings=result.warnings,
+        unverified_numbers=result.unverified_numbers,
+    )
+
+
+@intelligence_router.post("/explain", response_model=ExplanationResponse)
+def post_explain(request: ExplainRequest, db: Db, context: Owner) -> ExplanationResponse:
+    """Owner-only, on-demand wording of facts Tawzeevo already calculated: a customer brief, one
+    unusual change or the cash position (D-091). One provider call, no tools, nothing stored;
+    shares the assistant's provider, privacy mask and hourly limit."""
+    tenant_id, user_id = context.tenant.id, context.membership.user_id
+    if isinstance(request, CustomerExplainRequest):
+        result = explain.explain_customer(
+            db, tenant_id, user_id, request.customer_id, request.language
+        )
+    elif request.kind == "anomaly":
+        result = explain.explain_anomaly(
+            db,
+            tenant_id,
+            user_id,
+            currency=request.currency,
+            index=request.index,
+            anomaly_type=request.type,
+            subject_id=request.subject_id,
+            language=request.language,
+        )
+    else:
+        result = explain.explain_cash(
+            db,
+            tenant_id,
+            user_id,
+            period=request.period,
+            currency=request.currency,
+            language=request.language,
+        )
+    return ExplanationResponse(
+        kind=result.kind,
+        as_of=result.as_of,
+        answer=result.answer,
         references=[CopilotReference(**row) for row in result.references],
         grounding=[CopilotGrounding(**row) for row in result.grounding],
         warnings=result.warnings,

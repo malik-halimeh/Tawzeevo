@@ -157,7 +157,7 @@ class ToolContext:
     memo: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
 
 
-def _json_safe(value: Any) -> Any:
+def json_safe(value: Any) -> Any:
     if isinstance(value, Decimal):
         return str(value)
     if isinstance(value, datetime):
@@ -165,9 +165,9 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, dict):
-        return {str(k): _json_safe(v) for k, v in value.items()}
+        return {str(k): json_safe(v) for k, v in value.items()}
     if isinstance(value, list | tuple):
-        return [_json_safe(v) for v in value]
+        return [json_safe(v) for v in value]
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return value
@@ -320,16 +320,34 @@ def _inactivity(ctx: ToolContext, args: InactivityArgs) -> dict[str, Any]:
     }
 
 
+def anomaly_customer_ref(ctx: ToolContext, item: Any) -> str | None:
+    """The reference of the customer an anomaly concerns, if any (never the name or id)."""
+    if item.subject_type == "CUSTOMER":
+        return ctx.directory.ref(item.subject_id)
+    raw = item.details.get("customer_id")
+    return ctx.directory.ref(UUID(raw)) if isinstance(raw, str) else None
+
+
+def anomaly_facts(ctx: ToolContext, item: Any) -> dict[str, Any]:
+    """The compact, pseudonymous shape of one anomaly as the model may see it."""
+    return {
+        "type": item.type,
+        "label": _ANOMALY_LABELS.get(item.type, item.type),
+        "severity": item.severity,
+        "subject_type": item.subject_type,
+        "customer_ref": anomaly_customer_ref(ctx, item),
+        "metric": item.metric,
+        "observed_value": item.observed_value,
+        "baseline": item.baseline.model_dump(),
+        "reason_code": item.reason_code,
+        "details": {k: v for k, v in item.details.items() if k in _ANOMALY_DETAIL_KEYS},
+    }
+
+
 def _anomalies(ctx: ToolContext, args: AnomaliesArgs) -> dict[str, Any]:
     body = responses.anomaly_report(
         ctx.db, ctx.tenant_id, currency=args.currency, types=args.types, as_of=ctx.as_of
     )
-
-    def subject_ref(item: Any) -> str | None:
-        if item.subject_type == "CUSTOMER":
-            return ctx.directory.ref(item.subject_id)
-        raw = item.details.get("customer_id")
-        return ctx.directory.ref(UUID(raw)) if isinstance(raw, str) else None
 
     def labels(codes: list[str], table: dict[str, str]) -> list[str]:
         return [table.get(code, code.replace("_", " ").lower()) for code in codes]
@@ -348,23 +366,7 @@ def _anomalies(ctx: ToolContext, args: AnomaliesArgs) -> dict[str, Any]:
                 ),
                 "unusual_count": len(group.items),
                 "not_checked_too_little_history": labels(group.insufficient_history, _CHECK_LABELS),
-                "items": [
-                    {
-                        "type": item.type,
-                        "label": _ANOMALY_LABELS.get(item.type, item.type),
-                        "severity": item.severity,
-                        "subject_type": item.subject_type,
-                        "customer_ref": subject_ref(item),
-                        "metric": item.metric,
-                        "observed_value": item.observed_value,
-                        "baseline": item.baseline.model_dump(),
-                        "reason_code": item.reason_code,
-                        "details": {
-                            k: v for k, v in item.details.items() if k in _ANOMALY_DETAIL_KEYS
-                        },
-                    }
-                    for item in group.items
-                ],
+                "items": [anomaly_facts(ctx, item) for item in group.items],
             }
             for group in body.groups
         ],
@@ -519,7 +521,7 @@ def run_tool(
     key = (name, args.model_dump_json())
     if key not in ctx.memo:
         try:
-            ctx.memo[key] = _json_safe(tool.handler(ctx, args))
+            ctx.memo[key] = json_safe(tool.handler(ctx, args))
         except AppError as exc:
             ctx.memo[key] = {"error": exc.code}
     return ctx.memo[key]

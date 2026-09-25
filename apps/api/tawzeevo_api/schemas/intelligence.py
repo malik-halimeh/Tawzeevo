@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -213,6 +213,65 @@ class CopilotResponse(BaseModel):
     conversation_id: UUID
     answer: str
     conversation_text: str
+    references: list[CopilotReference]
+    grounding: list[CopilotGrounding]
+    warnings: list[str]
+    unverified_numbers: list[str]
+
+
+class _ExplainRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    language: Literal["en", "ar"] = "en"
+
+
+class CustomerExplainRequest(_ExplainRequest):
+    """A brief about one customer of the owner's business (another tenant's id is not found)."""
+
+    kind: Literal["customer"]
+    customer_id: UUID
+
+
+class AnomalyExplainRequest(_ExplainRequest):
+    """One unusual change as the client shows it: its position in the currency's list plus its
+    type and subject, re-checked on the server (anomalies are computed, they have no id)."""
+
+    kind: Literal["anomaly"]
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    index: int = Field(ge=0, le=500)
+    type: Literal[
+        "SALES_PERIOD_HIGH",
+        "SALES_PERIOD_LOW",
+        "CANCELLATION_SPIKE",
+        "REVERSAL_SPIKE",
+        "REFUND_SPIKE",
+        "CUSTOMER_INVOICE_VALUE_HIGH",
+        "BACKDATED_RECEIPT_LARGE",
+        "OVERDUE_THRESHOLD_CROSSED",
+        "SUPPLIER_PAYABLE_JUMP",
+        "LINE_PRICE_BELOW_SNAPSHOT_COST",
+    ]
+    subject_id: UUID | None = None
+
+
+class CashExplainRequest(_ExplainRequest):
+    """The cash position for the period (and currency) the Analytics screen shows."""
+
+    kind: Literal["cash"]
+    period: Literal["30d", "90d", "1y", "all"] = "90d"
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+
+
+ExplainRequest = Annotated[
+    CustomerExplainRequest | AnomalyExplainRequest | CashExplainRequest,
+    Field(discriminator="kind"),
+]
+
+
+class ExplanationResponse(BaseModel):
+    kind: str
+    as_of: datetime
+    answer: str
     references: list[CopilotReference]
     grounding: list[CopilotGrounding]
     warnings: list[str]
