@@ -41,6 +41,23 @@ Merged to `main` through PR #3 (`c2d9073`, 2026-09-25). F-03 (declining an unlin
 left it RECEIVED behind a cancelled invoice) fixed separately on `fix/public-order-decline`.
 Decisions and deferred items: `docs/order-workflow/DECISIONS.md`, `docs/order-workflow/DEFERRED.md`.
 
+## Owner intelligence (D-089, 2026-09-23/25, branch `feature/intelligence`, not merged)
+
+| Milestone | Status | Scope |
+|---|---|---|
+| INT-M0 | COMPLETE | D-089 recorded; the backend package reconciled onto `main` 7ff48f5 (cherry-picked, no migration) |
+| INT-M1 | COMPLETE | Shared customer feature layer, daily priorities, buying-rhythm bands |
+| INT-M2 | COMPLETE | Anomalies (10 rule families), cash position/ageing, labelled delivery projection |
+| INT-M3 | COMPLETE | Owner-only API + route/security matrix entries |
+| INT-M4 | COMPLETE | Work today's priorities; Customers attention list, buying rhythm and record signals; Analytics cash position and unusual changes; `customer` deep link (EN/AR) |
+| INT-M5 | COMPLETE (key pending) | Read-only assistant: tools, Groq adapter, masking, figure check; Assistant section with not-configured state. Real answers need the owner's `GROQ_API_KEY` |
+| INT-M6 | COMPLETE | Demo seed CLI, E2E `intelligence-presentation.spec.ts`, docs `docs/intelligence/` |
+
+Validation 2026-09-25 (disposable PostgreSQL 18): backend 388 passed (381 + the 7 `caplog`
+tests re-run with the logging plugin), ruff/format/mypy clean; operations-web lint, typecheck,
+149 unit tests and build pass; Playwright 11/11. Owner-only remaining step:
+`docs/intelligence/AI_SETUP_REQUIRED.md`.
+
 ## Phase status
 
 | Phase | Status | Gate |
