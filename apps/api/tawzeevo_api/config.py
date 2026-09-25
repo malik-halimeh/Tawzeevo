@@ -89,7 +89,9 @@ class Settings(BaseSettings):
     # Business Copilot (D-089): Groq chat completions, off until the key is set in the hosting
     # dashboard. The key is a secret (never committed); the model name is operational policy.
     groq_api_key: str | None = None
-    copilot_model: str = "llama-3.3-70b-versatile"
+    # A Groq model with tool use that accounts can call (llama-3.3-70b-versatile is refused for
+    # some accounts); COPILOT_MODEL overrides it.
+    copilot_model: str = "openai/gpt-oss-120b"
     copilot_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
     copilot_requests_per_hour: int = Field(default=30, ge=1, le=500)
     copilot_max_tool_rounds: int = Field(default=4, ge=1, le=8)

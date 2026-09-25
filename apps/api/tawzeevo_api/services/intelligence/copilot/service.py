@@ -23,7 +23,7 @@ from tawzeevo_api import metrics
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.public_invoice_security import PublicInvoiceRateLimiter
-from tawzeevo_api.services.intelligence.copilot.privacy import CustomerDirectory
+from tawzeevo_api.services.intelligence.copilot.privacy import REF_PATTERN, CustomerDirectory
 from tawzeevo_api.services.intelligence.copilot.provider import (
     ChatProvider,
     CopilotProviderError,
@@ -44,7 +44,9 @@ SYSTEM_PROMPT = (
     "cannot change anything: if asked to record, delete, write off or edit data, explain that you "
     "are read-only. Scores are workflow priorities and cadence bands, never probabilities. Product "
     "figures are line sales before invoice-level discounts, not net revenue or profit. Answer "
-    "briefly in the language of the user's last message (Arabic or English)."
+    "briefly in the language of the user's last message (Arabic or English), in plain sentences "
+    "or short '-' lists: no tables, headings or other markup, references written with a plain "
+    "'-', figures without thousands separators."
 )
 # A figure: digits with optional thousands commas and decimals. It must not continue a word or a
 # reference/date (`C-ABC234`, `2026-09-23` -> only the year), but a standalone minus is allowed.
@@ -53,6 +55,9 @@ _NUMBER = re.compile(r"(?:(?<![\w.\-])|(?<=(?<![\w.])-))\d[\d,]*(?:\.\d+)?")
 _LIST_MARKER = re.compile(r"^\s*\d{1,2}[.)]\s", re.MULTILINE)
 # Arabic thousands/decimal separators; Arabic-Indic digits are read natively by Decimal.
 _ARABIC_SEPARATORS = str.maketrans({"\u066c": ",", "\u066b": "."})
+# Typeset thousands groups ("1\u202f359.50"): a no-break, figure, thin or narrow space between a
+# digit and exactly three digits separates groups of one figure, not two figures.
+_GROUPING_SPACE = re.compile(r"(?<=\d)[\u00a0\u2007\u2009\u202f](?=\d{3}(?!\d))")
 
 _limiter: PublicInvoiceRateLimiter | None = None
 
@@ -103,7 +108,9 @@ class CopilotResult:
 
 def _numbers(text: str) -> set[Decimal]:
     found: set[Decimal] = set()
-    text = _LIST_MARKER.sub(" ", text.translate(_ARABIC_SEPARATORS))
+    # References are names, not figures, however their hyphen is typeset.
+    text = REF_PATTERN.sub(" ", text.translate(_ARABIC_SEPARATORS))
+    text = _LIST_MARKER.sub(" ", _GROUPING_SPACE.sub(",", text))
     for token in _NUMBER.findall(text):
         try:
             found.add(abs(Decimal(token.replace(",", ""))))
@@ -172,6 +179,11 @@ def ask(
             reply = provider.complete(messages, tools)
         except CopilotProviderError as exc:
             metrics.increment("copilot_provider_failures")
+            if str(exc) == "PROVIDER_RATE_LIMITED":
+                # The provider account's own quota, not an outage: the owner can simply wait.
+                raise AppError(
+                    503, "COPILOT_PROVIDER_BUSY", "The assistant's provider limit was reached"
+                ) from exc
             raise AppError(
                 502,
                 "COPILOT_PROVIDER_UNAVAILABLE",

@@ -147,3 +147,20 @@ test("the assistant speaks Arabic in an Arabic workspace and keeps each message'
   expect(screen.getByText("أولويات اليوم", { exact: false })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "مساعد الأعمال" })).toBeInTheDocument();
 });
+
+test("a table or heading from the model reads as plain lines, and a provider at its limit is a pause", async () => {
+  stubAssistant(CONFIGURED, [
+    Response.json(reply({ answer: ["### Customers to call", "", "| Customer | Owed |", "|---|---|", "| Tyre Fresh Foods | 1359.5000 USD |", "| Zahle Wholesale | 743.5000 USD |"].join("\n"), references: [], grounding: [] })),
+    Response.json({ detail: { code: "COPILOT_PROVIDER_BUSY", message: "limit" } }, { status: 503 }),
+  ]);
+  renderPanel();
+  fireEvent.change(await screen.findByRole("textbox", { name: "Your question" }), { target: { value: "Who owes?" } });
+  fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+  expect(await screen.findByText("Tyre Fresh Foods · 1359.5000 USD")).toBeInTheDocument();
+  expect(screen.getByText("Zahle Wholesale · 743.5000 USD").tagName).toBe("LI");
+  expect(screen.getByText("Customers to call").tagName).toBe("P");
+  expect(document.querySelector(".copilot-answer")?.textContent).not.toMatch(/[|#]|---/);
+  fireEvent.change(screen.getByRole("textbox", { name: "Your question" }), { target: { value: "Again?" } });
+  fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("has reached its usage limit for now");
+});
