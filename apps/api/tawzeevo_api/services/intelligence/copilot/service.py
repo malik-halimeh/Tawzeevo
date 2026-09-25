@@ -66,6 +66,9 @@ _ARABIC_SEPARATORS = str.maketrans({"\u066c": ",", "\u066b": "."})
 # Typeset thousands groups ("1\u202f359.50"): a no-break, figure, thin or narrow space between a
 # digit and exactly three digits separates groups of one figure, not two figures.
 _GROUPING_SPACE = re.compile(r"(?<=\d)[\u00a0\u2007\u2009\u202f](?=\d{3}(?!\d))")
+# Typeset hyphens (U+2010-U+2015, U+2212) read as "-", so an invoice number such as 2026-000193 or
+# a range such as 31-60 days written with a non-breaking hyphen stays one token, not stray figures.
+_HYPHENS = str.maketrans(dict.fromkeys((*range(0x2010, 0x2016), 0x2212), "-"))
 
 _limiter: PublicInvoiceRateLimiter | None = None
 
@@ -117,7 +120,7 @@ class CopilotResult:
 def _numbers(text: str) -> set[Decimal]:
     found: set[Decimal] = set()
     # References are names, not figures, however their hyphen is typeset.
-    text = REF_PATTERN.sub(" ", text.translate(_ARABIC_SEPARATORS))
+    text = REF_PATTERN.sub(" ", text.translate(_ARABIC_SEPARATORS).translate(_HYPHENS))
     text = _LIST_MARKER.sub(" ", _GROUPING_SPACE.sub(",", text))
     for token in _NUMBER.findall(text):
         try:
