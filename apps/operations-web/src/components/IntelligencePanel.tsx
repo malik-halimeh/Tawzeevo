@@ -215,7 +215,8 @@ export function CustomerSignals({ tenantId, customerId }: { tenantId: string; cu
             <div className="badge-pair"><bdi className="intel-currency-tag" dir="ltr">{item.currency}</bdi><Band band={item.band} score={item.score} /><Rhythm status={item.inactivity_status} /></div>
             <p className="signal-action"><strong>{t(`intelligence.action.${item.suggested_action_code}`)}</strong></p>
             {item.reasons.length ? <ul className="signal-reasons">{item.reasons.map((reason) => <li key={reason.code}>{reasonText(t, reason, item.currency)}</li>)}</ul> : null}
-            {cadence ? <p className="muted">{rhythmLine(t, cadence)}</p> : null}
+            {/* The rhythm line only when no listed reason already says it. */}
+            {cadence && !item.reasons.some((reason) => reason.code === "PAST_NORMAL_PURCHASE_INTERVAL") ? <p className="muted signal-rhythm">{rhythmLine(t, cadence)}</p> : null}
           </div>
         );
       })}

@@ -1103,6 +1103,7 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
 .signal + .signal { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 .signal-action { margin: 8px 0 4px; }
 .signal-reasons { margin: 0 0 6px; padding-inline-start: 18px; font-size: 14px; line-height: 1.5; }
+.signal-rhythm { font-size: 14px; margin: 0; }
 .intel-cash, .intel-unusual-list { margin-top: 8px; }
 .cash-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
 .cash-currency { border: 1px solid var(--line); border-radius: var(--radius-record); padding: 16px; min-width: 0; background: var(--surface); }
