@@ -197,7 +197,8 @@ test("the cash position shows overdue, ageing in order, net collections and a la
   expect(plain(lbp)).toContain("No customer owes anything in this currency.");
   expect(plain(lbp)).not.toContain("USD");
   expect(document.body.textContent).not.toMatch(/probabilit|will pay|expected payment|runway/i);
-  expect(calls).toEqual(["/api/v1/intelligence/cash-flow?tenant_id=t1&period=90d"]);
+  expect(calls.filter((call) => call.includes("/cash-flow"))).toEqual(["/api/v1/intelligence/cash-flow?tenant_id=t1&period=90d"]);
+  expect(calls.some((call) => call.includes("/explain"))).toBe(false); // a summary is only written when asked
 });
 
 test("unusual changes read as prompts to look, link to their record and say which checks lack history", async () => {

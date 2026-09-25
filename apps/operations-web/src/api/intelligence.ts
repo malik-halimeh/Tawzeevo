@@ -83,17 +83,31 @@ export interface CashFlowResponse {
 }
 
 export interface CopilotStatus { configured: boolean; provider: string | null; model: string | null }
-export interface CopilotTurn { role: "user" | "assistant"; content: string }
-export interface CopilotResponse {
-  conversation_id: string;
+/** What every written answer carries, from the assistant or a contextual explanation. */
+export interface GroundedAnswer {
   answer: string;
-  /** The answer as the provider wrote it (customer references, not names): the history to send back. */
-  conversation_text: string;
   references: { ref: string; customer_id: string; customer_name: string }[];
   grounding: { tool: string; period: string | null; currency: string | null; ok: boolean }[];
   warnings: string[];
   unverified_numbers: string[];
 }
+export interface CopilotTurn { role: "user" | "assistant"; content: string }
+export interface CopilotResponse extends GroundedAnswer {
+  conversation_id: string;
+  /** The answer as the provider wrote it (customer references, not names): the history to send back. */
+  conversation_text: string;
+}
+
+/**
+ * Contextual explanations (D-091): wording of facts the server assembles for one customer, one
+ * unusual change or the cash position. An anomaly is named as the screen shows it (currency,
+ * position, type, subject); the server re-checks it and answers 409 ANOMALY_CHANGED otherwise.
+ */
+export type ExplainContext =
+  | { kind: "customer"; customer_id: string }
+  | { kind: "anomaly"; currency: string; index: number; type: string; subject_id: string | null }
+  | { kind: "cash"; period: CashFlowPeriod; currency?: string | null };
+export interface ExplanationResponse extends GroundedAnswer { kind: ExplainContext["kind"]; as_of: string }
 
 /** Counted anomaly metrics; every other anomaly metric is an amount in the group's currency. */
 export const COUNT_METRICS: ReadonlySet<string> = new Set(["cancelled_invoices_7d", "receipt_reversals_7d"]);
@@ -152,5 +166,27 @@ export function askCopilot(tenantId: string, message: string, conversation: Copi
   return apiRequest<CopilotResponse>(`/api/v1/intelligence/copilot/query?tenant_id=${tenantId}`, {
     method: "POST",
     body: JSON.stringify({ message, conversation, ...(conversationId ? { conversation_id: conversationId } : {}) }),
+  });
+}
+
+/**
+ * One explanation per exact context (business, kind, record or period, language). It is fetched
+ * only when the owner asks (`asked`), never refetched in the background and kept for the session,
+ * so reopening the same record shows the same wording until the owner asks again; a different
+ * context is a different key and starts unasked, so no summary is ever shown for another context.
+ */
+export function useExplanation(tenantId: string, context: ExplainContext, language: "en" | "ar", asked: boolean) {
+  return useQuery({
+    queryKey: [...intelligenceKeys.all(tenantId), "explain", language, context],
+    queryFn: () => apiRequest<ExplanationResponse>(`/api/v1/intelligence/explain?tenant_id=${tenantId}`, {
+      method: "POST",
+      body: JSON.stringify({ ...context, language }),
+    }),
+    enabled: asked,
+    retry: false,
+    staleTime: Infinity,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }

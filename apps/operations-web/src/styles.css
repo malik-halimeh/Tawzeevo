@@ -1127,6 +1127,14 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
 .copilot-error .notice { margin: 0; width: 100%; }
 .copilot-suggestions { margin: 0 0 16px; }
 .copilot-form textarea { width: 100%; resize: vertical; min-height: 64px; font: inherit; }
+.explanation { margin-top: 10px; }
+.explain-button { min-height: 40px; padding: 4px 0; }
+.explain-card { border: 1px solid var(--line); border-inline-start: 3px solid var(--blue); border-radius: var(--radius-control); background: var(--surface); padding: 12px 14px; }
+.explain-head { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.explain-card .answer-text p, .explain-card .answer-text ul { font-size: 14px; }
+.explain-again { min-height: 36px; font-size: 14px; }
+.explain-off { font-size: 13px; margin: 10px 0 0; }
+.intel-unusual-list .explanation { margin-top: 4px; }
 .copilot-setup-links { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
 
 /* ---------- Software keyboard (visualViewport) ---------- */
