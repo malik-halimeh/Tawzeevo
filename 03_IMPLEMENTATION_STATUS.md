@@ -52,6 +52,7 @@ Decisions and deferred items: `docs/order-workflow/DECISIONS.md`, `docs/order-wo
 | INT-M4 | COMPLETE | Work today's priorities; Customers attention list, buying rhythm and record signals; Analytics cash position and unusual changes; `customer` deep link (EN/AR) |
 | INT-M5 | COMPLETE (key pending) | Read-only assistant: tools, Groq adapter, masking, figure check; Assistant section with not-configured state. Real answers need the owner's `GROQ_API_KEY` |
 | INT-M6 | COMPLETE | Demo seed CLI, E2E `intelligence-presentation.spec.ts`, docs `docs/intelligence/` |
+| INT-M7 | COMPLETE (branch `feature/contextual-ai`) | D-091 contextual explanations: customer brief, unusual-change explanation, cash summary — one `POST /api/v1/intelligence/explain`, on demand, shared provider/privacy/limit; verified with the real provider on synthetic data |
 
 Validation 2026-09-25 (disposable PostgreSQL 18): backend 388 passed (381 + the 7 `caplog`
 tests re-run with the logging plugin), ruff/format/mypy clean; operations-web lint, typecheck,
