@@ -27,7 +27,7 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
     expect(response.ok(), `${response.url()} -> ${response.status()} ${await response.text()}`).toBeTruthy();
     return (await response.json()) as Record<string, unknown>;
   };
-  const phone = (n: number) => `+96176${((Date.now() + n) % 1_000_000).toString().padStart(6, "0")}`;
+  const phone = (n: number) => `+96171${((Date.now() + n) % 1_000_000).toString().padStart(6, "0")}`; // 71 xxx xxx is always a valid mobile range
 
   // ----- Setup: owner, business, a 7-day overdue limit and a customer owing 250 USD for 40 days -----
   await json(await api.post("/register", { data: { first_name: "Rana", last_name: "Intel", email: ownerEmail, phone: phone(1), city: "Beirut", age: 36, password: PASSWORD } }));
@@ -115,4 +115,89 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
   await expect(page.getByRole("list", { name: "Today's priorities" })).toBeVisible();
   const overflow = await page.evaluate<number>("document.documentElement.scrollWidth - window.innerWidth");
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test("written explanations sit beside the calculated facts: a customer, an unusual change and the cash position", async ({ page }) => {
+  test.setTimeout(180_000);
+  const api = await playwrightRequest.newContext({ baseURL: API });
+  const json = async (response: Awaited<ReturnType<typeof api.post>>) => {
+    expect(response.ok(), `${response.url()} -> ${response.status()} ${await response.text()}`).toBeTruthy();
+    return (await response.json()) as Record<string, unknown>;
+  };
+  const email = `owner-explain-${stamp}@example.com`;
+  const phone = (n: number) => `+96171${((Date.now() + n) % 1_000_000).toString().padStart(6, "0")}`;
+  await json(await api.post("/register", { data: { first_name: "Rana", last_name: "Explain", email, phone: phone(1), city: "Beirut", age: 36, password: PASSWORD } }));
+  const ownerToken = (await json(await api.post("/login", { data: { email, password: PASSWORD } }))).access_token as string;
+  const adminToken = (await json(await api.post("/login", { data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } }))).access_token as string;
+  const owner = { Authorization: `Bearer ${ownerToken}` };
+  const application = await json(await api.post("/api/v1/tenant-applications", { headers: owner, data: { business_name: `Explain Van ${stamp}` } }));
+  const approved = await json(await api.post(`/api/v1/platform/tenant-applications/${String(application.id)}/approve`, { headers: { Authorization: `Bearer ${adminToken}` }, data: {} }));
+  const tenantId = (approved.tenant_id ?? (approved.tenant as Record<string, unknown> | undefined)?.id) as string;
+  await json(await api.put(`/api/v1/customer-ledger/settings?tenant_id=${tenantId}`, { headers: owner, data: { customer_overdue_threshold_days: 7 } }));
+  // A balance that crossed the 7-day limit three days ago: a priority and an unusual change.
+  const zahle = await json(await api.post(`/api/v1/tenants/${tenantId}/customers`, { headers: owner, data: { name: "Zahle Wholesale", phone: phone(2), grade: "A" } }));
+  await json(await api.post(`/api/v1/customer-ledger/opening-balances?tenant_id=${tenantId}`, { headers: owner, data: { idempotency_key: crypto.randomUUID(), customer_id: zahle.id, currency: "USD", signed_amount: "743.5000", effective_at: new Date(Date.now() - 10 * 86_400_000).toISOString() } }));
+
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/workspace/);
+
+  // ----- The real API has no provider key: the record keeps its facts and says so in one line -----
+  await page.goto(`/workspace?tenant=${tenantId}&section=customers&customer=${String(zahle.id)}`);
+  const record = page.getByRole("article", { name: "Zahle Wholesale" });
+  await expect(record.getByRole("region", { name: "Signals" })).toContainText("Collect the overdue balance");
+  await expect(record.getByText("A written summary appears here once the business assistant is switched on.")).toBeVisible();
+
+  // ----- With the provider stubbed in the browser (never a paid call) -----
+  const asked: Record<string, unknown>[] = [];
+  await page.route("**/api/v1/intelligence/copilot/status**", (route) => route.fulfill({ json: { configured: true, provider: "groq", model: "stub" } }));
+  await page.route("**/api/v1/intelligence/explain**", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    asked.push(body);
+    const answers: Record<string, string> = {
+      customer: "Zahle Wholesale owes 743.5000 USD, overdue for 10 days.\n- Ask when they can settle it.",
+      anomaly: "The balance of 743.5000 USD passed the 7-day limit 3 days ago. Check their open invoices.",
+      cash: "USD: 743.5000 USD owed, all of it overdue. No deliveries are planned.",
+    };
+    const kind = String(body.kind);
+    await route.fulfill({ json: {
+      kind, as_of: new Date().toISOString(), answer: answers[kind],
+      references: kind === "cash" ? [] : [{ ref: "C-ZAHLE2", customer_id: zahle.id, customer_name: "Zahle Wholesale" }],
+      grounding: [{ tool: kind === "cash" ? "get_cashflow_summary" : kind === "anomaly" ? "get_anomalies" : "get_customer_debts", period: kind === "cash" ? String(body.period) : null, currency: null, ok: true }],
+      warnings: [], unverified_numbers: [],
+    } });
+  });
+  await page.reload();
+  const signals = page.getByRole("article", { name: "Zahle Wholesale" }).getByRole("region", { name: "Signals" });
+  await signals.getByRole("button", { name: "Summarize this customer" }).click();
+  await expect(signals).toContainText("overdue for 10 days.");
+  await expect(signals).toContainText("Based on:");
+  await expect(signals).toContainText("Collect the overdue balance"); // the calculated signals stay
+
+  const rail = page.getByRole("navigation", { name: "Workspace navigation" });
+  await rail.getByRole("link", { name: "Analytics", exact: true }).click();
+  const changes = page.getByRole("list", { name: "Unusual changes in USD" });
+  const crossed = changes.getByRole("listitem").filter({ hasText: "A balance has just become overdue" });
+  await crossed.getByRole("button", { name: "Explain this change" }).click();
+  await expect(crossed).toContainText("passed the 7-day limit 3 days ago");
+  await expect(crossed.getByRole("link", { name: "Open the customer" })).toBeVisible();
+
+  const cash = page.getByRole("region", { name: "Cash position and ageing" });
+  await cash.getByRole("button", { name: "Summarize the cash position" }).click();
+  await expect(cash).toContainText("all of it overdue");
+  await expect(cash).toContainText("Last 30 days"); // Analytics opens on the last 30 days
+  await page.getByLabel("Period").selectOption("90d");
+  await expect(cash.getByRole("button", { name: "Summarize the cash position" })).toBeVisible();
+  await expect(cash).not.toContainText("all of it overdue"); // a different period starts over
+
+  // What the browser asked for is exactly what the real API accepts (it answers "not configured").
+  expect(asked.map((body) => body.kind)).toEqual(["customer", "anomaly", "cash"]);
+  expect(asked[1]).toMatchObject({ currency: "USD", type: "OVERDUE_THRESHOLD_CROSSED", language: "en" });
+  for (const body of asked) {
+    const response = await api.post(`/api/v1/intelligence/explain?tenant_id=${tenantId}`, { headers: owner, data: body });
+    expect(response.status(), await response.text()).toBe(503);
+    expect(((await response.json()) as { detail: { code: string } }).detail.code).toBe("COPILOT_NOT_CONFIGURED");
+  }
 });
