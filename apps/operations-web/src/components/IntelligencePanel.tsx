@@ -336,10 +336,12 @@ export function AnomalySection({ tenantId }: { tenantId: string }) {
                       <strong>{t(`intelligence.anomaly.${item.type}`, { defaultValue: item.type })}</strong>
                       <small>{anomalySummary(t, item, group.currency)}</small>
                       {href ? <small><Link to={href}>{t(item.subject_type === "INVOICE" ? "intelligence.openInvoice" : "intelligence.openCustomer")}</Link></small> : null}
-                      <Explanation context={{ kind: "anomaly", currency: group.currency, index, type: item.type, subject_id: item.subject_id }} key={`${group.currency}-${index}-${item.type}-${item.subject_id ?? ""}`} label={t("explain.anomaly")} onContextChanged={reload} tenantId={tenantId} whenOff="hide" />
                     </span>
                     <bdi className="intel-currency-tag" dir="ltr">{group.currency}</bdi>
                     <span className={`badge ${item.severity === "HIGH" ? "bad" : "warn"}`}>{t(`intelligence.severity.${item.severity}`)}</span>
+                    <div className="intel-row-explain">
+                      <Explanation context={{ kind: "anomaly", currency: group.currency, index, type: item.type, subject_id: item.subject_id }} key={`${group.currency}-${index}-${item.type}-${item.subject_id ?? ""}`} label={t("explain.anomaly")} onContextChanged={reload} tenantId={tenantId} whenOff="hide" />
+                    </div>
                   </li>
                 );
               })}

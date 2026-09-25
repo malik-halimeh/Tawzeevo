@@ -1134,7 +1134,11 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
 .explain-card .answer-text p, .explain-card .answer-text ul { font-size: 14px; }
 .explain-again { min-height: 36px; font-size: 14px; }
 .explain-off { font-size: 13px; margin: 10px 0 0; }
-.intel-unusual-list .explanation { margin-top: 4px; }
+.intel-unusual-list .ledger li { flex-wrap: wrap; }
+.intel-row-explain { flex-basis: 100%; min-width: 0; }
+.intel-row-explain .explanation { margin-top: 0; }
+/* A written answer's own list is prose, never styled as the rows of the list around it. */
+.explain-card .answer-text li { display: list-item; border: 0; padding: 0; gap: 0; font-size: 14px; }
 .copilot-setup-links { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
 
 /* ---------- Software keyboard (visualViewport) ---------- */
