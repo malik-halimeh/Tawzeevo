@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
@@ -18,6 +18,7 @@ import {
   useInactivity,
   usePriorities,
 } from "../api/intelligence";
+import { Explanation } from "./Explanation";
 import { Arrow, Icon } from "./Icon";
 import { ErrorState } from "./Ui";
 import { sectionHref } from "./workspaceSections";
@@ -224,6 +225,8 @@ export function CustomerSignals({ tenantId, customerId }: { tenantId: string; cu
         );
       })}
       {own.length ? <p className="muted intel-footnote">{t("intelligence.scoreNote")}</p> : null}
+      {/* Keyed by customer: another record never shows this customer's brief, nor starts asked. */}
+      {own.length ? <Explanation context={{ kind: "customer", customer_id: customerId }} key={customerId} label={t("explain.customer")} tenantId={tenantId} /> : null}
     </section>
   );
 }
@@ -269,6 +272,8 @@ export function CashFlowSection({ tenantId, period }: { tenantId: string; period
     <section aria-labelledby="cash-title" className="intel-cash">
       <h4 id="cash-title">{t("intelligence.cashTitle")}</h4>
       <p className="muted">{t("intelligence.cashBody")}</p>
+      {/* Keyed by period: changing the period never leaves a summary of another period on screen. */}
+      {cash.data && cash.data.currencies.length ? <Explanation context={{ kind: "cash", period }} key={period} label={t("explain.cash")} tenantId={tenantId} /> : null}
       {cash.isPending ? <Pending /> : null}
       {cash.error ? <QuietError error={cash.error} onRetry={() => { void cash.refetch(); }} /> : null}
       {cash.data && cash.data.currencies.length === 0 ? <p className="muted">{t("intelligence.cashEmpty")}</p> : null}
@@ -308,6 +313,9 @@ export function AnomalySection({ tenantId }: { tenantId: string }) {
   const { t } = useTranslation();
   const anomalies = useAnomalies(tenantId);
   const groups = anomalies.data?.groups ?? [];
+  // Stable (React Query's refetch is), so an explanation's effect runs once per changed item.
+  const { refetch: refetchAnomalies } = anomalies;
+  const reload = useCallback(() => { void refetchAnomalies(); }, [refetchAnomalies]);
   const found = groups.some((group) => group.items.length);
   return (
     <section aria-labelledby="unusual-title" className="intel-unusual-list">
@@ -331,6 +339,9 @@ export function AnomalySection({ tenantId }: { tenantId: string }) {
                     </span>
                     <bdi className="intel-currency-tag" dir="ltr">{group.currency}</bdi>
                     <span className={`badge ${item.severity === "HIGH" ? "bad" : "warn"}`}>{t(`intelligence.severity.${item.severity}`)}</span>
+                    <div className="intel-row-explain">
+                      <Explanation context={{ kind: "anomaly", currency: group.currency, index, type: item.type, subject_id: item.subject_id }} key={`${group.currency}-${index}-${item.type}-${item.subject_id ?? ""}`} label={t("explain.anomaly")} onContextChanged={reload} tenantId={tenantId} whenOff="hide" />
+                    </div>
                   </li>
                 );
               })}

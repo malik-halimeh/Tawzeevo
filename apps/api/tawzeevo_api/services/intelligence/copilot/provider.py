@@ -48,13 +48,10 @@ class GroqProvider:
     def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> ProviderReply:
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
-            "temperature": 0,
-        }
+        payload: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": 0}
+        if tools:  # a contextual explanation supplies its facts and offers no tools
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         try:
             response = httpx.post(
                 GROQ_URL,

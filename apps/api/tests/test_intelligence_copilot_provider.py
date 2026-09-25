@@ -82,3 +82,20 @@ def test_failures_are_controlled_codes(monkeypatch, outcome, code):
     with pytest.raises(CopilotProviderError) as caught:
         GroqProvider("k", "m", 1.0).complete([], [])
     assert str(caught.value) == code
+
+
+def test_a_call_without_tools_sends_no_tool_fields(monkeypatch):
+    """Contextual explanations (D-091) supply their facts and offer the model no tools."""
+    seen: dict[str, object] = {}
+
+    def fake_post(url, json, headers, timeout):  # noqa: A002 - mirrors httpx.post
+        seen.update(json=json)
+        return _response(200, {"choices": [{"message": {"role": "assistant", "content": "ok"}}]})
+
+    monkeypatch.setattr(provider_module.httpx, "post", fake_post)
+    reply = GroqProvider("secret-key", "test-model", 5.0).complete(
+        [{"role": "user", "content": "hi"}], []
+    )
+    body = seen["json"]
+    assert "tools" not in body and "tool_choice" not in body  # type: ignore[operator]
+    assert reply.content == "ok" and reply.tool_calls == []

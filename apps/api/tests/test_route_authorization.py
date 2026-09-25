@@ -88,6 +88,7 @@ EXPECTED: dict[str, str] = {
     "POST /api/v1/delivery-tasks/{task_id}/complete": "TENANT_MEMBER",
     "POST /api/v1/delivery-tasks/{task_id}/location": "TENANT_MEMBER",
     "POST /api/v1/intelligence/copilot/query": "TENANT_OWNER",
+    "POST /api/v1/intelligence/explain": "TENANT_OWNER",
     "POST /api/v1/invoices": "TENANT_OWNER",
     "POST /api/v1/invoices/calculator": "TENANT_OWNER",
     "GET /api/v1/invoices/catalog-search": "TENANT_OWNER",

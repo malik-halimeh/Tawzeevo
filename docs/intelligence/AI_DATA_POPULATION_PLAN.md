@@ -159,6 +159,21 @@ LLM-assisted, over the deterministic figures above. It needs the provider key
   figures used, and a yellow note if any number did not come from Tawzeevo.
 - **Verify:** the customers and amounts match Customers › Needs attention and Analytics.
 
+## 6a. Written explanations (customer brief, unusual change, cash summary)
+
+LLM wording of the same facts as §§ 2–5, requested with a button where the facts are shown.
+They need the provider key and exactly the data those sections need; no extra data.
+
+| Explanation | Needs | Good demo target (seeded business) | Check |
+|---|---|---|---|
+| Customer brief (Customers › record › **Summarize this customer**) | A customer with priority reasons (§ 2) | Tyre Fresh Foods (old overdue balance, later than usual), Byblos Grocery (stopped buying), Batroun Bakery (buying less) | The brief names the same balance, age and rhythm as the Signals above it; no invented cause |
+| Unusual change (Analytics › a row › **Explain this change**) | At least one unusual change (§ 4) | Tripoli Traders' large invoice, Zahle Wholesale just overdue, the olive-oil line below cost, Batroun's late receipt | The explanation repeats the row's value and usual value, names the invoice or customer, suggests a check, never accuses |
+| Cash summary (Analytics › **Summarize the cash position**) | A cash position (§ 5); choose the period first | Last 90 days: USD with overdue share, ageing, supplier payments and planned deliveries; LBP separately | Figures equal the cards below; planned deliveries are "amounts to collect", never "will be collected" |
+
+A young business (little history) is also worth showing: the unusual-change section then says
+which checks cannot run yet, and a summary says nothing unusual was found rather than inventing
+findings. Each press is one provider call and counts toward the owner's hourly limit (30).
+
 ## 7. Arabic and mixed-language data
 
 Customer and product names may be Arabic or English; both display correctly (amounts stay

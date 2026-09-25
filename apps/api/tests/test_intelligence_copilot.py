@@ -462,6 +462,8 @@ def test_customer_names_inside_free_text_fields_are_masked_before_egress(
         ("C‑2ABC34 owes 1 000.0000 USD", []),
         ("Owed 1 234.5678 USD", []),
         ("Owed 1 100 USD", ["1100"]),
+        # An invoice number typeset with a non-breaking hyphen by a real model.
+        ("Invoice 2026\u2011000193 owes 1000 USD", []),
         ("Owed 1,100 USD.", ["1100"]),
         ("Sales grew 37% this month.", ["37"]),  # a derived percentage no tool returned
         ("Next week you will collect 2500 USD.", ["2500"]),

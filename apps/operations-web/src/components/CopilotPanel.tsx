@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { askCopilot, type CopilotResponse, type CopilotTurn, useCopilotStatus } from "../api/intelligence";
+import { AnswerDetails, AnswerText } from "./AiAnswer";
 import { Icon } from "./Icon";
 import { ErrorState, LoadingState } from "./Ui";
 import { sectionHref } from "./workspaceSections";
@@ -20,61 +21,14 @@ interface Turn { question: string; response?: CopilotResponse; error?: unknown }
 const MAX_HISTORY_TURNS = 6; // the API accepts 12 messages: six questions and their answers
 const SUGGESTIONS = ["callToday", "overdue", "unusual", "collected"] as const;
 
-/** Plain text only: short paragraphs and list lines; markup characters are dropped, never rendered. */
 /** Arabic script in the question means an Arabic answer (the assistant answers in the question's language). */
 const questionDirection = (question: string) => (/[\u0600-\u06ff]/.test(question) ? "rtl" : "ltr");
 
-function AnswerText({ text, dir }: { text: string; dir: "rtl" | "ltr" }) {
-  const blocks: { list: boolean; lines: string[] }[] = [];
-  for (const raw of text.replace(/\*\*|__|`/g, "").split(/\r?\n/)) {
-    let line = raw.trim().replace(/^#{1,6}\s+/, ""); // a heading reads as its words
-    if (/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(line)) continue; // table rule line
-    if (line.startsWith("|") && line.endsWith("|")) line = `- ${line.slice(1, -1).split("|").map((cell) => cell.trim()).filter(Boolean).join(" · ")}`; // table row → list line
-    if (!line || line === "-") { blocks.push({ list: false, lines: [] }); continue; }
-    const item = /^(?:[-*•]|\d{1,2}[.)])\s+(.*)$/.exec(line);
-    const last = blocks[blocks.length - 1];
-    if (item) {
-      if (last?.list) last.lines.push(item[1]!); else blocks.push({ list: true, lines: [item[1]!] });
-    } else if (last && !last.list && last.lines.length) last.lines.push(line);
-    else blocks.push({ list: false, lines: [line] });
-  }
-  return (
-    // The direction follows the language of the question, not the first letter of the answer, so an
-    // English sentence that starts with an Arabic customer name still reads left to right.
-    <div className="answer-text" dir={dir}>
-      {blocks.filter((block) => block.lines.length).map((block, index) => block.list
-        ? <ul key={index}>{block.lines.map((line, row) => <li key={row}>{line}</li>)}</ul>
-        : <p key={index}>{block.lines.join(" ")}</p>)}
-    </div>
-  );
-}
-
 function Answer({ response, question, tenantId }: { response: CopilotResponse; question: string; tenantId: string }) {
-  const { t } = useTranslation();
-  const sources = response.grounding.filter((row) => row.ok);
   return (
     <div className="copilot-answer">
       <AnswerText dir={questionDirection(question)} text={response.answer} />
-      {response.references.length ? (
-        <p className="copilot-meta"><span>{t("copilot.customersMentioned")}</span>
-          {response.references.map((ref) => <Link className="chip-link" key={ref.ref} to={sectionHref("customers", tenantId, { customer: ref.customer_id })}>{ref.customer_name}</Link>)}
-        </p>
-      ) : null}
-      {sources.length ? (
-        <p className="copilot-meta copilot-sources"><Icon name="chart" small /><span>{t("copilot.basedOn")}</span>
-          {sources.map((row, index) => (
-            <span className="badge" key={`${row.tool}-${index}`}>
-              {t(`copilot.tools.${row.tool}`, { defaultValue: row.tool })}
-              {row.currency ? <> · <bdi dir="ltr">{row.currency}</bdi></> : null}
-              {row.period ? <> · {t(`analytics.periods.${row.period}`, { defaultValue: row.period })}</> : null}
-            </span>
-          ))}
-        </p>
-      ) : null}
-      {response.warnings.includes("UNVERIFIED_NUMBERS") ? (
-        <p className="notice notice-warning" role="note">{t("copilot.unverified", { numbers: response.unverified_numbers.map((value) => `⁦${value}⁩`).join(", ") })}</p>
-      ) : null}
-      {response.warnings.includes("NO_TOOL_USED") ? <p className="notice notice-warning" role="note">{t("copilot.noTool")}</p> : null}
+      <AnswerDetails response={response} tenantId={tenantId} />
     </div>
   );
 }

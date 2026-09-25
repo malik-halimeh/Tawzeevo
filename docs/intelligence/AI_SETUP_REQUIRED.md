@@ -35,6 +35,12 @@ decision, not a setting.
 - [x] 7. Real questions answered in the live workspace
 - [x] 8. Local development key (in the workstation's user environment)
 
+**Written explanations (D-091)** — the customer brief, unusual-change explanation and cash
+summary — use the same key, model and limits. **No new setting or secret is needed.** Each press
+of their buttons is one provider call and counts toward the same hourly limit per owner as the
+assistant (`COPILOT_REQUESTS_PER_HOUR`, default 30); without the key their buttons show the same
+"switched on" note, and every calculated figure stays available.
+
 The sections below remain as the reference for rotating the key, setting up staging or checking
 a problem later.
 

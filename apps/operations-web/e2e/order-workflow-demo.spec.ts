@@ -26,7 +26,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
     expect(response.ok(), `${response.url()} -> ${response.status()} ${await response.text()}`).toBeTruthy();
     return (await response.json()) as Record<string, unknown>;
   };
-  const phone = (n: number) => `+96176${((Date.now() + n) % 1_000_000).toString().padStart(6, "0")}`;
+  const phone = (n: number) => `+96171${((Date.now() + n) % 1_000_000).toString().padStart(6, "0")}`; // 71 xxx xxx is always valid; 76 0xx xxx is not
 
   // ----- Setup: owner, business, one published product with a supplier cost, customer X -----
   await json(await api.post("/register", { data: { first_name: "Rana", last_name: "Demo", email: ownerEmail, phone: phone(1), city: "Beirut", age: 36, password: PASSWORD } }));

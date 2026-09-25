@@ -28,15 +28,19 @@ from tawzeevo_api.services.intelligence.copilot.provider import (
     ChatProvider,
     CopilotProviderError,
     GroqProvider,
+    ProviderReply,
 )
 from tawzeevo_api.services.intelligence.copilot.tools import ToolContext, run_tool, tool_schemas
 
 PROVIDER_NAME = "groq"
 MAX_HISTORY_MESSAGES = 12
-SYSTEM_PROMPT = (
+_ASSISTANT_ROLE = (
     "You are the Tawzeevo business assistant for the owner of one wholesale and distribution "
     "business. Answer only from the results of the provided tools: call a tool for every figure "
     "you state, copy figures exactly as the tool returns them and always name their currency. "
+)
+# Rules every answer follows, from the assistant or a contextual explanation (explain.py).
+SHARED_RULES = (
     "Never add, convert or combine amounts of different currencies. Never estimate, forecast or "
     "predict; Tawzeevo has no due dates, bank balances, stock or payment probabilities, so say so "
     "if asked. Customers appear only as references such as C-ABC234: write the reference exactly "
@@ -51,6 +55,7 @@ SYSTEM_PROMPT = (
     "or short '-' lists: no tables, headings or other markup, references written with a plain "
     "'-', figures without thousands separators."
 )
+SYSTEM_PROMPT = _ASSISTANT_ROLE + SHARED_RULES
 # A figure: digits with optional thousands commas and decimals. It must not continue a word or a
 # reference/date (`C-ABC234`, `2026-09-23` -> only the year), but a standalone minus is allowed.
 # Signs are ignored when comparing (the model may write "-12.50" or "a 12.50 refund").
@@ -61,6 +66,9 @@ _ARABIC_SEPARATORS = str.maketrans({"\u066c": ",", "\u066b": "."})
 # Typeset thousands groups ("1\u202f359.50"): a no-break, figure, thin or narrow space between a
 # digit and exactly three digits separates groups of one figure, not two figures.
 _GROUPING_SPACE = re.compile(r"(?<=\d)[\u00a0\u2007\u2009\u202f](?=\d{3}(?!\d))")
+# Typeset hyphens (U+2010-U+2015, U+2212) read as "-", so an invoice number such as 2026-000193 or
+# a range such as 31-60 days written with a non-breaking hyphen stays one token, not stray figures.
+_HYPHENS = str.maketrans(dict.fromkeys((*range(0x2010, 0x2016), 0x2212), "-"))
 
 _limiter: PublicInvoiceRateLimiter | None = None
 
@@ -112,7 +120,7 @@ class CopilotResult:
 def _numbers(text: str) -> set[Decimal]:
     found: set[Decimal] = set()
     # References are names, not figures, however their hyphen is typeset.
-    text = REF_PATTERN.sub(" ", text.translate(_ARABIC_SEPARATORS))
+    text = REF_PATTERN.sub(" ", text.translate(_ARABIC_SEPARATORS).translate(_HYPHENS))
     text = _LIST_MARKER.sub(" ", _GROUPING_SPACE.sub(",", text))
     for token in _NUMBER.findall(text):
         try:
@@ -141,6 +149,51 @@ def unverified_numbers(answer: str, sources: list[str]) -> list[str]:
     return missing
 
 
+def open_request(tenant_id: UUID, user_id: UUID, provider: ChatProvider | None) -> ChatProvider:
+    """Checks shared by every assistant request: a provider exists and the owner is within the
+    per-user hourly limit (assistant questions and contextual explanations share one budget)."""
+    provider = provider if provider is not None else configured_provider()
+    if provider is None:
+        raise AppError(503, "COPILOT_NOT_CONFIGURED", "The business assistant is not configured")
+    if not _rate_limiter().allow(f"{tenant_id}:{user_id}"):
+        metrics.increment("copilot_throttled")
+        raise AppError(429, "COPILOT_RATE_LIMITED", "Too many assistant questions; try later")
+    metrics.increment("copilot_requests")
+    return provider
+
+
+def call_provider(
+    provider: ChatProvider, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+) -> ProviderReply:
+    """One provider round trip with failures mapped to controlled API errors."""
+    try:
+        return provider.complete(messages, tools)
+    except CopilotProviderError as exc:
+        metrics.increment("copilot_provider_failures")
+        if str(exc) == "PROVIDER_RATE_LIMITED":
+            # The provider account's own quota, not an outage: the owner can simply wait.
+            raise AppError(
+                503, "COPILOT_PROVIDER_BUSY", "The assistant's provider limit was reached"
+            ) from exc
+        raise AppError(
+            502,
+            "COPILOT_PROVIDER_UNAVAILABLE",
+            f"The business assistant is unavailable ({exc})",
+        ) from exc
+
+
+def resolve_answer(
+    directory: CustomerDirectory, raw_answer: str, sources: list[str]
+) -> tuple[str, list[dict[str, Any]], list[str]]:
+    """Put customer names back (inside Tawzeevo only) and list figures no source contains."""
+    answer, used = directory.unmask(raw_answer)
+    references = []
+    for ref in used:
+        customer_id, name = directory.by_ref[ref]
+        references.append({"ref": ref, "customer_id": customer_id, "customer_name": name})
+    return answer, references, unverified_numbers(raw_answer, sources)
+
+
 def ask(
     db: Session,
     tenant_id: UUID,
@@ -152,13 +205,7 @@ def ask(
     provider: ChatProvider | None = None,
     as_of: datetime | None = None,
 ) -> CopilotResult:
-    provider = provider if provider is not None else configured_provider()
-    if provider is None:
-        raise AppError(503, "COPILOT_NOT_CONFIGURED", "The business assistant is not configured")
-    if not _rate_limiter().allow(f"{tenant_id}:{user_id}"):
-        metrics.increment("copilot_throttled")
-        raise AppError(429, "COPILOT_RATE_LIMITED", "Too many assistant questions; try later")
-    metrics.increment("copilot_requests")
+    provider = open_request(tenant_id, user_id, provider)
 
     # A new conversation gets a new id and therefore fresh customer references; the client echoes
     # it with its history so follow-ups resolve. It only feeds the reference HMAC: it grants no
@@ -178,28 +225,10 @@ def ask(
     grounding: list[dict[str, Any]] = []
     sources: list[str] = [question]
     for _round in range(get_settings().copilot_max_tool_rounds):
-        try:
-            reply = provider.complete(messages, tools)
-        except CopilotProviderError as exc:
-            metrics.increment("copilot_provider_failures")
-            if str(exc) == "PROVIDER_RATE_LIMITED":
-                # The provider account's own quota, not an outage: the owner can simply wait.
-                raise AppError(
-                    503, "COPILOT_PROVIDER_BUSY", "The assistant's provider limit was reached"
-                ) from exc
-            raise AppError(
-                502,
-                "COPILOT_PROVIDER_UNAVAILABLE",
-                f"The business assistant is unavailable ({exc})",
-            ) from exc
+        reply = call_provider(provider, messages, tools)
         if not reply.tool_calls:
             raw_answer = (reply.content or "").strip()
-            answer, used = directory.unmask(raw_answer)
-            references = []
-            for ref in used:
-                customer_id, name = directory.by_ref[ref]
-                references.append({"ref": ref, "customer_id": customer_id, "customer_name": name})
-            unverified = unverified_numbers(raw_answer, sources)
+            answer, references, unverified = resolve_answer(directory, raw_answer, sources)
             warnings = ["UNVERIFIED_NUMBERS"] if unverified else []
             if not grounding:
                 warnings.append("NO_TOOL_USED")
