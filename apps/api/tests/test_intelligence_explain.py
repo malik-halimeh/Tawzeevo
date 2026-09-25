@@ -289,9 +289,13 @@ def test_anomaly_explanation_uses_the_shown_anomaly_and_refuses_a_changed_list(
     body = _ask(client, tenant, token, request).json()
     facts = _facts(stub)
     change = facts["unusual_change"]
-    assert change["type"] == "OVERDUE_THRESHOLD_CROSSED" and change["label"]
+    assert change["label"] == "a balance that has just become overdue"
+    assert not {"type", "reason_code", "metric"} & set(change)  # no code names reach the model
+    assert change["details"]["oldest_unpaid_charge_age_days"] == 10
     assert change["observed_value"] == "743.5000" and change["customer_ref"]
     assert "baseline" not in change and "robust_z" not in change["details"]  # plain words only
+    assert "usual_value" not in change  # a rule-based change has none; never sent as null
+    assert change["why_flagged"] == "the balance passed the overdue limit within the last 7 days"
     assert facts["customer_balances"][0]["balance"] == "743.5000"
     assert "never an accusation" in facts["meaning"]
     assert customer["name"] not in stub.payloads[0] and customer["phone"] not in stub.payloads[0]
