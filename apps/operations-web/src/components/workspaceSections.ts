@@ -19,6 +19,7 @@ export const WORKSPACE_SECTIONS = [
   { id: "suppliers", label: "supplierSetup.tab", icon: "shop" },
   { id: "procurement", label: "procurement.tab", icon: "cart" },
   { id: "analytics", label: "analytics.tab", icon: "chart" },
+  { id: "assistant", label: "copilot.tab", icon: "chat" },
   { id: "branding", label: "branding.tab", icon: "palette" },
   { id: "sync", label: "sync.tab", icon: "sync" },
   { id: "backup", label: "backup.tab", icon: "cloud" },
@@ -65,14 +66,15 @@ export function selectedContext<T extends Pick<TenantContext, "tenant_id">>(cont
 
 /**
  * What a section may open with, so the owner continues from where they were instead of choosing
- * again: an order (Orders), an invoice and its view (Invoices), an invoice to deliver (Deliveries).
+ * again: an order (Orders), an invoice and its view (Invoices), an invoice to deliver (Deliveries),
+ * a customer (Customers, e.g. from a priority or an assistant answer).
  * These only select context; each panel still loads it from the API and ignores what it cannot find.
  */
-export interface SectionContext { order?: string | null; invoice?: string | null; view?: string | null }
-const CONTEXT_PARAMS = ["order", "invoice", "view"] as const;
+export interface SectionContext { order?: string | null; invoice?: string | null; view?: string | null; customer?: string | null }
+const CONTEXT_PARAMS = ["order", "invoice", "view", "customer"] as const;
 
 export function contextFromSearch(search: URLSearchParams): SectionContext {
-  return { order: search.get("order"), invoice: search.get("invoice"), view: search.get("view") };
+  return { order: search.get("order"), invoice: search.get("invoice"), view: search.get("view"), customer: search.get("customer") };
 }
 
 /** Query string for a business and section: Work is the bare section and the first business needs no parameter. */

@@ -48,6 +48,7 @@ const PATHS = {
   palette: <path d="M12 3a9 9 0 0 0 0 18h1a2 2 0 0 0 1-3.7 2 2 0 0 1 1.5-3.3H17a4 4 0 0 0 4-4c0-4-4-7-9-7Zm-4 7a1 1 0 1 0 0 .1M12 7a1 1 0 1 0 0 .1m4 2a1 1 0 1 0 0 .1" />,
   home: <path d="m3 11 9-8 9 8v10h-6v-6h-6v6H3Z" />,
   key: <path d="M14 10a4 4 0 1 0-4 4l1-1 1 1 2-2 2 2 2-2-4-4 1-1a4 4 0 0 0-1 3Z" />,
+  chat: <path d="M5 18.5V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 3.5ZM9 8.5h6M9 11.5h4" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

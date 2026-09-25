@@ -21,6 +21,8 @@ import type {
   TenantProductListResponse,
 } from "../api/types";
 import { ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
+import { CopilotPanel } from "./CopilotPanel";
+import { AttentionList, CustomerSignals, TodayBrief } from "./IntelligencePanel";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { SupplierSetup } from "./SupplierSetup";
 import { CONNECT_RESULT_KEY } from "../backup/connect";
@@ -374,6 +376,8 @@ interface CustomerDirectoryProps {
   editCustomer: (customer: Customer) => void;
   linkCustomerId: string | undefined;
   setLinkCustomerId: (id: string | undefined) => void;
+  /** A customer named in the address (`customer`), e.g. opened from a priority or an assistant answer. */
+  focusCustomerId: string | null;
 }
 
 /**
@@ -382,8 +386,10 @@ interface CustomerDirectoryProps {
  * and edit handlers (with their offline paths), the notices and the storefront-link controls are the
  * workspace's own, passed in unchanged; this component keeps which pane is open and where focus goes.
  */
-function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matches, searchCustomers, customerDraft, setCustomerDraft, editingCustomerId, setEditingCustomerId, saveCustomer, editCustomer, linkCustomerId, setLinkCustomerId }: CustomerDirectoryProps) {
+function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matches, searchCustomers, customerDraft, setCustomerDraft, editingCustomerId, setEditingCustomerId, saveCustomer, editCustomer, linkCustomerId, setLinkCustomerId, focusCustomerId }: CustomerDirectoryProps) {
   const { t } = useTranslation();
+  const [, setSearchParams] = useSearchParams();
+  const handledFocus = useRef<string | null>(null);
   const [selectedId, setSelectedId] = useState(editingCustomerId);
   const [creating, setCreating] = useState(false);
   const [detailOpen, setDetailOpen] = useState(editingCustomerId !== undefined);
@@ -465,6 +471,24 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     focusAfterRender({ to: "list", row: undefined, scrollY: listScroll.current });
   }, [busy, matches, focusAfterRender]);
 
+  // A customer named in the address opens once it is among the results (the workspace loads it by id).
+  useEffect(() => {
+    if (!focusCustomerId || handledFocus.current === focusCustomerId || !matches.some((customer) => customer.id === focusCustomerId)) return;
+    handledFocus.current = focusCustomerId;
+    setEditingCustomerId(undefined);
+    setCustomerDraft(emptyCustomer);
+    setCreating(false);
+    setSelectedId(focusCustomerId);
+    setDetailOpen(true);
+    if (singlePane()) focusAfterRender({ to: "detail" });
+  }, [focusCustomerId, matches, setEditingCustomerId, setCustomerDraft, focusAfterRender]);
+  // Leaving that record forgets the address's customer, so the same priority opens it again.
+  const clearFocus = () => {
+    if (!focusCustomerId) return;
+    handledFocus.current = null;
+    setSearchParams((current) => { const next = new URLSearchParams(current); next.delete("customer"); return next; }, { replace: true });
+  };
+
   const rememberListScroll = () => { if (singlePane()) listScroll.current = window.scrollY; };
   const discardForm = () => { setEditingCustomerId(undefined); setCustomerDraft(emptyCustomer); setCreating(false); };
   // The results change beneath the search, so the phone field keeps the focus (Search is busy meanwhile).
@@ -474,6 +498,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   };
   const openCustomer = (customer: Customer) => {
     if (formMode) discardForm();
+    clearFocus();
     rememberListScroll();
     setSelectedId(customer.id);
     setDetailOpen(true);
@@ -481,6 +506,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     if (singlePane()) focusAfterRender({ to: "detail" });
   };
   const backToList = () => {
+    clearFocus();
     setDetailOpen(false);
     focusAfterRender({ to: "list", row: selected?.id, scrollY: listScroll.current });
   };
@@ -535,6 +561,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             ))}
           </ul>
         ) : null}
+        <AttentionList tenantId={tenantId} />
       </div>
       {formMode ? (
         <article aria-labelledby="customer-form-title" className="detail customer-detail">
@@ -571,7 +598,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
               <button aria-expanded={linkCustomerId === selected.id} className="button button-secondary" onClick={() => setLinkCustomerId(linkCustomerId === selected.id ? undefined : selected.id)} type="button"><Icon name="shop" small />{t("customerLink.toggle")}</button>
             </div>
             {linkCustomerId === selected.id ? <CustomerLinkControls customerId={selected.id} tenantId={tenantId} /> : null}
-            {/* Balances and receipts belong to the Invoices section; nothing financial is fetched here. */}
+            {/* Why this customer is on today's list (D-089); balances and receipts themselves belong to Invoices. */}
+            <CustomerSignals customerId={selected.id} tenantId={tenantId} />
             <p className="muted customer-balances">{t("tenantWorkspace.balancesElsewhere")} <Link to={sectionHref("invoices", tenantId)}>{t("invoiceEditor.tab")} › {t("invoiceEditor.viewBalances")}</Link></p>
           </div>
         </article>
@@ -608,6 +636,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   };
   const [backupNotice, setBackupNotice] = useState<string>();
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
+  const focusCustomerId = view === "customers" ? searchParams.get("customer") : null;
   useEffect(() => {
     // Returning from the Google consent screen: open the backup desk with the outcome.
     try {
@@ -647,6 +676,17 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     setRequestError(undefined);
     setNotice(undefined);
   }, [context.tenant_id]);
+
+  // Customers opened from a priority, an unusual change or an assistant answer are loaded by id and
+  // join the results, so the directory shows them like a search hit (the server still checks access).
+  useEffect(() => {
+    if (!focusCustomerId || context.role !== "owner" || matches.some((customer) => customer.id === focusCustomerId)) return;
+    let current = true;
+    apiRequest<Customer>(`/api/v1/tenants/${context.tenant_id}/customers/${focusCustomerId}`)
+      .then((customer) => { if (current) setMatches((rows) => (rows.some((row) => row.id === customer.id) ? rows : [...rows, customer])); })
+      .catch((problem: unknown) => { if (current) setRequestError(problem); });
+    return () => { current = false; };
+  }, [focusCustomerId, context.tenant_id, context.role, matches]);
 
   const categories = useQuery({
     queryKey: ["tenant-categories", context.tenant_id],
@@ -912,7 +952,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
           {view === "customers" ? (
             // Keyed by business: an open record or form never carries over to another membership.
-            <CustomerDirectory key={context.tenant_id} busy={busy} customerDraft={customerDraft} editCustomer={editCustomer} editingCustomerId={editingCustomerId} linkCustomerId={linkCustomerId} matches={matches} phoneSearch={phoneSearch} saveCustomer={saveCustomer} searchCustomers={searchCustomers} setCustomerDraft={setCustomerDraft} setEditingCustomerId={setEditingCustomerId} setLinkCustomerId={setLinkCustomerId} setPhoneSearch={setPhoneSearch} tenantId={context.tenant_id} />
+            <CustomerDirectory key={context.tenant_id} busy={busy} customerDraft={customerDraft} editCustomer={editCustomer} editingCustomerId={editingCustomerId} linkCustomerId={linkCustomerId} matches={matches} phoneSearch={phoneSearch} saveCustomer={saveCustomer} searchCustomers={searchCustomers} setCustomerDraft={setCustomerDraft} setEditingCustomerId={setEditingCustomerId} focusCustomerId={focusCustomerId} setLinkCustomerId={setLinkCustomerId} setPhoneSearch={setPhoneSearch} tenantId={context.tenant_id} />
           ) : view === "categories" ? (
             <div className="route-book-grid">
               <article className="content-card route-form-card">
@@ -988,10 +1028,12 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : view === "analytics" ? (
             <AnalyticsPanel tenantId={context.tenant_id} />
+          ) : view === "assistant" ? (
+            <CopilotPanel key={context.tenant_id} tenantId={context.tenant_id} />
           ) : view === "branding" ? (
             <BrandingPanel tenantId={context.tenant_id} />
           ) : view === "work" ? (
-            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} tenantId={context.tenant_id} />
+            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} ownerBrief={<TodayBrief tenantId={context.tenant_id} />} tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
             <DeliveryPanel focusInvoiceId={searchParams.get("invoice")} key={searchParams.get("invoice") ?? "all"} tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (

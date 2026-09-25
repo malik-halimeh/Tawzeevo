@@ -1080,6 +1080,55 @@ html[dir="rtl"] .invoice-history details.is-current > summary { border-radius: 7
   .delivery-row .category-actions select { width: 100%; }
 }
 
+/* ---------- Owner intelligence (D-089): priorities, signals, cash position, unusual changes, assistant ---------- */
+.today-brief, .attention { margin: 8px 0 20px; }
+.today-brief .section-title, .attention .section-title { margin-top: 12px; }
+.intel-row { min-height: 72px; padding-block: 14px; text-decoration: none; }
+.intel-row .stop-copy small + small { margin-top: 2px; }
+.intel-more, .intel-footnote { font-size: 13px; }
+.intel-unusual { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 14px; margin: 12px 0 0; }
+.intel-unusual .icon { color: var(--warn); }
+.intel-intro { margin: 0 0 12px; max-width: 560px; font-size: 14px; line-height: 1.5; }
+.intel-pending { display: grid; gap: 8px; margin: 8px 0; }
+.intel-quiet-error { display: grid; gap: 8px; justify-items: start; margin: 8px 0 12px; }
+.intel-quiet-error .notice { margin: 0; width: 100%; }
+.intel-group + .intel-group { margin-top: 16px; }
+.intel-currency { font-size: 13px; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin: 8px 0 0; }
+.intel-currency-tag { font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.segmented { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); }
+.segmented .text-button { min-height: 40px; padding: 6px 14px; border-radius: 6px; color: var(--ink); }
+.segmented .text-button[aria-pressed="true"] { background: var(--surface); color: var(--blue); box-shadow: inset 0 0 0 1px var(--line); text-decoration: none; }
+.customer-signals { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 16px; }
+.customer-signals h3 { font-size: 17px; margin: 0 0 10px; }
+.signal + .signal { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.signal-action { margin: 8px 0 4px; }
+.signal-reasons { margin: 0 0 6px; padding-inline-start: 18px; font-size: 14px; line-height: 1.5; }
+.signal-rhythm { font-size: 14px; margin: 0; }
+.intel-cash, .intel-unusual-list { margin-top: 8px; }
+.cash-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.cash-currency { border: 1px solid var(--line); border-radius: var(--radius-record); padding: 16px; min-width: 0; background: var(--surface); }
+.cash-currency h5 { margin: 0 0 8px; font-size: 15px; }
+.intel-projection { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 12px 0 0; font-size: 14px; }
+.intel-projection small { width: 100%; color: var(--warn); }
+.intel-unusual-list .ledger li { align-items: flex-start; }
+.intel-unusual-list .ledger-copy small { display: block; color: var(--muted); margin-top: 3px; }
+.copilot { max-width: 820px; }
+.copilot-thread { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 18px; }
+.copilot-question { justify-self: end; margin: 0 0 8px; margin-inline-start: auto; max-width: 85%; width: fit-content; background: var(--mist); border-radius: var(--radius-record); padding: 10px 14px; }
+.copilot-answer { border-inline-start: 3px solid var(--blue); padding-inline-start: 14px; }
+.answer-text p { margin: 0 0 8px; line-height: 1.6; }
+.answer-text ul { margin: 0 0 8px; padding-inline-start: 20px; line-height: 1.6; }
+.copilot-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.copilot-meta .icon { color: var(--muted); }
+.copilot-answer .notice { margin: 10px 0 0; }
+.chip-link { border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; color: var(--blue); text-decoration: none; }
+.chip-link:hover { background: var(--mist); }
+.copilot-error { display: grid; gap: 8px; justify-items: start; }
+.copilot-error .notice { margin: 0; width: 100%; }
+.copilot-suggestions { margin: 0 0 16px; }
+.copilot-form textarea { width: 100%; resize: vertical; min-height: 64px; font: inherit; }
+.copilot-setup-links { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+
 /* ---------- Software keyboard (visualViewport) ---------- */
 body.keyboard-open .mobile-nav { display: none; }
 body.keyboard-open .action-area.attached { bottom: var(--keyboard); }

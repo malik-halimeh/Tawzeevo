@@ -32,6 +32,7 @@ from tawzeevo_api.routes.branding import branding_router
 from tawzeevo_api.routes.cash_van import cash_van_router, tenant_contexts_router
 from tawzeevo_api.routes.customer_ledger import customer_ledger_router
 from tawzeevo_api.routes.delivery import delivery_router, routes_router
+from tawzeevo_api.routes.intelligence import intelligence_router
 from tawzeevo_api.routes.invoices import invoices_router
 from tawzeevo_api.routes.payments import payments_router
 from tawzeevo_api.routes.platform import platform_router, tenant_applications_router
@@ -71,6 +72,12 @@ def database_preflight() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     database_preflight()
+    # D-089: say once whether the business assistant can answer; never the key itself. The
+    # deterministic intelligence endpoints need no configuration either way.
+    logging.getLogger("tawzeevo.intelligence").info(
+        "business assistant %s",
+        "configured" if settings.groq_api_key else "not configured (GROQ_API_KEY unset)",
+    )
     stop = threading.Event()
     worker: threading.Thread | None = None
     if settings.backup_scheduler_enabled:
@@ -175,6 +182,7 @@ app.include_router(delivery_router)
 app.include_router(routes_router)
 app.include_router(team_router)
 app.include_router(analytics_router)
+app.include_router(intelligence_router)
 app.include_router(branding_router)
 app.include_router(sync_router)
 app.include_router(backup_router)

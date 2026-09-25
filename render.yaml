@@ -71,6 +71,10 @@ services:
         value: https://tawzeevo-malik-halimeh.onrender.com/backup/google/callback
       - key: BACKUP_SCHEDULER_ENABLED
         value: "true"
+      # Business Copilot (D-089): Groq key set in the dashboard; the assistant stays off
+      # (503 COPILOT_NOT_CONFIGURED) until it exists. Deterministic intelligence needs nothing.
+      - key: GROQ_API_KEY
+        sync: false
 
   - type: web
     name: tawzeevo-malik-halimeh

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInRouterContext, useLocation } from "react-router-dom";
 
@@ -57,7 +57,8 @@ function useSinglePane(): boolean {
   return single;
 }
 
-export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; membershipId: string }) {
+/** `ownerBrief` is the owner-only "today's priorities" band (D-089); a driver never receives it. */
+export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: string; membershipId: string; ownerBrief?: ReactNode }) {
   const { t, i18n } = useTranslation();
   const [work, setWork] = useState<MyWork>();
   const [fromCache, setFromCache] = useState(false);
@@ -214,6 +215,8 @@ export function MyWorkPanel({ tenantId, membershipId }: { tenantId: string; memb
           {total > 0 ? <div className="day-meter" aria-hidden="true">{Array.from({ length: total }, (_, index) => <span className={index < doneCount ? "done" : ""} key={index} />)}</div> : null}
           <footer><span>{t("myWork.completedCount", { done: doneCount, total })}</span><span>{t("myWork.toVisit", { count: tasks.length })}</span></footer>
         </section>
+
+        {ownerBrief}
 
         <label className="field field-wide"><span>{t("myWork.note")}</span><input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
 

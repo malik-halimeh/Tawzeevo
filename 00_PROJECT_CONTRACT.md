@@ -525,6 +525,11 @@ Agreed future intelligence:
 
 Start with explainable statistical baseline before ML/LLM.
 
+Approved intelligence package (D-089): owner-only deterministic customer prioritization, customer
+inactivity risk, business anomaly detection and cash-flow position/ageing over canonical data (analytics,
+not forecasting), plus a read-only Business Copilot that explains verified tool results and never
+calculates financial figures itself. Forecasting remains Phase 10 under D-086.
+
 ## Explicitly out of scope unless user approves
 
 - native mobile app;
@@ -539,6 +544,6 @@ Start with explainable statistical baseline before ML/LLM.
 - full accounting/ERP;
 - automated payment-provider subscription billing / automatic charging (manual platform-admin access-period and suspension/reactivation control is in scope);
 - tax/VAT engine;
-- early AI/LLM;
+- early AI/LLM (except the approved intelligence package, D-089);
 - automatic customer merging;
 - per-purchase supplier payment allocation.

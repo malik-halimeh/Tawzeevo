@@ -47,6 +47,9 @@ def snapshot() -> dict[str, object]:
         "otp_locked": counters.get("otp_locked", 0),
         "otp_throttled": counters.get("otp_throttled", 0),
         "otp_delivery_failures": counters.get("otp_delivery_failures", 0),
+        "copilot_requests": counters.get("copilot_requests", 0),
+        "copilot_throttled": counters.get("copilot_throttled", 0),
+        "copilot_provider_failures": counters.get("copilot_provider_failures", 0),
     }
 
 

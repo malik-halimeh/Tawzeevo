@@ -952,7 +952,7 @@ describe("phone navigation follows the member's role", () => {
     const more = within(primaryNav()).getByRole("button", { name: "More" });
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
-    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Orders", "Deliveries", "Categories", "Products", "Suppliers & costs", "Procurement", "Analytics", "Branding", "Offline", "Backup", "Profile", "Public statistics"]);
+    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Orders", "Deliveries", "Categories", "Products", "Suppliers & costs", "Procurement", "Analytics", "Assistant", "Branding", "Offline", "Backup", "Profile", "Public statistics"]);
     expect(within(moreSheet()).getByRole("link", { name: "Deliveries" })).toHaveAttribute("href", "/workspace?section=deliveries"); // management stays one step away
     expect(within(moreSheet()).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -969,9 +969,9 @@ describe("phone navigation follows the member's role", () => {
     vi.stubGlobal("fetch", memberFetch("owner"));
     renderApp("/workspace");
     expect(await screen.findByRole("button", { name: /01.*Corner Shop/ })).toBeInTheDocument();
-    expect(railLinks()).toEqual(["Work", "Customers", "Invoices", "Orders", "Deliveries", "Categories", "Products", "Suppliers & costs", "Procurement", "Analytics", "Branding", "Offline", "Backup"]);
+    expect(railLinks()).toEqual(["Work", "Customers", "Invoices", "Orders", "Deliveries", "Categories", "Products", "Suppliers & costs", "Procurement", "Analytics", "Assistant", "Branding", "Offline", "Backup"]);
     const railMore = within(railNav()).getByRole("group", { name: "More" });
-    expect(within(railMore).getAllByRole("link").map((link) => link.textContent)).toEqual(["Orders", "Deliveries", "Categories", "Products", "Suppliers & costs", "Procurement", "Analytics", "Branding", "Offline", "Backup"]);
+    expect(within(railMore).getAllByRole("link").map((link) => link.textContent)).toEqual(["Orders", "Deliveries", "Categories", "Products", "Suppliers & costs", "Procurement", "Analytics", "Assistant", "Branding", "Offline", "Backup"]);
     expect(railLink("Work")).toHaveAttribute("aria-current", "page");
     expect(railLink("Analytics")).toHaveAttribute("href", "/workspace?section=analytics");
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument(); // no section strip between the member and the work
@@ -1120,5 +1120,73 @@ describe("phone navigation follows the member's role", () => {
     expect(await screen.findByRole("heading", { name: "Find every matching customer" })).toBeInTheDocument();
     expect(railLink("Invoices")).toHaveAttribute("href", `/workspace?tenant=${tenant.id}&section=invoices`);
     expect(railLink("Work")).toHaveAttribute("href", `/workspace?tenant=${tenant.id}`);
+  });
+});
+
+describe("owner intelligence in the workspace (D-089)", () => {
+  const ownerContext = { membership_id: "55555555-5555-5555-5555-555555555555", tenant_id: tenant.id, tenant_name: tenant.name, tenant_status: "ACTIVE", role: "owner" };
+  const tyre = { id: "88888888-8888-4888-8888-888888888888", tenant_id: tenant.id, name: "Tyre Fresh Foods", phone: "+96171000301", address: "Tyre souk", latitude: null, longitude: null, grade: "B", created_at: tenant.created_at, updated_at: tenant.updated_at };
+  const priorities = { as_of: "2026-09-25T09:00:00Z", groups: [{ currency: "USD", items: [{ customer_id: tyre.id, customer_name: tyre.name, customer_grade: "B", currency: "USD", score: 88, band: "HIGH", components: { collection_urgency: 40, relationship_inactivity: 0, activity_decline: null, friction_signals: 0 }, reasons: [{ code: "OLD_OVERDUE_BALANCE", value: "640.5000", context: { overdue_age_days: 75, threshold_days: 30 } }], suggested_action_code: "COLLECT_OVERDUE", inactivity_status: "NORMAL", outstanding_balance: "640.5000", days_since_last_purchase: 6 }] }] };
+  const intelligenceApi = () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
+      if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
+      if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [ownerContext] }));
+      calls.push(url);
+      if (url.includes("/delivery-tasks/my-work")) return Promise.resolve(json({ tasks: [], membership_id: ownerContext.membership_id, role: "owner" }));
+      if (url.includes("/intelligence/priorities?")) return Promise.resolve(json(priorities));
+      if (url.includes("/intelligence/inactivity?")) return Promise.resolve(json({ as_of: priorities.as_of, groups: [] }));
+      if (url.includes("/intelligence/anomalies?")) return Promise.resolve(json({ as_of: priorities.as_of, window: { start: priorities.as_of, end: priorities.as_of, timezone: "Asia/Beirut", block_days: 7, baseline_blocks: 8 }, groups: [] }));
+      if (url.includes("/intelligence/copilot/status?")) return Promise.resolve(json({ configured: false, provider: null, model: null }));
+      if (url.endsWith(`/customers/${tyre.id}`)) return Promise.resolve(json(tyre));
+      if (url.includes("/access-link?")) return Promise.resolve(json({ active: null, effective_policy: "LINK", policy_override: null, tenant_policy: "LINK", available_policies: ["LINK", "VERIFIED"], verified_sessions: 0 }));
+      if (url.includes("/categories?")) return Promise.resolve(json({ categories: [] }));
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    return calls;
+  };
+
+  test("a priority on Work opens that customer's record in Customers, with the reason it is on the list", async () => {
+    const calls = intelligenceApi();
+    renderApp("/workspace");
+    const today = await screen.findByRole("list", { name: "Today's priorities" });
+    fireEvent.click(within(today).getByRole("link", { name: /Tyre Fresh Foods/ }));
+    const record = await screen.findByRole("article", { name: "Tyre Fresh Foods" });
+    expect(railLink("Customers")).toHaveAttribute("aria-current", "page");
+    expect(within(record).getByText("+96171000301")).toBeInTheDocument(); // the phone to call is right there
+    const signals = within(record).getByRole("region", { name: "Signals" });
+    expect(signals).toHaveTextContent("Collect the overdue balance");
+    expect(calls.some((url) => url.endsWith(`/api/v1/tenants/${tenant.id}/customers/${tyre.id}`))).toBe(true);
+    // The same priority is also listed beside the record, in the Customers attention list.
+    expect(within(screen.getByRole("list", { name: "Priorities · USD" })).getByRole("link", { name: /Tyre Fresh Foods/ })).toBeInTheDocument();
+  });
+
+  test("the assistant is a workspace section of its own and explains when it is not switched on", async () => {
+    intelligenceApi();
+    renderApp(`/workspace?tenant=${tenant.id}&section=assistant`);
+    expect(await screen.findByRole("heading", { name: "Business assistant" })).toBeInTheDocument();
+    expect(await screen.findByText("The assistant is not switched on")).toBeInTheDocument();
+    expect(railLink("Assistant")).toHaveAttribute("aria-current", "page");
+  });
+
+  test("a driver never receives priorities or the assistant", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
+      if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
+      if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [{ ...ownerContext, role: "driver" }] }));
+      calls.push(url);
+      if (url.includes("/delivery-tasks/my-work")) return Promise.resolve(json({ tasks: [], membership_id: ownerContext.membership_id, role: "driver" }));
+      if (url.includes("/pickups")) return Promise.resolve(json({ pickups: [] }));
+      return Promise.resolve(json({ detail: { code: "NOT_FOUND", message: url } }, 404));
+    }));
+    renderApp(`/workspace?tenant=${tenant.id}&section=assistant`);
+    expect(await screen.findByText(/owner/i, { selector: ".notice" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Business assistant" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Today's priorities")).not.toBeInTheDocument();
+    expect(calls.some((url) => url.includes("/intelligence/"))).toBe(false);
   });
 });
