@@ -236,3 +236,37 @@ test("Arabic owners get the same ranking in Arabic, with amounts kept left-to-ri
   expect(within(usd).getByText("إلغاءان حديثان")).toBeInTheDocument(); // Arabic dual form
   expect(screen.getByRole("button", { name: "إيقاع الشراء" })).toBeInTheDocument();
 });
+
+test("day counts carry their own unit in both languages (1 day, 2 days, يوم واحد, يومان)", async () => {
+  const one = priority({ customer_id: "c-one", customer_name: "One Day Shop", band: "LOW", suggested_action_code: "FOLLOW_UP_BALANCE", reasons: [{ code: "OUTSTANDING_BALANCE", value: "67.2500", context: { oldest_unpaid_age_days: 1 } }] });
+  const two = priority({ customer_id: "c-two", customer_name: "Two Day Shop", band: "LOW", suggested_action_code: "FOLLOW_UP_BALANCE", reasons: [{ code: "OUTSTANDING_BALANCE", value: "5.0000", context: { oldest_unpaid_age_days: 2 } }] });
+  stubApi((url) => {
+    if (url.pathname.endsWith("/priorities")) return Response.json({ as_of: AS_OF, groups: [{ currency: "USD", items: [one, two] }] });
+    if (url.pathname.endsWith("/inactivity")) return Response.json({ as_of: AS_OF, groups: [] });
+    return undefined;
+  });
+  const { unmount } = renderWith(<CustomerSignals customerId="c-one" tenantId={TENANT} />);
+  const signals = await screen.findByRole("region", { name: "Signals" });
+  await waitFor(() => expect(plain(signals)).toContain("Owes 67.2500 USD (oldest unpaid charge: 1 day)"));
+  unmount();
+  await i18n.changeLanguage("ar");
+  renderWith(<AttentionList tenantId={TENANT} />);
+  fireEvent.click(await screen.findByRole("button", { name: /عرض كل العملاء|عرض العميلين/ }));
+  const list = await screen.findByRole("list", { name: "الأولويات · USD" });
+  expect(plain(list)).toContain("عمر أقدم مبلغ غير مدفوع: يوم واحد");
+  expect(plain(list)).toContain("عمر أقدم مبلغ غير مدفوع: يومان");
+});
+
+test("a customer's signals do not show the loading line once the priorities have arrived", async () => {
+  let releaseRhythm: (value: Response) => void = () => undefined;
+  stubApi((url) => {
+    if (url.pathname.endsWith("/priorities")) return Response.json(PRIORITIES);
+    if (url.pathname.endsWith("/inactivity")) return new Promise<Response>((resolve) => { releaseRhythm = resolve; });
+    return undefined;
+  });
+  renderWith(<CustomerSignals customerId="c-tyre" tenantId={TENANT} />);
+  const signals = await screen.findByRole("region", { name: "Signals" });
+  await waitFor(() => expect(plain(signals)).toContain("Collect the overdue balance"));
+  expect(screen.queryByText("Working out today's picture…")).not.toBeInTheDocument(); // rhythm still loading, quietly
+  releaseRhythm(Response.json(INACTIVITY));
+});

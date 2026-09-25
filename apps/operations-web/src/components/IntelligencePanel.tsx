@@ -36,6 +36,9 @@ type T = TFunction;
 const money = (value: Scalar, currency: string) => `⁦${String(value)} ${currency}⁩`;
 const num = (value: Scalar) => `⁦${String(value)}⁩`;
 
+/** A number of days with its unit, pluralised per language ("1 day", "يومان"); "—" when unknown. */
+const days = (t: T, value: Scalar | undefined) => (value === null || value === undefined ? "—" : t("intelligence.days", { count: Number(value), n: num(value) }));
+
 const BAND_TONE: Record<string, string> = { HIGH: "bad", MEDIUM: "warn", LOW: "" };
 const RHYTHM_TONE: Record<string, string> = { LAPSED: "bad", AT_RISK: "bad", WATCH: "warn", NORMAL: "good", INSUFFICIENT_HISTORY: "" };
 const ATTENTION: readonly string[] = ["HIGH", "MEDIUM"];
@@ -46,13 +49,13 @@ function reasonText(t: T, reason: Reason, currency: string): string {
   switch (reason.code) {
     case "OLD_OVERDUE_BALANCE":
     case "OVERDUE_BALANCE":
-      return t(`intelligence.reasons.${reason.code}`, { amount: money(reason.value, currency), days: num(c.overdue_age_days ?? null), threshold: num(c.threshold_days ?? null) });
+      return t(`intelligence.reasons.${reason.code}`, { amount: money(reason.value, currency), days: days(t, c.overdue_age_days), threshold: num(c.threshold_days ?? null), limit: days(t, c.threshold_days) });
     case "OUTSTANDING_BALANCE":
       return c.oldest_unpaid_age_days === null || c.oldest_unpaid_age_days === undefined
         ? t("intelligence.reasons.OUTSTANDING_BALANCE", { amount: money(reason.value, currency) })
-        : t("intelligence.reasons.OUTSTANDING_BALANCE_AGE", { amount: money(reason.value, currency), days: num(c.oldest_unpaid_age_days) });
+        : t("intelligence.reasons.OUTSTANDING_BALANCE_AGE", { amount: money(reason.value, currency), days: days(t, c.oldest_unpaid_age_days) });
     case "PAST_NORMAL_PURCHASE_INTERVAL":
-      return t("intelligence.reasons.PAST_NORMAL_PURCHASE_INTERVAL", { days: num(c.days_since_last_purchase ?? null), usual: num(c.median_purchase_interval_days ?? null) });
+      return t("intelligence.reasons.PAST_NORMAL_PURCHASE_INTERVAL", { days: days(t, c.days_since_last_purchase), usual: days(t, c.median_purchase_interval_days) });
     case "ACTIVITY_DOWN_VS_90D":
       return t("intelligence.reasons.ACTIVITY_DOWN_VS_90D", { recent: money(c.sales_30d ?? null, currency), longer: money(c.sales_90d ?? null, currency) });
     case "INSUFFICIENT_PURCHASE_HISTORY":
@@ -76,7 +79,7 @@ function Rhythm({ status }: { status: string }) {
 
 function rhythmLine(t: T, item: Pick<InactivityItem, "days_since_last_purchase" | "median_purchase_interval_days" | "invoice_count_lifetime" | "status">): string {
   if (item.status === "INSUFFICIENT_HISTORY" || item.median_purchase_interval_days === null) return t("intelligence.rhythmFew", { count: item.invoice_count_lifetime });
-  return t("intelligence.rhythmLine", { days: num(item.days_since_last_purchase), usual: num(item.median_purchase_interval_days) });
+  return t("intelligence.rhythmLine", { days: days(t, item.days_since_last_purchase), usual: days(t, item.median_purchase_interval_days) });
 }
 
 /** A quiet inline failure for a supporting panel: it never displaces the owner's main work. */
@@ -205,7 +208,7 @@ export function CustomerSignals({ tenantId, customerId }: { tenantId: string; cu
   return (
     <section aria-labelledby="customer-signals-title" className="customer-signals">
       <h3 id="customer-signals-title">{t("intelligence.signalsTitle")}</h3>
-      {priorities.isPending || inactivity.isPending ? <Pending /> : null}
+      {priorities.isPending ? <Pending /> : null}
       {failed ? <QuietError error={failed} onRetry={() => { void priorities.refetch(); void inactivity.refetch(); }} /> : null}
       {priorities.data && inactivity.data && own.length === 0 && rhythm.length === 0 ? <p className="muted">{t("intelligence.signalsNone")}</p> : null}
       {own.map((item) => {
@@ -281,9 +284,9 @@ function anomalySummary(t: T, item: AnomalyItem, currency: string): string {
   const who = typeof d.customer_name === "string" ? d.customer_name : t("intelligence.unnamedCustomer");
   switch (item.type) {
     case "OVERDUE_THRESHOLD_CROSSED":
-      return t("intelligence.anomalyText.OVERDUE_THRESHOLD_CROSSED", { who, value, days: num(d.overdue_age_days ?? null), threshold: num(d.threshold_days ?? null) });
+      return t("intelligence.anomalyText.OVERDUE_THRESHOLD_CROSSED", { who, value, days: days(t, d.overdue_age_days), threshold: num(d.threshold_days ?? null), limit: days(t, d.threshold_days) });
     case "BACKDATED_RECEIPT_LARGE":
-      return t("intelligence.anomalyText.BACKDATED_RECEIPT_LARGE", { who, value, days: num(d.days_recorded_after_payment_date ?? null) });
+      return t("intelligence.anomalyText.BACKDATED_RECEIPT_LARGE", { who, value, days: days(t, d.days_recorded_after_payment_date) });
     case "LINE_PRICE_BELOW_SNAPSHOT_COST":
       return t("intelligence.anomalyText.LINE_PRICE_BELOW_SNAPSHOT_COST", { product: String(d.product_name ?? ""), value, cost: usual ?? "—" });
     case "CUSTOMER_INVOICE_VALUE_HIGH":

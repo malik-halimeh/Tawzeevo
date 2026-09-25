@@ -143,7 +143,7 @@ test("the assistant speaks Arabic in an Arabic workspace and keeps each message'
   renderPanel();
   fireEvent.click(await screen.findByRole("button", { name: "بمن يجب أن أتصل اليوم؟" }));
   const answer = await screen.findByText("اتصل بـ Tyre Fresh Foods أولاً.");
-  expect(answer.closest("[dir]")).toHaveAttribute("dir", "auto");
+  expect(answer.closest("[dir]")).toHaveAttribute("dir", "rtl"); // an Arabic question gets a right-to-left answer
   expect(screen.getByText("أولويات اليوم", { exact: false })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "مساعد الأعمال" })).toBeInTheDocument();
 });
@@ -163,4 +163,13 @@ test("a table or heading from the model reads as plain lines, and a provider at 
   fireEvent.change(screen.getByRole("textbox", { name: "Your question" }), { target: { value: "Again?" } });
   fireEvent.click(screen.getByRole("button", { name: "Ask" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("has reached its usage limit for now");
+});
+
+test("an English answer that starts with an Arabic customer name still reads left to right", async () => {
+  stubAssistant(CONFIGURED, [Response.json(reply({ answer: "سكافي owes the most: 67.2500 USD.", references: [], grounding: [] }))]);
+  renderPanel();
+  fireEvent.change(await screen.findByRole("textbox", { name: "Your question" }), { target: { value: "Who owes the most money?" } });
+  fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+  const answer = await screen.findByText("سكافي owes the most: 67.2500 USD.");
+  expect(answer.closest("[dir]")).toHaveAttribute("dir", "ltr"); // the question's language, not the first letter
 });
