@@ -581,6 +581,46 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   // Everything the save request carries for this invoice, except the per-request command ids.
   const draftSignature = () => signatureOf(customer?.id ?? null, currency, invoiceDiscount, invoiceMarkup, lines);
   const unsavedChanges = saved?.status === "DRAFT" && savedSignature !== undefined && draftSignature() !== savedSignature;
+  const requestItems = () => lines.map((line) => ({
+    product_id: line.productId ?? null,
+    manual_name: line.manualName ?? null,
+    barcode: line.productId ? line.barcode ?? null : null,
+    quantity_expression: line.quantity,
+    price_basis: line.basis,
+    pieces_per_box: line.piecesPerBox ?? null,
+    manual_unit_price: line.manualUnitPrice || null,
+    line_discount_expression: line.lineDiscount,
+    line_markup_expression: line.lineMarkup,
+    supplier_id: line.supplierId ?? null,
+    cost_override: line.costOverride || null,
+    cost_basis: line.costOverride ? line.basis : null,
+    cost_pieces_per_box: line.costOverride ? line.piecesPerBox ?? null : null,
+    cost_override_reason: line.costOverrideReason || null,
+    accepted_fuzzy_match: line.acceptedMatch ?? null,
+  }));
+
+  // The total of the invoice as it stands, calculated by the server shortly after each change and
+  // never saved (D-107). Shown only while it differs from what was saved.
+  const [calculated, setCalculated] = useState<{ signature: string; net_sales: string; total_due: string; currency: string }>();
+  const currentSignature = draftSignature();
+  const editable = !saved || saved.status === "DRAFT" || (saved.status === "CONFIRMED" && revising);
+  const wantsCalculation = editable && customer !== undefined && lines.length > 0 && currentSignature !== savedSignature;
+  const calculateRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  useEffect(() => {
+    calculateRef.current = async () => {
+      if (!customer) return;
+      const signature = draftSignature();
+      const body = { customer_id: customer.id, currency, invoice_discount_expression: invoiceDiscount, invoice_markup_expression: invoiceMarkup, items: requestItems() };
+      const answer = await apiRequest<{ net_sales: string; total_due: string; currency: string }>(`/api/v1/invoices/calculate?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify(body) });
+      if (mounted.current) setCalculated({ signature, net_sales: answer.net_sales, total_due: answer.total_due, currency: answer.currency });
+    };
+  });
+  useEffect(() => {
+    if (!wantsCalculation) return;
+    const timer = window.setTimeout(() => { calculateRef.current().catch(() => undefined); }, 600);
+    return () => window.clearTimeout(timer);
+  }, [wantsCalculation, currentSignature]);
+  const shownCalculation = wantsCalculation && calculated?.signature === currentSignature ? calculated : undefined;
 
   const saveDraft = () => {
     if (!customer) {
@@ -601,23 +641,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
         currency,
         invoice_discount_expression: invoiceDiscount,
         invoice_markup_expression: invoiceMarkup,
-        items: lines.map((line) => ({
-          product_id: line.productId ?? null,
-          manual_name: line.manualName ?? null,
-          barcode: line.productId ? line.barcode ?? null : null,
-          quantity_expression: line.quantity,
-          price_basis: line.basis,
-          pieces_per_box: line.piecesPerBox ?? null,
-          manual_unit_price: line.manualUnitPrice || null,
-          line_discount_expression: line.lineDiscount,
-          line_markup_expression: line.lineMarkup,
-          supplier_id: line.supplierId ?? null,
-          cost_override: line.costOverride || null,
-          cost_basis: line.costOverride ? line.basis : null,
-          cost_pieces_per_box: line.costOverride ? line.piecesPerBox ?? null : null,
-          cost_override_reason: line.costOverrideReason || null,
-          accepted_fuzzy_match: line.acceptedMatch ?? null,
-        })),
+        items: requestItems(),
       };
       let result: InvoiceEditorResponse;
       try {
@@ -1158,6 +1182,13 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
             <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr">{saved ? money(saved.total_due, saved.currency) : "—"}</dd></div>
           </dl>
           {saved ? <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p> : null}
+          {shownCalculation ? (
+            <div className="calculated-total" role="status">
+              <span>{t("invoiceEditor.notSavedTotal")}</span>
+              <strong dir="ltr">{money(shownCalculation.net_sales, shownCalculation.currency)}</strong>
+              <small>{t("invoiceEditor.notSavedDue", { amount: money(shownCalculation.total_due, shownCalculation.currency) })}</small>
+            </div>
+          ) : null}
           <div className="tally-adjustments"><label className="field"><span>{t("invoiceEditor.invoiceDiscount")}</span><input dir="ltr" value={invoiceDiscount} onChange={(event) => setInvoiceDiscount(event.target.value)} /></label><label className="field"><span>{t("invoiceEditor.invoiceMarkup")}</span><input dir="ltr" value={invoiceMarkup} onChange={(event) => setInvoiceMarkup(event.target.value)} /></label></div>
           {saved?.items.map((item) => <div className="saved-line-proof" key={item.id}>{item.media_snapshot.images?.[0]?.url ? <InvoiceLineImage name={item.product_name} url={item.media_snapshot.images[0].url} /> : null}<strong>{item.product_name}</strong><span>{item.price_source === "EXPLICIT_GRADE_PRICE" ? t("invoiceEditor.explicitGradePrice") : item.price_source === "GRADE_DISCOUNT" ? t("invoiceEditor.gradeDiscount", { value: item.grade_discount_percent }) : t("invoiceEditor.normalPrice")}</span><bdi dir="ltr">{money(item.line_total, saved.currency)}</bdi>{item.unit_cost ? <small>{t("invoiceEditor.costSnapshot", { value: item.unit_cost, currency: item.cost_currency })}</small> : null}</div>)}
           {saved?.status !== "CANCELLED" ? <button className="button tally-save" disabled={busy || !customer || !lines.length} onClick={saveDraft} type="button">{busy ? t("common.saving") : t(saved?.status === "CONFIRMED" ? "invoiceEditor.saveConfirmedRevision" : saved ? "invoiceEditor.recalculate" : "invoiceEditor.saveDraft")}</button> : null}

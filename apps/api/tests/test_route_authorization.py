@@ -96,6 +96,7 @@ EXPECTED: dict[str, str] = {
     "POST /api/v1/procurement/pickup-reports/{report_id}/reject": "TENANT_OWNER",
     "POST /api/v1/invoices": "TENANT_OWNER",
     "POST /api/v1/invoices/calculator": "TENANT_OWNER",
+    "POST /api/v1/invoices/calculate": "TENANT_OWNER",
     "GET /api/v1/invoices/catalog-search": "TENANT_OWNER",
     "POST /api/v1/invoices/item-parser": "TENANT_OWNER",
     "GET /api/v1/invoices/products/{product_id}/cost-options": "TENANT_OWNER",

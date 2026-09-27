@@ -64,6 +64,7 @@ function stubApi(invoiceStatus = "CONFIRMED") {
     }
     if (url.includes(`/products/${productId}/cost-options`)) return reply({ product_id: productId, currency: "USD", basis: "PIECE", options: [{ supplier_id: "ffffffff-0000-4000-8000-000000000009", supplier_name: "Preferred Co", is_preferred: true, entry_id: null, unit_cost: "8.0000", cost_basis: "PIECE", pieces_per_box: null, effective_at: null, source_type: null }, { supplier_id: supplierId, supplier_name: "Saved Supplier", is_preferred: false, entry_id: null, unit_cost: "7.5000", cost_basis: "PIECE", pieces_per_box: null, effective_at: null, source_type: null }] });
     if (url.includes("/api/v1/suppliers")) return reply({ suppliers: [] });
+    if (url.includes("/api/v1/invoices/calculate") && method === "POST") return reply({ currency: "USD", prior_balance: "10.0000", subtotal: "25.7500", discount_total: "3.0000", markup_total: "0.2500", net_sales: "23.0000", total_due: "33.0000", lines: [] });
     if (url.includes(`/api/v1/invoices/${newer.id}/cancel`) && method === "POST") return reply({ ...invoiceBody(newer, "CANCELLED"), cancelled_at: "2026-09-25T00:00:00Z" });
     if (url.includes(`/api/v1/invoices/${newer.id}/confirm`) && method === "POST") return reply({ ...invoiceBody(newer, "CONFIRMED"), current_revision_id: "77777777-7777-4777-8777-777777777777", server_revision_number: 2 });
     if (url.includes(`/api/v1/invoices/${newer.id}`) && method === "PUT") return reply({ ...invoiceBody(newer, invoiceStatus), current_revision_id: "77777777-7777-4777-8777-777777777777", server_revision_number: 2 });
@@ -180,4 +181,18 @@ test("an unknown or foreign invoice in the link is ignored safely", async () => 
   await waitFor(() => expect(requested.some((row) => row.includes("/api/v1/invoices/99999999"))).toBe(true));
   expect(requested.some((row) => row.includes(`/tenants/${tenantId}/customers/`))).toBe(false);
   expect(screen.getByText("No customer chosen yet")).toBeInTheDocument();
+});
+
+test("a changed draft shows the server-calculated total, not saved yet, and saving stays the only write (D-107)", async () => {
+  stubApi("DRAFT");
+  renderEditor(newer.id);
+  expect(await screen.findByDisplayValue("Old stock")).toBeInTheDocument();
+  expect(screen.queryByText("Total (not saved yet)")).not.toBeInTheDocument(); // unchanged: nothing to calculate
+  fireEvent.change(screen.getByLabelText("Invoice discount"), { target: { value: "2.5" } });
+  expect(await screen.findByText("Total (not saved yet)", undefined, { timeout: 3000 })).toBeInTheDocument();
+  expect(screen.getByText("23.0000 USD")).toBeInTheDocument();
+  const calculate = sent.find((row) => row.path.endsWith("/api/v1/invoices/calculate"))!;
+  expect(calculate.body).toMatchObject({ customer_id: customerId, currency: "USD", invoice_discount_expression: "2.5", items: rebuiltItems });
+  expect(calculate.body).not.toHaveProperty("client_command_id");
+  expect(sent.filter((row) => row.method === "PUT" || row.path.endsWith("/confirm"))).toHaveLength(0);
 });

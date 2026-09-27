@@ -13,6 +13,8 @@ from tawzeevo_api.schemas.invoice_editor import (
     CalculatorRequest,
     CalculatorResponse,
     CatalogSearchResponse,
+    InvoiceCalculateRequest,
+    InvoiceCalculateResponse,
     InvoiceCancelRequest,
     InvoiceConfirmRequest,
     InvoiceEditorDraftRequest,
@@ -25,6 +27,7 @@ from tawzeevo_api.schemas.invoice_editor import (
 from tawzeevo_api.services.customer_lists import list_customer_invoices
 from tawzeevo_api.services.invoice_editor import (
     calculate_expression,
+    calculate_invoice,
     create_editor_draft,
     get_editor_draft,
     parse_item_text,
@@ -49,6 +52,21 @@ def invoice_calculator(
     return CalculatorResponse(
         expression=request.expression,
         value=calculate_expression(request.expression),
+    )
+
+
+@invoices_router.post("/calculate", response_model=InvoiceCalculateResponse)
+def invoice_calculate(
+    request: InvoiceCalculateRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> InvoiceCalculateResponse:
+    """Totals for the invoice as it stands in the editor, not saved (D-107)."""
+    return calculate_invoice(
+        db,
+        context.tenant.id,
+        request,
+        fuzzy_threshold=get_settings().invoice_fuzzy_match_threshold,
     )
 
 

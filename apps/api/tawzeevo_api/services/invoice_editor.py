@@ -34,6 +34,9 @@ from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.schemas.invoice_editor import (
     CatalogMatchResponse,
     CatalogSearchResponse,
+    InvoiceCalculatedLine,
+    InvoiceCalculateRequest,
+    InvoiceCalculateResponse,
     InvoiceEditorDraftRequest,
     InvoiceEditorItemRequest,
     InvoiceEditorItemResponse,
@@ -1000,6 +1003,44 @@ def _create_command_matches(
         for item in items
     ]
     return stored_fingerprint == requested_fingerprint
+
+
+def calculate_invoice(
+    db: Session,
+    tenant_id: UUID,
+    request: InvoiceCalculateRequest,
+    *,
+    fuzzy_threshold: Decimal,
+) -> InvoiceCalculateResponse:
+    """The same item resolution and totals as a saved draft, plus the customer's prior balance, with
+    nothing written (D-107). Saving still recalculates everything on the server."""
+    customer = get_customer(db, tenant_id, request.customer_id)
+    items = _prepare_items(
+        db, tenant_id, customer, request.currency, request.items, fuzzy_threshold
+    )
+    subtotal, discount_total, markup_total, net_sales = _totals(
+        items, request.invoice_discount_expression, request.invoice_markup_expression
+    )
+    applied = apply_customer(db, tenant_id, customer, request.currency, net_sales)
+    db.rollback()  # nothing to keep: a calculation never writes
+    return InvoiceCalculateResponse(
+        currency=request.currency,
+        prior_balance=money(applied.prior_balance_snapshot),
+        subtotal=money(subtotal),
+        discount_total=money(discount_total),
+        markup_total=money(markup_total),
+        net_sales=money(net_sales),
+        total_due=money(applied.amount_due_display),
+        lines=[
+            InvoiceCalculatedLine(
+                line_number=number,
+                product_name=item.name,
+                effective_unit_price=money(item.effective_price),
+                line_total=money(item.line_total),
+            )
+            for number, item in enumerate(items, start=1)
+        ],
+    )
 
 
 def create_editor_draft(
