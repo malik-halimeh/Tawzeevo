@@ -701,6 +701,7 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .customer-balance .eyebrow { margin: 0; }
 .schedule-form { border-top: 1px solid var(--line); display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; }
 .schedule-form h5 { margin: 0; }
+.estimate-note { color: var(--warning, #815108); display: block; font-size: 12px; margin-top: 2px; }
 .catalog-toolbar { align-items: end; display: flex; flex-wrap: wrap; gap: 12px; }
 .catalog-toolbar .field { flex: 1 1 200px; }
 .add-product { display: grid; gap: 16px; }

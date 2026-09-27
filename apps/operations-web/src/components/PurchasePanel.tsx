@@ -17,9 +17,10 @@ interface PurchaseLine { id: string; line_number: number; product_id: string; pr
 interface Purchase { id: string; supplier_id: string; supplier_name: string; procurement_list_id: string | null; purchased_at: string; currency: string; total_amount: string; supplier_reference: string | null; reversed_at: string | null; reversal_reason: string | null; replayed: boolean; items: PurchaseLine[] }
 interface CurrencyTotal { currency: string; outstanding: string; credit: string; parties: number }
 interface Totals { customers: CurrencyTotal[]; suppliers: CurrencyTotal[] }
-interface OpenLine { id: string; product_id: string; product_name: string; supplier_id: string | null; remaining_quantity: string; price_basis: ProductPriceBasis; removed_at: string | null; waived_at: string | null; carried_to_item_id: string | null }
+interface OpenLine { id: string; product_id: string; product_name: string; supplier_id: string | null; remaining_quantity: string; price_basis: ProductPriceBasis; removed_at: string | null; waived_at: string | null; carried_to_item_id: string | null; estimate?: { supplier_id: string; unit_cost: string; currency: string } | null }
 interface ListSummary { id: string; status: string; title: string }
-interface DraftLine { product_id: string; quantity: string; unit_cost: string; procurement_item_id: string | null }
+/** `fromEstimate`: the cost was filled from the list's estimate for this supplier and has not been checked yet (D-097). */
+interface DraftLine { product_id: string; quantity: string; unit_cost: string; procurement_item_id: string | null; fromEstimate?: boolean }
 
 /**
  * Opened from a shopping list (`initialSupplierId`, `initialListId`), the form starts with that
@@ -66,7 +67,10 @@ export function PurchasePanel({ tenantId, membershipId, suppliers, initialSuppli
         const open = detail.items.filter((row) => !row.removed_at && !row.waived_at && !row.carried_to_item_id && Number(row.remaining_quantity) > 0);
         setOpenLines(open);
         const mine = open.filter((row) => !supplierId || row.supplier_id === supplierId);
-        if (mine.length) setLines(mine.map((row) => ({ product_id: row.product_id, quantity: row.remaining_quantity, unit_cost: "", procurement_item_id: row.id })));
+        // A line's latest cost estimate for the chosen supplier pre-fills its cost, marked until the
+        // owner checks it; the owner still records the purchase, so what is booked is what is on screen.
+        const fromEstimate = (row: OpenLine) => Boolean(supplierId && row.estimate && row.estimate.supplier_id === supplierId);
+        if (mine.length) setLines(mine.map((row) => ({ product_id: row.product_id, quantity: row.remaining_quantity, unit_cost: fromEstimate(row) ? row.estimate!.unit_cost : "", procurement_item_id: row.id, fromEstimate: fromEstimate(row) })));
       })
       .catch(setError);
   }, [listId, supplierId, q]);
@@ -148,7 +152,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers, initialSuppli
                   </select>
                 </td>
                 <td><input aria-label={t("purchases.lineQuantity", { n: index + 1 })} dir="ltr" inputMode="decimal" min="0.0001" required step="0.0001" type="number" value={row.quantity} onChange={(event) => setLine(index, { quantity: event.target.value })} /></td>
-                <td><input aria-label={t("purchases.lineCost", { n: index + 1 })} dir="ltr" inputMode="decimal" min="0" required step="0.0001" type="number" value={row.unit_cost} onChange={(event) => setLine(index, { unit_cost: event.target.value })} /></td>
+                <td><input aria-describedby={row.fromEstimate ? `estimate-note-${index}` : undefined} aria-label={t("purchases.lineCost", { n: index + 1 })} dir="ltr" inputMode="decimal" min="0" required step="0.0001" type="number" value={row.unit_cost} onChange={(event) => setLine(index, { unit_cost: event.target.value, fromEstimate: false })} />{row.fromEstimate ? <small className="estimate-note" id={`estimate-note-${index}`}>{t("purchases.fromEstimate")}</small> : null}</td>
                 <td>{lines.length > 1 ? <button className="text-button" onClick={() => setLines((current) => current.filter((_, i) => i !== index))} type="button">{t("common.remove")}</button> : null}</td>
               </tr>
             ))}

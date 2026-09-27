@@ -43,14 +43,21 @@ test("a shopping list's supplier group opens the purchase form with that supplie
   await waitFor(() => expect(within(form).getByLabelText("Line 1 quantity")).toHaveValue(5));
   expect(within(form).getByLabelText("Line 2 quantity")).toHaveValue(2);
   expect(within(form).queryByLabelText("Line 3 quantity")).not.toBeInTheDocument(); // only this supplier's lines
-  expect(within(form).getByLabelText("Line 1 unit cost")).toHaveValue(null); // estimates are never booked for the owner
+  // The list's estimate for this supplier pre-fills the cost, marked until the owner checks it (D-097).
+  expect(within(form).getByLabelText("Line 1 unit cost")).toHaveValue(8);
+  expect(within(form).getAllByText("From the list estimate — check it")).toHaveLength(2);
   expect(screen.queryByRole("heading", { name: "Recorded purchases" })).not.toBeInTheDocument(); // the form alone, under the list
 
   fireEvent.change(within(form).getByLabelText("Line 1 unit cost"), { target: { value: "8" } });
+  expect(within(form).getAllByText("From the list estimate — check it")).toHaveLength(1); // checked by the owner
   fireEvent.change(within(form).getByLabelText("Line 2 unit cost"), { target: { value: "3" } });
   fireEvent.click(within(form).getByRole("button", { name: "Record purchase" }));
   await waitFor(() => expect(purchases).toHaveLength(1));
   expect(purchases[0]).toMatchObject({ supplier_id: "s1", procurement_list_id: "list-1", items: [{ product_id: "p1", quantity: "5.0000", unit_cost: "8", procurement_item_id: "l1" }, { product_id: "p2", quantity: "2.0000", unit_cost: "3", procurement_item_id: "l2" }] });
   await waitFor(() => expect(screen.queryByRole("form", { name: "Record purchase" })).not.toBeInTheDocument()); // closed once recorded
-  expect(screen.getByRole("button", { name: "Record purchase" })).toBeInTheDocument(); // the group without a supplier offers its own
+  // The group without a supplier: nothing to match an estimate against, so its costs start empty.
+  fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
+  const other = await screen.findByRole("form", { name: "Record purchase" });
+  await waitFor(() => expect(within(other).getByLabelText("Line 1 quantity")).toHaveValue(5));
+  expect(within(other).getByLabelText("Line 1 unit cost")).toHaveValue(null);
 });
