@@ -1148,6 +1148,39 @@ describe("phone navigation follows the member's role", () => {
     expect(railLink("Today")).not.toHaveAttribute("aria-current");
   });
 
+  test("the top bar offers the language switch to every role, and the assistant to an owner on every page", async () => {
+    const topBar = () => document.querySelector(".topline") as HTMLElement;
+    // Owner: language and assistant in the top bar on Today and on another section.
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp("/workspace");
+    expect(await screen.findByRole("heading", { name: "My route" })).toBeInTheDocument();
+    expect(within(topBar()).getByRole("button", { name: "العربية" })).toBeInTheDocument();
+    const ask = within(topBar()).getByRole("button", { name: "Ask the assistant" });
+    expect(ask).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(ask);
+    const drawer = await screen.findByRole("complementary", { name: "Business assistant" });
+    expect(ask).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(within(primaryNav()).getByRole("link", { name: "Customers" }));
+    expect(await screen.findByRole("heading", { name: "Find every matching customer" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Business assistant" })).toBe(drawer); // it stays open across pages
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Business assistant" })).not.toBeInTheDocument());
+    // The switch works from the top bar.
+    fireEvent.click(within(topBar()).getByRole("button", { name: "العربية" }));
+    await waitFor(() => expect(document.documentElement.dir).toBe("rtl"));
+    expect(within(topBar()).getByRole("button", { name: "English" })).toBeInTheDocument();
+    fireEvent.click(within(topBar()).getByRole("button", { name: "English" }));
+    await waitFor(() => expect(document.documentElement.dir).toBe("ltr"));
+    cleanup();
+
+    // Driver: the language switch, never the assistant.
+    vi.stubGlobal("fetch", memberFetch("driver"));
+    renderApp("/workspace");
+    expect(await screen.findByRole("heading", { name: "My route" })).toBeInTheDocument();
+    expect(within(topBar()).getByRole("button", { name: "العربية" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ask the assistant" })).not.toBeInTheDocument();
+  });
+
   test("a driver gets My work and Sync only and never an owner section", async () => {
     vi.stubGlobal("fetch", memberFetch("driver"));
     renderApp("/workspace");

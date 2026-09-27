@@ -7,6 +7,7 @@ import { apiRequest } from "../api/client";
 import type { TenantContextListResponse } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { type AutoSyncState, useAutoSync } from "../offline/autoSync";
+import { AssistantButton, AssistantDrawer } from "./AssistantDrawer";
 import { Icon, type IconName } from "./Icon";
 import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
 import { COLLECTION_REPORTS_KEY, type CollectionReport, fetchPendingCollections } from "./collectionReportsApi";
@@ -160,6 +161,11 @@ export function AppShell() {
   // Orders awaiting the owner of the business on screen: the Orders badge, the tab title and a
   // notice for orders that arrive while the workspace is open (the first answer is the baseline).
   const ownerTenant = ownerNav && selected ? selected.tenant_id : null;
+  // The assistant panel stays open across pages of the same business; it closes on another business and
+  // on the Assistant page itself (which shows the same conversation full size).
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  useEffect(() => { setAssistantOpen(false); }, [ownerTenant]);
+  useEffect(() => { if (section === "assistant") setAssistantOpen(false); }, [section]);
   const baseline = useRef<{ tenant: string; ids: Set<string> } | null>(null);
   const [arrival, setArrival] = useState<{ tenant: string; orders: PendingOrder[] } | null>(null);
   const pending = useQuery({
@@ -289,7 +295,6 @@ export function AppShell() {
           </div>
           {navItem(["/profile", "nav.profile", "person"], "nav-item nav-item-minor")}
           {navItem(["/stats", "nav.statistics", "chart"], "nav-item nav-item-minor")}
-          <LanguageButton className="text-btn" />
           <button className="text-btn" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}</button>
         </div>
       </aside>
@@ -297,7 +302,13 @@ export function AppShell() {
         <div className="topline">
           <div className="topline-trail"><span>{roleLabel}</span><span aria-hidden="true">/</span><strong>{t(isAdmin ? "shell.admin" : "shell.workspace")}</strong></div>
           <BrandMark />
-          <SyncChip attentionHref={driverNav ? `${sectionHref("work", tenantParam)}#${SYNC_ANCHOR}` : sectionHref("sync", tenantParam)} online={online} state={autoSync} />
+          {/* One place on every signed-in screen, for every role: the language switch, and for an owner
+              the business assistant (D-117), then the connection / sending state. */}
+          <div className="topline-actions">
+            {ownerTenant && section !== "assistant" ? <AssistantButton onToggle={() => setAssistantOpen((open) => !open)} open={assistantOpen} /> : null}
+            <LanguageButton className="language topline-language" />
+            <SyncChip attentionHref={driverNav ? `${sectionHref("work", tenantParam)}#${SYNC_ANCHOR}` : sectionHref("sync", tenantParam)} online={online} state={autoSync} />
+          </div>
         </div>
         <main id="main-content" className="main" tabIndex={-1}>
           <Outlet />
@@ -313,6 +324,7 @@ export function AppShell() {
           <span>{t("nav.more")}</span>
         </button>
       </nav>
+      {assistantOpen && ownerTenant ? <AssistantDrawer onClose={() => setAssistantOpen(false)} tenantId={ownerTenant} /> : null}
       {/* One polite live region, always present, so a new-order notice is announced once. */}
       <div aria-live="polite" className="toast-region">
         {shownArrival ? (
@@ -346,7 +358,6 @@ export function AppShell() {
             <p className="eyebrow">{t("shell.account")}</p>
             {isAdmin || ownerNav || driverNav ? <NavLink className="more-item" to="/profile"><Icon name="person" />{t("nav.profile")}</NavLink> : null}
             <NavLink className="more-item" to="/stats"><Icon name="chart" />{t("nav.statistics")}</NavLink>
-            <LanguageButton className="more-item" />
             <button className="more-item" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}</button>
           </div>
           <button className="more-item more-close" onClick={() => { setMoreOpen(false); moreButton.current?.focus(); }} type="button"><Icon name="close" />{t("nav.closeMenu")}</button>
