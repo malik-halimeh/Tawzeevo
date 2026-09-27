@@ -73,3 +73,36 @@ test("opened for an invoice: it is preselected when deliverable, unknown ids are
   expect(await screen.findByRole("option", { name: /2026-000001/ })).toBeInTheDocument();
   expect(screen.getByLabelText("Confirmed invoice")).toHaveValue("");
 });
+
+test("open deliveries get one stop order per assignee, with the stop number and a map link", async () => {
+  await i18n.changeLanguage("en");
+  const driver = { membership_id: "m2", role: "driver", display_name: "Karim Saad", is_self: false };
+  const bodies: Record<string, unknown>[] = [];
+  const tasks = [
+    { ...baseTask, id: "t1", customer_name: "Hamra Shop", customer_latitude: "33.896600", customer_longitude: "35.482300", route_sequence: 2 },
+    { ...baseTask, id: "t2", customer_name: "Jounieh Shop", assignee: driver },
+    { ...baseTask, id: "t3", customer_name: "Done Shop", status: "COMPLETED" },
+  ];
+  vi.stubGlobal("navigator", { ...navigator, geolocation: undefined });
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (typeof init?.body === "string") bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+    if (path.endsWith("/delivery-tasks")) return Promise.resolve(Response.json({ tasks, eligible_members: [me, driver], sole_operator: false }));
+    if (path.endsWith("/memberships")) return Promise.resolve(Response.json({ members: [] }));
+    if (path.endsWith("/eligible-invoices")) return Promise.resolve(Response.json({ invoices: [] }));
+    if (path.endsWith("/routes/suggest-order")) return Promise.resolve(Response.json({ method: "openrouteservice", note: null, stops: [{ task_id: "t2", sequence: 1, customer_name: "Jounieh Shop", latitude: null, longitude: null, has_location: false }], unlocated_task_ids: ["t2"] }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+
+  render(<DeliveryPanel tenantId="t1" />);
+  expect(await screen.findByRole("heading", { name: "Stop order for Layla Haddad · owner (me)" })).toBeInTheDocument();
+  const driverRoute = screen.getByRole("heading", { name: "Stop order for Karim Saad · driver" });
+  expect(screen.getAllByRole("heading", { name: /^Stop order for/ })).toHaveLength(2); // closed deliveries are never routed
+  expect(screen.queryByRole("button", { name: "Suppliers near me" })).not.toBeInTheDocument(); // field tools stay on My route
+  expect(screen.getByText(/Stop 02/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open in maps" })).toHaveAttribute("href", "https://www.google.com/maps?q=33.896600,35.482300");
+  expect(screen.getAllByText("No saved location").length).toBeGreaterThan(0);
+  fireEvent.click(driverRoute.parentElement!.querySelector("button")!);
+  expect(await screen.findByText("Road route from OpenRouteService")).toBeInTheDocument();
+  expect(bodies[0]).toEqual({ origin: null, task_ids: ["t2"] }); // only that driver's open deliveries
+});

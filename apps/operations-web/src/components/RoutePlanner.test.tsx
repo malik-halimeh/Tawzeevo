@@ -30,3 +30,15 @@ test("suggests a labelled offline stop order, lets the owner reorder by hand and
   expect(await screen.findByText("Stop order saved.")).toBeInTheDocument();
   expect(bodies[1]).toEqual({ task_ids: ["a", "b", "c"] });
 });
+
+test("names Google Maps when it produced the order and says the first service was skipped", async () => {
+  await i18n.changeLanguage("en");
+  vi.stubGlobal("navigator", { ...navigator, geolocation: undefined });
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(Response.json({ method: "google-maps", note: "openrouteservice: status 503 unavailable", stops: [{ task_id: "a", sequence: 1, customer_name: "Far", latitude: "2", longitude: "2", has_location: true }], unlocated_task_ids: [] }))));
+
+  render(<RoutePlanner tasks={[{ id: "a", customer_name: "Far", version: 1 }]} tenantId="t1" />);
+  fireEvent.click(screen.getByRole("button", { name: "Suggest stop order" }));
+  expect(await screen.findByText("Road route from Google Maps")).toBeInTheDocument();
+  expect(screen.getByText(/the first online service did not answer, the next one was used/)).toBeInTheDocument();
+  expect(screen.queryByText(/offline suggestion used/)).not.toBeInTheDocument();
+});

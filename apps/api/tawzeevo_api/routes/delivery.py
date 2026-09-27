@@ -9,12 +9,16 @@ from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, get_tenant_context, require_tenant_owner
 from tawzeevo_api.models import TenantRole
 from tawzeevo_api.schemas.delivery import (
+    DirectionsRequest,
+    DirectionsResponse,
     EligibleInvoiceListResponse,
     LocationUpdateRequest,
     LocationUpdateResponse,
     MyWorkResponse,
     MyWorkTask,
     NearbyResponse,
+    RoutePathRequest,
+    RoutePathResponse,
     SaveOrderRequest,
     SuggestOrderRequest,
     SuggestOrderResponse,
@@ -148,6 +152,21 @@ def post_suggest_order(
     """Stop order for the given open deliveries: provider when configured and reachable,
     otherwise the labelled offline heuristic (D-060). Manual reorder stays available."""
     return delivery.suggest_stop_order(db, context.tenant.id, context.membership, request)
+
+
+@routes_router.post("/path", response_model=RoutePathResponse)
+def post_route_path(request: RoutePathRequest, db: Db, context: Member) -> RoutePathResponse:
+    """The line the route map draws through the given open deliveries, in the given order:
+    road geometry when the provider answers, otherwise straight lines (D-092)."""
+    return delivery.stop_route_path(db, context.tenant.id, context.membership, request)
+
+
+@routes_router.post("/directions", response_model=DirectionsResponse)
+def post_directions(request: DirectionsRequest, db: Db, context: Member) -> DirectionsResponse:
+    """In-site directions preview from the member's one-time position to one open stop: road
+    route with distance, time and turns when the provider answers, otherwise the straight line
+    and its length (D-093). The position is not stored."""
+    return delivery.stop_directions(db, context.tenant.id, context.membership, request)
 
 
 @routes_router.put("/order", response_model=MyWorkResponse)
