@@ -922,6 +922,7 @@ test("after confirmation, cancellation and sharing stay reachable, and a just-is
 
   fireEvent.change(screen.getByLabelText("Cancellation reason"), { target: { value: "Customer withdrew" } });
   fireEvent.click(screen.getByRole("button", { name: "Cancel invoice" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, cancel invoice" })); // a final action asks once
   expect(await screen.findByText("Cancelled · the invoice and its revisions stay on record")).toBeVisible();
   expect(JSON.parse(cancelBodies[0] ?? "{}")).toMatchObject({ reason: "Customer withdrew" });
   expect(screen.queryByRole("button", { name: "Create revision" })).not.toBeInTheDocument();

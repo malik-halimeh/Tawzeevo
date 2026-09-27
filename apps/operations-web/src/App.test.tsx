@@ -624,6 +624,7 @@ describe("tenant customer and category workspace", () => {
     expect(screen.getByText("مشروبات باردة")).toHaveAttribute("dir", "rtl");
     expect(screen.getByText("10")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, archive" })); // a final action asks once
     expect(await screen.findByRole("status")).toHaveTextContent("without deleting its history");
     expect(screen.getByRole("button", { name: "Archived" })).toBeDisabled();
 
@@ -877,6 +878,7 @@ describe("platform administration flows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save access period" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Choose an access end date");
     fireEvent.click(screen.getByRole("button", { name: "Suspend tenant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, suspend" })); // a final action asks once
     expect(await screen.findByRole("status")).toHaveTextContent("data remains stored");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reactivate tenant" }));
@@ -1086,6 +1088,7 @@ describe("phone navigation follows the member's role", () => {
     expect(primaryLinks()).toEqual(["Work", "Customers", "Invoices"]);
     expect(businessRole()).toBe("Owner"); // the page heading describes the selected business
     fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" })); // a final action asks once
     expect(await screen.findByText("1 of 1 completed")).toBeInTheDocument(); // the owner's day meter
     fireEvent.click(within(primaryNav()).getByRole("link", { name: "Customers" }));
     expect(await screen.findByRole("heading", { name: "Find every matching customer" })).toBeInTheDocument();

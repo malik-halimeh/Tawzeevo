@@ -21,7 +21,7 @@ import type {
   TenantProduct,
   TenantProductListResponse,
 } from "../api/types";
-import { ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
+import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { CopilotPanel } from "./CopilotPanel";
 import { AttentionList, CustomerSignals, TodayBrief } from "./IntelligencePanel";
 import { InvoiceEditor } from "./InvoiceEditor";
@@ -1051,7 +1051,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 {categories.isLoading ? <LoadingState /> : null}
                 {categories.error ? <ErrorState error={categories.error} /> : null}
                 <ol className="category-route">
-                  {categories.data?.categories.map((category) => <li className={category.is_active ? "" : "is-archived"} key={category.id}><span className="category-order">{String(category.display_order).padStart(2, "0")}</span><div><strong>{category.name_en}</strong><span lang="ar" dir="rtl">{category.name_ar}</span><code dir="ltr">/{category.slug}</code></div><div className="category-actions"><button className="text-button" disabled={!category.is_active} onClick={() => editCategory(category)} type="button">{t("common.edit")}</button><button className="text-button danger-link" disabled={!category.is_active} onClick={() => archiveCategory(category)} type="button">{category.is_active ? t("tenantWorkspace.archive") : t("tenantWorkspace.archived")}</button></div></li>)}
+                  {categories.data?.categories.map((category) => <li className={category.is_active ? "" : "is-archived"} key={category.id}><span className="category-order">{String(category.display_order).padStart(2, "0")}</span><div><strong>{category.name_en}</strong><span lang="ar" dir="rtl">{category.name_ar}</span><code dir="ltr">/{category.slug}</code></div><div className="category-actions"><button className="text-button" disabled={!category.is_active} onClick={() => editCategory(category)} type="button">{t("common.edit")}</button>{category.is_active ? <ConfirmAction className="text-button danger-link" confirmLabel={t("tenantWorkspace.confirmArchive")} danger disabled={busy} label={t("tenantWorkspace.archive")} onConfirm={() => archiveCategory(category)}>{t("tenantWorkspace.archiveExplain")}</ConfirmAction> : <button className="text-button danger-link" disabled type="button">{t("tenantWorkspace.archived")}</button>}</div></li>)}
                 </ol>
               </article>
             </div>

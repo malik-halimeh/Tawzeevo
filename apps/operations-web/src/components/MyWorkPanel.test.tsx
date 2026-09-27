@@ -61,6 +61,7 @@ test("driver sees only assigned stops with contact, items and amount, and comple
   expect(document.body.textContent).not.toMatch(/cost|margin|profit/i);
   fireEvent.change(screen.getByLabelText("Note for the next completion (optional)"), { target: { value: "paid cash" } });
   fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await screen.findByText("Marked delivered.")).toBeInTheDocument();
   expect(bodies[0]).toEqual({ expected_version: 1, note: "paid cash" });
   expect(await screen.findByText("Nothing assigned to you right now.")).toBeInTheDocument();
@@ -100,6 +101,7 @@ async function queueFirstStopOffline(delivered: { value: boolean }) {
   expect(screen.getByText("0 of 2 completed")).toBeInTheDocument();
   browserOnline(false);
   fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await screen.findByText(/No connection: the completion is saved on this device/)).toBeInTheDocument();
   expect(queueDeliveryCompletion).toHaveBeenCalledWith("t1", "m2", "t1", 1, null);
   expect(screen.getByText("0 of 2 completed")).toBeInTheDocument(); // queued is not delivered
@@ -175,6 +177,7 @@ test("on one pane, a stop's failed or queued completion is shown inside the open
   const list = container.querySelector<HTMLElement>(".workspace-list")!;
 
   fireEvent.click(within(detail).getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(within(detail).getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await within(detail).findByRole("alert")).toHaveTextContent("This stop changed since it was downloaded.");
   expect(panel).toHaveClass("show-detail"); // a failure never closes the stop
   expect(within(list).queryByRole("alert")).not.toBeInTheDocument(); // one copy, where the member is
@@ -182,6 +185,7 @@ test("on one pane, a stop's failed or queued completion is shown inside the open
   browserOnline(false);
   mode = "offline";
   fireEvent.click(within(detail).getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(within(detail).getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await within(detail).findByRole("status")).toHaveTextContent(/No connection: the completion is saved on this device/);
   expect(within(detail).queryByRole("alert")).not.toBeInTheDocument();
   expect(within(list).queryByText(/No connection: the completion is saved/)).not.toBeInTheDocument();

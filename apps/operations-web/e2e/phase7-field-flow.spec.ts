@@ -97,6 +97,7 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
 
   await driverContext.setOffline(true);
   await driver.getByRole("button", { name: "Mark delivered" }).click();
+  await driver.getByRole("button", { name: "Yes, delivered" }).click(); // a final action asks once
   await expect(driver.getByText(/No connection: the completion is saved on this device/)).toBeVisible();
   await driverContext.setOffline(false);
   await driver.getByRole("button", { name: "Sync now" }).click();

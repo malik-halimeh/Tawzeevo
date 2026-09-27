@@ -11,7 +11,7 @@ import { bootstrapLocalProjection, localSyncStatus } from "../offline/sync";
 import { queueDeliveryCompletion } from "../offline/supplierCommands";
 import { Arrow, Icon } from "./Icon";
 import { RoutePlanner } from "./RoutePlanner";
-import { ErrorState } from "./Ui";
+import { ConfirmAction, ErrorState } from "./Ui";
 import { SYNC_ANCHOR, WORK_ANCHOR } from "./workspaceSections";
 
 /**
@@ -302,7 +302,9 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
                 <span className="detail-label">{t("myWork.collect")}</span>
                 <strong className="amount"><bdi className="money" dir="ltr">{selected.amount_to_collect} {selected.currency}</bdi></strong>
               </span>
-              <button className="button" disabled={busy || queued.includes(selected.id)} onClick={() => complete(selected)} type="button"><Icon name="check" small />{queued.includes(selected.id) ? t("myWork.queuedShort") : t("delivery.complete")}</button>
+              {queued.includes(selected.id)
+                ? <button className="button" disabled type="button"><Icon name="check" small />{t("myWork.queuedShort")}</button>
+                : <ConfirmAction confirmLabel={t("myWork.confirmDelivered")} disabled={busy} icon={<Icon name="check" small />} key={selected.id} label={t("delivery.complete")} onConfirm={() => complete(selected)}>{t("myWork.confirmDeliveredNote", { amount: `${selected.amount_to_collect} ${selected.currency}` })}</ConfirmAction>}
             </div>
             <p className="detail-bottom-note">{t("myWork.completionNote")}</p>
         </article>

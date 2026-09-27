@@ -91,6 +91,7 @@ test("guest checkout → owner link, confirm, delivery date → customer cancell
   await page.getByRole("button", { name: /Guest Buyer/ }).click();
   await expect(page.getByText(/Ordered twice by mistake/)).toBeVisible();
   await page.getByRole("button", { name: "Approve cancellation" }).click();
+  await page.getByRole("button", { name: "Yes, approve and reverse the sale" }).click(); // a final action asks once
   await expect(page.getByText("Cancellation approved; the sale was reversed.")).toBeVisible();
   await guest.reload();
   await expect(guest.getByText("Cancelled.")).toBeVisible();

@@ -114,6 +114,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
 
   await page.getByLabel("Cancellation reason").fill("Customer withdrew the order");
   await page.getByRole("button", { name: "Cancel invoice" }).click();
+  await page.getByRole("button", { name: "Yes, cancel invoice" }).click(); // a final action asks once
   await expect(page.getByText("Invoice cancelled. Payments were preserved and allocations were released as credit.")).toBeVisible();
   expect((await api.get("/api/v1/public/invoice/data", { headers: { "X-Invoice-Capability": secret } })).status()).toBe(404);
 

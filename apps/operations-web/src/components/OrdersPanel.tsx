@@ -8,7 +8,7 @@ import { apiRequest } from "../api/client";
 import { NextSteps } from "./NextSteps";
 import { PENDING_ORDERS_KEY } from "./pendingOrders";
 import { sectionHref } from "./workspaceSections";
-import { ErrorState } from "./Ui";
+import { ConfirmAction, ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 
 /**
@@ -179,7 +179,7 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
                 <div className="category-actions">
                   <button className="button" disabled={busy || !selected.order.linked_customer_id} onClick={confirm} type="button">{t("orders.confirm")}</button>
                   <label className="field"><span>{t("orders.noteLabel")}</span><input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-                  <button className="text-button" disabled={busy} onClick={decline} type="button">{t("orders.decline")}</button>
+                  <ConfirmAction className="text-button danger-link" confirmLabel={t("orders.confirmDecline")} danger disabled={busy} label={t("orders.decline")} onConfirm={decline}>{t("orders.declineExplain")}</ConfirmAction>
                 </div>
                 <p className="muted">{t("orders.editNote")}</p>
               </div>
@@ -210,7 +210,7 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
                 <p>{t("orders.cancellationPending", { reason: pending.reason ?? "—" })}</p>
                 <label className="field"><span>{t("orders.noteLabel")}</span><input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
                 <div className="category-actions">
-                  <button className="button" disabled={busy} onClick={() => decide(pending.id, true)} type="button">{t("orders.approveCancellation")}</button>
+                  <ConfirmAction confirmLabel={t("orders.confirmApprove")} danger disabled={busy} label={t("orders.approveCancellation")} onConfirm={() => decide(pending.id, true)}>{t("orders.approveExplain")}</ConfirmAction>
                   <button className="text-button" disabled={busy} onClick={() => decide(pending.id, false)} type="button">{t("orders.rejectCancellation")}</button>
                 </div>
               </div>

@@ -26,7 +26,7 @@ import type {
 import { Link } from "react-router-dom";
 
 import { Arrow } from "./Icon";
-import { ErrorState, SuccessNotice } from "./Ui";
+import { ConfirmAction, ErrorState, SuccessNotice } from "./Ui";
 import { InvoiceSharing } from "./InvoiceSharing";
 import { NextSteps } from "./NextSteps";
 import { sectionHref } from "./workspaceSections";
@@ -979,7 +979,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
           ) : saved.status === "CONFIRMED" ? (
             <footer className="document-actions">
               <button className="button" disabled={busy} onClick={openRevision} type="button">{t("invoiceEditor.createRevision")}</button>
-              <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><button className="button button-danger" disabled={busy} onClick={cancelSaved} type="button">{t("invoiceEditor.cancelInvoice")}</button></div>
+              <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><ConfirmAction confirmLabel={t("invoiceEditor.confirmCancel")} danger disabled={busy} label={t("invoiceEditor.cancelInvoice")} onConfirm={cancelSaved}>{t("invoiceEditor.cancelExplain")}</ConfirmAction></div>
             </footer>
           ) : null}
         </article>
@@ -1092,7 +1092,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
           {saved?.status !== "CANCELLED" ? <button className="button tally-save" disabled={busy || !customer || !lines.length} onClick={saveDraft} type="button">{busy ? t("common.saving") : t(saved?.status === "CONFIRMED" ? "invoiceEditor.saveConfirmedRevision" : saved ? "invoiceEditor.recalculate" : "invoiceEditor.saveDraft")}</button> : null}
           {saved?.status === "DRAFT" ? <button className="button button-confirm" disabled={busy || unsavedChanges} onClick={confirmSaved} type="button">{t("invoiceEditor.confirmInvoice")}</button> : null}
           {unsavedChanges ? <p className="notice" role="note">{t("invoiceEditor.saveBeforeConfirm")}</p> : null}
-          {saved && saved.status !== "CANCELLED" ? <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><button className="button button-danger" disabled={busy} onClick={cancelSaved} type="button">{t("invoiceEditor.cancelInvoice")}</button></div> : null}
+          {saved && saved.status !== "CANCELLED" ? <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><ConfirmAction confirmLabel={t("invoiceEditor.confirmCancel")} danger disabled={busy} label={t("invoiceEditor.cancelInvoice")} onConfirm={cancelSaved}>{t("invoiceEditor.cancelExplain")}</ConfirmAction></div> : null}
           <p className="backend-note">{t("invoiceEditor.backendNote")}</p>
         </aside>
       </div>
