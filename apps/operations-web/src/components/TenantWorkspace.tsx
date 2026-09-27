@@ -635,6 +635,15 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     void navigate({ pathname: "/workspace", search: workspaceSearch(keepsSection ? view : "work", tenantId), hash });
   };
   const [backupNotice, setBackupNotice] = useState<string>();
+  // Supplier and cost setup opened from an invoice line: shown in place of the invoice while the
+  // editor stays mounted (hidden), so nothing typed is lost; closing it re-reads the missing costs.
+  const [costSetup, setCostSetup] = useState<{ productId?: string } | null>(null);
+  const [costsRefreshKey, setCostsRefreshKey] = useState(0);
+  useEffect(() => { setCostSetup(null); }, [view, context.tenant_id]);
+  const closeCostSetup = () => {
+    setCostSetup(null);
+    setCostsRefreshKey((key) => key + 1);
+  };
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
   const focusCustomerId = view === "customers" ? searchParams.get("customer") : null;
   useEffect(() => {
@@ -1039,7 +1048,20 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : (
-            <InvoiceEditor initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={() => setView("suppliers")} />
+            <>
+              {costSetup ? (
+                <div className="cost-setup-in-place">
+                  <div className="revision-bar">
+                    <p>{t("invoiceEditor.costSetupFromInvoice")}</p>
+                    <button className="text-button" onClick={closeCostSetup} type="button"><Arrow back small />{t("invoiceEditor.backToInvoice")}</button>
+                  </div>
+                  <SupplierSetup key={costSetup.productId ?? "none"} membershipId={context.membership_id} tenantId={context.tenant_id} {...(costSetup.productId ? { initialProductId: costSetup.productId } : {})} />
+                </div>
+              ) : null}
+              <div hidden={costSetup !== null}>
+                <InvoiceEditor costsRefreshKey={costsRefreshKey} initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={(productId) => { setCostSetup(productId ? { productId } : {}); window.scrollTo({ top: 0 }); }} />
+              </div>
+            </>
           )}
         </>
       ) : null}

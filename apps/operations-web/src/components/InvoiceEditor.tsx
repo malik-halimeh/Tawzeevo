@@ -152,7 +152,12 @@ function InvoiceLineImage({ url, name }: { url: string; name: string }) {
   return source ? <img alt={name} className="invoice-line-image" src={source} /> : null;
 }
 
-export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, invoiceId = null, initialView = null }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: () => void; invoiceId?: string | null; initialView?: string | null }) {
+/**
+ * `onOpenSupplierSetup` opens supplier and cost setup for a line's product while this editor stays
+ * mounted (hidden), so the invoice in progress survives; each change of `costsRefreshKey` (the
+ * owner came back) re-reads suppliers and the cost options of the lines that still had no cost.
+ */
+export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, costsRefreshKey = 0, invoiceId = null, initialView = null }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: (productId?: string) => void; costsRefreshKey?: number; invoiceId?: string | null; initialView?: string | null }) {
   const { t } = useTranslation();
   const [customerPhone, setCustomerPhone] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -370,6 +375,23 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
       supplierId: preferred?.supplier_id,
     });
   };
+
+  // Back from cost setup: re-read suppliers and the options of lines that had no priced cost. Lines
+  // that already had one keep the owner's supplier choice untouched.
+  const refreshMissingCosts = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    refreshMissingCosts.current = () => {
+      apiRequest<{ suppliers: Supplier[] }>(`/api/v1/suppliers?tenant_id=${tenantId}`)
+        .then((response) => setSuppliers(response.suppliers))
+        .catch(() => undefined);
+      for (const line of lines) {
+        if (line.productId && !line.costOptions.some((option) => option.unit_cost !== null)) void loadCostOptions(line).catch(setError);
+      }
+    };
+  });
+  useEffect(() => {
+    if (costsRefreshKey > 0) refreshMissingCosts.current();
+  }, [costsRefreshKey]);
 
   const addLine = (line: EditorLine) => {
     setLines((current) => [...current, line]);
@@ -1046,7 +1068,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
                 </div>
                 {line.costOptions.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.supplierCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value })}><option value="">—</option>{line.costOptions.map((option) => <option key={option.supplier_id} value={option.supplier_id}>{option.supplier_name} · {option.unit_cost ?? "—"} {option.currency}{option.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
                 {!line.productId && suppliers.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.manualLineCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value || undefined })}><option value="">—</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
-                {(line.productId ? !line.costOptions.some((option) => option.unit_cost !== null) : suppliers.length === 0) && !line.costOverride ? <p className="cost-missing" role="note">{t("invoiceEditor.costMissing")}{onOpenSupplierSetup ? <> <button className="text-button" onClick={onOpenSupplierSetup} type="button">{t("invoiceEditor.openSupplierSetup")}</button></> : null}</p> : null}
+                {(line.productId ? !line.costOptions.some((option) => option.unit_cost !== null) : suppliers.length === 0) && !line.costOverride ? <p className="cost-missing" role="note">{t("invoiceEditor.costMissing")}{onOpenSupplierSetup ? <> <button className="text-button" onClick={() => onOpenSupplierSetup(line.productId)} type="button">{t("invoiceEditor.openSupplierSetup")}</button></> : null}</p> : null}
                 <button className="text-button danger-link remove-line" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))} type="button">{t("common.remove")}</button>
               </article>
             ))}
