@@ -11,7 +11,9 @@ export function ProtectedRoute() {
     return <div className="full-page-status" role="status">{t("common.loadingSession")}</div>;
   }
   if (status === "unauthenticated") {
-    return <Navigate replace state={{ from: location.pathname }} to="/login" />;
+    // The whole address is remembered (business, section, record and anchor), so signing in
+    // continues exactly where the visitor was sent from.
+    return <Navigate replace state={{ from: `${location.pathname}${location.search}${location.hash}` }} to="/login" />;
   }
   return <Outlet />;
 }

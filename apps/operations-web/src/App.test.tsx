@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { MemoryRouter, type NavigateFunction, useNavigate } from "react-router-dom";
+import { MemoryRouter, type NavigateFunction, useLocation, useNavigate } from "react-router-dom";
 
 import { App } from "./App";
 import { clearSession } from "./api/client";
@@ -81,8 +81,12 @@ const railLinks = () => within(railNav()).getAllByRole("link").map((link) => lin
 
 /** Stands in for the browser's back/forward buttons inside the memory router. */
 let browserNavigate: NavigateFunction | undefined;
+/** The memory router's current address, for assertions on where a flow ends up. */
+let currentAddress = "";
 function NavigationProbe() {
   browserNavigate = useNavigate();
+  const location = useLocation();
+  currentAddress = `${location.pathname}${location.search}${location.hash}`;
   return null;
 }
 
@@ -310,6 +314,23 @@ describe("public and authentication flows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByRole("heading", { name: "Profile" })).toBeInTheDocument(); // the requested path, not the default workspace
     expect(localStorage.length).toBe(0);
+  });
+
+  test("sign-in returns to the whole requested address, not only its path", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(unauthenticated());
+      if (url.endsWith("/login")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
+      if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderApp("/profile?section=orders&order=abc#details");
+    expect(await screen.findByRole("heading", { name: "Welcome back." })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "nour@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a secure password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("heading", { name: "Profile" })).toBeInTheDocument();
+    expect(currentAddress).toBe("/profile?section=orders&order=abc#details");
   });
 });
 
