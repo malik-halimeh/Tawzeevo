@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
-import { ErrorState } from "./Ui";
+import { ErrorState, PaymentMethodField } from "./Ui";
 import type { Supplier } from "./SupplierSetup";
 import { useKeepFocus } from "./useKeepFocus";
 
@@ -118,7 +118,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
           </form>
           <form className="inline-form" onSubmit={pay(false)}>
             <label className="field"><span>{t("supplierLedger.paymentAmount")}</span><input dir="ltr" min="0.0001" required step="0.0001" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></label>
-            <label className="field"><span>{t("invoiceEditor.paymentMethod")}</span><input value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} /></label>
+            <PaymentMethodField value={paymentMethod} onChange={setPaymentMethod} />
             <button className="button" disabled={busy} type="submit">{t("supplierLedger.recordPayment")}</button>
             <button className="button secondary-button" disabled={busy || !paymentAmount} onClick={pay(true)} type="button">{t("supplierLedger.recordPrepayment")}</button>
           </form>

@@ -96,6 +96,22 @@ export function ConfirmAction({ label, confirmLabel, onConfirm, disabled = false
   );
 }
 
+const PAYMENT_METHODS = ["CASH", "CARD", "TRANSFER", "CHEQUE", "OTHER"] as const;
+
+/** How money was paid, chosen from a short list instead of typed; a value saved before stays offered. */
+export function PaymentMethodField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { t } = useTranslation();
+  const known = (PAYMENT_METHODS as readonly string[]).includes(value);
+  return (
+    <label className="field"><span>{t("invoiceEditor.paymentMethod")}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {PAYMENT_METHODS.map((method) => <option key={method} value={method}>{t(`invoiceEditor.methods.${method}`)}</option>)}
+        {value && !known ? <option value={value}>{value}</option> : null}
+      </select>
+    </label>
+  );
+}
+
 export function SuccessNotice({ children }: { children: ReactNode }) {
   return <div className="notice notice-success" role="status">{children}</div>;
 }

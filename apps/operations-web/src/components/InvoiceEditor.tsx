@@ -26,7 +26,8 @@ import type {
 import { Link, useNavigate } from "react-router-dom";
 
 import { Arrow } from "./Icon";
-import { ConfirmAction, ErrorState, SuccessNotice } from "./Ui";
+import { ConfirmAction, ErrorState, PaymentMethodField, SuccessNotice } from "./Ui";
+import { readLastChoice, rememberChoice } from "./lastChoice";
 import { InvoiceSharing } from "./InvoiceSharing";
 import { NextSteps } from "./NextSteps";
 import { sectionHref } from "./workspaceSections";
@@ -163,7 +164,8 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   const [customerPhone, setCustomerPhone] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customer, setCustomer] = useState<Customer>();
-  const [currency, setCurrency] = useState(initialCurrency && /^[A-Z]{3}$/.test(initialCurrency) ? initialCurrency : "USD");
+  // The currency named in the address, else the one this business used last on this device, else USD.
+  const [currency, setCurrency] = useState(() => (initialCurrency && /^[A-Z]{3}$/.test(initialCurrency) ? initialCurrency : readLastChoice("currency", tenantId) ?? "USD"));
   const [barcode, setBarcode] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogMatches, setCatalogMatches] = useState<InvoiceCatalogMatch[]>([]);
@@ -220,6 +222,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   const [entryMethod, setEntryMethod] = useState<EntryMethod>("barcode");
   const [revising, setRevising] = useState(false);
   const customerPhoneInput = useRef<HTMLInputElement>(null);
+  const entryMethods = useRef<HTMLDivElement>(null);
   const documentTitle = useRef<HTMLHeadingElement>(null);
   const revisionTitle = useRef<HTMLParagraphElement>(null);
   const revisingNow = useRef(false);
@@ -329,6 +332,15 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     })();
     return () => { live = false; };
   }, [invoiceId, initialView, tenantId, loadHistory]);
+
+  // A new invoice starts at the customer's phone; nothing moves when an invoice, a customer or another view was asked for.
+  useEffect(() => {
+    if (!invoiceId && !customerId && (initialView === null || initialView === "invoice")) customerPhoneInput.current?.focus();
+  }, [invoiceId, customerId, initialView]);
+  const chooseCustomer = (match: Customer) => {
+    setCustomer(match);
+    requestAnimationFrame(() => entryMethods.current?.querySelector<HTMLElement>(".entry-method:not([hidden]) input, .entry-method:not([hidden]) textarea")?.focus());
+  };
 
   // Opened for a customer (from their record or a balance row): that customer is chosen, and the
   // payments view opens when asked. The server still checks the customer belongs to this business.
@@ -634,6 +646,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
       }
       setSaved(result);
       setSavedSignature(signature);
+      rememberChoice("currency", tenantId, result.currency);
       createCommandRef.current = undefined;
       await loadHistory(result.id);
       await Promise.all([
@@ -1044,7 +1057,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
                 </form>
                 <div className="invoice-customer-results">
                   {customers.map((match) => (
-                    <button key={match.id} onClick={() => setCustomer(match)} type="button">
+                    <button key={match.id} onClick={() => chooseCustomer(match)} type="button">
                       <strong>{match.name}</strong><bdi dir="ltr">{match.phone}</bdi><span>{match.address ?? "—"}</span>
                     </button>
                   ))}
@@ -1059,7 +1072,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
             <div aria-label={t("invoiceEditor.entryMethods")} className="entry-switch" role="group">
               {ENTRY_METHODS.map(([id, label]) => <button aria-controls={`entry-method-${id}`} aria-pressed={entryMethod === id} key={id} onClick={() => setEntryMethod(id)} type="button">{t(label)}</button>)}
             </div>
-            <div className="entry-methods">
+            <div className="entry-methods" ref={entryMethods}>
               <form className="entry-method" hidden={entryMethod !== "barcode"} id="entry-method-barcode" onSubmit={scanBarcode}>
                 <div className="inline-form"><input aria-label={t("tenantWorkspace.barcode")} dir="ltr" required value={barcode} onChange={(event) => setBarcode(event.target.value)} /><button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button></div>
               </form>
@@ -1180,7 +1193,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
           <form className="content-card receipt-card" onSubmit={recordReceipt}>
             <div className="settlement-card-heading"><div><span>02</span><h4>{t("invoiceEditor.recordReceipt")}</h4></div></div>
             <label className="field"><span>{t("invoiceEditor.receiptAmount")}</span><input dir="ltr" min="0.0001" required step="0.0001" type="number" value={receiptAmount} onChange={(event) => setReceiptAmount(event.target.value)} /></label>
-            <label className="field"><span>{t("invoiceEditor.paymentMethod")}</span><input value={receiptMethod} onChange={(event) => setReceiptMethod(event.target.value)} /></label>
+            <PaymentMethodField value={receiptMethod} onChange={setReceiptMethod} />
             <label className="field"><span>{t("invoiceEditor.paymentReference")}</span><input value={receiptReference} onChange={(event) => setReceiptReference(event.target.value)} /></label>
             <button className="button" disabled={busy || !customer} type="submit">{t("invoiceEditor.recordReceipt")}</button>
           </form>
@@ -1188,7 +1201,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
             <div className="settlement-card-heading"><div><span>03</span><h4>{t("invoiceEditor.issueRefund")}</h4></div></div>
             <p>{t("invoiceEditor.refundCeilingBody")}</p>
             <label className="field"><span>{t("invoiceEditor.refundAmount")}</span><input dir="ltr" min="0.0001" required step="0.0001" type="number" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} /></label>
-            <label className="field"><span>{t("invoiceEditor.paymentMethod")}</span><input value={refundMethod} onChange={(event) => setRefundMethod(event.target.value)} /></label>
+            <PaymentMethodField value={refundMethod} onChange={setRefundMethod} />
             <button className="button button-secondary" disabled={busy || !customer} type="submit">{t("invoiceEditor.issueRefund")}</button>
           </form>
         </div>

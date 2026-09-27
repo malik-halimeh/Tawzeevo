@@ -126,7 +126,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
 
       <form className="inline-form delivery-create" onSubmit={create} aria-label={t("delivery.create")}>
         <label className="field"><span>{t("delivery.eligibleInvoice")}</span>
-          <select required value={invoiceId} onChange={(event) => setInvoiceId(event.target.value)}>
+          <select required value={invoiceId} onChange={(event) => { setInvoiceId(event.target.value); const row = eligible.find((item) => item.invoice_id === event.target.value); if (!date && row?.delivery_date) setDate(row.delivery_date); }}>
             <option value="">{loadedEligible === undefined ? t("common.loading") : eligible.length ? "—" : t("delivery.nothingEligible")}</option>
             {eligible.map((row) => <option key={row.invoice_id} value={row.invoice_id}>{row.official_invoice_number ?? "…"} · {row.customer_name} · {row.net_sales} {row.currency}{row.delivery_date ? ` · ${row.delivery_date}` : ""}</option>)}
           </select>
