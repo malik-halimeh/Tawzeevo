@@ -153,6 +153,8 @@ EXPECTED: dict[str, str] = {
     "GET /api/v1/public/{tenant_slug}/catalog/recommended": "PUBLIC",
     "POST /api/v1/public/{tenant_slug}/checkout": "PUBLIC",
     "GET /api/v1/routes/nearby-suppliers": "TENANT_MEMBER",
+    "POST /api/v1/routes/directions": "TENANT_MEMBER",
+    "POST /api/v1/routes/path": "TENANT_MEMBER",
     "PUT /api/v1/routes/order": "TENANT_MEMBER",
     "POST /api/v1/routes/suggest-order": "TENANT_MEMBER",
     "POST /api/v1/supplier-ledger/opening-balances": "TENANT_OWNER",

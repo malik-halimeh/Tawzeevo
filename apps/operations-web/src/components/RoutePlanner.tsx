@@ -3,12 +3,14 @@ import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
+import { currentPosition } from "./devicePosition";
 import { ErrorState } from "./Ui";
 
 /**
  * Stop-order planning, location correction and the nearby-supplier reminder (PHASE_07.md E/F/G/H;
- * D-060, D-061). Shared by the owner's Deliveries screen and the member's My Work screen. The
- * position is read once, on request, from the browser — never tracked continuously.
+ * D-060, D-061). Shared by the owner's Deliveries screen (one planner per assignee, ordering only)
+ * and the member's My Work screen (with the field tools). The position is read once, on request,
+ * from the browser — never tracked continuously.
  */
 interface Stop { task_id: string; sequence: number; customer_name: string; latitude: string | null; longitude: string | null; has_location: boolean }
 interface Suggestion { method: string; note: string | null; stops: Stop[]; unlocated_task_ids: string[] }
@@ -17,18 +19,15 @@ interface Nearby { radius_meters: number; suppliers: { supplier_id: string; supp
 interface LocationResult { applied: boolean; reason: string; location: { latitude: string | null; longitude: string | null; source: string | null; accuracy_meters: string | null; confirmed_at: string | null } }
 export interface RouteTask { id: string; customer_name: string; version: number }
 
-function currentPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
-  return new Promise((resolve) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
-    );
-  });
+
+/** Which service produced the order: the label never claims a road route the heuristic did not compute. */
+function methodLabel(t: (key: string) => string, method: string): string {
+  if (method === "openrouteservice") return t("route.methodOnline");
+  if (method === "google-maps") return t("route.methodGoogle");
+  return t("route.methodOffline");
 }
 
-export function RoutePlanner({ tenantId, tasks, onSaved }: { tenantId: string; tasks: RouteTask[]; onSaved?: () => void }) {
+export function RoutePlanner({ tenantId, tasks, onSaved, title, fieldTools = true }: { tenantId: string; tasks: RouteTask[]; onSaved?: () => void; title?: string; fieldTools?: boolean }) {
   const { t } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
   const [suggestion, setSuggestion] = useState<Suggestion>();
@@ -77,18 +76,20 @@ export function RoutePlanner({ tenantId, tasks, onSaved }: { tenantId: string; t
 
   return (
     <div className="route-planner">
-      <h5>{t("route.title")}</h5>
-      <p className="muted">{t("route.body")}</p>
+      <h5>{title ?? t("route.title")}</h5>
+      <p className="muted">{fieldTools ? t("route.body") : t("route.bodyDesk")}</p>
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
       <div className="category-actions">
         <button className="button" disabled={busy || tasks.length === 0} onClick={suggest} type="button">{t("route.suggest")}</button>
-        <button className="text-button" disabled={busy} onClick={nearbyCheck} type="button">{t("route.nearby")}</button>
-        <label className="field checkbox"><input checked={confirmLocation} type="checkbox" onChange={(event) => setConfirmLocation(event.target.checked)} /> <span>{t("route.confirmLocation")}</span></label>
+        {fieldTools ? <>
+          <button className="text-button" disabled={busy} onClick={nearbyCheck} type="button">{t("route.nearby")}</button>
+          <label className="field checkbox"><input checked={confirmLocation} type="checkbox" onChange={(event) => setConfirmLocation(event.target.checked)} /> <span>{t("route.confirmLocation")}</span></label>
+        </> : null}
       </div>
       {suggestion ? (
         <>
-          <p className="muted"><strong>{suggestion.method === "openrouteservice" ? t("route.methodOnline") : t("route.methodOffline")}</strong>{suggestion.note ? ` · ${t("route.providerDown")}` : ""} · {t("route.notOptimal")}</p>
+          <p className="muted"><strong>{methodLabel(t, suggestion.method)}</strong>{suggestion.note ? ` · ${suggestion.method === "offline stop-order suggestion" ? t("route.providerDown") : t("route.providerFallback")}` : ""} · {t("route.notOptimal")}</p>
           <ol className="pickup-items route-order" aria-label={t("route.orderList")}>
             {order.map((stop, index) => (
               <li key={stop.task_id}>
@@ -101,7 +102,7 @@ export function RoutePlanner({ tenantId, tasks, onSaved }: { tenantId: string; t
           <button className="button" disabled={busy || order.length === 0} onClick={save} type="button">{t("route.save")}</button>
         </>
       ) : null}
-      {tasks.length > 0 ? (
+      {fieldTools && tasks.length > 0 ? (
         <ul className="chips route-locations" aria-label={t("route.locationsTitle")}>
           {tasks.map((task) => <li key={task.id}><button className="text-button" disabled={busy} onClick={() => recordMyPosition(task)} type="button">{t("route.recordMyPosition", { customer: task.customer_name })}</button></li>)}
         </ul>

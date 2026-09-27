@@ -42,6 +42,9 @@ from tawzeevo_api.models import (
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
 from tawzeevo_api.schemas.delivery import (
     AssigneeView,
+    DirectionsRequest,
+    DirectionsResponse,
+    DirectionsStepView,
     EligibleInvoice,
     LocationUpdateRequest,
     LocationView,
@@ -50,6 +53,8 @@ from tawzeevo_api.schemas.delivery import (
     NearbyItem,
     NearbyResponse,
     NearbySupplier,
+    RoutePathRequest,
+    RoutePathResponse,
     SuggestedStop,
     SuggestOrderRequest,
     SuggestOrderResponse,
@@ -60,7 +65,13 @@ from tawzeevo_api.schemas.delivery import (
 )
 from tawzeevo_api.services.invoice_editor import money
 from tawzeevo_api.services.procurement import _line_is_settled
-from tawzeevo_api.services.routing import Stop, haversine_m, suggest_order
+from tawzeevo_api.services.routing import (
+    Stop,
+    directions,
+    haversine_m,
+    route_path,
+    suggest_order,
+)
 
 TERMINAL = {DeliveryTaskStatus.COMPLETED.value, DeliveryTaskStatus.CANCELLED.value}
 
@@ -541,6 +552,9 @@ def my_work(db: Session, tenant_id: UUID, membership: TenantMembership) -> MyWor
         status=DeliveryTaskStatus.ASSIGNED.value,
         assigned_membership_id=membership.id,
     )
+    # The screen lists stops "in route order": a saved stop order wins over the delivery date;
+    # stops never ordered keep their date/creation order after the ordered ones (stable sort).
+    rows.sort(key=lambda row: (row.route_sequence is None, row.route_sequence or 0))
     return MyWorkResponse(
         tasks=[my_work_task(db, tenant_id, row) for row in rows],
         membership_id=membership.id,
@@ -737,6 +751,60 @@ def suggest_stop_order(
             )
         )
     return SuggestOrderResponse(method=method, note=note, stops=stops, unlocated_task_ids=unlocated)
+
+
+def stop_route_path(
+    db: Session, tenant_id: UUID, membership: TenantMembership, request: RoutePathRequest
+) -> RoutePathResponse:
+    """The map's line through the given deliveries in the given order (D-092); stops without a
+    saved location are skipped. Only coordinates reach the provider."""
+    tasks = _member_tasks(db, tenant_id, membership, request.task_ids)
+    customers = {
+        row.id: row
+        for row in db.scalars(
+            select(Customer).where(Customer.id.in_([task.customer_id for task in tasks]))
+        )
+    }
+    points: list[tuple[float, float]] = []
+    for task in tasks:
+        customer = customers.get(task.customer_id)
+        if customer is None or customer.latitude is None or customer.longitude is None:
+            continue
+        points.append((float(customer.latitude), float(customer.longitude)))
+    path, method = route_path(points)
+    return RoutePathResponse(method=method, points=path)
+
+
+def stop_directions(
+    db: Session, tenant_id: UUID, membership: TenantMembership, request: DirectionsRequest
+) -> DirectionsResponse:
+    """In-site directions preview (D-093): from the member's one-time position to one open stop
+    the member may work (owner or assignee). The position is passed through, never stored."""
+    task = _authorized_task(db, tenant_id, membership, request.task_id)
+    _require_open(task)
+    customer = db.get(Customer, task.customer_id)
+    if customer is None or customer.latitude is None or customer.longitude is None:
+        raise AppError(409, "CUSTOMER_LOCATION_MISSING", "This customer has no saved location")
+    found, method = directions(
+        (float(request.origin.latitude), float(request.origin.longitude)),
+        (float(customer.latitude), float(customer.longitude)),
+    )
+    return DirectionsResponse(
+        method=method,
+        distance_m=found.distance_m,
+        duration_s=found.duration_s,
+        points=found.points,
+        steps=[
+            DirectionsStepView(
+                type=step.type,
+                name=step.name,
+                distance_m=step.distance_m,
+                duration_s=step.duration_s,
+                exit_number=step.exit_number,
+            )
+            for step in found.steps
+        ],
+    )
 
 
 def save_stop_order(

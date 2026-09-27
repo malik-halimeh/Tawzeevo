@@ -1,9 +1,11 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
+import { RoutePlanner } from "./RoutePlanner";
+import { type MapRoute, StopMap } from "./StopMap";
 import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 import { sectionHref } from "./workspaceSections";
@@ -12,6 +14,9 @@ import { sectionHref } from "./workspaceSections";
  * Owner delivery desk (PHASE_07.md A/B/C/J; D-063). A sole owner sees "My deliveries" and is the
  * assignee by default; with drivers, the owner chooses and can reassign (audited). Completion and
  * cancellation are terminal; a mistaken completion gets a new task. Tasks never touch invoices.
+ * Route planning (PHASE_07.md J "route planning/manual reorder") is per assignee: each person's
+ * open deliveries get their own stop order, which is what that person sees on My route. The map
+ * (D-092) shows every person's open stops in their saved order, one colour per person.
  */
 interface Assignee { membership_id: string; role: string; display_name: string; is_self: boolean }
 interface Line { product_name: string; quantity: string; price_basis: ProductPriceBasis; pieces_per_box: number | null }
@@ -113,6 +118,29 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
   const members = data?.eligible_members ?? [];
   const sole = data?.sole_operator ?? true;
   const label = (person: Assignee) => `${person.display_name} · ${t(`procurement.roles.${person.role}`)}${person.is_self ? ` (${t("procurement.me")})` : ""}`;
+  // One stop order per assignee, over that person's open deliveries only, in the saved order
+  // (stops never ordered keep the list order after the ordered ones, as on My route).
+  const routes = useMemo(() => {
+    const grouped = new Map<string, { person: Assignee; tasks: Task[] }>();
+    for (const task of data?.tasks ?? []) {
+      if (task.status !== "ASSIGNED") continue;
+      const group = grouped.get(task.assignee.membership_id) ?? { person: task.assignee, tasks: [] };
+      group.tasks.push(task);
+      grouped.set(task.assignee.membership_id, group);
+    }
+    for (const group of grouped.values()) group.tasks.sort((a, b) => (a.route_sequence ?? Infinity) - (b.route_sequence ?? Infinity));
+    return grouped;
+  }, [data]);
+  const mapRoutes = useMemo<MapRoute[]>(() => [...routes.values()].map(({ person, tasks }) => ({
+    key: person.membership_id,
+    label: `${person.display_name}${person.is_self ? ` (${t("procurement.me")})` : ""}`,
+    stops: tasks.map((task, index) => ({ taskId: task.id, number: task.route_sequence ?? index + 1, name: task.customer_name, latitude: task.customer_latitude, longitude: task.customer_longitude })),
+  })), [routes, t]);
+  const showRow = (taskId: string) => {
+    const row = document.getElementById(`delivery-${taskId}`);
+    if (row && typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
+    row?.focus({ preventScroll: true });
+  };
 
   return (
     <section className="delivery-panel" aria-labelledby="delivery-title" ref={root}>
@@ -171,11 +199,22 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
           ))}
         </ul>
       </details>
+      {routes.size > 0 ? (
+        <section aria-labelledby="delivery-routes-title" className="delivery-routes">
+          <h4 id="delivery-routes-title">{t("delivery.routesTitle")}</h4>
+          <StopMap onSelect={showRow} routes={mapRoutes} tenantId={tenantId} />
+          {[...routes.values()].map(({ person, tasks }) => (
+            <RoutePlanner fieldTools={false} key={person.membership_id} onSaved={() => { refresh().catch(setError); }} tasks={tasks.map((task) => ({ id: task.id, customer_name: task.customer_name, version: task.version }))} tenantId={tenantId} title={t("delivery.routeFor", { name: label(person) })} />
+          ))}
+        </section>
+      ) : null}
       <ul className="outbox-list delivery-list" aria-label={t("delivery.list")}>
         {data?.tasks.map((task) => (
-          <li aria-current={task.invoice_id === focusInvoiceId ? "true" : undefined} className={`outbox-row delivery-row${task.invoice_id === focusInvoiceId ? " is-context" : ""}`} key={task.id}>
+          <li aria-current={task.invoice_id === focusInvoiceId ? "true" : undefined} className={`outbox-row delivery-row${task.invoice_id === focusInvoiceId ? " is-context" : ""}`} id={`delivery-${task.id}`} key={task.id} tabIndex={-1}>
             <div>
+              {task.status === "ASSIGNED" && task.route_sequence ? <span className="muted">{t("delivery.stop", { number: String(task.route_sequence).padStart(2, "0") })} · </span> : null}
               <strong>{task.customer_name}</strong> · <bdi dir="ltr">{task.customer_phone}</bdi>{task.customer_address ? ` · ${task.customer_address}` : ""}
+              {" · "}{task.customer_latitude && task.customer_longitude ? <a href={`https://www.google.com/maps?q=${task.customer_latitude},${task.customer_longitude}`} rel="noreferrer" target="_blank">{t("pickup.openMap")}</a> : <span className="muted">{t("delivery.noLocation")}</span>}
               <div className="muted">
                 <Link aria-label={t("delivery.openInvoice", { number: task.official_invoice_number ?? "…" })} to={sectionHref("invoices", tenantId, { invoice: task.invoice_id })}><bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi></Link> · {t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi>
                 {task.delivery_date ? <> · <bdi dir="ltr">{task.delivery_date}</bdi></> : null} · {task.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}

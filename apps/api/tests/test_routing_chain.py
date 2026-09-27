@@ -147,3 +147,126 @@ def test_online_disabled_or_no_stops_never_calls_a_provider(monkeypatch):
     monkeypatch.setattr(routing.httpx, "get", never)
     assert suggest_order(ORIGIN, STOPS, allow_online=False)[1] == OFFLINE_METHOD
     assert suggest_order(ORIGIN, [])[1] == OFFLINE_METHOD
+
+
+# D-092: the map's road line.
+PATH_POINTS = [(33.8966, 35.4823), (33.2733, 35.2036), (33.8058, 35.6)]
+
+
+def test_route_path_without_a_key_joins_the_stops_with_straight_lines(monkeypatch):
+    def never(*args, **kwargs):
+        raise AssertionError("no provider may be called without a key")
+
+    monkeypatch.setattr(routing.httpx, "post", never)
+    assert routing.route_path(PATH_POINTS) == (PATH_POINTS, routing.STRAIGHT_METHOD)
+
+
+def test_route_path_uses_road_geometry_and_sends_coordinates_only(monkeypatch):
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", "test-key")
+    sent: dict = {}
+
+    def directions(url, json=None, headers=None, timeout=None):
+        sent["url"], sent["json"] = url, json
+        line = [[35.4823, 33.8966], [35.3, 33.5, 12.0], [35.6, 33.8058]]
+        return httpx.Response(200, json={"features": [{"geometry": {"coordinates": line}}]})
+
+    monkeypatch.setattr(routing.httpx, "post", directions)
+    path, method = routing.route_path(PATH_POINTS)
+    assert method == ORS_METHOD
+    # (latitude, longitude) pairs; an elevation value is dropped
+    assert path == [(33.8966, 35.4823), (33.5, 35.3), (33.8058, 35.6)]
+    assert sent["url"] == routing.ORS_DIRECTIONS_URL
+    assert sent["json"]["coordinates"] == [[lng, lat] for lat, lng in PATH_POINTS]
+    assert set(sent["json"]) == {"coordinates", "geometry_simplify", "instructions"}
+
+
+@pytest.mark.parametrize("failure", ["down", "status", "garbage"])
+def test_route_path_falls_back_to_straight_lines_when_the_provider_fails(monkeypatch, failure):
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", "test-key")
+
+    def broken(url, json=None, headers=None, timeout=None):
+        if failure == "down":
+            raise httpx.ReadTimeout("slow")
+        if failure == "status":
+            return httpx.Response(429, json={})
+        return httpx.Response(200, json={"features": []})
+
+    monkeypatch.setattr(routing.httpx, "post", broken)
+    assert routing.route_path(PATH_POINTS) == (PATH_POINTS, routing.STRAIGHT_METHOD)
+
+
+def test_route_path_with_one_stop_or_too_many_never_calls_the_provider(monkeypatch):
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", "test-key")
+
+    def never(*args, **kwargs):
+        raise AssertionError("not called")
+
+    monkeypatch.setattr(routing.httpx, "post", never)
+    assert routing.route_path(PATH_POINTS[:1])[1] == routing.STRAIGHT_METHOD
+    many = [(33.0 + i / 100, 35.0) for i in range(routing.ORS_DIRECTIONS_MAX_POINTS + 1)]
+    assert routing.route_path(many) == (many, routing.STRAIGHT_METHOD)
+
+
+# D-093: the in-site directions preview for one leg.
+def test_directions_word_nothing_and_send_coordinates_only(monkeypatch):
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", "test-key")
+    sent: dict = {}
+
+    def leg(url, json=None, headers=None, timeout=None):
+        sent["json"] = json
+        body = {
+            "features": [
+                {
+                    "geometry": {"coordinates": [[35.5157, 33.8886], [35.6178, 33.9808]]},
+                    "properties": {
+                        "summary": {"distance": 17445.8, "duration": 992.5},
+                        "segments": [
+                            {
+                                "steps": [
+                                    {"type": 11, "name": "-", "distance": 38.6, "duration": 6.9},
+                                    {
+                                        "type": 7,
+                                        "name": "Charles Helou",
+                                        "distance": 900,
+                                        "duration": 60,
+                                        "exit_number": 2,
+                                        "instruction": "provider wording is not used",
+                                    },
+                                    {"type": 10, "name": "", "distance": 0, "duration": 0},
+                                ]
+                            }
+                        ],
+                    },
+                }
+            ]
+        }
+        return httpx.Response(200, json=body)
+
+    monkeypatch.setattr(routing.httpx, "post", leg)
+    found, method = routing.directions((33.8886, 35.5157), (33.9808, 35.6178))
+    assert method == ORS_METHOD
+    assert (found.distance_m, found.duration_s) == (17445.8, 992.5)
+    assert found.points == [(33.8886, 35.5157), (33.9808, 35.6178)]
+    assert [(s.type, s.name, s.exit_number) for s in found.steps] == [
+        (11, None, None),
+        (7, "Charles Helou", 2),
+        (10, None, None),
+    ]
+    assert sent["json"]["coordinates"] == [[35.5157, 33.8886], [35.6178, 33.9808]]
+    assert set(sent["json"]) == {"coordinates", "instructions", "units"}
+
+
+def test_directions_without_the_provider_are_the_straight_line_and_its_length(monkeypatch):
+    def never(*args, **kwargs):
+        raise AssertionError("no provider may be called without a key")
+
+    monkeypatch.setattr(routing.httpx, "post", never)
+    found, method = routing.directions((33.8886, 35.5157), (33.9808, 35.6178))
+    assert method == routing.STRAIGHT_METHOD
+    assert found.points == [(33.8886, 35.5157), (33.9808, 35.6178)]
+    assert found.duration_s is None and found.steps == []
+    assert 13_000 < found.distance_m < 14_000  # straight-line metres, never a drive time
+
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", "test-key")
+    monkeypatch.setattr(routing.httpx, "post", _ors_down)
+    assert routing.directions((33.8886, 35.5157), (33.9808, 35.6178))[1] == routing.STRAIGHT_METHOD

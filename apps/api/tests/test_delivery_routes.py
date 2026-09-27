@@ -17,7 +17,18 @@ from tawzeevo_api.services.routing import Stop, offline_order
 
 
 def _task_for(
-    client, session_factory, owner, tenant, token, product, name, phone, lat, lng, assignee=None
+    client,
+    session_factory,
+    owner,
+    tenant,
+    token,
+    product,
+    name,
+    phone,
+    lat,
+    lng,
+    assignee=None,
+    delivery_date=None,
 ):
     customer = client.post(
         f"/api/v1/tenants/{tenant}/customers",
@@ -28,6 +39,8 @@ def _task_for(
     body = {"invoice_id": confirmed["id"]}
     if assignee:
         body["assigned_membership_id"] = assignee
+    if delivery_date:
+        body["delivery_date"] = delivery_date
     created = _post(client, tenant, token, "/api/v1/delivery-tasks", body)
     assert created.status_code == 201, created.text
     return created.json(), customer
@@ -299,6 +312,181 @@ def test_suggest_order_uses_provider_when_configured_and_falls_back_on_failure(
         f"/api/v1/routes/order?tenant_id={tenant}",
         headers=_auth(token),
         json={"task_ids": [far["id"]]},
+    )
+    assert closed.status_code == 409
+
+
+def test_my_work_follows_the_saved_stop_order_across_delivery_dates(client, session_factory):
+    owner, tenant, token = _owner_context(client, session_factory, "p7seq")
+    _category, product, _customer = _catalog(client, tenant, token, name="Bread")
+    _attach_latest_cost(session_factory, owner, tenant, product["id"])
+    spots = [
+        ("Tripoli", "+96170300001", "34.436700", "35.849700", "2026-09-26"),
+        ("Hamra", "+96170300002", "33.896600", "35.482300", "2026-09-27"),
+        ("Tyre", "+96170300003", "33.273300", "35.203600", "2026-09-28"),
+    ]
+    tasks = {
+        name: _task_for(
+            client,
+            session_factory,
+            owner,
+            tenant,
+            token,
+            product,
+            name,
+            phone,
+            lat,
+            lng,
+            delivery_date=day,
+        )[0]
+        for name, phone, lat, lng, day in spots
+    }
+    later, _ = _task_for(
+        client,
+        session_factory,
+        owner,
+        tenant,
+        token,
+        product,
+        "Unordered",
+        "+96170300004",
+        "33.980800",
+        "35.617800",
+        delivery_date="2026-09-25",
+    )
+    saved = client.put(
+        f"/api/v1/routes/order?tenant_id={tenant}",
+        headers=_auth(token),
+        json={"task_ids": [tasks["Hamra"]["id"], tasks["Tyre"]["id"], tasks["Tripoli"]["id"]]},
+    )
+    assert saved.status_code == 200, saved.text
+
+    # The saved order wins over the delivery date; a stop never ordered comes after it.
+    work = _get(client, tenant, token, "/api/v1/delivery-tasks/my-work").json()
+    assert [(t["customer_name"], t["route_sequence"]) for t in work["tasks"]] == [
+        ("Hamra", 1),
+        ("Tyre", 2),
+        ("Tripoli", 3),
+        ("Unordered", None),
+    ]
+    assert later["id"] == work["tasks"][3]["id"]
+
+
+def test_route_path_follows_the_given_order_skips_unlocated_and_is_assignment_scoped(
+    client, session_factory, monkeypatch
+):
+    owner, tenant, token = _owner_context(client, session_factory, "p7path")
+    _category, product, _customer = _catalog(client, tenant, token, name="Bread")
+    _attach_latest_cost(session_factory, owner, tenant, product["id"])
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", None)
+    a, _ = _task_for(
+        client, session_factory, owner, tenant, token, product, "A", "+96170400001", "33.9", "35.5"
+    )
+    b, _ = _task_for(
+        client, session_factory, owner, tenant, token, product, "B", "+96170400002", "34.1", "35.6"
+    )
+    nowhere = client.post(
+        f"/api/v1/tenants/{tenant}/customers",
+        headers=_auth(token),
+        json={"name": "Nowhere", "phone": "+96170400003"},
+    ).json()
+    lost = _post(
+        client,
+        tenant,
+        token,
+        "/api/v1/delivery-tasks",
+        {
+            "invoice_id": _confirm_invoice(
+                client, tenant, token, nowhere["id"], product["id"], "1"
+            )["id"]
+        },
+    ).json()
+
+    drawn = _post(
+        client, tenant, token, "/api/v1/routes/path", {"task_ids": [b["id"], lost["id"], a["id"]]}
+    )
+    assert drawn.status_code == 200, drawn.text
+    assert drawn.json() == {"method": "straight-line", "points": [[34.1, 35.6], [33.9, 35.5]]}
+
+    # A driver may only draw their own stops.
+    _user, driver_token, _membership = _driver(
+        client, session_factory, tenant, "p7path-driver@example.com"
+    )
+    refused = _post(client, tenant, driver_token, "/api/v1/routes/path", {"task_ids": [a["id"]]})
+    assert refused.status_code == 403
+
+
+def test_directions_preview_is_for_an_open_stop_the_member_may_work(
+    client, session_factory, monkeypatch
+):
+    owner, tenant, token = _owner_context(client, session_factory, "p7dir")
+    _category, product, _customer = _catalog(client, tenant, token, name="Bread")
+    _attach_latest_cost(session_factory, owner, tenant, product["id"])
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", None)
+    here = {"latitude": "33.888600", "longitude": "35.515700"}
+    stop, _ = _task_for(
+        client,
+        session_factory,
+        owner,
+        tenant,
+        token,
+        product,
+        "Jounieh",
+        "+96170500001",
+        "33.980800",
+        "35.617800",
+    )
+    shown = _post(
+        client, tenant, token, "/api/v1/routes/directions", {"origin": here, "task_id": stop["id"]}
+    )
+    assert shown.status_code == 200, shown.text
+    body = shown.json()
+    assert body["method"] == "straight-line" and body["duration_s"] is None and body["steps"] == []
+    assert body["points"] == [[33.8886, 35.5157], [33.9808, 35.6178]]
+
+    nowhere = client.post(
+        f"/api/v1/tenants/{tenant}/customers",
+        headers=_auth(token),
+        json={"name": "Nowhere", "phone": "+96170500002"},
+    ).json()
+    lost = _post(
+        client,
+        tenant,
+        token,
+        "/api/v1/delivery-tasks",
+        {
+            "invoice_id": _confirm_invoice(
+                client, tenant, token, nowhere["id"], product["id"], "1"
+            )["id"]
+        },
+    ).json()
+    missing = _post(
+        client, tenant, token, "/api/v1/routes/directions", {"origin": here, "task_id": lost["id"]}
+    )
+    assert missing.status_code == 409
+    assert missing.json()["detail"]["code"] == "CUSTOMER_LOCATION_MISSING"
+
+    # Another member's stop is refused; a completed stop has no directions.
+    _user, driver_token, _membership = _driver(
+        client, session_factory, tenant, "p7dir-driver@example.com"
+    )
+    refused = _post(
+        client,
+        tenant,
+        driver_token,
+        "/api/v1/routes/directions",
+        {"origin": here, "task_id": stop["id"]},
+    )
+    assert refused.status_code == 403
+    _post(
+        client,
+        tenant,
+        token,
+        f"/api/v1/delivery-tasks/{stop['id']}/complete",
+        {"expected_version": stop["version"]},
+    )
+    closed = _post(
+        client, tenant, token, "/api/v1/routes/directions", {"origin": here, "task_id": stop["id"]}
     )
     assert closed.status_code == 409
 

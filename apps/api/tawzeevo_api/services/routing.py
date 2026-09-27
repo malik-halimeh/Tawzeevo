@@ -7,7 +7,10 @@ adapter, with a timeout; Google Maps Platform (Directions with optimised waypoin
 next, only when its key is configured; any failure falls back to the heuristic, and the answer
 names the provider that produced the order plus why the earlier ones were skipped. The payload
 sent to a provider holds coordinates only — no names, phones or amounts. Manual reorder always
-remains.
+remains. The map's road line (D-092) comes from OpenRouteService directions through the same key
+and timeout; without it the stops are joined by straight lines, labelled as such. The in-site
+directions preview (D-093) uses the same endpoint for one leg — the member's position, read once on
+request, to one stop — and returns the turn list as neutral codes the app words in EN/AR.
 """
 
 from __future__ import annotations
@@ -26,6 +29,9 @@ ORS_METHOD = "openrouteservice"
 GOOGLE_METHOD = "google-maps"
 ORS_URL = "https://api.openrouteservice.org/optimization"
 GOOGLE_DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
+ORS_DIRECTIONS_URL = "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
+STRAIGHT_METHOD = "straight-line"
+ORS_DIRECTIONS_MAX_POINTS = 50  # the provider's waypoint limit per request
 
 
 @dataclass(frozen=True)
@@ -182,6 +188,140 @@ def suggest_order(
         return ordered, method, note
     note = f"provider unavailable: {'; '.join(skipped)}" if skipped else None
     return offline_order(origin, stops), OFFLINE_METHOD, note
+
+
+def openrouteservice_path(
+    points: list[tuple[float, float]], api_key: str, timeout: float
+) -> list[tuple[float, float]]:
+    """Road geometry through the points in the given order, as (latitude, longitude) pairs.
+    Coordinates only leave the server."""
+    try:
+        response = httpx.post(
+            ORS_DIRECTIONS_URL,
+            json={
+                "coordinates": [[lng, lat] for lat, lng in points],
+                "geometry_simplify": True,
+                "instructions": False,
+            },
+            headers={"Authorization": api_key, "Content-Type": "application/json"},
+            timeout=timeout,
+        )
+    except httpx.HTTPError as exc:
+        raise RoutingProviderError(str(exc)) from exc
+    if response.status_code != 200:
+        raise RoutingProviderError(f"status {response.status_code}")
+    try:
+        line = response.json()["features"][0]["geometry"]["coordinates"]
+        path = [(round(float(lat), 5), round(float(lng), 5)) for lng, lat, *_ in line]
+    except (KeyError, IndexError, ValueError, TypeError) as exc:
+        raise RoutingProviderError("unexpected provider response") from exc
+    if len(path) < 2:
+        raise RoutingProviderError("empty route")
+    return path
+
+
+@dataclass(frozen=True)
+class DirectionStep:
+    type: int  # OpenRouteService instruction type: 0 left … 10 arrive, 11 depart, 12/13 keep
+    name: str | None
+    distance_m: float
+    duration_s: float
+    exit_number: int | None
+
+
+@dataclass(frozen=True)
+class Directions:
+    points: list[tuple[float, float]]
+    distance_m: float
+    duration_s: float | None
+    steps: list[DirectionStep]
+
+
+def openrouteservice_directions(
+    origin: tuple[float, float], destination: tuple[float, float], api_key: str, timeout: float
+) -> Directions:
+    """One road leg with its turn list. Coordinates only leave the server; the provider's own
+    instruction sentences are not used (it has no Arabic), only the step codes and street names."""
+    try:
+        response = httpx.post(
+            ORS_DIRECTIONS_URL,
+            json={
+                "coordinates": [[origin[1], origin[0]], [destination[1], destination[0]]],
+                "instructions": True,
+                "units": "m",
+            },
+            headers={"Authorization": api_key, "Content-Type": "application/json"},
+            timeout=timeout,
+        )
+    except httpx.HTTPError as exc:
+        raise RoutingProviderError(str(exc)) from exc
+    if response.status_code != 200:
+        raise RoutingProviderError(f"status {response.status_code}")
+    try:
+        feature = response.json()["features"][0]
+        line = feature["geometry"]["coordinates"]
+        summary = feature["properties"]["summary"]
+        raw_steps = [
+            step for segment in feature["properties"]["segments"] for step in segment["steps"]
+        ]
+        points = [(round(float(lat), 5), round(float(lng), 5)) for lng, lat, *_ in line]
+        steps = [
+            DirectionStep(
+                type=int(step["type"]),
+                name=None if step.get("name") in (None, "", "-") else str(step["name"]),
+                distance_m=round(float(step.get("distance", 0)), 1),
+                duration_s=round(float(step.get("duration", 0)), 1),
+                exit_number=int(step["exit_number"]) if step.get("exit_number") else None,
+            )
+            for step in raw_steps
+        ]
+        distance = round(float(summary.get("distance", 0)), 1)
+        duration = round(float(summary.get("duration", 0)), 1)
+    except (KeyError, IndexError, ValueError, TypeError) as exc:
+        raise RoutingProviderError("unexpected provider response") from exc
+    if len(points) < 2:
+        raise RoutingProviderError("empty route")
+    return Directions(points=points, distance_m=distance, duration_s=duration, steps=steps)
+
+
+def directions(
+    origin: tuple[float, float], destination: tuple[float, float]
+) -> tuple[Directions, str]:
+    """The directions preview for one leg. Without the provider the answer is the straight line
+    and its length, with no drive time and no turns, so it never pretends to be a road route."""
+    settings = get_settings()
+    api_key = settings.openrouteservice_api_key
+    if api_key:
+        try:
+            found = openrouteservice_directions(
+                origin, destination, api_key, settings.routing_timeout_seconds
+            )
+            return found, ORS_METHOD
+        except RoutingProviderError:
+            pass
+    straight = Directions(
+        points=[origin, destination],
+        distance_m=round(haversine_m(origin[0], origin[1], destination[0], destination[1]), 1),
+        duration_s=None,
+        steps=[],
+    )
+    return straight, STRAIGHT_METHOD
+
+
+def route_path(points: list[tuple[float, float]]) -> tuple[list[tuple[float, float]], str]:
+    """The line the map draws through the stops, and how it was made. A provider failure never
+    fails the call: the answer falls back to straight lines between the stops."""
+    settings = get_settings()
+    api_key = settings.openrouteservice_api_key
+    if api_key and 2 <= len(points) <= ORS_DIRECTIONS_MAX_POINTS:
+        try:
+            return (
+                openrouteservice_path(points, api_key, settings.routing_timeout_seconds),
+                ORS_METHOD,
+            )
+        except RoutingProviderError:
+            pass
+    return list(points), STRAIGHT_METHOD
 
 
 def as_float(value: Decimal | float | None) -> float | None:
