@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render as renderBare, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
@@ -771,6 +771,7 @@ function sectionFetch(routes: (url: string, method: string, body: string | undef
     if (url.includes("/balances")) return json({ customer_id: customerId, customer_name: "Maya Market", balances: [] });
     if (url.includes("/obligations")) return json({ customer_id: customerId, currency: "USD", obligations: [] });
     if (url.includes("/suppliers")) return json({ suppliers: [] });
+    if (url.includes("/capabilities")) return json([]); // the share links of a confirmed invoice load at once
     throw new Error(`Unexpected request: ${method} ${url}`);
   });
 }
@@ -907,7 +908,6 @@ test("after confirmation, cancellation and sharing stay reachable, and a just-is
   expect(screen.getByLabelText("Cancellation reason")).toBeVisible();
 
   const sharing = screen.getByRole("region", { name: "Share invoice" });
-  fireEvent.click(within(sharing).getByRole("button", { name: "Manage invoice links" }));
   fireEvent.click(await within(sharing).findByRole("button", { name: "Create private link" }));
   const url = (await within(sharing).findByLabelText<HTMLInputElement>("Private invoice URL")).value;
   expect(url).toContain("#secret-abc");
@@ -972,4 +972,27 @@ test("a draft changed after saving cannot be confirmed until it is saved again",
   await screen.findByRole("article", { name: "2026-000007" });
   const confirmCall = requests.find((request) => request.url.includes("/confirm"));
   expect(JSON.parse(confirmCall?.body ?? "{}")).toEqual({ expected_revision_id: "rev-2" });
+});
+
+test("a confirmed invoice can be printed on its own and a new invoice started right after", async () => {
+  vi.stubGlobal("fetch", sectionFetch((url, method) => {
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") return json(invoiceAnswer(), 201);
+    if (url.includes("/confirm") && method === "POST") return json(confirmedR1());
+    if (url.includes("/history")) return json({ revisions: [] });
+    if (url.includes("/capabilities")) return json([]);
+    return undefined;
+  }));
+  const print = vi.fn(() => { expect(document.body).toHaveClass("print-invoice"); });
+  vi.stubGlobal("print", print);
+  let address = "";
+  function Probe() { const location = useLocation(); address = `${location.pathname}${location.search}`; return null; }
+  render(<><InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" /><Probe /></>);
+  const document_ = await confirmOneInvoice(confirmedR1());
+  fireEvent.click(within(document_).getByRole("button", { name: "Print" }));
+  expect(print).toHaveBeenCalledTimes(1);
+  window.dispatchEvent(new Event("afterprint"));
+  expect(document.body).not.toHaveClass("print-invoice");
+
+  fireEvent.click(within(document_).getByRole("button", { name: "Start a new invoice" }));
+  expect(address).toMatch(new RegExp(`^/workspace\\?tenant=${tenantId}&section=invoices&fresh=\\d+$`));
 });

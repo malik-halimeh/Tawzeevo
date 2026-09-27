@@ -101,7 +101,6 @@ test("personalized order → badge and notice → confirm → share → pay → 
   await expect(steps.getByRole("link", { name: invoice.official_invoice_number })).toBeVisible();
 
   // ----- 5. Share the invoice: the copied link works signed out and shows only this invoice -----
-  await steps.getByRole("button", { name: "Manage invoice links" }).click();
   await steps.getByRole("button", { name: "Create private link" }).click();
   const shared = await steps.getByLabel("Private invoice URL").inputValue();
   await expect(steps.getByRole("button", { name: "Copy share link" })).toBeVisible();

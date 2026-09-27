@@ -23,7 +23,7 @@ import type {
   ProductPriceBasis,
   TenantProduct,
 } from "../api/types";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { Arrow } from "./Icon";
 import { ConfirmAction, ErrorState, SuccessNotice } from "./Ui";
@@ -159,6 +159,7 @@ function InvoiceLineImage({ url, name }: { url: string; name: string }) {
  */
 export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, costsRefreshKey = 0, invoiceId = null, initialView = null, customerId = null, initialCurrency = null }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: (productId?: string) => void; costsRefreshKey?: number; invoiceId?: string | null; initialView?: string | null; customerId?: string | null; initialCurrency?: string | null }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [customerPhone, setCustomerPhone] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customer, setCustomer] = useState<Customer>();
@@ -885,6 +886,16 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     });
   };
 
+  // Printing shows the invoice document alone (the shell, views and forms are left off the page).
+  const printDocument = () => {
+    document.body.classList.add("print-invoice");
+    const done = () => { document.body.classList.remove("print-invoice"); window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    window.print();
+  };
+  // A fresh editor for the next invoice, without leaving Invoices (the address changes so it remounts).
+  const startNewInvoice = () => { void navigate(`${sectionHref("invoices", tenantId)}&fresh=${Date.now()}`); };
+
   // ---------- presentation (slice 2): views over the same state and handlers ----------
   const goToCustomerStep = () => {
     setView("invoice");
@@ -982,6 +993,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
               <h4 id="invoice-document-title" ref={documentTitle} tabIndex={-1}><bdi dir="ltr">{saved.official_invoice_number ?? `R${saved.server_revision_number}`}</bdi></h4>
               <p className="document-tone">{t(saved.status === "CANCELLED" ? "invoiceEditor.cancelledTone" : "invoiceEditor.confirmedTone")}</p>
             </div>
+            <button className="button button-secondary document-print" onClick={printDocument} type="button">{t("invoiceEditor.print")}</button>
           </header>
           <dl className="document-meta">
             <div><dt>{t("invoiceEditor.customerStep")}</dt><dd><strong>{snapshotText("name") ?? customer?.name ?? "—"}</strong>{snapshotText("phone") ?? customer?.phone ? <bdi dir="ltr">{snapshotText("phone") ?? customer?.phone}</bdi> : null}</dd></div>
@@ -1004,6 +1016,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
           ) : saved.status === "CONFIRMED" ? (
             <footer className="document-actions">
               <button className="button" disabled={busy} onClick={openRevision} type="button">{t("invoiceEditor.createRevision")}</button>
+              <button className="button button-secondary" onClick={startNewInvoice} type="button">{t("invoiceEditor.newInvoice")}</button>
               <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><ConfirmAction confirmLabel={t("invoiceEditor.confirmCancel")} danger disabled={busy} label={t("invoiceEditor.cancelInvoice")} onConfirm={cancelSaved}>{t("invoiceEditor.cancelExplain")}</ConfirmAction></div>
             </footer>
           ) : null}

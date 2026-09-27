@@ -1219,7 +1219,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 </div>
               ) : null}
               <div hidden={costSetup !== null}>
-                <InvoiceEditor costsRefreshKey={costsRefreshKey} customerId={searchParams.get("customer")} initialCurrency={searchParams.get("currency")} initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}:${searchParams.get("customer") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={(productId) => { setCostSetup(productId ? { productId } : {}); window.scrollTo({ top: 0 }); }} />
+                <InvoiceEditor costsRefreshKey={costsRefreshKey} customerId={searchParams.get("customer")} initialCurrency={searchParams.get("currency")} initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}:${searchParams.get("customer") ?? ""}:${searchParams.get("fresh") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={(productId) => { setCostSetup(productId ? { productId } : {}); window.scrollTo({ top: 0 }); }} />
               </div>
             </>
           )}

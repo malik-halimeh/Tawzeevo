@@ -95,7 +95,6 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
 
   // ----- Browser: sharing is confirmed-only; cancellation revokes; Arabic/RTL renders -----
   await page.getByRole("group", { name: "Invoice views" }).getByRole("button", { name: "Invoice", exact: true }).click();
-  await page.getByRole("button", { name: "Manage invoice links" }).click();
   await page.getByRole("button", { name: "Create private link" }).click();
   const publicUrl = await page.getByLabel("Private invoice URL").inputValue();
   expect(publicUrl).toContain("/api/v1/public/invoice#");
