@@ -62,6 +62,7 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
   await page.getByRole("button", { name: "Create delivery" }).click();
   await expect(page.getByText("Delivery created.")).toBeVisible();
   await page.getByRole("button", { name: "Mark delivered" }).first().click();
+  await page.getByRole("button", { name: "Yes, mark delivered" }).click(); // a final action asks once
   await expect(page.getByText("Delivery marked done.")).toBeVisible();
 
   // ----- Owner adds a driver; the business is no longer a sole operation -----

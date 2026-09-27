@@ -135,6 +135,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
   await page.getByRole("button", { name: "Create delivery" }).click();
   await expect(page.getByText("Delivery created.")).toBeVisible();
   await page.getByRole("button", { name: "Mark delivered" }).click();
+  await page.getByRole("button", { name: "Yes, mark delivered" }).click(); // a final action asks once
   await expect(page.getByText("Delivery marked done.")).toBeVisible();
 
   // ----- 8. The invoice is clickable from the delivery -----

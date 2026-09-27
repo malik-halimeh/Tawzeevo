@@ -665,6 +665,8 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .delivery-create { margin: 16px 0; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto; }
 .delivery-row { align-items: flex-start; }
 .delivery-row .category-actions { margin-top: 8px; }
+.row-action { background: var(--mist); border-radius: 10px; display: grid; gap: 8px; margin-top: 8px; padding: 12px; }
+.row-action .category-actions { margin-top: 0; }
 .delivery-row.is-context { background: var(--mist); border-radius: 10px; padding-inline: 12px; }
 /* Next steps after an invoice becomes official (orders and invoices): links, never new rules. */
 .next-steps { display: grid; gap: 12px; margin-top: 16px; }

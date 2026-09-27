@@ -37,7 +37,11 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
   const [invoiceId, setInvoiceId] = useState("");
   const [assignee, setAssignee] = useState("");
   const [date, setDate] = useState("");
-  const [reason, setReason] = useState("");
+  // One open action per delivery row: its own completion note, cancel reason or date/notes edit, so
+  // text typed for one delivery can never be sent with another.
+  const [rowAction, setRowAction] = useState<{ taskId: string; kind: "complete" | "cancel" | "edit" } | null>(null);
+  const [rowText, setRowText] = useState("");
+  const [rowDate, setRowDate] = useState("");
   const [team, setTeam] = useState<Member[]>([]);
   const [driverEmail, setDriverEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -91,8 +95,19 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
   });
   const act = (task: Task, path: string, body: Record<string, unknown>, message: string, method = "POST") => run(async () => {
     await apiRequest<Task>(`/api/v1/delivery-tasks/${task.id}${path}${q}`, { method, body: JSON.stringify({ expected_version: task.version, ...body }) });
+    setRowAction(null);
     return message;
   });
+  const openRow = (task: Task, kind: "complete" | "cancel" | "edit") => {
+    setRowAction({ taskId: task.id, kind });
+    setRowText(kind === "edit" ? task.notes ?? "" : "");
+    setRowDate(kind === "edit" ? task.delivery_date ?? "" : "");
+  };
+  const saveEdit = (event: FormEvent, task: Task) => {
+    event.preventDefault();
+    // The date is always sent (an emptied field clears it); notes only when they changed.
+    act(task, "", { delivery_date: rowDate || null, ...(rowText !== (task.notes ?? "") ? { notes: rowText } : {}) }, t("delivery.updated"), "PATCH");
+  };
 
   const when = (value: string | null) => (value ? new Date(value).toLocaleString(i18n.language === "ar" ? "ar-LB" : "en-GB") : "—");
   const members = data?.eligible_members ?? [];
@@ -137,7 +152,6 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
             <option value="">{t("procurement.allLines")}</option>
           </select>
         </label>
-        <label className="field field-wide"><span>{t("delivery.reason")}</span><input maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
       </div>
 
       {data && data.tasks.length === 0 ? <p className="muted">{t("delivery.empty")}</p> : null}
@@ -178,9 +192,31 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
                       {members.map((person) => <option key={person.membership_id} value={person.membership_id}>{label(person)}</option>)}
                     </select>
                   ) : null}
-                  <button className="button" disabled={busy} onClick={() => act(task, "/complete", { note: reason || null }, t("delivery.completed"))} type="button">{t("delivery.complete")}</button>
-                  <button className="text-button" disabled={busy || !reason.trim()} onClick={() => act(task, "/cancel", { reason }, t("delivery.cancelled"))} type="button">{t("delivery.cancel")}</button>
+                  <button aria-expanded={rowAction?.taskId === task.id && rowAction.kind === "complete"} className="button" disabled={busy} onClick={() => openRow(task, "complete")} type="button">{t("delivery.complete")}</button>
+                  <button aria-expanded={rowAction?.taskId === task.id && rowAction.kind === "edit"} className="text-button" disabled={busy} onClick={() => openRow(task, "edit")} type="button">{t("delivery.edit")}</button>
+                  <button aria-expanded={rowAction?.taskId === task.id && rowAction.kind === "cancel"} className="text-button danger-link" disabled={busy} onClick={() => openRow(task, "cancel")} type="button">{t("delivery.cancel")}</button>
                 </div>
+              ) : null}
+              {task.status === "ASSIGNED" && rowAction?.taskId === task.id ? (
+                rowAction.kind === "edit" ? (
+                  <form aria-label={t("delivery.editFor", { customer: task.customer_name })} className="inline-form row-action" onSubmit={(event) => saveEdit(event, task)}>
+                    <label className="field"><span>{t("orders.deliveryDate")}</span><input type="date" value={rowDate} onChange={(event) => setRowDate(event.target.value)} /></label>
+                    <label className="field field-wide"><span>{t("delivery.notes")}</span><input maxLength={1000} value={rowText} onChange={(event) => setRowText(event.target.value)} /></label>
+                    <button className="button" disabled={busy} type="submit">{t("common.saveChanges")}</button>
+                    <button className="text-button" onClick={() => setRowAction(null)} type="button">{t("common.back")}</button>
+                  </form>
+                ) : (
+                  <div aria-label={t(rowAction.kind === "complete" ? "delivery.completeFor" : "delivery.cancelFor", { customer: task.customer_name })} className="row-action" role="group">
+                    {rowAction.kind === "complete" ? <p className="muted">{t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi> · {t("myWork.completionNote")}</p> : null}
+                    <label className="field field-wide"><span>{t(rowAction.kind === "complete" ? "delivery.completionNoteLabel" : "delivery.cancelReason")}</span><input maxLength={500} value={rowText} onChange={(event) => setRowText(event.target.value)} /></label>
+                    <div className="category-actions">
+                      {rowAction.kind === "complete"
+                        ? <button className="button" disabled={busy} onClick={() => act(task, "/complete", { note: rowText.trim() || null }, t("delivery.completed"))} type="button">{t("delivery.confirmComplete")}</button>
+                        : <button className="button button-danger" disabled={busy || !rowText.trim()} onClick={() => act(task, "/cancel", { reason: rowText.trim() }, t("delivery.cancelled"))} type="button">{t("delivery.confirmCancel")}</button>}
+                      <button className="text-button" onClick={() => setRowAction(null)} type="button">{t("common.back")}</button>
+                    </div>
+                  </div>
+                )
               ) : null}
             </div>
             <span className="status-badge">{t(`delivery.status.${task.status}`)}</span>
