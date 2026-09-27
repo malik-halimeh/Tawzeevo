@@ -15,6 +15,7 @@ from tawzeevo_api.config import get_settings
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.main import app
 from tawzeevo_api.models import (
+    AuditEvent,
     BarcodePackageLevel,
     Category,
     Customer,
@@ -693,6 +694,35 @@ def test_bilingual_category_order_master_link_archive_and_slug_invariants(
         headers=auth(owner_token),
     ).json()["categories"]
     assert {item["id"] for item in retained} == {first.json()["id"], later.json()["id"]}
+    # D-105: an archived category can be restored, once; an active one is refused.
+    restored = client.post(
+        f"/api/v1/tenants/{tenant_id}/categories/{first.json()['id']}/restore",
+        headers=auth(owner_token),
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["is_active"] is True and restored.json()["archived_at"] is None
+    again = client.post(
+        f"/api/v1/tenants/{tenant_id}/categories/{first.json()['id']}/restore",
+        headers=auth(owner_token),
+    )
+    assert again.status_code == 409 and again.json()["detail"]["code"] == "CATEGORY_NOT_ARCHIVED"
+    with session_factory() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(
+                    AuditEvent.action == "CATEGORY_RESTORED",
+                    AuditEvent.entity_id == UUID(first.json()["id"]),
+                )
+            )
+            == 1
+        )
+    rearchived = client.post(
+        f"/api/v1/tenants/{tenant_id}/categories/{first.json()['id']}/archive",
+        headers=auth(owner_token),
+    )
+    assert rearchived.status_code == 200 and rearchived.json()["is_active"] is False
     product = client.post(
         f"/api/v1/tenants/{tenant_id}/products",
         headers=auth(owner_token),

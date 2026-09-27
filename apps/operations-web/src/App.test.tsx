@@ -689,6 +689,10 @@ describe("tenant customer and category workspace", () => {
         category = { ...category, is_active: false, archived_at: "2026-08-25T09:00:00Z" };
         return Promise.resolve(json(category));
       }
+      if (url.endsWith(`/categories/${category.id}/restore`) && init?.method === "POST") {
+        category = { ...category, is_active: true, archived_at: null };
+        return Promise.resolve(json(category));
+      }
       throw new Error(`Unexpected request: ${url}`);
     }));
     renderApp("/workspace");
@@ -701,7 +705,11 @@ describe("tenant customer and category workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     fireEvent.click(screen.getByRole("button", { name: "Yes, archive" })); // a final action asks once
     expect(await screen.findByRole("status")).toHaveTextContent("without deleting its history");
-    expect(screen.getByRole("button", { name: "Archived" })).toBeDisabled();
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    // D-105: an archived category can be restored.
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    expect(await screen.findByText("Category restored.")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "العربية" })[0]!);
     await waitFor(() => expect(document.documentElement.dir).toBe("rtl"));

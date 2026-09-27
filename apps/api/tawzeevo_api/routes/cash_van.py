@@ -52,6 +52,7 @@ from tawzeevo_api.services.cash_van import (
     list_products,
     lookup_barcode,
     product_response,
+    restore_category,
     search_customers_by_phone,
     update_category,
     update_customer,
@@ -200,6 +201,18 @@ def tenant_update_category(
 ) -> CategoryResponse:
     return CategoryResponse.model_validate(
         update_category(db, context.tenant.id, category_id, request)
+    )
+
+
+@cash_van_router.post("/categories/{category_id}/restore", response_model=CategoryResponse)
+def tenant_restore_category(
+    category_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> CategoryResponse:
+    """Brings an archived category back (D-105); an active one is 409 CATEGORY_NOT_ARCHIVED."""
+    return CategoryResponse.model_validate(
+        restore_category(db, context.tenant.id, context.membership.user_id, category_id)
     )
 
 

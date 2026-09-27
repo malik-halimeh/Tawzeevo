@@ -1021,6 +1021,17 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     });
   };
 
+  const restoreCategory = (category: Category) => {
+    void run(async () => {
+      await apiRequest<Category>(
+        `/api/v1/tenants/${context.tenant_id}/categories/${category.id}/restore`,
+        { method: "POST" },
+      );
+      await queryClient.invalidateQueries({ queryKey: ["tenant-categories", context.tenant_id] });
+      setNotice(t("tenantWorkspace.categoryRestored"));
+    });
+  };
+
   const scanProduct = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
@@ -1194,7 +1205,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 {categories.isLoading ? <LoadingState /> : null}
                 {categories.error ? <ErrorState error={categories.error} /> : null}
                 <ol className="category-route">
-                  {categories.data?.categories.map((category) => <li className={category.is_active ? "" : "is-archived"} key={category.id}><span className="category-order">{String(category.display_order).padStart(2, "0")}</span><div><strong>{category.name_en}</strong><span lang="ar" dir="rtl">{category.name_ar}</span><code dir="ltr">/{category.slug}</code></div><div className="category-actions"><button className="text-button" disabled={!category.is_active} onClick={() => editCategory(category)} type="button">{t("common.edit")}</button>{category.is_active ? <ConfirmAction className="text-button danger-link" confirmLabel={t("tenantWorkspace.confirmArchive")} danger disabled={busy} label={t("tenantWorkspace.archive")} onConfirm={() => archiveCategory(category)}>{t("tenantWorkspace.archiveExplain")}</ConfirmAction> : <button className="text-button danger-link" disabled type="button">{t("tenantWorkspace.archived")}</button>}</div></li>)}
+                  {categories.data?.categories.map((category) => <li className={category.is_active ? "" : "is-archived"} key={category.id}><span className="category-order">{String(category.display_order).padStart(2, "0")}</span><div><strong>{category.name_en}</strong><span lang="ar" dir="rtl">{category.name_ar}</span><code dir="ltr">/{category.slug}</code></div><div className="category-actions"><button className="text-button" disabled={!category.is_active} onClick={() => editCategory(category)} type="button">{t("common.edit")}</button>{category.is_active ? <ConfirmAction className="text-button danger-link" confirmLabel={t("tenantWorkspace.confirmArchive")} danger disabled={busy} label={t("tenantWorkspace.archive")} onConfirm={() => archiveCategory(category)}>{t("tenantWorkspace.archiveExplain")}</ConfirmAction> : <><span className="status-badge">{t("tenantWorkspace.archived")}</span><button className="text-button" disabled={busy} onClick={() => restoreCategory(category)} type="button">{t("tenantWorkspace.restore")}</button></>}</div></li>)}
                 </ol>
               </article>
             </div>

@@ -197,6 +197,7 @@ EXPECTED: dict[str, str] = {
     "GET /api/v1/tenants/{tenant_id}/categories/{category_id}": "TENANT_OWNER",
     "PUT /api/v1/tenants/{tenant_id}/categories/{category_id}": "TENANT_OWNER",
     "POST /api/v1/tenants/{tenant_id}/categories/{category_id}/archive": "TENANT_OWNER",
+    "POST /api/v1/tenants/{tenant_id}/categories/{category_id}/restore": "TENANT_OWNER",
     "POST /api/v1/tenants/{tenant_id}/customers": "TENANT_OWNER",
     "GET /api/v1/tenants/{tenant_id}/customers/search": "TENANT_OWNER",
     "GET /api/v1/tenants/{tenant_id}/customers/{customer_id}": "TENANT_OWNER",

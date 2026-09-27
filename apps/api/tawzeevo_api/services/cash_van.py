@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import (
+    AuditEvent,
     BarcodeOwnership,
     BarcodePackageLevel,
     Category,
@@ -213,6 +214,30 @@ def archive_category(db: Session, tenant_id: UUID, category_id: UUID) -> Categor
         return category
     category.is_active = False
     category.archived_at = datetime.now(UTC)
+    commit_and_restore_tenant_scope(db, tenant_id)
+    db.refresh(category)
+    return category
+
+
+def restore_category(db: Session, tenant_id: UUID, actor: UUID, category_id: UUID) -> Category:
+    """An archived category becomes active again with its name, slug and order (D-105). Its
+    products keep their own published state; restoring changes nothing else."""
+    category = get_category(db, tenant_id, category_id)
+    if category.is_active:
+        raise AppError(409, "CATEGORY_NOT_ARCHIVED", "This category is not archived")
+    archived_at = category.archived_at
+    category.is_active = True
+    category.archived_at = None
+    db.add(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_user_id=actor,
+            action="CATEGORY_RESTORED",
+            entity_type="category",
+            entity_id=category.id,
+            details={"archived_at": archived_at.isoformat() if archived_at else ""},
+        )
+    )
     commit_and_restore_tenant_scope(db, tenant_id)
     db.refresh(category)
     return category
