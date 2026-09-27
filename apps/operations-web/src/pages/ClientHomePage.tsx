@@ -57,6 +57,7 @@ export function ClientHomePage() {
           <p className="section-kicker">{t("clientHome.tenantApplication")}</p>
           <h2>{t("clientHome.applicationTitle")}</h2>
           <p>{t("clientHome.applicationBody")}</p>
+          <p className="muted">{t("clientHome.driverNote")}</p>
           {/* Once sent, the form gives way to the answer, so a second application is not invited. */}
           {application ? (
             <>

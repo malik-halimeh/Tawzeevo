@@ -31,6 +31,7 @@ export function LandingPage() {
             <p className="lead">{t("landing.lead")}</p>
             <div className="hero-actions">
               <Link className="button button-arrow" to={primaryTo}>{t(signedIn ? "nav.workspace" : "landing.signIn")}<Arrow /></Link>
+              {signedIn ? null : <Link className="button button-secondary" to="/register">{t("landing.register")}</Link>}
               <a className="text-link" href="#how">{t("landing.closerLook")}</a>
             </div>
             <p className="quiet-note">{t("landing.quiet")}</p>

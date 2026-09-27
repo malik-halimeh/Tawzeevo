@@ -62,7 +62,7 @@ export function PublicHeader({ landing = false }: { landing?: boolean }) {
         <LanguageButton />
         {status === "unauthenticated" ? (
           <>
-            {!landing ? <NavLink className="site-nav-link" to="/register">{t("nav.register")}</NavLink> : null}
+            <NavLink className="site-nav-link" to="/register">{t("nav.register")}</NavLink>
             <NavLink className="button button-small" to="/login">{t("nav.login")}</NavLink>
           </>
         ) : null}

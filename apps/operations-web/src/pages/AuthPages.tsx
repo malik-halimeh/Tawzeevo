@@ -186,7 +186,7 @@ export function LoginPage() {
 
 export function RegisterPage() {
   const { t } = useTranslation();
-  const { status, user } = useAuth();
+  const { login, status, user } = useAuth();
   const navigate = useNavigate();
   const [requestError, setRequestError] = useState<unknown>();
   const schema = z
@@ -231,12 +231,17 @@ export function RegisterPage() {
         authenticated: false,
         body: JSON.stringify(values),
       });
-      void navigate("/login", {
-        replace: true,
-        state: { message: t("register.success") },
-      });
     } catch (error) {
       setRequestError(error);
+      return;
+    }
+    // The account exists: sign in with what was just typed. If that does not work, the sign-in page
+    // opens as before with the "account created" message, so nothing is lost.
+    try {
+      const signedIn = await login(values.email, values.password);
+      void navigate(signedIn.type === "admin" ? "/admin" : "/workspace", { replace: true });
+    } catch {
+      void navigate("/login", { replace: true, state: { message: t("register.success") } });
     }
   };
 
