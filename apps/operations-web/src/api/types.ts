@@ -140,6 +140,8 @@ export interface TenantProduct {
   category_id: string;
   master_product_id: string | null;
   name: string;
+  /** Returned by the server; optional here because older fixtures omit it. */
+  name_ar?: string | null;
   barcode: string;
   barcodes: ProductBarcode[];
   images: ProductImage[];

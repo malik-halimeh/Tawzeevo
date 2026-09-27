@@ -16,6 +16,7 @@ import type {
   GradeDiscountListResponse,
   ProductGradePrice,
   ProductImage,
+  ProductPriceBasis,
   TenantContext,
   TenantProduct,
   TenantProductListResponse,
@@ -338,6 +339,74 @@ function ProductPricingMediaControls({
         <button className="button" disabled={busy || !imageFile} type="submit">{t("tenantWorkspace.uploadImage")}</button>
       </form>
     </div>
+  );
+}
+
+interface ProductEditDraft {
+  name: string;
+  name_ar: string;
+  category_id: string;
+  unit_price: string;
+  currency: string;
+  price_basis: ProductPriceBasis;
+  pieces_per_box: string;
+}
+
+/**
+ * Edits an existing product's name, category and price through the existing product update, sending
+ * only the fields that changed (the server keeps its own rules, e.g. grade prices must be cleared
+ * before the currency or price basis changes). Online only: nothing is queued from this form.
+ */
+function ProductEditForm({ product, tenantId, categories, onClose }: { product: TenantProduct; tenantId: string; categories: Category[]; onClose: (saved: boolean) => void }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<ProductEditDraft>({
+    name: product.name,
+    name_ar: product.name_ar ?? "",
+    category_id: product.category_id,
+    unit_price: product.unit_price,
+    currency: product.currency,
+    price_basis: product.price_basis,
+    pieces_per_box: product.pieces_per_box === null ? "" : String(product.pieces_per_box),
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    const changes: Record<string, unknown> = {};
+    if (draft.name.trim() !== product.name) changes.name = draft.name.trim();
+    if (draft.name_ar.trim() !== (product.name_ar ?? "")) changes.name_ar = draft.name_ar.trim() || null;
+    if (draft.category_id !== product.category_id) changes.category_id = draft.category_id;
+    if (Number(draft.unit_price) !== Number(product.unit_price)) changes.unit_price = draft.unit_price;
+    if (draft.currency !== product.currency) changes.currency = draft.currency;
+    if (draft.price_basis !== product.price_basis) changes.price_basis = draft.price_basis;
+    const pieces = draft.pieces_per_box ? Number(draft.pieces_per_box) : null;
+    if (pieces !== product.pieces_per_box) changes.pieces_per_box = pieces;
+    if (!Object.keys(changes).length) { onClose(false); return; }
+    setBusy(true);
+    setError(undefined);
+    void apiRequest<TenantProduct>(`/api/v1/tenants/${tenantId}/products/${product.id}`, { method: "PUT", body: JSON.stringify(changes) })
+      .then(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["tenant-products", tenantId] });
+        onClose(true);
+      })
+      .catch((problem: unknown) => setError(isOfflineFailure(problem) ? new Error(t("errors.NETWORK_UNREACHABLE")) : problem))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <form aria-label={t("tenantWorkspace.editProduct", { name: product.name })} className="form-grid product-edit-form" onSubmit={save}>
+      {error ? <div className="field-wide"><ErrorState error={error} /></div> : null}
+      <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+      <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={draft.name_ar} onChange={(event) => setDraft({ ...draft, name_ar: event.target.value })} /></label>
+      <label className="field"><span>{t("tenantWorkspace.category")}</span><select required value={draft.category_id} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })}>{categories.filter((item) => item.is_active || item.id === product.category_id).map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
+      <label className="field"><span>{t("tenantWorkspace.tenantPrice")}</span><input dir="ltr" min="0" required step="0.0001" type="number" value={draft.unit_price} onChange={(event) => setDraft({ ...draft, unit_price: event.target.value })} /></label>
+      <label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} /></label>
+      <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={draft.price_basis} onChange={(event) => setDraft({ ...draft, price_basis: event.target.value as ProductPriceBasis })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
+      <label className="field"><span>{t("tenantWorkspace.piecesPerBox")}</span><input dir="ltr" min="1" type="number" value={draft.pieces_per_box} onChange={(event) => setDraft({ ...draft, pieces_per_box: event.target.value })} /></label>
+      <div className="form-actions field-wide"><button className="button" disabled={busy} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button><button className="button button-secondary" disabled={busy} onClick={() => onClose(false)} type="button">{t("common.cancel")}</button></div>
+    </form>
   );
 }
 
@@ -666,6 +735,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [scanResult, setScanResult] = useState<BarcodeLookupResponse>();
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProduct);
   const [barcodeProductId, setBarcodeProductId] = useState<string>();
+  const [editingProductId, setEditingProductId] = useState<string>();
   const [extraBarcode, setExtraBarcode] = useState("");
   const [extraPackage, setExtraPackage] = useState<BarcodePackageLevel>("PIECE");
   const [requestError, setRequestError] = useState<unknown>();
@@ -1023,7 +1093,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                   <h3>{t("tenantWorkspace.products")}</h3>
                   {products.isLoading ? <LoadingState /> : null}
                   {products.error ? <ErrorState error={products.error} /> : null}
-                  {products.data?.products.map((product) => <article className="product-card" key={product.id}><div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div><strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong><div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div><div className="category-actions"><button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button><button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button></div>{barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}<ProductPricingMediaControls product={product} tenantId={context.tenant_id} /></article>)}
+                  {products.data?.products.map((product) => <article className="product-card" key={product.id}><div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div><strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong><div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div><div className="category-actions"><button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button><button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button><button aria-expanded={editingProductId === product.id} className="text-button" onClick={() => { setNotice(undefined); setEditingProductId(editingProductId === product.id ? undefined : product.id); }} type="button">{t("common.edit")}</button></div>{editingProductId === product.id ? <ProductEditForm categories={categories.data?.categories ?? []} onClose={(saved) => { setEditingProductId(undefined); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={product} tenantId={context.tenant_id} /> : null}{barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}<ProductPricingMediaControls product={product} tenantId={context.tenant_id} /></article>)}
                 </article>
               </div>
             </div>
