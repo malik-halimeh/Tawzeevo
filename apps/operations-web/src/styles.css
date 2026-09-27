@@ -1242,3 +1242,8 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
 .all-customers-actions { display: inline-flex; gap: 8px; }
 .customer-invoices { border-inline-start: 2px solid var(--line); padding-inline-start: 12px; }
 .customer-invoices li { align-items: center; display: flex; flex-wrap: wrap; font-size: 14px; gap: 8px; }
+
+/* Pickup reports (D-106). */
+.pickup-report-form fieldset { border: 1px solid var(--line); border-radius: var(--radius-control); padding: 8px 12px; }
+.pickup-inbox-list { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.pickup-inbox-list > li { border-block-end: 1px solid var(--line); padding-block-end: 12px; }

@@ -23,6 +23,7 @@ import type {
   TenantProductListResponse,
 } from "../api/types";
 import { AllCustomers } from "./AllCustomers";
+import { PickupInbox } from "./PickupReports";
 import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { CopilotPanel } from "./CopilotPanel";
 import { AttentionList, CustomerSignals, TodayBrief } from "./IntelligencePanel";
@@ -1301,7 +1302,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "orders" ? (
             <OrdersPanel orderId={searchParams.get("order")} tenantId={context.tenant_id} />
           ) : view === "procurement" ? (
-            <ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
+            <><PickupInbox tenantId={context.tenant_id} /><ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} /></>
           ) : view === "analytics" ? (
             <AnalyticsPanel tenantId={context.tenant_id} />
           ) : view === "assistant" ? (

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
+import { ReportPickupForm } from "./PickupReports";
 import { ErrorState } from "./Ui";
 
 /**
@@ -47,6 +48,8 @@ export function PickupPanel({ tenantId }: { tenantId: string }) {
                   <li key={item.item_id}><strong dir="ltr">{item.remaining_quantity}</strong> × {item.product_name} <small className="muted">({item.price_basis === "BOX" ? t("tenantWorkspace.box") : t("tenantWorkspace.piece")}{item.pieces_per_box ? ` ×${item.pieces_per_box}` : ""})</small>{item.notes ? <> — <span className="muted">{item.notes}</span></> : null}</li>
                 ))}
               </ul>
+              {/* What was picked up and paid, for the owner to confirm (D-106). */}
+              {supplier.supplier_id ? <ReportPickupForm items={supplier.items} listId={list.list_id} supplierId={supplier.supplier_id} tenantId={tenantId} /> : null}
             </div>
           ))}
         </article>

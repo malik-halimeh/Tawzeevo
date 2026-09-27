@@ -2347,6 +2347,57 @@ class ProcurementItem(Base):
         return max(Decimal("0"), remaining).quantize(Decimal("0.0001"))
 
 
+class PickupReport(Base):
+    """A runner's report of what was picked up from one supplier for one procurement list (D-106).
+    It is not a purchase: nothing reaches the supplier ledger, costs or the list until the owner
+    confirms it, which records one purchase through the existing purchase service. Lines are
+    {procurement_item_id, product_id, quantity, unit_cost} as reported."""
+
+    __tablename__ = "pickup_reports"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    procurement_list_id: Mapped[UUID] = mapped_column(
+        ForeignKey("procurement_lists.id", ondelete="RESTRICT"), nullable=False
+    )
+    supplier_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_suppliers.id", ondelete="RESTRICT"), nullable=False
+    )
+    reporter_membership_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(10), nullable=False, server_default="PENDING")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    lines: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    notes: Mapped[str | None] = mapped_column(String(500))
+    idempotency_key: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    confirmed_purchase_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("supplier_purchases.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str | None] = mapped_column(String(500))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING', 'CONFIRMED', 'REJECTED')", name="ck_pickup_reports_status"
+        ),
+        CheckConstraint(
+            "(status = 'CONFIRMED') = (confirmed_purchase_id IS NOT NULL)",
+            name="ck_pickup_reports_confirmed_purchase",
+        ),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_pickup_reports_idempotency"),
+        Index("ix_pickup_reports_tenant_status_created", "tenant_id", "status", "created_at"),
+    )
+
+
 class SupplierPurchase(Base):
     """Immutable actual purchase from a supplier (PHASE_06.md G). Finalization writes the
     ACTUAL_PURCHASE cost entries, one PURCHASE_CHARGE ledger entry and the procurement progress in
