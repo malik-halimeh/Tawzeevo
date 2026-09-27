@@ -35,6 +35,7 @@ from tawzeevo_api.schemas.cash_van import (
     TenantProductResponse,
     TenantProductUpdateRequest,
 )
+from tawzeevo_api.schemas.customer_lists import CustomerListResponse
 from tawzeevo_api.services.cash_van import (
     add_product_barcode,
     archive_category,
@@ -56,6 +57,7 @@ from tawzeevo_api.services.cash_van import (
     update_customer,
     update_product,
 )
+from tawzeevo_api.services.customer_lists import list_customers
 from tawzeevo_api.services.media import (
     ObjectStorage,
     get_master_image_content,
@@ -111,6 +113,17 @@ def tenant_create_customer(
     context: Annotated[TenantContext, Depends(require_tenant_owner)],
 ) -> CustomerResponse:
     return CustomerResponse.model_validate(create_customer(db, context.tenant.id, request))
+
+
+@cash_van_router.get("/customers", response_model=CustomerListResponse)
+def tenant_list_customers(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> CustomerListResponse:
+    """Every customer of the business, by name, one page at a time (D-101)."""
+    return list_customers(db, context.tenant.id, page, limit)
 
 
 @cash_van_router.get("/customers/search", response_model=CustomerSearchResponse)

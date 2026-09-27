@@ -29,6 +29,7 @@ import { Arrow } from "./Icon";
 import { ConfirmAction, ErrorState, PaymentMethodField, SuccessNotice } from "./Ui";
 import { readLastChoice, rememberChoice } from "./lastChoice";
 import { InvoiceSharing } from "./InvoiceSharing";
+import { rebuildFromRevision } from "./invoiceRevisionLines";
 import { NextSteps } from "./NextSteps";
 import { sectionHref } from "./workspaceSections";
 import type { Supplier } from "./SupplierSetup";
@@ -131,6 +132,17 @@ function scannedLine(product: TenantProduct, barcode: string, basis: ProductPric
   return line;
 }
 
+/** What a save sends for an invoice, except the per-request command ids (see `savedSignature`). */
+function signatureOf(customerId: string | null, currency: string, invoiceDiscount: string, invoiceMarkup: string, lines: EditorLine[]) {
+  return JSON.stringify({
+    customer: customerId,
+    currency,
+    invoiceDiscount,
+    invoiceMarkup,
+    lines: lines.map((line) => [line.productId ?? null, line.manualName ?? null, line.barcode ?? null, line.quantity, line.basis, line.piecesPerBox ?? null, line.manualUnitPrice ?? null, line.lineDiscount, line.lineMarkup, line.supplierId ?? null, line.costOverride, line.costOverrideReason, line.acceptedMatch ?? null]),
+  });
+}
+
 function InvoiceLineImage({ url, name }: { url: string; name: string }) {
   const [source, setSource] = useState<string>();
 
@@ -213,9 +225,6 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   // Presentation state only: the open view, the visible item-entry method and whether a confirmed
   // invoice is open in the revision editor. Every view stays mounted, so inputs survive switching.
   const [view, setView] = useState<InvoiceView>("invoice");
-  // An official invoice opened from a link (order next steps, a delivery, a payment line) is shown
-  // read-only: nothing that depends on editor lines is offered, because they were never loaded.
-  const [openedByLink, setOpenedByLink] = useState(false);
   // Entering payments for one invoice selects its open amount through the existing "choose amounts"
   // allocation; the receipt command and its rules are the same as when the owner picks it by hand.
   const [paymentFor, setPaymentFor] = useState<{ id: string; number: string | null; applied: boolean } | null>(null);
@@ -306,21 +315,30 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     void loadDebtDesk().catch(setError);
   }, [loadDebtDesk]);
 
-  // Opened from a link: load that official invoice with its customer and currency. A draft, an
-  // unknown invoice or another business's invoice is ignored and the editor stays as it is.
+  // Opened from a link (a customer's invoices, next steps, a delivery, a payment line): load that
+  // invoice with its customer, currency and lines rebuilt from its current revision (D-101). A draft
+  // opens in the editor; a confirmed invoice reads as a document that can be revised or cancelled.
+  // An unknown invoice or another business's invoice is ignored and the editor stays as it is.
   useEffect(() => {
     if (!invoiceId) return;
     let live = true;
     void (async () => {
       try {
         const loaded = await apiRequest<InvoiceEditorResponse>(`/api/v1/invoices/${invoiceId}?tenant_id=${tenantId}`);
-        if (!live || (loaded.status !== "CONFIRMED" && loaded.status !== "CANCELLED")) return;
+        if (!live) return;
         const owner = await apiRequest<Customer>(`/api/v1/tenants/${tenantId}/customers/${loaded.customer_id}?tenant_id=${tenantId}`);
         if (!live) return;
-        setOpenedByLink(true);
+        const rebuilt = rebuildFromRevision(loaded);
+        const restored: EditorLine[] = rebuilt.lines.map((line) => ({ ...line, key: lineKey(), costOptions: [] }));
+        setLines(restored);
+        setInvoiceDiscount(rebuilt.invoiceDiscount);
+        setInvoiceMarkup(rebuilt.invoiceMarkup);
         setSaved(loaded);
+        setSavedSignature(signatureOf(owner.id, loaded.currency, rebuilt.invoiceDiscount, rebuilt.invoiceMarkup, restored));
         setCurrency(loaded.currency);
         setCustomer(owner);
+        // Supplier choices and prices for the cost column; the saved supplier of each line is kept.
+        if (loaded.status !== "CANCELLED") loadRestoredCosts.current(restored, loaded.currency);
         if (initialView === "payments" && loaded.status === "CONFIRMED") {
           setPaymentFor({ id: loaded.id, number: loaded.official_invoice_number, applied: false });
           setView("payments");
@@ -401,18 +419,27 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
       .catch(() => setSuppliers([]));
   }, [tenantId]);
 
-  const loadCostOptions = async (line: EditorLine) => {
+  // `keepSupplier`: a line rebuilt from a saved revision keeps the supplier that revision used.
+  const loadCostOptions = async (line: EditorLine, forCurrency = currency, keepSupplier = false) => {
     if (!line.productId) return;
     const response = await apiRequest<ProductCostOptionsResponse>(
       `/api/v1/invoices/products/${line.productId}/cost-options?tenant_id=${tenantId}` +
-        `&currency=${currency}&basis=${line.basis}`,
+        `&currency=${forCurrency}&basis=${line.basis}`,
     );
     const preferred = response.options.find((option) => option.is_preferred);
     changeLine(line.key, {
       costOptions: response.options,
-      supplierId: preferred?.supplier_id,
+      supplierId: keepSupplier ? line.supplierId ?? preferred?.supplier_id : preferred?.supplier_id,
     });
   };
+
+  // Cost options for lines rebuilt from a saved revision (opened by link); their suppliers are kept.
+  const loadRestoredCosts = useRef<(restored: EditorLine[], forCurrency: string) => void>(() => undefined);
+  useEffect(() => {
+    loadRestoredCosts.current = (restored, forCurrency) => {
+      for (const line of restored) void loadCostOptions(line, forCurrency, true).catch(() => undefined);
+    };
+  });
 
   // Back from cost setup: re-read suppliers and the options of lines that had no priced cost. Lines
   // that already had one keep the owner's supplier choice untouched.
@@ -552,13 +579,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   };
 
   // Everything the save request carries for this invoice, except the per-request command ids.
-  const draftSignature = () => JSON.stringify({
-    customer: customer?.id ?? null,
-    currency,
-    invoiceDiscount,
-    invoiceMarkup,
-    lines: lines.map((line) => [line.productId ?? null, line.manualName ?? null, line.barcode ?? null, line.quantity, line.basis, line.piecesPerBox ?? null, line.manualUnitPrice ?? null, line.lineDiscount, line.lineMarkup, line.supplierId ?? null, line.costOverride, line.costOverrideReason, line.acceptedMatch ?? null]),
-  });
+  const draftSignature = () => signatureOf(customer?.id ?? null, currency, invoiceDiscount, invoiceMarkup, lines);
   const unsavedChanges = saved?.status === "DRAFT" && savedSignature !== undefined && draftSignature() !== savedSignature;
 
   const saveDraft = () => {
@@ -1021,18 +1042,17 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
               <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p>
             </div>
           </div>
-          {openedByLink ? (
-            <footer className="document-actions read-only">
-              <p className="backend-note">{t("invoiceEditor.readOnlyFromLink")}</p>
-              <Link className="text-button" to={sectionHref("invoices", tenantId)}>{t("invoiceEditor.newInvoice")}</Link>
-            </footer>
-          ) : saved.status === "CONFIRMED" ? (
+          {saved.status === "CONFIRMED" ? (
             <footer className="document-actions">
               <button className="button" disabled={busy} onClick={openRevision} type="button">{t("invoiceEditor.createRevision")}</button>
               <button className="button button-secondary" onClick={startNewInvoice} type="button">{t("invoiceEditor.newInvoice")}</button>
               <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><ConfirmAction confirmLabel={t("invoiceEditor.confirmCancel")} danger disabled={busy} label={t("invoiceEditor.cancelInvoice")} onConfirm={cancelSaved}>{t("invoiceEditor.cancelExplain")}</ConfirmAction></div>
             </footer>
-          ) : null}
+          ) : (
+            <footer className="document-actions">
+              <button className="button button-secondary" onClick={startNewInvoice} type="button">{t("invoiceEditor.newInvoice")}</button>
+            </footer>
+          )}
         </article>
       ) : (
       <>

@@ -446,6 +446,8 @@ class Customer(TimestampMixin, Base):
         ),
         UniqueConstraint("id", "tenant_id", name="uq_customers_id_tenant"),
         Index("ix_customers_tenant_phone", "tenant_id", "phone"),
+        # The owner's customers list, by name (D-101).
+        Index("ix_customers_tenant_name", "tenant_id", "name"),
         CheckConstraint(
             "(latitude IS NULL) = (longitude IS NULL)",
             name="ck_customers_coordinates_paired",

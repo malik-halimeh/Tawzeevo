@@ -22,6 +22,7 @@ import type {
   TenantProduct,
   TenantProductListResponse,
 } from "../api/types";
+import { AllCustomers } from "./AllCustomers";
 import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { CopilotPanel } from "./CopilotPanel";
 import { AttentionList, CustomerSignals, TodayBrief } from "./IntelligencePanel";
@@ -709,6 +710,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
           </ul>
         ) : null}
         <AttentionList tenantId={tenantId} />
+        <AllCustomers tenantId={tenantId} />
       </div>
       {formMode ? (
         <article aria-labelledby="customer-form-title" className="detail customer-detail">

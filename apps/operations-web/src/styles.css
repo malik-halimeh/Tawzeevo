@@ -1233,3 +1233,12 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
   .detail, .content-card, .panel { border: 0; }
   .detail-inner { padding: 0; }
 }
+
+/* All customers and each customer's invoices (D-101). */
+.all-customers { margin-block-start: 16px; }
+.all-customers > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.all-customers-list, .customer-invoices { display: grid; gap: 6px; list-style: none; margin: 8px 0 0; padding: 0; }
+.all-customers-row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.all-customers-actions { display: inline-flex; gap: 8px; }
+.customer-invoices { border-inline-start: 2px solid var(--line); padding-inline-start: 12px; }
+.customer-invoices li { align-items: center; display: flex; flex-wrap: wrap; font-size: 14px; gap: 8px; }
