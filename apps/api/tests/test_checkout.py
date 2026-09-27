@@ -96,6 +96,8 @@ def test_guest_checkout_is_atomic_idempotent_and_provisional(client, session_fac
     assert view["status"] == "RECEIVED" and view["invoice_status"] == "DRAFT"
     assert view["official_number"] is None and view["net_sales"] == "25.0000"
     assert view["contact_name"] == "Guest Grocer" and view["items"][0]["name"] == "Cedar Water"
+    # The public product of each line, so the customer can order it again (D-102).
+    assert view["items"][0]["product_id"] == product["id"]
     assert page.headers["cache-control"] == "no-store"
     assert page.headers.get("x-robots-tag", "").startswith("noindex")
     for forbidden in ("grade", "balance", "debt", "cost", "profit", "supplier", "driver"):

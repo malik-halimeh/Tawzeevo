@@ -4,8 +4,9 @@ import Link from "next/link";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { type CartLine, cartId, checkoutKey, clearCart, readCart, resetCheckoutKey, setQuantity } from "@/lib/cart";
-import { CONTEXT_HEADER, CONTEXT_PARAM, isContextRef, shopHref } from "@/lib/format";
+import { CONTEXT_HEADER, CONTEXT_PARAM, isContextRef, money, shopHref } from "@/lib/format";
 import { type Lang, plural, t } from "@/lib/i18n";
+import { type ShownPrice, cartTotals, forgetContact, readContact, rememberContact } from "@/lib/shopMemory";
 import { Arrow, Icon } from "./Icon";
 
 /**
@@ -27,6 +28,11 @@ export function CartCheckout({ slug, lang, acceptingOrders, ctx = null, personal
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  // Opt-in only (D-102): details are kept on this device after an order when the box is ticked.
+  const [remember, setRemember] = useState(false);
+  const [forgotten, setForgotten] = useState(false);
+  // The prices this visitor is shown for the cart's products (personalized when the link is).
+  const [prices, setPrices] = useState<Record<string, ShownPrice>>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const id = useId();
@@ -44,6 +50,40 @@ export function CartCheckout({ slug, lang, acceptingOrders, ctx = null, personal
   });
 
   useEffect(() => { const timer = window.setTimeout(() => setLines(readCart(cart)), 0); return () => window.clearTimeout(timer); }, [cart]);
+
+  // Remembered details fill the public form once; a personalized tab never uses them (D-090).
+  useEffect(() => {
+    if (personal !== null) return;
+    const timer = window.setTimeout(() => {
+      const saved = readContact(slug);
+      if (!saved) return;
+      setName(saved.name); setPhone(saved.phone); setAddress(saved.address); setRemember(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [slug, personal]);
+
+  // Prices are asked again only when the set of products changes, not for every quantity change.
+  const productKey = [...new Set(lines.map((line) => line.product_id))].sort().join(",");
+  useEffect(() => {
+    if (!productKey) return;
+    let live = true;
+    fetch(`/${slug}/cart/prices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(isContextRef(ctx) ? { [CONTEXT_HEADER]: ctx } : {}) },
+      body: JSON.stringify({ product_ids: productKey.split(",") }),
+    })
+      .then(async (response) => (response.ok ? ((await response.json()) as { products: Record<string, ShownPrice> }) : null))
+      .then((body) => { if (live && body) setPrices(body.products); })
+      .catch(() => { /* no total shown; the shop still prices the order */ });
+    return () => { live = false; };
+  }, [slug, ctx, productKey]);
+  const priced = prices ? cartTotals(lines, prices) : null;
+  const pricedLine = (line: CartLine) => priced?.lines.find((row) => row.product_id === line.product_id && row.price_basis === line.price_basis);
+
+  const forget = () => {
+    forgetContact(slug);
+    setRemember(false); setForgotten(true);
+  };
 
   const change = (line: CartLine, quantity: number) => setLines(setQuantity(cart, line.product_id, line.price_basis, quantity));
 
@@ -79,6 +119,10 @@ export function CartCheckout({ slug, lang, acceptingOrders, ctx = null, personal
           return;
         }
         clearCart(cart); resetCheckoutKey(cart);
+        if (!personalMode) {
+          if (remember) rememberContact(slug, { name, phone, address });
+          else forgetContact(slug);
+        }
         const [base, fragment = ""] = body.provisional_path.split("#");
         const query = [isContextRef(ctx) ? `${CONTEXT_PARAM}=${ctx}` : "", lang === "ar" ? "lang=ar" : ""].filter(Boolean).join("&");
         // A full load on purpose: the order reference travels in the fragment to the order page.
@@ -103,7 +147,9 @@ export function CartCheckout({ slug, lang, acceptingOrders, ctx = null, personal
         <ul className="cart-lines" aria-label={t(lang, "cart")} ref={cartList} tabIndex={-1}>
           {lines.map((line) => (
             <li key={`${line.product_id}-${line.price_basis}`}>
-              <span className="name">{line.name} <small className="muted">{line.unit_label}</small></span>
+              <span className="name">{line.name} <small className="muted">{line.unit_label}</small>
+                {pricedLine(line)?.line_total ? <small className="line-price" dir="ltr">{line.quantity} × {money(pricedLine(line)!.unit_price!, pricedLine(line)!.currency!)} = {money(pricedLine(line)!.line_total!, pricedLine(line)!.currency!)}</small> : null}
+              </span>
               <span className="qty">
                 <button aria-label={t(lang, "decrease")} onClick={() => change(line, line.quantity - 1)} type="button"><Icon name="minus" small /></button>
                 <input aria-label={t(lang, "quantity")} inputMode="numeric" min={1} onChange={(event) => change(line, Math.max(1, Number(event.target.value) || 1))} type="number" value={line.quantity} />
@@ -119,6 +165,15 @@ export function CartCheckout({ slug, lang, acceptingOrders, ctx = null, personal
       <aside className="cart-summary" aria-label={t(lang, "orderSummary")}>
         <h2>{t(lang, "orderSummary")}</h2>
         <p><strong>{plural(lang, "items", total)}</strong></p>
+        {priced && priced.totals.length ? (
+          <div className="cart-total" data-testid="cart-total">
+            <dl>
+              {priced.totals.map((row) => <div key={row.currency}><dt>{t(lang, "total")}</dt><dd dir="ltr">{money(row.total, row.currency)}</dd></div>)}
+            </dl>
+            <p className="muted">{t(lang, "totalToday")}</p>
+            {priced.missing ? <p className="muted">{t(lang, "priceMissing")}</p> : null}
+          </div>
+        ) : null}
         <p className="muted">{t(lang, "checkoutLead")}</p>
         {!acceptingOrders ? <p className="notice warn" role="status">{t(lang, "notAccepting")}</p> : (
           <form className="checkout-form" onSubmit={submit}>
@@ -134,6 +189,13 @@ export function CartCheckout({ slug, lang, acceptingOrders, ctx = null, personal
             <label htmlFor={`${id}-address`}>{t(lang, "address")}<input autoComplete="street-address" id={`${id}-address`} maxLength={500} required={!(personalMode && personal.hasSavedAddress)} value={address} onChange={(event) => setAddress(event.target.value)} /></label>
             <p className="hint">{personalMode && personal.hasSavedAddress ? t(lang, "savedAddressHint") : t(lang, "addressHint")}</p>
             <label htmlFor={`${id}-notes`}>{t(lang, "notes")}<textarea id={`${id}-notes`} maxLength={1000} rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
+            {personalMode ? null : (
+              <div className="remember">
+                <label className="check" htmlFor={`${id}-remember`}><input checked={remember} id={`${id}-remember`} onChange={(event) => { setRemember(event.target.checked); setForgotten(false); }} type="checkbox" />{t(lang, "rememberMe")}</label>
+                {remember ? <button className="link-button" onClick={forget} type="button">{t(lang, "forgetMe")}</button> : null}
+                {forgotten ? <p className="muted" role="status">{t(lang, "detailsForgotten")}</p> : null}
+              </div>
+            )}
             {error ? <p className="notice notice-error" role="alert">{error}</p> : null}
             <button className="button" disabled={busy} ref={submitButton} type="submit">{busy ? t(lang, "sending") : t(lang, "placeOrder")}<Arrow /></button>
             <p className="muted">{t(lang, "orderNote")}</p>

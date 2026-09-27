@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { money, shopHref } from "@/lib/format";
+import { addToCart, cartId } from "@/lib/cart";
+import { CONTEXT_HEADER, isContextRef, money, shopHref } from "@/lib/format";
 import { type Lang, t } from "@/lib/i18n";
+import { type AvailableProduct, forgetOrderReference, keepOrderReference, readOrderReference, reorderLines } from "@/lib/shopMemory";
 import { Arrow, Icon } from "./Icon";
 
-interface ProvisionalItem { name: string; quantity: string; unit: string; pieces_per_box: number | null; unit_price: string; total: string }
+interface ProvisionalItem { product_id?: string | null; name: string; quantity: string; unit: string; pieces_per_box: number | null; unit_price: string; total: string }
 interface ProvisionalOrder {
   business_name: string; status: string; contact_name: string; contact_phone: string; contact_address: string; notes: string | null;
   currency: string; created_at: string; invoice_status: string | null; official_number: string | null;
@@ -18,9 +20,10 @@ interface ProvisionalOrder {
 const KEY = (slug: string) => `tawzeevo.order-ref.${slug}`;
 
 /**
- * Provisional order page (D-046): the reference arrives in the URL fragment, is kept in this
- * browser's sessionStorage for revisits within its lifetime, and is sent only in a private
- * header through the shop's proxy. It shows the order as submitted — not a confirmed invoice.
+ * Provisional order page (D-046, D-102): the reference arrives in the URL fragment, is kept on this
+ * device for the order's 72-hour lifetime (so "Your order" in the shop header reopens it), and is
+ * sent only in a private header through the shop's proxy. It shows the order as submitted — not a
+ * confirmed invoice — and can put the same products back in the cart.
  */
 export function OrderView({ slug, lang, ctx = null }: { slug: string; lang: Lang; ctx?: string | null }) {
   const [order, setOrder] = useState<ProvisionalOrder>();
@@ -29,6 +32,8 @@ export function OrderView({ slug, lang, ctx = null }: { slug: string; lang: Lang
   const [reason, setReason] = useState("");
   const [asking, setAsking] = useState(false);
   const [askResult, setAskResult] = useState<string>();
+  const [reordering, setReordering] = useState(false);
+  const [reorderNote, setReorderNote] = useState<string>();
   const reasonId = useId();
   // The request button is disabled while sending and the form is replaced once the request is sent, so focus
   // would fall to the page: it moves to the pending notice, or back to the button when the request failed.
@@ -61,7 +66,7 @@ export function OrderView({ slug, lang, ctx = null }: { slug: string; lang: Lang
     if (window.location.hash) history.replaceState(null, "", window.location.pathname + window.location.search);
     try {
       if (reference) sessionStorage.setItem(KEY(slug), reference);
-      else reference = sessionStorage.getItem(KEY(slug)) ?? "";
+      else reference = sessionStorage.getItem(KEY(slug)) ?? readOrderReference(slug, Date.now()) ?? "";
     } catch { /* no storage: the fragment alone must do */ }
     referenceRef.current = reference;
     const load = async () => {
@@ -69,8 +74,38 @@ export function OrderView({ slug, lang, ctx = null }: { slug: string; lang: Lang
       const response = await fetch(`/${slug}/order/view`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference }) });
       return response.ok ? ((await response.json()) as ProvisionalOrder) : null;
     };
-    load().then((result) => { if (result) setOrder(result); else setState("missing"); }).catch(() => setState("missing"));
+    load()
+      .then((result) => {
+        if (result) {
+          setOrder(result);
+          // Kept with the order's own creation time, so it lapses with the server's 72 hours.
+          keepOrderReference(slug, reference, Date.parse(result.created_at));
+        } else {
+          if (reference && reference === readOrderReference(slug, Date.now())) forgetOrderReference(slug);
+          setState("missing");
+        }
+      })
+      .catch(() => setState("missing"));
   }, [slug]);
+
+  // The same products and quantities back in this tab's cart, at today's prices; lines the shop typed
+  // and products no longer offered are left out with a note.
+  const orderAgain = () => {
+    if (!order) return;
+    setReordering(true); setReorderNote(undefined);
+    const ids = [...new Set(order.items.map((item) => item.product_id).filter((id): id is string => Boolean(id)))];
+    fetch(`/${slug}/cart/prices`, { method: "POST", headers: { "Content-Type": "application/json", ...(isContextRef(ctx) ? { [CONTEXT_HEADER]: ctx } : {}) }, body: JSON.stringify({ product_ids: ids }) })
+      .then(async (response) => (response.ok ? ((await response.json()) as { products: Record<string, AvailableProduct> }) : Promise.reject(new Error("prices"))))
+      .then(({ products }) => {
+        const { lines, skipped } = reorderLines(order.items, products, lang, { piece: t(lang, "piece"), box: t(lang, "box") });
+        const cart = cartId(slug, ctx);
+        for (const line of lines) addToCart(cart, { product_id: line.product_id, name: line.name, price_basis: line.price_basis, unit_label: line.unit_label }, line.quantity);
+        if (skipped === 0) { window.location.assign(shopHref(slug, lang, "/cart", ctx)); return; }
+        setReorderNote(t(lang, lines.length ? "reorderSomeSkipped" : "reorderNoneAvailable"));
+        setReordering(false);
+      })
+      .catch(() => { setReorderNote(t(lang, "reorderFailed")); setReordering(false); });
+  };
 
   if (!order) {
     return state === "missing"
@@ -120,6 +155,12 @@ export function OrderView({ slug, lang, ctx = null }: { slug: string; lang: Lang
         </div>
       ) : null}
       <p className="muted">{t(lang, "orderProvisionalNote")}</p>
+      {order.items.some((item) => item.product_id) ? (
+        <div className="reorder">
+          <button className="button" disabled={reordering} onClick={orderAgain} type="button">{t(lang, "orderAgain")}</button>
+          {reorderNote ? <p className="muted" role="status">{reorderNote} <Link className="text-link" href={shopHref(slug, lang, "/cart", ctx)}>{t(lang, "reviewCart")}</Link></p> : null}
+        </div>
+      ) : null}
       <p><Link className="button secondary" href={shopHref(slug, lang, "", ctx)}><Arrow back small />{t(lang, "backToShop")}</Link></p>
     </article>
   );

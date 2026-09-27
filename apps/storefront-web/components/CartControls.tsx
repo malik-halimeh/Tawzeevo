@@ -7,6 +7,7 @@ import type { PublicProduct } from "@/lib/catalog";
 import { addToCart, cartCount, cartId, onCartChange } from "@/lib/cart";
 import { productName, shopHref } from "@/lib/format";
 import { type Lang, plural, t } from "@/lib/i18n";
+import { onOrderChange, readOrderReference } from "@/lib/shopMemory";
 import { Arrow, Icon } from "./Icon";
 
 /** The live item count is read from this browser's storage only, after mount (this tab's cart). */
@@ -19,6 +20,19 @@ function useCartCount(cart: string): number {
     return () => { window.clearTimeout(id); off(); };
   }, [cart]);
   return count;
+}
+
+/** "Your order" while this device keeps an order that can still be opened (72 hours; D-102). */
+export function YourOrderLink({ slug, lang, ctx = null }: { slug: string; lang: Lang; ctx?: string | null }) {
+  const [kept, setKept] = useState(false);
+  useEffect(() => {
+    const refresh = () => setKept(readOrderReference(slug, Date.now()) !== null);
+    const id = window.setTimeout(refresh, 0); // read localStorage only on the client
+    const off = onOrderChange(refresh);
+    return () => { window.clearTimeout(id); off(); };
+  }, [slug]);
+  if (!kept) return null;
+  return <Link className="order-link" href={shopHref(slug, lang, "/order", ctx)}>{t(lang, "yourOrder")}</Link>;
 }
 
 /** Header link with the live item count. */

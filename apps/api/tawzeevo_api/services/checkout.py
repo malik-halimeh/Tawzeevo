@@ -335,6 +335,7 @@ def provisional_order(db: Session, raw: str | None) -> ProvisionalOrderResponse:
         net_sales=revision.net_sales if revision else Decimal("0"),
         items=[
             ProvisionalItem(
+                product_id=item.tenant_product_id,
                 name=item.product_name,
                 quantity=item.quantity,
                 unit=item.price_basis.value,

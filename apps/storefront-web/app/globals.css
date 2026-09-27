@@ -278,3 +278,13 @@ html:has(.shop-cartbar) { scroll-padding-bottom: calc(108px + env(safe-area-inse
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Calculated total, remembered details, "Your order" and "Order these again" (D-102). */
+.cart-lines .line-price { display: block; }
+.cart-total dl { margin: 0; }
+.cart-total dl > div { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
+.cart-total dd { margin: 0; }
+.remember { display: grid; gap: 4px; }
+.remember .check { align-items: center; display: flex; gap: 8px; }
+.order-link { align-items: center; display: inline-flex; min-height: 44px; }
+.reorder { display: grid; gap: 6px; margin-block: 12px; }
