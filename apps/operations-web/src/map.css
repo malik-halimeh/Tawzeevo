@@ -808,6 +808,11 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
 @keyframes map-station { from { transform: scale(.8); } }
 
 @media print {
+  /* The printed invoice stays plain black on white: no fold, stamp ring, tints or coloured figures. */
+  .invoice-document { clip-path: none !important; filter: none !important; background: #fff !important; }
+  .document-head .doc-stamp { position: static; width: auto; height: auto; transform: none; box-shadow: none; background: none; color: #000; padding: 0; display: block; text-align: start; font-size: 12px; animation: none; }
+  .document-head h4, .invoice-tally .total-due, .document-totals .total-due, .document-totals .total-due dt { color: #000 !important; }
+  .document-summary, .document-totals .total-due { background: none !important; }
   .station-sign { background: none; padding: 0; }
   .station-tile, .topline::after { display: none !important; }
 }
