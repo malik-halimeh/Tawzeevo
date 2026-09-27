@@ -1251,3 +1251,8 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
 /* Total calculated by the server, not saved yet (D-107). */
 .calculated-total { background: var(--mist); border-radius: var(--radius-control); display: grid; gap: 2px; margin-block: 8px; padding: 8px 12px; }
 .calculated-total strong { font-size: 1.1rem; }
+
+/* One-click approval (D-110). */
+.application-actions { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.pending-applications { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.pending-applications li { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }

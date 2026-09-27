@@ -36,3 +36,29 @@ def test_admin_sees_applicant_name_email_and_phone(client, session_factory):
     )
     assert approved.status_code == 200, approved.text
     assert approved.json()["applicant_email"] == applicant.email
+
+
+def test_one_click_approval_stores_thirty_days_and_no_grace(client, session_factory):
+    """D-110: the quick approval is the existing approve call with access_until and no grace."""
+    from datetime import date, timedelta
+
+    admin = _user(session_factory, "admin-quick@example.com", SystemUserType.ADMIN)
+    applicant = _user(session_factory, "applicant-13c@example.com", SystemUserType.CLIENT)
+    submitted = client.post(
+        "/api/v1/tenant-applications",
+        headers=_auth(_login(client, applicant.email)),
+        json={"business_name": "Quick Foods"},
+    ).json()
+    until = (date.today() + timedelta(days=30)).isoformat()
+    approved = client.post(
+        f"/api/v1/platform/tenant-applications/{submitted['id']}/approve",
+        headers=_auth(_login(client, admin.email)),
+        json={"access_until": until, "grace_until": None, "review_notes": None},
+    )
+    assert approved.status_code == 200, approved.text
+    tenants = client.get(
+        "/api/v1/platform/tenants",
+        headers=_auth(_login(client, admin.email)),
+        params={"search": "Quick Foods"},
+    ).json()["tenants"]
+    assert [(row["access_until"], row["grace_until"]) for row in tenants] == [(until, None)]

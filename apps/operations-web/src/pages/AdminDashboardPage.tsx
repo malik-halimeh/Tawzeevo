@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { apiRequest } from "../api/client";
 import type { TenantApplicationListResponse, TenantListResponse } from "../api/types";
 import { ErrorState, LoadingState, PageHeader } from "../components/Ui";
+import { QuickApprove } from "./QuickApprove";
 
 async function loadOverview() {
   const [users, applications, activeTenants, suspendedTenants] = await Promise.all([
@@ -24,6 +25,27 @@ async function loadOverview() {
   };
 }
 
+/** Up to five pending applications with one-click approval (D-110); Review opens the full form. */
+function PendingApplications() {
+  const { t } = useTranslation();
+  const pending = useQuery({ queryKey: ["admin-pending"], queryFn: () => apiRequest<TenantApplicationListResponse>("/api/v1/platform/tenant-applications?status=PENDING&limit=5") });
+  const rows = pending.data?.applications ?? [];
+  if (!rows.length) return null;
+  return (
+    <section aria-labelledby="pending-applications-title" className="content-card">
+      <h2 id="pending-applications-title">{t("admin.pendingApplications")}</h2>
+      <ul className="pending-applications">
+        {rows.map((application) => (
+          <li key={application.id}>
+            <span><strong>{application.business_name}</strong>{application.applicant_name ? <> · {application.applicant_name}</> : null}</span>
+            <span className="application-actions"><QuickApprove application={application} /><Link className="button button-secondary" to="/admin/applications">{t("common.review")}</Link></span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function AdminDashboardPage() {
   const { t } = useTranslation();
   const overview = useQuery({ queryKey: ["admin-overview"], queryFn: loadOverview });
@@ -40,6 +62,7 @@ export function AdminDashboardPage() {
             <article><span>{t("admin.activeTenants")}</span><strong>{overview.data.active}</strong><Link to="/admin/tenants">{t("common.manage")}</Link></article>
             <article><span>{t("admin.suspendedTenants")}</span><strong>{overview.data.suspended}</strong><Link to="/admin/tenants?status=SUSPENDED">{t("common.view")}</Link></article>
           </section>
+          <PendingApplications />
           <section className="content-card route-brief">
             <div className={`route-brief-marker${overview.data.overdue ? " attention" : ""}`}><span>{overview.data.overdue}</span><small>{t("admin.overdue")}</small></div>
             <div><p className="section-kicker">{t("admin.accessDesk")}</p><h2>{t("admin.accessTitle")}</h2><p>{overview.data.overdue ? t("admin.accessAttention", { count: overview.data.overdue }) : t("admin.accessClear")}</p></div>

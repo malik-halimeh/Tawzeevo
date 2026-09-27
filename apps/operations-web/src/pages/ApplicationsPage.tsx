@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { apiRequest } from "../api/client";
 import type { TenantApplication, TenantApplicationListResponse, TenantApplicationStatus } from "../api/types";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Pagination, StatusBadge, SuccessNotice } from "../components/Ui";
+import { QuickApprove } from "./QuickApprove";
 
 interface ReviewDraft {
   access_until: string;
@@ -94,7 +95,10 @@ export function ApplicationsPage() {
             <article className="application-row" key={application.id}>
               <div className="application-route" aria-hidden="true"><span /></div>
               <div><div className="row-title"><h2>{application.business_name}</h2><StatusBadge value={application.status} /></div>{application.applicant_name ? <p>{application.applicant_name}{application.applicant_email ? <> · <bdi dir="ltr">{application.applicant_email}</bdi></> : null}</p> : null}<p>{t("applications.submittedOn", { date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(application.created_at)) })}</p>{application.review_notes ? <small>{application.review_notes}</small> : null}</div>
-              <button className="button button-secondary" disabled={application.status !== "PENDING"} onClick={() => openReview(application)} type="button">{application.status === "PENDING" ? t("common.review") : t("applications.reviewed")}</button>
+              <div className="application-actions">
+                {application.status === "PENDING" ? <QuickApprove application={application} onDone={(approved) => setNotice(t("applications.approved", { name: approved.business_name }))} /> : null}
+                <button className="button button-secondary" disabled={application.status !== "PENDING"} onClick={() => openReview(application)} type="button">{application.status === "PENDING" ? t("common.review") : t("applications.reviewed")}</button>
+              </div>
             </article>
           ))}
           <Pagination page={query.data.page} totalPages={query.data.total_pages} onPage={setPage} />
