@@ -23,6 +23,7 @@ from tawzeevo_api.schemas.platform import (
     TenantResponse,
 )
 from tawzeevo_api.services.platform import (
+    application_responses,
     approve_application,
     close_tenant,
     list_applications,
@@ -71,7 +72,7 @@ def platform_list_applications(
         limit=limit,
         total=total,
         total_pages=total_pages,
-        applications=[TenantApplicationResponse.model_validate(item) for item in applications],
+        applications=application_responses(db, applications),
     )
 
 
@@ -87,9 +88,7 @@ def platform_approve_application(
         default_factory=TenantApplicationApproveRequest
     ),
 ) -> TenantApplicationResponse:
-    return TenantApplicationResponse.model_validate(
-        approve_application(db, application_id, admin, request)
-    )
+    return application_responses(db, [approve_application(db, application_id, admin, request)])[0]
 
 
 @platform_router.post(
@@ -102,9 +101,7 @@ def platform_reject_application(
     admin: Annotated[User, Depends(require_system_admin)],
     request: TenantApplicationReviewRequest = Body(default_factory=TenantApplicationReviewRequest),
 ) -> TenantApplicationResponse:
-    return TenantApplicationResponse.model_validate(
-        reject_application(db, application_id, admin, request)
-    )
+    return application_responses(db, [reject_application(db, application_id, admin, request)])[0]
 
 
 @platform_router.get("/tenants", response_model=TenantListResponse)

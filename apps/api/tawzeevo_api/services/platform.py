@@ -28,6 +28,7 @@ from tawzeevo_api.schemas.platform import (
     SuspendTenantRequest,
     TenantApplicationApproveRequest,
     TenantApplicationCreateRequest,
+    TenantApplicationResponse,
     TenantApplicationReviewRequest,
     TenantResponse,
 )
@@ -46,6 +47,28 @@ def _access_state(tenant: Tenant, today: date | None = None) -> AccessState:
     if tenant.grace_until is not None and current_date <= tenant.grace_until:
         return AccessState.GRACE
     return AccessState.OVERDUE
+
+
+def application_responses(
+    db: Session, applications: list[TenantApplication]
+) -> list[TenantApplicationResponse]:
+    """Applications with the applicant's name, email and phone for the administrator (D-108)."""
+    users = {
+        user.id: user
+        for user in db.scalars(
+            select(User).where(User.id.in_({row.applicant_user_id for row in applications}))
+        )
+    }
+    responses = []
+    for application in applications:
+        response = TenantApplicationResponse.model_validate(application)
+        user = users.get(application.applicant_user_id)
+        if user is not None:
+            response.applicant_name = f"{user.first_name} {user.last_name}".strip()
+            response.applicant_email = user.email
+            response.applicant_phone = user.phone
+        responses.append(response)
+    return responses
 
 
 def tenant_response(tenant: Tenant) -> TenantResponse:

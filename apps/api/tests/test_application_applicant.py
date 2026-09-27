@@ -1,0 +1,38 @@
+"""D-108: the administrator sees who applied; the applicant's own answer does not echo it."""
+
+from __future__ import annotations
+
+from test_invoice_editor import _auth, _login, _user
+
+from tawzeevo_api.models import SystemUserType
+
+
+def test_admin_sees_applicant_name_email_and_phone(client, session_factory):
+    admin = _user(session_factory, "admin-applicant@example.com", SystemUserType.ADMIN)
+    applicant = _user(session_factory, "applicant-13a@example.com", SystemUserType.CLIENT)
+    token = _login(client, applicant.email)
+    submitted = client.post(
+        "/api/v1/tenant-applications", headers=_auth(token), json={"business_name": "Hamra Foods"}
+    )
+    assert submitted.status_code == 201, submitted.text
+    assert submitted.json()["applicant_email"] is None
+
+    admin_token = _login(client, admin.email)
+    listed = client.get(
+        "/api/v1/platform/tenant-applications",
+        headers=_auth(admin_token),
+        params={"status": "PENDING"},
+    )
+    assert listed.status_code == 200, listed.text
+    row = next(
+        item for item in listed.json()["applications"] if item["id"] == submitted.json()["id"]
+    )
+    assert row["applicant_name"] == f"{applicant.first_name} {applicant.last_name}".strip()
+    assert row["applicant_email"] == applicant.email
+    assert row["applicant_phone"] == applicant.phone
+
+    approved = client.post(
+        f"/api/v1/platform/tenant-applications/{row['id']}/approve", headers=_auth(admin_token)
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["applicant_email"] == applicant.email

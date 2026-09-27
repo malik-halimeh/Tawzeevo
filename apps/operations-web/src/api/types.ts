@@ -400,6 +400,9 @@ export interface UserListResponse {
 export interface TenantApplication {
   id: string;
   applicant_user_id: string;
+  applicant_name?: string | null;
+  applicant_email?: string | null;
+  applicant_phone?: string | null;
   business_name: string;
   status: TenantApplicationStatus;
   reviewed_by_user_id: string | null;

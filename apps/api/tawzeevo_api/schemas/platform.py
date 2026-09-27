@@ -73,6 +73,10 @@ class TenantApplicationResponse(BaseModel):
     tenant_id: UUID | None
     created_at: datetime
     updated_at: datetime
+    # Who applied, for the administrator's review (D-108); not sent back to the applicant.
+    applicant_name: str | None = None
+    applicant_email: str | None = None
+    applicant_phone: str | None = None
 
 
 class TenantApplicationListResponse(BaseModel):
