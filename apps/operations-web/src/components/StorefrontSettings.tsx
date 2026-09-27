@@ -14,6 +14,9 @@ export interface StorefrontSettingsResponse {
   published_products: number;
   accepting_orders: boolean;
   customer_access_policy: string;
+  /** What may be selected now; VERIFIED appears by itself once one-time codes can be delivered (D-099). */
+  available_policies?: string[];
+  verification_available?: boolean;
 }
 
 const STOREFRONT_BASE = (import.meta.env.VITE_STOREFRONT_BASE_URL as string | undefined) ?? "http://localhost:3000";
@@ -76,9 +79,14 @@ export function StorefrontSettings({ tenantId }: { tenantId: string }) {
           {settings.previous_slugs.length ? <div><dt>{t("storefront.previous")}</dt><dd dir="ltr">{settings.previous_slugs.join(", ")}</dd></div> : null}
           <div><dt>{t("storefront.policy")}</dt><dd>
             <select aria-label={t("storefront.policy")} disabled={busy} value={pendingPolicy ?? settings.customer_access_policy} onChange={(event) => setPendingPolicy(event.target.value === settings.customer_access_policy ? undefined : event.target.value)}>
-              <option value="LINK">{t("customerLink.policies.LINK")}</option>
-              <option value="VERIFIED">{t("customerLink.policies.VERIFIED")}</option>
+              {Array.from(new Set([...(settings.available_policies ?? ["LINK"]), settings.customer_access_policy])).map((policy) => <option key={policy} value={policy}>{t(`customerLink.policies.${policy}`)}</option>)}
             </select>
+            {settings.customer_access_policy === "VERIFIED" && settings.verification_available === false ? (
+              <div className="notice notice-warning" role="note">
+                <span>{t("storefront.verificationUnavailable")}</span>
+                <button className="text-button" onClick={() => setPendingPolicy("LINK")} type="button">{t("storefront.switchToLink")}</button>
+              </div>
+            ) : null}
             {pendingPolicy ? (
               <div className="confirm-action" role="group" aria-label={t("storefront.policy")}>
                 <span className="confirm-action-note">{t("storefront.policyConfirm", { policy: t(`customerLink.policies.${pendingPolicy}`) })}</span>

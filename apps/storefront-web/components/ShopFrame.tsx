@@ -69,7 +69,7 @@ export function ShopFrame({
         </form>
       </header>
       <main id="content" tabIndex={-1}>
-        {context ? <PersonalBanner ctx={ctx} displayName={context.display_name} granted={context.granted} lang={lang} slug={shop.slug} /> : null}
+        {context ? <PersonalBanner ctx={ctx} displayName={context.display_name} granted={context.granted} lang={lang} slug={shop.slug} verificationAvailable={context.verification_available !== false} /> : null}
         {!shop.accepting_orders ? <p className="notice warn" role="status">{t(lang, "notAccepting")}</p> : null}
         {brand?.banner_text && currentPath === `/${shop.slug}` ? <p className="brand-banner">{brand.banner_text}</p> : null}
         {children}

@@ -31,6 +31,8 @@ export interface CustomerContext {
   contact_hint: string;
   /** Granted contexts only: whether an address is on file (never the address itself; D-090). */
   has_saved_address?: boolean;
+  /** Whether a one-time code can be delivered now; the verify offer shows only then (D-099). */
+  verification_available?: boolean;
 }
 
 export function cookieName(slug: string): string {

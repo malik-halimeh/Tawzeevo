@@ -41,7 +41,8 @@ from tawzeevo_api.schemas.storefront import (
     StorefrontSettings,
 )
 from tawzeevo_api.services.branding import public_branding
-from tawzeevo_api.services.customer_access import CustomerContext
+from tawzeevo_api.services.customer_access import CustomerContext, selectable_policies
+from tawzeevo_api.services.otp_delivery import delivery_is_usable
 from tawzeevo_api.services.pricing import derive_counterpart_prices, resolve_product_pricing
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$")
@@ -145,7 +146,10 @@ def storefront_settings(db: Session, tenant: Tenant) -> StorefrontSettings:
         published_products=int(published or 0),
         accepting_orders=tenant.status is TenantStatus.ACTIVE,
         customer_access_policy=tenant.customer_access_policy,
-        available_policies=["LINK"],
+        # What the owner may select now: VERIFIED appears by itself once a provider can deliver
+        # codes, and is absent (and refused on save) until then (D-099).
+        available_policies=sorted(policy.value for policy in selectable_policies()),
+        verification_available=delivery_is_usable(),
     )
 
 

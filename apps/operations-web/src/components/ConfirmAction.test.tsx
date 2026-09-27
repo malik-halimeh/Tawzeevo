@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -58,7 +58,7 @@ test("declining an order and approving a cancellation each ask once before anyth
 
 test("a storefront access policy change is staged and applied only after it is confirmed", async () => {
   const puts: Array<Record<string, unknown>> = [];
-  const settings = { slug: "cedar", previous_slugs: [], published_products: 3, accepting_orders: true, customer_access_policy: "LINK" };
+  const settings = { slug: "cedar", previous_slugs: [], published_products: 3, accepting_orders: true, customer_access_policy: "LINK", available_policies: ["LINK", "VERIFIED"], verification_available: true };
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = new URL(input instanceof Request ? input.url : input.toString(), "http://localhost").pathname;
     if (init?.method === "PUT" && path.endsWith("/access-policy")) {
@@ -82,4 +82,27 @@ test("a storefront access policy change is staged and applied only after it is c
   fireEvent.click(screen.getByRole("button", { name: "Yes, change policy" }));
   await waitFor(() => expect(puts).toEqual([{ policy: "VERIFIED" }]));
   expect(await screen.findByText(/Access policy is now/)).toBeInTheDocument();
+});
+
+test("without a way to deliver codes the verified-phone policy is not offered, and a business still on it is told and can switch back", async () => {
+  const puts: Array<Record<string, unknown>> = [];
+  let settings = { slug: "cedar", previous_slugs: [], published_products: 3, accepting_orders: true, customer_access_policy: "LINK", available_policies: ["LINK"], verification_available: false };
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(input instanceof Request ? input.url : input.toString(), "http://localhost").pathname;
+    if (init?.method === "PUT") { const body = JSON.parse(typeof init.body === "string" ? init.body : "{}") as Record<string, unknown>; puts.push(body); settings = { ...settings, customer_access_policy: String(body.policy) }; return Promise.resolve(Response.json(settings)); }
+    if (path.endsWith("/storefront")) return Promise.resolve(Response.json(settings));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+  const view = render(<StorefrontSettings tenantId="t1" />);
+  const policy = await screen.findByRole("combobox", { name: "Customer access policy" });
+  expect(within(policy).getAllByRole("option").map((option) => option.getAttribute("value"))).toEqual(["LINK"]);
+  expect(screen.queryByText(/no text-message provider/)).not.toBeInTheDocument();
+  view.unmount();
+
+  settings = { ...settings, customer_access_policy: "VERIFIED" };
+  render(<StorefrontSettings tenantId="t1" />);
+  expect(await screen.findByText(/no text-message provider is set up/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Switch to link access" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, change policy" }));
+  await waitFor(() => expect(puts).toEqual([{ policy: "LINK" }]));
 });

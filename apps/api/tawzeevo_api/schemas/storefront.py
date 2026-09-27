@@ -21,6 +21,9 @@ class StorefrontSettings(BaseModel):
     accepting_orders: bool
     customer_access_policy: str = "LINK"
     available_policies: list[str] = ["LINK"]
+    # Whether a one-time code can reach a customer with this server's configuration (D-099):
+    # the verified-phone policy is offered only while this is true.
+    verification_available: bool = False
 
 
 class StorefrontSlugRequest(BaseModel):
@@ -177,6 +180,8 @@ class CustomerContextResponse(BaseModel):
     contact_hint: str = ""
     # Granted contexts only: whether checkout may fall back to the saved address (D-090).
     has_saved_address: bool = False
+    # Whether verification can be offered right now (a code can actually be delivered; D-099).
+    verification_available: bool = False
 
 
 class VerificationConfirmRequest(BaseModel):

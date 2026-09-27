@@ -66,7 +66,7 @@ from tawzeevo_api.services import (
     storefront_signals,
 )
 from tawzeevo_api.services.media import ObjectStorage
-from tawzeevo_api.services.otp_delivery import dev_delivery
+from tawzeevo_api.services.otp_delivery import delivery_is_usable, dev_delivery
 
 storefront_public_router = APIRouter(prefix="/api/v1/public", tags=["storefront"])
 storefront_owner_router = APIRouter(prefix="/api/v1/tenants/{tenant_id}", tags=["storefront"])
@@ -311,6 +311,7 @@ def read_customer_context(
         granted=context.granted,
         contact_hint=context.contact_hint if not context.granted else "",
         has_saved_address=context.has_saved_address if context.granted else False,
+        verification_available=delivery_is_usable(),
     )
 
 
