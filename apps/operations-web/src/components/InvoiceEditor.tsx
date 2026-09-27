@@ -1048,7 +1048,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
         <article aria-labelledby="invoice-document-title" className="invoice-document">
           <header className="document-head">
             <div>
-              <p className="section-kicker">{t(saved.status === "CANCELLED" ? "invoiceEditor.cancelled" : "invoiceEditor.confirmed")}</p>
+              <p className={saved.status === "CANCELLED" ? "section-kicker doc-stamp is-cancelled" : "section-kicker doc-stamp"}>{t(saved.status === "CANCELLED" ? "invoiceEditor.cancelled" : "invoiceEditor.confirmed")}</p>
               <h4 id="invoice-document-title" ref={documentTitle} tabIndex={-1}><bdi dir="ltr">{saved.official_invoice_number ?? `R${saved.server_revision_number}`}</bdi></h4>
               <p className="document-tone">{t(saved.status === "CANCELLED" ? "invoiceEditor.cancelledTone" : "invoiceEditor.confirmedTone")}</p>
             </div>

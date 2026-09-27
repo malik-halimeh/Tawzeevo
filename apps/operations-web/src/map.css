@@ -56,7 +56,7 @@ code { font-size: .9em; }
 /* ---------- Focus: a Citron ring with an ink edge, visible on every colour ---------- */
 :focus-visible { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--ink); border-radius: 6px; }
 input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"], [type="week"]):focus-within { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--ink); }
-input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--lc-edge); outline-offset: 0; box-shadow: 0 0 0 5px var(--ink); border-radius: var(--radius-control); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--ink); outline-offset: 0; box-shadow: 0 0 0 5px var(--ink); border-radius: var(--radius-control); }
 ::selection { background: var(--citron); color: var(--ink); }
 
 /* ---------- Brand mark: a Citron route pin ---------- */
@@ -424,7 +424,380 @@ html[dir="rtl"] .collection-claim > .checkbox-row:nth-of-type(2) > input { backg
 .collection-claim > .field, .collection-claim > small { grid-column: 1 / -1; }
 .action-area > .confirm-action, .action-area > .button { order: 2; margin-inline-start: auto; }
 
+/* ---------- Sales › Orders: each order is a docket with a perforated top and a tear-off status stub ---------- */
+.orders-panel .outbox-list { gap: 14px; }
+.orders-panel .outbox-list > .outbox-row {
+  position: relative; flex-wrap: nowrap; align-items: stretch; gap: 0; padding: 0; border-top: 0; background: var(--surface);
+  border-radius: 4px 4px 14px 14px; filter: drop-shadow(0 1px 0 rgb(19 38 47 / .08)) drop-shadow(0 6px 10px rgb(19 38 47 / .07));
+  -webkit-mask: radial-gradient(circle 5px at 50% 0, #0000 96%, #000 100%) 0 0 / 14px 100% repeat-x;
+  mask: radial-gradient(circle 5px at 50% 0, #0000 96%, #000 100%) 0 0 / 14px 100% repeat-x;
+}
+.orders-panel .outbox-list > .outbox-row.muted { background: transparent; filter: none; -webkit-mask: none; mask: none; padding: 12px 0; }
+.orders-panel .outbox-row > .text-button { flex: 1; padding: 16px 12px 12px 16px; border-top: 5px solid var(--lc); color: var(--ink); font-weight: 500; line-height: 1.45; display: block; }
+.orders-panel .outbox-row > .text-button strong { display: block; font-size: 16px; }
+.orders-panel .outbox-row > .text-button[aria-current="true"] { background: var(--lc-tint); }
+.orders-panel .outbox-row > .status-badge {
+  margin: 0; flex: none; width: 104px; white-space: normal; text-align: center; justify-content: center; border-radius: 0; padding: 14px 8px;
+  border-top: 5px solid var(--lc); border-inline-start: 2px dashed var(--line-strong); background: var(--lc-tint); color: var(--lc-deep); font-size: 12px;
+}
+.order-detail { border-top: 5px solid var(--lc); }
+.order-lines tfoot th { font-family: var(--font-display); font-size: 18px; }
+
+/* ---------- Sales › Invoices: a draft is a working pad; a confirmed invoice is a sheet with a folded corner and a stamp ---------- */
+.invoice-lines { background: var(--surface) repeating-linear-gradient(to bottom, transparent 0 47px, var(--lc-tint) 47px 48px); }
+.line-number { font-family: var(--font-mono); color: var(--lc-deep); }
+.invoice-tally {
+  border: 0; border-top: 6px solid var(--lc); border-radius: 4px 4px 0 0; padding-bottom: 30px; font-family: var(--font-latin);
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+  filter: drop-shadow(0 6px 10px rgb(19 38 47 / .08)); box-shadow: none;
+}
+.invoice-tally dd, .tally-top strong, .document-totals dd, .document-lines td:last-child { font-family: var(--font-mono); font-weight: 600; }
+.invoice-tally .total-due, .document-totals .total-due { background: var(--lc-tint); border-radius: 10px; padding: 10px 12px; border-top: 0; color: var(--lc-deep); }
+.invoice-tally .total-due dt, .document-totals .total-due dt { color: var(--lc-deep); }
+.invoice-document {
+  position: relative; border: 0; box-shadow: none; border-radius: 0 0 14px 14px;
+  clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 34px, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom left, transparent 50%, #d6dfdb 50%) top right / 34px 34px no-repeat, var(--surface);
+  filter: drop-shadow(0 1px 0 rgb(19 38 47 / .1)) drop-shadow(0 8px 14px rgb(19 38 47 / .08));
+}
+html[dir="rtl"] .invoice-document {
+  clip-path: polygon(34px 0, 100% 0, 100% 100%, 0 100%, 0 34px);
+  background: linear-gradient(to bottom right, transparent 50%, #d6dfdb 50%) top left / 34px 34px no-repeat, var(--surface);
+}
+.document-head { position: relative; }
+.document-head h4 { font-family: var(--font-mono); font-size: 24px; letter-spacing: 0; color: var(--lc-deep); }
+.document-head .doc-stamp {
+  position: absolute; inset-inline-end: 140px; top: -12px; width: 100px; height: 100px; margin: 0; border-radius: 50%;
+  display: grid; place-items: center; text-align: center; transform: rotate(-9deg); color: var(--good); background: rgb(228 244 234 / .6);
+  font-family: var(--font-display); font-size: 12.5px; font-weight: 700; letter-spacing: .04em; line-height: 1.1; padding: 14px;
+  box-shadow: inset 0 0 0 3px var(--good), inset 0 0 0 7px transparent, inset 0 0 0 8.5px var(--good); pointer-events: none;
+}
+.document-head .doc-stamp.is-cancelled { color: var(--bad); background: rgb(253 233 236 / .6); box-shadow: inset 0 0 0 3px var(--bad), inset 0 0 0 7px transparent, inset 0 0 0 8.5px var(--bad); }
+.document-summary { background: var(--lc-tint); }
+.revision-bar { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+.invoice-history details { border-radius: 4px 12px 12px 4px; box-shadow: 3px 3px 0 -1px var(--surface), 3px 3px 0 0 var(--line); }
+.invoice-history details.is-current { border-inline-start-color: var(--lc); }
+.invoice-context .grade-seal, .grade-seal { border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink); }
+/* Invoice links: small tickets with the code in Mono. */
+.invoice-sharing { border-top: 5px solid var(--lc); }
+.invoice-share-record { border-top: 1.5px dashed var(--line-strong); }
+.invoice-share-issued input, .issued-link input { font-family: var(--font-mono); font-size: 14px; background: var(--paper); }
+.debt-row.is-overdue { border-inline-start: 5px solid var(--bad); }
+.balance-chips span, .balance-chip { border-radius: 999px; font-weight: 600; background: var(--lc-tint); color: var(--lc-deep); }
+
+/* ---------- Customers: each customer is a file folder with a tab ---------- */
+.customers .stop-list { display: grid; gap: 18px; padding-top: 12px; }
+.customers .stop-list .stop-item { border-bottom: 0; }
+.customers .stop-list .stop-button {
+  position: relative; background: var(--surface); border-radius: 0 14px 14px 14px; border-top: 4px solid var(--lc);
+  box-shadow: var(--lift); min-height: 76px;
+}
+html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 14px; }
+.customers .stop-list .stop-button::before {
+  content: ""; position: absolute; top: -16px; inset-inline-start: 0; width: 38%; max-width: 150px; height: 12px;
+  background: var(--lc); border-radius: 10px 10px 0 0;
+}
+.customers .stop-list .stop-button:hover, .customers .stop-list .stop-button.selected { background: var(--lc-tint); }
+.customer-detail { border-top: 0; background: linear-gradient(var(--lc) 0 0) top / 100% 6px no-repeat, var(--surface); }
+.customer-detail::before {
+  content: ""; position: absolute; top: 6px; inset-inline-start: 26px; width: 120px; height: 12px; background: var(--lc);
+  border-radius: 0 0 10px 10px;
+}
+.customer-identity .avatar, .customer-identity .grade-seal { border-radius: 50%; }
+.customers .avatar, .customer-identity .avatar { background: var(--lc); color: var(--lc-on); font-family: var(--font-display); }
+.customer-facts > div { border-bottom-style: dashed; }
+.customer-link { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+.all-customers { border-top: 4px solid var(--lc); }
+.all-customers-list > li { background: var(--surface); border-radius: 0 10px 10px 10px; box-shadow: inset 0 0 0 1px var(--line); padding: 6px 12px; }
+.customer-invoices { border-inline-start: 3px dashed color-mix(in srgb, var(--lc) 50%, transparent); }
+
+/* ---------- Deliveries: every delivery hangs off the route line as a pin ---------- */
+.delivery-panel .outbox-list { position: relative; gap: 12px; }
+.delivery-panel .outbox-list > .delivery-row {
+  position: relative; background: var(--surface); border-top: 0; border-radius: 14px; padding: 14px 16px; padding-inline-start: 50px; box-shadow: var(--lift);
+}
+.delivery-panel .outbox-list > .delivery-row::before {
+  content: ""; position: absolute; inset-inline-start: 16px; top: 16px; width: 20px; height: 20px; border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg); background: var(--lc); box-shadow: inset 0 0 0 5px var(--lc), inset 0 0 0 10px var(--surface);
+}
+.delivery-panel .outbox-list > .delivery-row:not(:last-child)::after {
+  content: ""; position: absolute; inset-inline-start: 24px; top: 42px; bottom: -14px; width: 4px; border-radius: 4px;
+  background: repeating-linear-gradient(to bottom, var(--lc) 0 10px, transparent 10px 16px);
+}
+.delivery-panel .outbox-list > .delivery-row.is-context { background: var(--lc-tint); }
+.row-action { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+.team { border-radius: var(--radius-record); }
+
+/* ---------- Catalog › Products: crates with hanging price tags ---------- */
+.catalog-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.catalog-list > :not(.product-card) { grid-column: 1 / -1; }
+.product-card {
+  position: relative; border-top: 0; background: var(--surface); border-radius: 14px; padding: 34px 16px 12px;
+  box-shadow: inset 0 0 0 1px var(--line), 0 6px 14px -8px rgb(19 38 47 / .18); align-content: start;
+}
+.product-card::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 22px; border-radius: 14px 14px 0 0;
+  background: repeating-linear-gradient(to bottom, var(--lc-tint) 0 5px, color-mix(in srgb, var(--lc) 45%, var(--lc-tint)) 5px 7px);
+}
+.product-card > strong[dir="ltr"] {
+  justify-self: start; position: relative; display: inline-flex; align-items: center; background: var(--lc); color: var(--lc-on);
+  padding: 5px 14px 5px 26px; font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%); border-radius: 0 6px 6px 0;
+}
+.product-card > strong[dir="ltr"]::before { content: ""; position: absolute; left: 10px; top: calc(50% - 4px); width: 8px; height: 8px; border-radius: 50%; background: var(--surface); }
+.product-card:has(.status-closed) { box-shadow: inset 0 0 0 2px var(--line-strong); background: var(--paper); }
+.product-card:has(.status-closed)::before { background: repeating-linear-gradient(to bottom, #eef2f0 0 5px, #dfe6e3 5px 7px); }
+.product-card:has(.status-closed) > strong[dir="ltr"] { background: var(--muted); }
+.product-manage { border-top: 1.5px dashed var(--line); }
+.barcode-chips code { background: var(--paper); border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); }
+.add-product { border-top: 5px solid var(--lc); }
+.product-image, .product-image-placeholder, .invoice-line-image { border-radius: 10px; }
+/* Categories: shelf labels, stacked like shelves. */
+.category-route { gap: 12px; }
+.category-route li {
+  border-top: 0; background: var(--surface); border-inline-start: 8px solid var(--lc); border-radius: 6px 14px 14px 6px;
+  padding: 12px 14px; box-shadow: 0 6px 0 -3px var(--lc-tint), inset 0 0 0 1px var(--line);
+}
+html[dir="rtl"] .category-route li { border-radius: 14px 6px 6px 14px; }
+.category-order { background: var(--lc-tint); color: var(--lc-deep); border: 0; font-family: var(--font-mono); }
+/* Pricing: each grade's discount is a price tag with a punched hole. */
+.grade-discount-grid form {
+  position: relative; background: var(--lc-tint); border-radius: 0 14px 14px 0; padding: 14px 14px 12px 34px;
+  clip-path: polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 50%);
+}
+.grade-discount-grid form::before { content: ""; position: absolute; left: 14px; top: calc(50% - 5px); width: 10px; height: 10px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--lc); }
+html[dir="rtl"] .grade-discount-grid form { border-radius: 14px 0 0 14px; padding: 14px 34px 12px 14px; clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%); }
+html[dir="rtl"] .grade-discount-grid form::before { left: auto; right: 14px; }
+.grade-discount-grid form .field > span { color: var(--lc-deep); }
+.price-pair div { background: var(--lc-tint); }
+.grade-price-chips span { border-radius: 999px; }
+
+/* ---------- Buying › Procurement: every shopping list is a clipboard ---------- */
+.procurement-detail {
+  position: relative; border: 3px solid var(--lc); border-radius: 16px; margin-top: 16px; padding-top: 34px;
+  background: var(--surface) repeating-linear-gradient(to bottom, transparent 0 39px, var(--lc-tint) 39px 40px);
+}
+.procurement-detail::before {
+  content: ""; position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 86px; height: 26px; border-radius: 9px 9px 7px 7px;
+  background: linear-gradient(#9aa7a3, #5e6b67); box-shadow: inset 0 -3px 0 rgb(0 0 0 / .22), 0 2px 3px rgb(19 38 47 / .2);
+}
+.procurement-panel .outbox-list > li { border-top-style: dashed; }
+.procurement-panel .outbox-list > li > button::before {
+  content: ""; display: inline-block; width: 14px; height: 18px; margin-inline-end: 8px; vertical-align: -3px; border-radius: 3px;
+  border: 2px solid var(--lc); box-shadow: inset 0 3px 0 var(--lc-tint);
+}
+.procurement-lines tr.line-removed td, .procurement-lines tr.line-waived td, .procurement-lines tr.line-carried td { text-decoration-color: var(--lc); }
+.pickup-inbox { border-top: 5px solid var(--lc); }
+/* Suppliers: ledger pages with a margin line. */
+.supplier-setup .content-card, .supplier-ledger, .purchase-history {
+  background: var(--surface) linear-gradient(90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
+}
+html[dir="rtl"] :is(.supplier-setup .content-card, .supplier-ledger, .purchase-history) {
+  background: var(--surface) linear-gradient(-90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
+}
+.supplier-list > li, .purchase-history .outbox-row { border-top: 1px solid var(--lc-tint); }
+.supplier-balances > div, .sync-facts > div { border-bottom-color: var(--lc-tint); }
+.supplier-balances dd { font-family: var(--font-mono); font-weight: 600; }
+.payment-slip { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); border-radius: 12px; }
+
+/* ---------- Insights › Analytics: figures on grid paper ---------- */
+.analytics-panel .analytics-facts, .cash-currency {
+  background-color: var(--surface);
+  background-image: linear-gradient(color-mix(in srgb, var(--lc) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--lc) 9%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px; border-radius: var(--radius-record); padding: 0 16px; box-shadow: inset 0 0 0 1px var(--line);
+}
+.cash-currency { padding: 16px; }
+.cash-currency .analytics-facts, .cash-currency .sync-facts { background: none; box-shadow: none; padding: 0; }
+.analytics-facts dd, .cash-currency dd { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+.city-bar i { background: var(--lc); }
+/* Assistant: questions and answers are speech bubbles; names still open the record. */
+.copilot-question { background: var(--ink); color: #fff; border-radius: 18px 18px 4px 18px; padding: 11px 16px; }
+html[dir="rtl"] .copilot-question { border-radius: 18px 18px 18px 4px; }
+.copilot-answer {
+  border-inline-start: 0; background: var(--surface); border-radius: 18px 18px 18px 4px; padding: 14px 16px;
+  box-shadow: inset 0 0 0 2px var(--indigo), var(--lift); max-width: 92%;
+}
+html[dir="rtl"] .copilot-answer { border-radius: 18px 18px 4px 18px; }
+.chip-link { border-radius: 999px; border-color: var(--indigo); color: var(--indigo-deep); font-weight: 600; }
+.chip-link:hover { background: var(--indigo-tint); }
+.copilot .empty-state, .copilot .state-panel { border-radius: 22px 22px 22px 6px; }
+.copilot-form textarea { border-radius: 16px; }
+.assistant-drawer { border-start-start-radius: 22px; border-end-start-radius: 22px; box-shadow: -12px 0 40px rgb(19 38 47 / .18); }
+.assistant-drawer-head { background: var(--indigo-tint); border-bottom: 0; border-start-start-radius: 22px; }
+.assistant-drawer-head strong { color: var(--indigo-deep); font-family: var(--font-display); font-size: 18px; }
+
+/* ---------- Settings: a shopfront awning, an outbox tray and a sealed vault ---------- */
+.branding-panel, .sync-panel, .backup-panel { background: var(--surface); border-radius: var(--radius-record); padding: 22px; box-shadow: var(--lift); }
+.branding-form h4 { border-top: 1.5px dashed var(--line-strong); }
+.storefront-address { font-family: var(--font-mono); }
+.catalog-workspace > .content-card[aria-labelledby="storefront-settings-title"] { position: relative; padding-top: 50px; overflow: hidden; }
+.catalog-workspace > .content-card[aria-labelledby="storefront-settings-title"]::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 34px;
+  background:
+    radial-gradient(circle at 12px 0, var(--lc) 11.5px, transparent 12px) 0 22px / 48px 12px repeat-x,
+    radial-gradient(circle at 36px 0, var(--citron) 11.5px, transparent 12px) 0 22px / 48px 12px repeat-x,
+    repeating-linear-gradient(90deg, var(--lc) 0 24px, var(--citron) 24px 48px) 0 0 / 100% 22px no-repeat;
+}
+/* Offline: the outbox tray; each change stacks like an envelope. */
+.sync-panel .outbox-list, .work-sync .ledger { background: var(--lc-tint); border-radius: 0 0 16px 16px; padding: 4px 14px 10px; border: 3px solid var(--lc); border-top: 0; }
+.sync-panel .outbox-row, .work-sync .ledger li { border-top: 1.5px dashed color-mix(in srgb, var(--lc) 35%, transparent); }
+.sync-panel .outbox-row::before, .work-sync .ledger li::before {
+  content: ""; flex: none; width: 26px; height: 18px; border-radius: 3px; border: 2px solid var(--lc);
+  background:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--lc) 50%, transparent calc(50% + 1px)) left top / 50% 70% no-repeat,
+    linear-gradient(to bottom left, transparent calc(50% - 1px), var(--lc) 50%, transparent calc(50% + 1px)) right top / 50% 70% no-repeat, var(--surface);
+}
+.sync-panel > header::before {
+  content: ""; display: block; width: 46px; height: 34px; margin-bottom: 12px; border-radius: 0 0 12px 12px;
+  background: linear-gradient(var(--lc-tint), var(--lc-tint)) bottom / 100% 45% no-repeat; box-shadow: inset 0 0 0 3px var(--lc);
+}
+/* Backup: a sealed vault with a double border and a dial. */
+.backup-panel { box-shadow: inset 0 0 0 3px var(--lc), inset 0 0 0 7px var(--surface), inset 0 0 0 9px var(--lc), var(--lift); padding: 28px; }
+.backup-panel > header::before {
+  content: ""; display: block; width: 46px; height: 46px; margin-bottom: 12px; border-radius: 50%;
+  background: radial-gradient(circle, var(--lc) 18%, var(--lc-tint) 19% 55%, var(--lc) 56% 61%, transparent 62%), repeating-conic-gradient(var(--lc) 0 4deg, transparent 4deg 30deg);
+  box-shadow: inset 0 0 0 3px var(--lc);
+}
+
+/* ======================================================================================================
+   Platform desk (admin)
+   ====================================================================================================== */
+/* Figures read like a departures board: dark tiles, Citron numbers. */
+.dashboard-metrics article { background: var(--ink); border-color: var(--ink); color: #dbe5e1; box-shadow: var(--lift); }
+.dashboard-metrics article > span { color: #b9c7c3; }
+.dashboard-metrics strong {
+  color: var(--citron); font-size: 44px; font-weight: 700;
+  background: repeating-linear-gradient(to bottom, transparent 0 21px, rgb(0 0 0 / .35) 21px 23px); -webkit-background-clip: text; background-clip: text;
+}
+.dashboard-metrics a { color: var(--citron); }
+.dashboard-metrics .metric-attention { background: var(--ink); border-color: var(--warn-line); box-shadow: inset 0 0 0 3px #e6b54c; }
+.route-brief-marker { border-radius: 50%; }
+/* Applications arrive as envelopes; their status is a postmark. */
+.application-row {
+  position: relative; background-color: var(--surface);
+  background-image: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--line) 50%, transparent calc(50% + 1px)), linear-gradient(to bottom left, transparent calc(50% - 1px), var(--line) 50%, transparent calc(50% + 1px));
+  background-size: 50% 46px; background-repeat: no-repeat; background-position: left top, right top; padding-top: 30px;
+}
+.application-row .status-badge, .pending-applications .status-badge {
+  border-radius: 999px; background: var(--surface); border: 2px dashed currentColor; transform: rotate(-4deg); padding: 3px 12px; letter-spacing: .04em; text-transform: uppercase; font-size: 11px;
+}
+/* Businesses are shopfronts under a striped awning. */
+.tenant-card { position: relative; overflow: hidden; padding-top: 42px; }
+.tenant-card::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 30px;
+  background:
+    radial-gradient(circle at 10px 0, #44535c 9.5px, transparent 10px) 0 20px / 40px 10px repeat-x,
+    radial-gradient(circle at 30px 0, var(--citron) 9.5px, transparent 10px) 0 20px / 40px 10px repeat-x,
+    repeating-linear-gradient(90deg, #44535c 0 20px, var(--citron) 20px 40px) 0 0 / 100% 20px no-repeat;
+}
+.tenant-monogram { border-radius: 50%; background: var(--ink); color: var(--citron); }
+
+/* ======================================================================================================
+   Public pages
+   ====================================================================================================== */
+.site-nav-link.active, .site-nav-link:hover { color: var(--ink); text-decoration: underline; text-decoration-color: var(--citron); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+/* Landing: the day drawn as a transit map in the eight line colours. */
+.hero-copy h1 span { color: var(--blue); }
+.hero-art::before {
+  background:
+    linear-gradient(118deg, transparent 0 30%, #c4501c 30% calc(30% + 7px), transparent calc(30% + 7px)),
+    linear-gradient(64deg, transparent 0 58%, #0b7a6e 58% calc(58% + 7px), transparent calc(58% + 7px)),
+    linear-gradient(160deg, transparent 0 72%, #a8326e 72% calc(72% + 7px), transparent calc(72% + 7px)),
+    linear-gradient(20deg, transparent 0 18%, #557a1f 18% calc(18% + 7px), transparent calc(18% + 7px)),
+    var(--citron);
+  opacity: .9;
+}
+.art-sun { color: var(--ink); }
+.day-board { border: 0; border-radius: 20px; box-shadow: 0 18px 40px -18px rgb(19 38 47 / .35); }
+.board-date { background: var(--citron); color: var(--ink); border-radius: 50%; }
+.route-row:not(:last-child)::before { width: 4px; inset-inline-start: 22px; border-radius: 4px; background: linear-gradient(var(--from, #c4501c), var(--to, #2455d6)); }
+.route-icon { border-radius: 50%; border-width: 3px; }
+.board-route > .route-row:nth-child(1) .route-icon { border-color: #c4501c; color: #8a3510; background: #fdebdd; }
+.board-route > .route-row:nth-child(1) { --from: #c4501c; --to: #0b7a6e; }
+.board-route > .route-row:nth-child(2) .route-icon { border-color: #0b7a6e; color: #075a51; background: #ddf3ef; }
+.board-route > .route-row:nth-child(2) { --from: #0b7a6e; --to: #2455d6; }
+.route-icon.blue { background: var(--blue); border-color: var(--blue); color: #fff; }
+.board-action { background: var(--citron); }
+.board-action:hover { background: var(--citron-deep); }
+.board-action .icon { color: var(--ink); }
+.feature-icon { border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 3px currentColor; }
+.feature-grid article:nth-child(1) .feature-icon { color: #0b7a6e; }
+.feature-grid article:nth-child(2) .feature-icon { color: #2455d6; }
+.feature-grid article:nth-child(3) .feature-icon { color: #a8326e; }
+.closing { background: var(--ink); color: #eef3f1; }
+.closing .eyebrow { color: var(--citron); }
+.closing p:not(.eyebrow) { color: #c3d0cc; }
+.closing .button { background: var(--citron); color: var(--ink); border-color: var(--citron); }
+.closing .button:hover:not(:disabled) { background: var(--citron-deep); border-color: var(--citron-deep); }
+/* Statistics: a departures board. */
+.metric-card { background: var(--ink); border-color: var(--ink); color: #dbe5e1; }
+.metric-card > span, .metric-card > small { color: #b9c7c3; }
+.metric-card > strong { color: var(--citron); font-weight: 700; }
+.city-card { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.city-card header span { color: var(--muted); }
+.city-bar { background: var(--paper); height: 8px; }
+.city-bar i { background: var(--blue); }
+.city-card li:nth-child(2) .city-bar i { background: #0b7a6e; }
+.city-card li:nth-child(3) .city-bar i { background: #c4501c; }
+.city-card li:nth-child(4) .city-bar i { background: #a8326e; }
+.city-card li:nth-child(5) .city-bar i { background: #557a1f; }
+/* Sign in, register, password: the form is a boarding ticket with a Citron stub; the story is the night map. */
+.signin-panel {
+  position: relative; background: var(--surface); border-radius: 22px; padding: 34px 36px; padding-inline-end: 64px;
+  box-shadow: 0 18px 40px -22px rgb(19 38 47 / .4);
+  background-image: linear-gradient(var(--citron), var(--citron)); background-repeat: no-repeat; background-size: 26px 100%; background-position: right top;
+}
+html[dir="rtl"] .signin-panel { background-position: left top; }
+.signin-panel::after {
+  content: ""; position: absolute; inset-block: 14px; inset-inline-end: 26px; border-inline-end: 3px dashed var(--ink); opacity: .45;
+}
+.signin-panel.wide { max-width: 600px; }
+.welcome-icon { border-radius: 50%; background: var(--citron); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.signin-story { background: var(--ink); }
+.signin-story .eyebrow { color: var(--citron); }
+.signin-story > p:not(.eyebrow), .story-foot { color: #c3d0cc; }
+.story-foot { border-top-color: #35505b; }
+.mural-path { stroke: var(--citron); opacity: .7; }
+.mural-icon { background: var(--ink); border-radius: 50%; }
+.m0 { color: #ddeb6a; } .m1 { color: #f08a5d; } .m2 { color: #e27fb0; } .m3 { color: #8fb0ff; } .m4 { color: #5fd0c1; }
+.customer-note .icon { color: var(--ink); }
+.not-found h1 { font-size: clamp(40px, 6vw, 72px); }
+
+/* ---------- Loading, empty, error, messages ---------- */
+.skeleton { background: linear-gradient(90deg, #e3e9e6, #f3f6f4, #e3e9e6); background-size: 200% 100%; border-radius: 999px; }
+.loading-state { border-style: dashed; border-color: var(--line-strong); box-shadow: none; }
+.empty-state { border: 2px dashed var(--line-strong); box-shadow: none; background: var(--surface); }
+.empty-state > .icon { box-sizing: border-box; width: 64px; height: 64px; padding: 14px; border-radius: 50%; background: var(--lc-tint); color: var(--lc-deep); border: 3px dashed var(--lc-edge); }
+.notice-error { padding-bottom: 18px; -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 7px) no-repeat, conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) bottom / 14px 7px repeat-x; mask: linear-gradient(#000 0 0) top / 100% calc(100% - 7px) no-repeat, conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) bottom / 14px 7px repeat-x; }
+/* A new-order or collection notice arrives as a printed receipt slip. */
+.toast {
+  border: 0; border-top: 5px solid var(--citron); border-radius: 4px 4px 0 0; padding-bottom: 22px; box-shadow: none;
+  filter: drop-shadow(0 10px 18px rgb(19 38 47 / .22));
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+}
+.toast > .icon { box-sizing: border-box; width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: var(--citron); color: var(--ink); }
+.toast a { color: var(--ink); text-decoration-color: var(--citron); text-decoration-thickness: 3px; }
+
 /* ---------- Motion (motivated only; all of it is removed under reduced motion by styles.css) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  /* The assistant slides in from where its button is; a notice slides up like a printed slip. */
+  .assistant-drawer { animation: map-drawer .22s ease-out; }
+  .toast { animation: map-slip .3s ease-out; }
+  /* The route draws itself once, in stop order. */
+  .my-work-list::before { transform-origin: top; animation: map-draw .6s ease-out; }
+  /* A confirmed invoice is stamped. */
+  .document-head .doc-stamp { animation: map-stamp .26s ease-out; }
+  /* The current station settles into place. */
+  .rail-nav > .nav-item.active > .icon { animation: map-station .18s ease-out; }
+}
+@keyframes map-drawer { from { transform: translateX(24px); opacity: 0; } }
+@keyframes map-slip { from { transform: translateY(18px); opacity: 0; } }
+@keyframes map-draw { from { transform: scaleY(0); } }
+@keyframes map-stamp { from { transform: rotate(-9deg) scale(1.35); opacity: 0; } }
+@keyframes map-station { from { transform: scale(.8); } }
+
 @media print {
   .station-sign { background: none; padding: 0; }
   .station-tile, .topline::after { display: none !important; }
