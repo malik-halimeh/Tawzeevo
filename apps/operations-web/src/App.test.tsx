@@ -815,7 +815,7 @@ describe("tenant customer and category workspace", () => {
     fireEvent.click(within(scanDesk).getByRole("button", { name: "Scan barcode" }));
     expect(await screen.findByText(/Barcode not found in the master catalog/)).toBeInTheDocument();
     const productForm = screen.getByRole("heading", { name: "Product details" }).closest("div")!;
-    expect(within(productForm).getByLabelText("Barcode")).toHaveValue("LOCAL-1");
+    expect(within(productForm).getByLabelText("Barcode (optional)")).toHaveValue("LOCAL-1");
     fireEvent.change(within(productForm).getByLabelText("Product name"), { target: { value: "Local Chips" } });
     fireEvent.change(within(productForm).getByLabelText("Category"), { target: { value: category.id } });
     fireEvent.change(within(productForm).getByLabelText("Tenant price"), { target: { value: "0.75" } });

@@ -246,7 +246,8 @@ class TenantProductCreateRequest(BaseModel):
     master_product_id: UUID | None = None
     name: str = Field(max_length=200)
     name_ar: str | None = Field(default=None, max_length=200)
-    barcode: str = Field(max_length=64)
+    # Optional (D-112): a product without a barcode is found by name; one can be added later.
+    barcode: str | None = Field(default=None, max_length=64)
     barcode_package_level: BarcodePackageLevel = BarcodePackageLevel.PIECE
     is_published: bool = False
     unit_price: Decimal = Field(ge=0, max_digits=20, decimal_places=4)
@@ -262,7 +263,9 @@ class TenantProductCreateRequest(BaseModel):
 
     @field_validator("barcode", mode="before")
     @classmethod
-    def validate_barcode(cls, value: object) -> str:
+    def validate_barcode(cls, value: object) -> str | None:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
         return normalize_barcode(value)
 
     @field_validator("currency", mode="before")
@@ -412,7 +415,7 @@ class TenantProductResponse(BaseModel):
     master_product_id: UUID | None
     name: str
     name_ar: str | None = None
-    barcode: str
+    barcode: str | None
     barcodes: list[BarcodeResponse]
     images: list[ProductImageResponse]
     grade_prices: list[ProductGradePriceResponse]

@@ -346,11 +346,10 @@ def product_response(
             str(item.id),
         )
     )
-    if not barcode_responses:
-        raise RuntimeError("Tenant product is missing a barcode")
+    # A product may have no barcode (D-112).
     primary_barcode = next(
         (barcode.barcode for barcode in barcode_responses if barcode.barcode == preferred_barcode),
-        barcode_responses[0].barcode,
+        barcode_responses[0].barcode if barcode_responses else None,
     )
     return TenantProductResponse(
         id=product.id,
@@ -409,8 +408,10 @@ def build_product(
     )
     if request.master_product_id is not None and master_product is None:
         raise AppError(404, "MASTER_PRODUCT_NOT_FOUND", "Master product was not found")
-    master_barcode = db.scalar(
-        select(MasterBarcode).where(MasterBarcode.barcode == request.barcode)
+    master_barcode = (
+        db.scalar(select(MasterBarcode).where(MasterBarcode.barcode == request.barcode))
+        if request.barcode is not None
+        else None
     )
     if master_barcode is not None and request.master_product_id is None:
         raise AppError(
@@ -424,11 +425,15 @@ def build_product(
             "BARCODE_MASTER_PRODUCT_MISMATCH",
             "Barcode belongs to a different master product",
         )
-    existing_barcode = db.scalar(
-        select(TenantBarcode.id).where(
-            TenantBarcode.tenant_id == tenant_id,
-            TenantBarcode.barcode == request.barcode,
+    existing_barcode = (
+        db.scalar(
+            select(TenantBarcode.id).where(
+                TenantBarcode.tenant_id == tenant_id,
+                TenantBarcode.barcode == request.barcode,
+            )
         )
+        if request.barcode is not None
+        else None
     )
     if existing_barcode is not None:
         raise AppError(409, "BARCODE_ALREADY_EXISTS", "Barcode already exists in this tenant")
@@ -461,7 +466,7 @@ def build_product(
         product.id = product_id
     db.add(product)
     db.flush()
-    if master_barcode is None:
+    if master_barcode is None and request.barcode is not None:
         db.add(
             TenantBarcode(
                 tenant_id=tenant_id,
@@ -729,7 +734,7 @@ def create_draft_invoice(
         )
     currency = currencies.pop()
     prepared_items: list[
-        tuple[TenantProduct, DraftInvoiceItemCreateRequest, Decimal, str, dict[str, object]]
+        tuple[TenantProduct, DraftInvoiceItemCreateRequest, Decimal, str | None, dict[str, object]]
     ] = []
     subtotal = Decimal("0.0000")
     for requested_item in request.items:

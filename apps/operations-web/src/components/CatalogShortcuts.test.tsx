@@ -82,7 +82,7 @@ test("a new product starts in the category and currency used last, and a missing
   expect(posts[0]).toEqual({ path: `/api/v1/tenants/${tenantId}/categories`, body: { name_en: "Frozen food", name_ar: "أطعمة مجمدة", slug: "Frozen food", display_order: 10 } });
 
   fireEvent.change(within(form).getByLabelText("Product name"), { target: { value: "Frozen peas" } });
-  fireEvent.change(within(form).getByLabelText("Barcode"), { target: { value: "5280009" } });
+  fireEvent.change(within(form).getByLabelText("Barcode (optional)"), { target: { value: "5280009" } });
   fireEvent.change(within(form).getByLabelText("Tenant price"), { target: { value: "3" } });
   fireEvent.click(within(form).getByRole("button", { name: "Save tenant product" }));
   await waitFor(() => expect(posts[1]?.body).toMatchObject({ category_id: "c-new", currency: "LBP", name: "Frozen peas" }));

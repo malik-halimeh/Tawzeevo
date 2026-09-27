@@ -203,7 +203,7 @@ class InvoiceHistoryResponse(BaseModel):
 class CatalogMatchResponse(BaseModel):
     product_id: UUID
     name: str
-    barcode: str
+    barcode: str | None
     package_level: ProductPriceBasis
     currency: str
     price_basis: ProductPriceBasis

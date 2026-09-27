@@ -1073,7 +1073,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const saveProduct = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
-      const body = { ...productDraft, name_ar: productDraft.name_ar.trim() || null, pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null };
+      // No barcode is sent as null: the product is found by name until one is added (D-112).
+      const body = { ...productDraft, barcode: productDraft.barcode.trim() || null, name_ar: productDraft.name_ar.trim() || null, pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null };
       try {
         await apiRequest<TenantProduct>(`/api/v1/tenants/${context.tenant_id}/products`, {
           method: "POST",
@@ -1244,7 +1245,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                           </div>
                         ) : null}
                       </div>
-                      <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={productDraft.barcode} onChange={(event) => setProductDraft({ ...productDraft, barcode: event.target.value })} /></label>
+                      <label className="field"><span>{t("tenantWorkspace.barcodeOptional")}</span><input dir="ltr" value={productDraft.barcode} onChange={(event) => setProductDraft({ ...productDraft, barcode: event.target.value })} /></label>
                       <label className="field"><span>{t("tenantWorkspace.tenantPrice")}</span><input dir="ltr" min="0" required step="0.0001" type="number" value={productDraft.unit_price} onChange={(event) => setProductDraft({ ...productDraft, unit_price: event.target.value })} /></label>
                       <details className="more-options field-wide">
                         <summary>{t("tenantWorkspace.moreOptions")}</summary>

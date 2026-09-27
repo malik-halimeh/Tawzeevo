@@ -209,13 +209,18 @@ def _primary_match(
     response = product_response(db, product, preferred_barcode=preferred_barcode)
     primary_barcode = next(
         (item for item in response.barcodes if item.barcode == response.barcode),
-        response.barcodes[0],
+        response.barcodes[0] if response.barcodes else None,
     )
     return CatalogMatchResponse(
         product_id=product.id,
         name=product.name,
         barcode=response.barcode,
-        package_level=ProductPriceBasis(primary_barcode.package_level.value),
+        # A product without a barcode (D-112) is added at its own price basis.
+        package_level=(
+            ProductPriceBasis(primary_barcode.package_level.value)
+            if primary_barcode is not None
+            else product.price_basis
+        ),
         currency=product.currency,
         price_basis=product.price_basis,
         unit_price=money(product.unit_price),
@@ -590,11 +595,14 @@ def _validate_barcode_basis(
     product: TenantProduct,
     barcode: str | None,
     basis: ProductPriceBasis,
-) -> str:
+) -> str | None:
     response = product_response(db, product, preferred_barcode=barcode)
     selected = next((item for item in response.barcodes if item.barcode == barcode), None)
     if barcode is not None and selected is None:
         raise AppError(400, "BARCODE_PRODUCT_MISMATCH", "Barcode does not belong to product")
+    if not response.barcodes:
+        # A product without any barcode (D-112) is invoiced by its product id alone.
+        return None
     selected = selected or next(
         (item for item in response.barcodes if item.package_level.value == basis.value),
         None,

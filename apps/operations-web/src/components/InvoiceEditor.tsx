@@ -99,7 +99,7 @@ function productLine(
     key: lineKey(),
     productId: match.product_id,
     name: match.name,
-    barcode: match.barcode,
+    barcode: match.barcode ?? undefined,
     quantity,
     basis: match.package_level,
     lineDiscount: "0",
