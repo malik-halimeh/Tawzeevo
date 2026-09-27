@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.models import Customer, Invoice, InvoiceRevision
+from tawzeevo_api.repositories.tenancy import released_for_outside_call
 from tawzeevo_api.services.customer_ledger import customer_debts
 from tawzeevo_api.services.intelligence import responses
 from tawzeevo_api.services.intelligence.copilot.privacy import CustomerDirectory
@@ -426,7 +427,8 @@ def _explain(
             ),
         },
     ]
-    reply = call_provider(provider, messages, [])
+    with released_for_outside_call(db):
+        reply = call_provider(provider, messages, [])
     raw_answer = (reply.content or "").strip()
     if reply.tool_calls or not raw_answer:  # no tools were offered; an empty answer is useless
         raise AppError(

@@ -107,27 +107,45 @@ def notify_users(user_ids: Iterable[UUID], title: str, body: str, url: str) -> i
     if not ids:
         return 0
     payload = json.dumps({"title": title, "body": body, "url": url})
+    # Read the subscriptions, then give the database connection back before talking to the push
+    # services (up to 5 s each): a pooled connection is never held while waiting on the network.
+    with SESSION_FACTORY() as db:
+        db.execute(text("SELECT set_config('app.push_delivery', 'true', true)"))
+        targets = [
+            (row.id, {"endpoint": row.endpoint, "keys": {"p256dh": row.p256dh, "auth": row.auth}})
+            for row in db.scalars(select(PushSubscription).where(PushSubscription.user_id.in_(ids)))
+        ]
+    # None = delivered; otherwise the push service's failure status (0 when unknown).
+    outcomes: dict[UUID, int | None] = {}
+    for subscription_id, info in targets:
+        try:
+            _send(info, payload)
+        except Exception as exc:  # noqa: BLE001 - every failure is handled below
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            outcomes[subscription_id] = status if isinstance(status, int) else 0
+            if status in (404, 410):
+                logger.info("push subscription gone (status=%s); removed", status)
+            else:
+                logger.warning("push send failed (status=%s): %s", status, type(exc).__name__)
+            continue
+        outcomes[subscription_id] = None
+    if not outcomes:
+        return 0
     delivered = 0
     with SESSION_FACTORY() as db:
         db.execute(text("SELECT set_config('app.push_delivery', 'true', true)"))
-        rows = list(db.scalars(select(PushSubscription).where(PushSubscription.user_id.in_(ids))))
+        rows = db.scalars(select(PushSubscription).where(PushSubscription.id.in_(list(outcomes))))
         for row in rows:
-            info = {"endpoint": row.endpoint, "keys": {"p256dh": row.p256dh, "auth": row.auth}}
-            try:
-                _send(info, payload)
-            except Exception as exc:  # noqa: BLE001 - every failure is handled below
-                status = getattr(getattr(exc, "response", None), "status_code", None)
-                if status in (404, 410):
-                    db.delete(row)
-                    logger.info("push subscription gone (status=%s); removed", status)
-                else:
-                    row.failure_count += 1
-                    row.last_failure_at = datetime.now(UTC)
-                    logger.warning("push send failed (status=%s): %s", status, type(exc).__name__)
-                continue
-            row.last_success_at = datetime.now(UTC)
-            row.failure_count = 0
-            delivered += 1
+            status = outcomes[row.id]
+            if status in (404, 410):
+                db.delete(row)
+            elif status is not None:
+                row.failure_count += 1
+                row.last_failure_at = datetime.now(UTC)
+            else:
+                row.last_success_at = datetime.now(UTC)
+                row.failure_count = 0
+                delivered += 1
         db.commit()
     return delivered
 

@@ -33,7 +33,9 @@ def _keys(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "openrouteservice_api_key", None)
     monkeypatch.setattr(settings, "google_maps_api_key", None)
+    routing.clear_path_cache()
     yield
+    routing.clear_path_cache()
 
 
 def _ors_down(url, json=None, headers=None, timeout=None):
@@ -178,6 +180,39 @@ def test_route_path_uses_road_geometry_and_sends_coordinates_only(monkeypatch):
     assert sent["url"] == routing.ORS_DIRECTIONS_URL
     assert sent["json"]["coordinates"] == [[lng, lat] for lat, lng in PATH_POINTS]
     assert set(sent["json"]) == {"coordinates", "geometry_simplify", "instructions"}
+
+
+def test_route_path_keeps_a_provider_line_for_the_same_stops(monkeypatch):
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", "test-key")
+    calls: list[int] = []
+
+    def directions(url, json=None, headers=None, timeout=None):
+        calls.append(1)
+        line = [[35.4823, 33.8966], [35.6, 33.8058]]
+        return httpx.Response(200, json={"features": [{"geometry": {"coordinates": line}}]})
+
+    monkeypatch.setattr(routing.httpx, "post", directions)
+    first = routing.route_path(PATH_POINTS)
+    again = routing.route_path(PATH_POINTS)
+    assert first == again and first[1] == ORS_METHOD
+    assert len(calls) == 1  # the second page view reuses the answer
+    routing.route_path(list(reversed(PATH_POINTS)))  # another order is another line
+    assert len(calls) == 2
+
+
+def test_route_path_does_not_keep_a_straight_line_fallback(monkeypatch):
+    monkeypatch.setattr(get_settings(), "openrouteservice_api_key", "test-key")
+    answers = [httpx.ReadTimeout("slow")]
+
+    def flaky(url, json=None, headers=None, timeout=None):
+        if answers:
+            raise answers.pop()
+        line = [[35.4823, 33.8966], [35.6, 33.8058]]
+        return httpx.Response(200, json={"features": [{"geometry": {"coordinates": line}}]})
+
+    monkeypatch.setattr(routing.httpx, "post", flaky)
+    assert routing.route_path(PATH_POINTS)[1] == routing.STRAIGHT_METHOD
+    assert routing.route_path(PATH_POINTS)[1] == ORS_METHOD  # the provider is asked again
 
 
 @pytest.mark.parametrize("failure", ["down", "status", "garbage"])

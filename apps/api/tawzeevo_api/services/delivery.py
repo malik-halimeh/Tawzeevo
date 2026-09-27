@@ -39,7 +39,11 @@ from tawzeevo_api.models import (
     TenantSupplier,
     User,
 )
-from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
+from tawzeevo_api.repositories.tenancy import (
+    commit_and_restore_tenant_scope,
+    released_for_outside_call,
+    set_tenant_scope,
+)
 from tawzeevo_api.schemas.collection_reports import CollectionClaim
 from tawzeevo_api.schemas.delivery import (
     AssigneeView,
@@ -746,7 +750,8 @@ def suggest_stop_order(
         origin = (located[0].latitude, located[0].longitude)
     else:
         origin = (0.0, 0.0)
-    ordered, method, note = suggest_order(origin, located, allow_online=request.allow_online)
+    with released_for_outside_call(db):
+        ordered, method, note = suggest_order(origin, located, allow_online=request.allow_online)
     by_task = {task.id: task for task in tasks}
     stops: list[SuggestedStop] = []
     for index, stop in enumerate(ordered, start=1):
@@ -794,7 +799,8 @@ def stop_route_path(
         if customer is None or customer.latitude is None or customer.longitude is None:
             continue
         points.append((float(customer.latitude), float(customer.longitude)))
-    path, method = route_path(points)
+    with released_for_outside_call(db):
+        path, method = route_path(points)
     return RoutePathResponse(method=method, points=path)
 
 
@@ -808,10 +814,11 @@ def stop_directions(
     customer = db.get(Customer, task.customer_id)
     if customer is None or customer.latitude is None or customer.longitude is None:
         raise AppError(409, "CUSTOMER_LOCATION_MISSING", "This customer has no saved location")
-    found, method = directions(
-        (float(request.origin.latitude), float(request.origin.longitude)),
-        (float(customer.latitude), float(customer.longitude)),
-    )
+    destination = (float(customer.latitude), float(customer.longitude))
+    with released_for_outside_call(db):
+        found, method = directions(
+            (float(request.origin.latitude), float(request.origin.longitude)), destination
+        )
     return DirectionsResponse(
         method=method,
         distance_m=found.distance_m,

@@ -16,8 +16,10 @@ request, to one stop — and returns the turn list as neutral codes the app word
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 from decimal import Decimal
+from threading import Lock
 from uuid import UUID
 
 import httpx
@@ -308,19 +310,51 @@ def directions(
     return straight, STRAIGHT_METHOD
 
 
+# The same stops in the same order draw the same road line: every page showing the route map asks
+# for it, so a provider answer is kept for a while in this process (coordinates only, no names).
+PATH_CACHE_SECONDS = 15 * 60
+PATH_CACHE_MAX = 256
+_path_cache: dict[tuple[tuple[float, float], ...], tuple[float, list[tuple[float, float]]]] = {}
+_path_cache_lock = Lock()
+
+
+def _cached_path(key: tuple[tuple[float, float], ...]) -> list[tuple[float, float]] | None:
+    with _path_cache_lock:
+        entry = _path_cache.get(key)
+        if entry is None or time.monotonic() - entry[0] > PATH_CACHE_SECONDS:
+            _path_cache.pop(key, None)
+            return None
+        return list(entry[1])
+
+
+def _remember_path(key: tuple[tuple[float, float], ...], path: list[tuple[float, float]]) -> None:
+    with _path_cache_lock:
+        if len(_path_cache) >= PATH_CACHE_MAX:
+            _path_cache.pop(next(iter(_path_cache)))
+        _path_cache[key] = (time.monotonic(), list(path))
+
+
+def clear_path_cache() -> None:
+    with _path_cache_lock:
+        _path_cache.clear()
+
+
 def route_path(points: list[tuple[float, float]]) -> tuple[list[tuple[float, float]], str]:
     """The line the map draws through the stops, and how it was made. A provider failure never
     fails the call: the answer falls back to straight lines between the stops."""
     settings = get_settings()
     api_key = settings.openrouteservice_api_key
     if api_key and 2 <= len(points) <= ORS_DIRECTIONS_MAX_POINTS:
+        key = tuple((round(lat, 6), round(lng, 6)) for lat, lng in points)
+        cached = _cached_path(key)
+        if cached is not None:
+            return cached, ORS_METHOD
         try:
-            return (
-                openrouteservice_path(points, api_key, settings.routing_timeout_seconds),
-                ORS_METHOD,
-            )
+            path = openrouteservice_path(points, api_key, settings.routing_timeout_seconds)
         except RoutingProviderError:
-            pass
+            return list(points), STRAIGHT_METHOD
+        _remember_path(key, path)
+        return path, ORS_METHOD
     return list(points), STRAIGHT_METHOD
 
 

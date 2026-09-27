@@ -23,6 +23,7 @@ from tawzeevo_api import metrics
 from tawzeevo_api.config import get_settings
 from tawzeevo_api.errors import AppError
 from tawzeevo_api.public_invoice_security import PublicInvoiceRateLimiter
+from tawzeevo_api.repositories.tenancy import released_for_outside_call
 from tawzeevo_api.services.intelligence.copilot.privacy import REF_PATTERN, CustomerDirectory
 from tawzeevo_api.services.intelligence.copilot.provider import (
     ChatProvider,
@@ -225,7 +226,8 @@ def ask(
     grounding: list[dict[str, Any]] = []
     sources: list[str] = [question]
     for _round in range(get_settings().copilot_max_tool_rounds):
-        reply = call_provider(provider, messages, tools)
+        with released_for_outside_call(db, tenant_id):  # tools read again after the reply
+            reply = call_provider(provider, messages, tools)
         if not reply.tool_calls:
             raw_answer = (reply.content or "").strip()
             answer, references, unverified = resolve_answer(directory, raw_answer, sources)
