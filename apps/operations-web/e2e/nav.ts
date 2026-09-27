@@ -13,6 +13,8 @@ const SECTIONS: Record<string, { group: string | RegExp; tab?: string | RegExp }
   Invoices: { group: /^Sales/, tab: "Invoices" },
   Products: { group: "Catalog", tab: "Products" },
   Categories: { group: "Catalog", tab: "Categories" },
+  Pricing: { group: "Catalog", tab: "Pricing" },
+  Storefront: { group: "Settings", tab: "Storefront" },
   Procurement: { group: "Buying", tab: "Procurement" },
   "Suppliers & costs": { group: "Buying", tab: "Suppliers & costs" },
   Analytics: { group: "Insights", tab: "Analytics" },

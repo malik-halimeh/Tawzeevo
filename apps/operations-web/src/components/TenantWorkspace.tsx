@@ -43,6 +43,7 @@ import { OwnerTodayStrip } from "./OwnerTodayStrip";
 import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
+import { readLastChoice, rememberChoice } from "./lastChoice";
 import { SyncPanel } from "./SyncPanel";
 import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
 import { useOptionalUser } from "../auth/AuthContext";
@@ -115,7 +116,7 @@ const emptyCategory: CategoryDraft = {
   name_en: "",
   name_ar: "",
   slug: "",
-  display_order: "0",
+  display_order: "",
 };
 
 interface ProductDraft {
@@ -145,6 +146,11 @@ const emptyProduct: ProductDraft = {
   pieces_per_box: "",
   is_published: false,
 };
+
+/** A new product starts in the category and currency used last on this device. */
+function freshProduct(tenantId: string): ProductDraft {
+  return { ...emptyProduct, category_id: readLastChoice("category", tenantId) ?? "", currency: readLastChoice("currency", tenantId) ?? emptyProduct.currency };
+}
 
 function optional(value: string): string | null {
   const normalized = value.trim();
@@ -823,6 +829,11 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProduct);
   const [barcodeProductId, setBarcodeProductId] = useState<string>();
   const [editingProductId, setEditingProductId] = useState<string>();
+  // Products: the list comes first (search and category filter over the loaded list); adding opens on demand.
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [productQuery, setProductQuery] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [quickCategory, setQuickCategory] = useState<{ open: boolean; name_en: string; name_ar: string }>({ open: false, name_en: "", name_ar: "" });
   const [extraBarcode, setExtraBarcode] = useState("");
   const [extraPackage, setExtraPackage] = useState<BarcodePackageLevel>("PIECE");
   const [requestError, setRequestError] = useState<unknown>();
@@ -838,7 +849,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     setEditingCategoryId(undefined);
     setCustomerDraft(emptyCustomer);
     setCategoryDraft(emptyCategory);
-    setProductDraft(emptyProduct);
+    setProductDraft(freshProduct(context.tenant_id));
     setScanBarcode("");
     setScanResult(undefined);
     setBarcodeProductId(undefined);
@@ -869,8 +880,20 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const products = useQuery({
     queryKey: ["tenant-products", context.tenant_id],
     queryFn: () => apiRequest<TenantProductListResponse>(`/api/v1/tenants/${context.tenant_id}/products`),
-    enabled: context.role === "owner" && context.tenant_status === "ACTIVE" && view === "products",
+    enabled: context.role === "owner" && context.tenant_status === "ACTIVE" && (view === "products" || view === "storefront"),
   });
+  const activeCategories = categories.data?.categories.filter((item) => item.is_active) ?? [];
+  // A new category is placed after the others unless the owner gives an order.
+  const nextCategoryOrder = Math.max(0, ...(categories.data?.categories.map((item) => item.display_order) ?? [])) + 1;
+  // A remembered category that is no longer active is not offered.
+  useEffect(() => {
+    if (!categories.data || !productDraft.category_id) return;
+    if (!categories.data.categories.some((item) => item.is_active && item.id === productDraft.category_id)) setProductDraft((draft) => ({ ...draft, category_id: "" }));
+  }, [categories.data, productDraft.category_id]);
+  const productNeedle = productQuery.trim().toLowerCase();
+  const shownProducts = (products.data?.products ?? []).filter((product) =>
+    (!productCategory || product.category_id === productCategory)
+    && (!productNeedle || product.name.toLowerCase().includes(productNeedle) || (product.name_ar ?? "").toLowerCase().includes(productNeedle) || product.barcodes.some((barcode) => barcode.barcode.toLowerCase().includes(productNeedle))));
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -956,8 +979,9 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       const payload = {
         name_en: categoryDraft.name_en,
         name_ar: categoryDraft.name_ar,
-        slug: categoryDraft.slug,
-        display_order: Number(categoryDraft.display_order),
+        // Left empty, the web address comes from the English name (the server normalises it the same way).
+        slug: categoryDraft.slug.trim() || categoryDraft.name_en,
+        display_order: categoryDraft.display_order === "" ? nextCategoryOrder : Number(categoryDraft.display_order),
       };
       const path = editingCategoryId
         ? `/api/v1/tenants/${context.tenant_id}/categories/${editingCategoryId}`
@@ -1020,6 +1044,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           setProductDraft((current) => ({
             ...emptyProduct,
             category_id: current.category_id,
+            currency: current.currency,
             barcode: scanBarcode.trim(),
           }));
           setNotice(t("tenantWorkspace.unknownBarcode"));
@@ -1042,17 +1067,36 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       } catch (problem) {
         if (!isOfflineFailure(problem)) throw problem;
         await createProductOffline(context.tenant_id, context.membership_id, body);
-        setProductDraft(emptyProduct);
+        rememberChoice("category", context.tenant_id, body.category_id);
+        rememberChoice("currency", context.tenant_id, body.currency);
+        setProductDraft(freshProduct(context.tenant_id));
         setScanBarcode("");
         setScanResult(undefined);
         setNotice(t("tenantWorkspace.productQueuedOffline"));
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ["tenant-products", context.tenant_id] });
-      setProductDraft(emptyProduct);
+      rememberChoice("category", context.tenant_id, body.category_id);
+      rememberChoice("currency", context.tenant_id, body.currency);
+      setProductDraft(freshProduct(context.tenant_id));
       setScanBarcode("");
       setScanResult(undefined);
       setNotice(t("tenantWorkspace.productCreated"));
+    });
+  };
+
+  // A category created from the product form: same create call, name as its web address, placed last.
+  const createQuickCategory = () => {
+    if (!quickCategory.name_en.trim() || !quickCategory.name_ar.trim()) return;
+    void run(async () => {
+      const created = await apiRequest<Category>(`/api/v1/tenants/${context.tenant_id}/categories`, {
+        method: "POST",
+        body: JSON.stringify({ name_en: quickCategory.name_en, name_ar: quickCategory.name_ar, slug: quickCategory.name_en, display_order: nextCategoryOrder }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["tenant-categories", context.tenant_id] });
+      setProductDraft((draft) => ({ ...draft, category_id: created.id }));
+      setQuickCategory({ open: false, name_en: "", name_ar: "" });
+      setNotice(t("tenantWorkspace.categoryCreated"));
     });
   };
 
@@ -1131,8 +1175,13 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 <form className="form-stack" onSubmit={saveCategory}>
                   <label className="field"><span>{t("tenantWorkspace.nameEn")}</span><input required value={categoryDraft.name_en} onChange={(event) => setCategoryDraft({ ...categoryDraft, name_en: event.target.value })} /></label>
                   <label className="field"><span>{t("tenantWorkspace.nameAr")}</span><input dir="rtl" required value={categoryDraft.name_ar} onChange={(event) => setCategoryDraft({ ...categoryDraft, name_ar: event.target.value })} /></label>
-                  <label className="field"><span>{t("tenantWorkspace.slug")}</span><input dir="ltr" required value={categoryDraft.slug} onChange={(event) => setCategoryDraft({ ...categoryDraft, slug: event.target.value })} /></label>
-                  <label className="field"><span>{t("tenantWorkspace.order")}</span><input dir="ltr" min="0" required type="number" value={categoryDraft.display_order} onChange={(event) => setCategoryDraft({ ...categoryDraft, display_order: event.target.value })} /></label>
+                  <details className="more-options" open={editingCategoryId ? true : undefined}>
+                    <summary>{t("tenantWorkspace.moreOptions")}</summary>
+                    <label className="field"><span>{t("tenantWorkspace.slug")}</span><input dir="ltr" placeholder={categoryDraft.name_en} value={categoryDraft.slug} onChange={(event) => setCategoryDraft({ ...categoryDraft, slug: event.target.value })} /></label>
+                    <small className="muted">{t("tenantWorkspace.slugAuto")}</small>
+                    <label className="field"><span>{t("tenantWorkspace.order")}</span><input dir="ltr" min="0" placeholder={String(nextCategoryOrder)} type="number" value={categoryDraft.display_order} onChange={(event) => setCategoryDraft({ ...categoryDraft, display_order: event.target.value })} /></label>
+                    <small className="muted">{t("tenantWorkspace.orderAuto")}</small>
+                  </details>
                   <div className="form-actions"><button className="button" disabled={busy} type="submit">{t("common.saveChanges")}</button>{editingCategoryId ? <button className="button button-secondary" onClick={() => { setEditingCategoryId(undefined); setCategoryDraft(emptyCategory); }} type="button">{t("common.cancel")}</button> : null}</div>
                 </form>
               </article>
@@ -1148,45 +1197,88 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             </div>
           ) : view === "products" ? (
             <div className="catalog-workspace">
+              <div className="catalog-toolbar">
+                <label className="field"><span>{t("tenantWorkspace.productSearch")}</span><input type="search" value={productQuery} onChange={(event) => setProductQuery(event.target.value)} /></label>
+                <label className="field"><span>{t("tenantWorkspace.category")}</span><select value={productCategory} onChange={(event) => setProductCategory(event.target.value)}><option value="">{t("tenantWorkspace.allCategories")}</option>{categories.data?.categories.map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
+                <button aria-expanded={addingProduct} className="button" onClick={() => setAddingProduct(!addingProduct)} type="button"><Icon name="plus" small />{t("tenantWorkspace.addProduct")}</button>
+              </div>
+              {addingProduct ? (
+                <article className="content-card add-product">
+                  <div className="scan-desk">
+                    <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
+                    <h3>{t("tenantWorkspace.scanTitle")}</h3>
+                    <form className="inline-form" onSubmit={scanProduct}>
+                      <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input autoFocus dir="ltr" required value={scanBarcode} onChange={(event) => setScanBarcode(event.target.value)} /></label>
+                      <button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button>
+                    </form>
+                    {scanResult?.master_product ? <div className="scan-result"><span className="status-badge status-current">{t("tenantWorkspace.masterCatalog")}</span><strong>{scanResult.master_product.name}</strong><code dir="ltr">{scanResult.barcode}</code></div> : null}
+                  </div>
+                  <div className="route-form-card">
+                    <p className="section-kicker">{productDraft.master_product_id ? t("tenantWorkspace.adoptProduct") : t("tenantWorkspace.manualProduct")}</p>
+                    <h3>{t("tenantWorkspace.productDetails")}</h3>
+                    <form className="form-grid" onSubmit={saveProduct}>
+                      <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label>
+                      <label className="field"><span>{t("tenantWorkspace.category")}</span><select required value={productDraft.category_id} onChange={(event) => setProductDraft({ ...productDraft, category_id: event.target.value })}><option value="">{t("tenantWorkspace.chooseCategory")}</option>{activeCategories.map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
+                      <div className="field quick-category">
+                        <button aria-expanded={quickCategory.open} className="text-button" onClick={() => setQuickCategory({ ...quickCategory, open: !quickCategory.open })} type="button"><Icon name="plus" small />{t("tenantWorkspace.newCategoryInline")}</button>
+                        {quickCategory.open ? (
+                          <div className="quick-category-fields" role="group" aria-label={t("tenantWorkspace.newCategoryInline")}>
+                            <label className="field"><span>{t("tenantWorkspace.nameEn")}</span><input value={quickCategory.name_en} onChange={(event) => setQuickCategory({ ...quickCategory, name_en: event.target.value })} /></label>
+                            <label className="field"><span>{t("tenantWorkspace.nameAr")}</span><input dir="rtl" value={quickCategory.name_ar} onChange={(event) => setQuickCategory({ ...quickCategory, name_ar: event.target.value })} /></label>
+                            <button className="button button-secondary" disabled={busy || !quickCategory.name_en.trim() || !quickCategory.name_ar.trim()} onClick={createQuickCategory} type="button">{t("tenantWorkspace.saveCategory")}</button>
+                          </div>
+                        ) : null}
+                      </div>
+                      <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={productDraft.barcode} onChange={(event) => setProductDraft({ ...productDraft, barcode: event.target.value })} /></label>
+                      <label className="field"><span>{t("tenantWorkspace.tenantPrice")}</span><input dir="ltr" min="0" required step="0.0001" type="number" value={productDraft.unit_price} onChange={(event) => setProductDraft({ ...productDraft, unit_price: event.target.value })} /></label>
+                      <details className="more-options field-wide">
+                        <summary>{t("tenantWorkspace.moreOptions")}</summary>
+                        <div className="form-grid">
+                          <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={productDraft.name_ar} onChange={(event) => setProductDraft({ ...productDraft, name_ar: event.target.value })} /></label>
+                          <label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={productDraft.barcode_package_level} onChange={(event) => setProductDraft({ ...productDraft, barcode_package_level: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
+                          <label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={productDraft.currency} onChange={(event) => setProductDraft({ ...productDraft, currency: event.target.value.toUpperCase() })} /></label>
+                          <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={productDraft.price_basis} onChange={(event) => setProductDraft({ ...productDraft, price_basis: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
+                          <label className="field"><span>{t("tenantWorkspace.piecesPerBox")}</span><input dir="ltr" min="1" type="number" value={productDraft.pieces_per_box} onChange={(event) => setProductDraft({ ...productDraft, pieces_per_box: event.target.value })} /></label>
+                          <label className="checkbox-row field-wide"><input checked={productDraft.is_published} onChange={(event) => setProductDraft({ ...productDraft, is_published: event.target.checked })} type="checkbox" /><span>{t("tenantWorkspace.publishVisibility")}</span></label>
+                        </div>
+                      </details>
+                      <button className="button field-wide" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button>
+                    </form>
+                  </div>
+                </article>
+              ) : null}
+              <article className="content-card catalog-list">
+                <p className="section-kicker">{t("tenantWorkspace.tenantCatalog")}</p>
+                <h3>{t("tenantWorkspace.products")}</h3>
+                {products.isLoading ? <LoadingState /> : null}
+                {products.error ? <ErrorState error={products.error} /> : null}
+                {products.data?.products.length && !shownProducts.length ? <p className="muted">{t("tenantWorkspace.noProductMatch")}</p> : null}
+                {shownProducts.map((product) => (
+                  <article className="product-card" key={product.id}>
+                    <div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div>
+                    <strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong>
+                    <div className="category-actions">
+                      <button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button>
+                      <button aria-expanded={editingProductId === product.id} className="text-button" onClick={() => { setNotice(undefined); setEditingProductId(editingProductId === product.id ? undefined : product.id); }} type="button">{t("common.edit")}</button>
+                    </div>
+                    {editingProductId === product.id ? <ProductEditForm categories={categories.data?.categories ?? []} onClose={(saved) => { setEditingProductId(undefined); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={product} tenantId={context.tenant_id} /> : null}
+                    <details className="product-manage">
+                      <summary>{t("common.manage")}</summary>
+                      <div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div>
+                      <button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button>
+                      {barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}
+                      <ProductPricingMediaControls product={product} tenantId={context.tenant_id} />
+                    </details>
+                  </article>
+                ))}
+              </article>
+            </div>
+          ) : view === "pricing" ? (
+            <GradeDiscountEditor tenantId={context.tenant_id} />
+          ) : view === "storefront" ? (
+            <div className="catalog-workspace">
               <StorefrontSettings tenantId={context.tenant_id} />
               <CampaignPanel products={products.data?.products ?? []} tenantId={context.tenant_id} />
-              <article className="content-card scan-desk">
-                <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
-                <h3>{t("tenantWorkspace.scanTitle")}</h3>
-                <p>{t("tenantWorkspace.scanBody")}</p>
-                <form className="inline-form" onSubmit={scanProduct}>
-                  <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input autoFocus dir="ltr" required value={scanBarcode} onChange={(event) => setScanBarcode(event.target.value)} /></label>
-                  <button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button>
-                </form>
-                {scanResult?.master_product ? <div className="scan-result"><span className="status-badge status-current">{t("tenantWorkspace.masterCatalog")}</span><strong>{scanResult.master_product.name}</strong><code dir="ltr">{scanResult.barcode}</code></div> : null}
-              </article>
-              <GradeDiscountEditor tenantId={context.tenant_id} />
-              <div className="catalog-columns">
-                <article className="content-card route-form-card">
-                  <p className="section-kicker">{productDraft.master_product_id ? t("tenantWorkspace.adoptProduct") : t("tenantWorkspace.manualProduct")}</p>
-                  <h3>{t("tenantWorkspace.productDetails")}</h3>
-                  <form className="form-grid" onSubmit={saveProduct}>
-                    <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label>
-                    <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={productDraft.name_ar} onChange={(event) => setProductDraft({ ...productDraft, name_ar: event.target.value })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.category")}</span><select required value={productDraft.category_id} onChange={(event) => setProductDraft({ ...productDraft, category_id: event.target.value })}><option value="">{t("tenantWorkspace.chooseCategory")}</option>{categories.data?.categories.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
-                    <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={productDraft.barcode} onChange={(event) => setProductDraft({ ...productDraft, barcode: event.target.value })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={productDraft.barcode_package_level} onChange={(event) => setProductDraft({ ...productDraft, barcode_package_level: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
-                    <label className="field"><span>{t("tenantWorkspace.tenantPrice")}</span><input dir="ltr" min="0" required step="0.0001" type="number" value={productDraft.unit_price} onChange={(event) => setProductDraft({ ...productDraft, unit_price: event.target.value })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={productDraft.currency} onChange={(event) => setProductDraft({ ...productDraft, currency: event.target.value.toUpperCase() })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={productDraft.price_basis} onChange={(event) => setProductDraft({ ...productDraft, price_basis: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
-                    <label className="field"><span>{t("tenantWorkspace.piecesPerBox")}</span><input dir="ltr" min="1" type="number" value={productDraft.pieces_per_box} onChange={(event) => setProductDraft({ ...productDraft, pieces_per_box: event.target.value })} /></label>
-                    <label className="checkbox-row field-wide"><input checked={productDraft.is_published} onChange={(event) => setProductDraft({ ...productDraft, is_published: event.target.checked })} type="checkbox" /><span>{t("tenantWorkspace.publishVisibility")}</span></label>
-                    <button className="button field-wide" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button>
-                  </form>
-                </article>
-                <article className="content-card catalog-list">
-                  <p className="section-kicker">{t("tenantWorkspace.tenantCatalog")}</p>
-                  <h3>{t("tenantWorkspace.products")}</h3>
-                  {products.isLoading ? <LoadingState /> : null}
-                  {products.error ? <ErrorState error={products.error} /> : null}
-                  {products.data?.products.map((product) => <article className="product-card" key={product.id}><div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div><strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong><div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div><div className="category-actions"><button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button><button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button><button aria-expanded={editingProductId === product.id} className="text-button" onClick={() => { setNotice(undefined); setEditingProductId(editingProductId === product.id ? undefined : product.id); }} type="button">{t("common.edit")}</button></div>{editingProductId === product.id ? <ProductEditForm categories={categories.data?.categories ?? []} onClose={(saved) => { setEditingProductId(undefined); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={product} tenantId={context.tenant_id} /> : null}{barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}<ProductPricingMediaControls product={product} tenantId={context.tenant_id} /></article>)}
-                </article>
-              </div>
             </div>
           ) : view === "sync" ? (
             <SyncPanel tenantId={context.tenant_id} membershipId={context.membership_id} />

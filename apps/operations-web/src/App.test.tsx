@@ -674,16 +674,19 @@ describe("tenant customer and category workspace", () => {
     renderApp("/workspace");
     await screen.findByRole("heading", { name: "North Route" });
     fireEvent.click(railLink("Catalog")); // Catalog opens on Products
-    const scanDesk = screen.getByRole("heading", { name: "Scan once. Resolve the right catalog identity." }).closest("article");
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" })); // the list comes first; adding opens on demand
+    const scanDesk = screen.getByRole("heading", { name: "Scan once. Resolve the right catalog identity." }).closest("div");
     if (!scanDesk) throw new Error("Scan desk not found");
+    expect(within(scanDesk).getByLabelText("Barcode")).toHaveFocus(); // the scanner is ready only once adding starts
     fireEvent.change(within(scanDesk).getByLabelText("Barcode"), { target: { value: "012345" } });
     fireEvent.click(within(scanDesk).getByRole("button", { name: "Scan barcode" }));
     expect(await screen.findByText("Cedar Water 500ml")).toBeInTheDocument();
 
-    const productForm = screen.getByRole("heading", { name: "Product details" }).closest("article");
+    const productForm = screen.getByRole("heading", { name: "Product details" }).closest("div");
     if (!productForm) throw new Error("Product form not found");
     fireEvent.change(within(productForm).getByLabelText("Category"), { target: { value: category.id } });
     fireEvent.change(within(productForm).getByLabelText("Tenant price"), { target: { value: "1.25" } });
+    fireEvent.click(within(productForm).getByText("More options"));
     fireEvent.click(within(productForm).getByLabelText("Publish this product in customer-facing catalog views"));
     fireEvent.click(within(productForm).getByRole("button", { name: "Save tenant product" }));
 
@@ -721,18 +724,21 @@ describe("tenant customer and category workspace", () => {
     renderApp("/workspace");
     await screen.findByRole("heading", { name: "North Route" });
     fireEvent.click(railLink("Catalog")); // Catalog opens on Products
-    const scanDesk = screen.getByRole("heading", { name: "Scan once. Resolve the right catalog identity." }).closest("article")!;
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
+    const scanDesk = screen.getByRole("heading", { name: "Scan once. Resolve the right catalog identity." }).closest("div")!;
     fireEvent.change(within(scanDesk).getByLabelText("Barcode"), { target: { value: "LOCAL-1" } });
     fireEvent.click(within(scanDesk).getByRole("button", { name: "Scan barcode" }));
     expect(await screen.findByText(/Barcode not found in the master catalog/)).toBeInTheDocument();
-    const productForm = screen.getByRole("heading", { name: "Product details" }).closest("article")!;
+    const productForm = screen.getByRole("heading", { name: "Product details" }).closest("div")!;
     expect(within(productForm).getByLabelText("Barcode")).toHaveValue("LOCAL-1");
     fireEvent.change(within(productForm).getByLabelText("Product name"), { target: { value: "Local Chips" } });
     fireEvent.change(within(productForm).getByLabelText("Category"), { target: { value: category.id } });
     fireEvent.change(within(productForm).getByLabelText("Tenant price"), { target: { value: "0.75" } });
     fireEvent.click(within(productForm).getByRole("button", { name: "Save tenant product" }));
     expect(await screen.findByText("Local Chips")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Add package barcode" }));
+    const chips = screen.getByRole("heading", { level: 4, name: "Local Chips" }).closest("article")!;
+    fireEvent.click(within(chips).getByText("Manage")); // barcodes, grade prices and images sit under Manage
+    fireEvent.click(within(chips).getByRole("button", { name: "Add package barcode" }));
     const barcodeForm = screen.getByRole("button", { name: "Save changes" }).closest("form")!;
     fireEvent.change(within(barcodeForm).getByLabelText("Barcode"), { target: { value: "LOCAL-BOX-1" } });
     fireEvent.change(within(barcodeForm).getByLabelText("Barcode package"), { target: { value: "BOX" } });
@@ -794,14 +800,16 @@ describe("tenant customer and category workspace", () => {
 
     renderApp("/workspace");
     await screen.findByRole("heading", { name: "North Route" });
-    fireEvent.click(railLink("Catalog")); // Catalog opens on Products
+    await openTab("Catalog", "Pricing"); // grade discounts have their own tab
     const discountInput = await screen.findByLabelText("Grade A discount (%)");
     fireEvent.change(discountInput, { target: { value: "7.5" } });
     await waitFor(() => expect(discountInput).toHaveValue(7.5));
     fireEvent.click(within(discountInput.closest("form")!).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(discountBody).toEqual({ discount_percent: "7.5" }));
 
+    fireEvent.click(within(sectionTabs()).getByRole("link", { name: "Products" }));
     const productCard = (await screen.findByRole("heading", { name: "Cedar Juice" })).closest("article")!;
+    fireEvent.click(within(productCard).getByText("Manage"));
     fireEvent.change(within(productCard).getByLabelText("Grade basis price"), { target: { value: "2.5" } });
     fireEvent.click(within(productCard).getByRole("button", { name: "Save grade price" }));
     await waitFor(() => expect(gradePriceBody).toEqual({ unit_price: "2.5" }));
@@ -1021,7 +1029,7 @@ describe("phone navigation follows the member's role", () => {
     await waitFor(() => expect(railLink("Catalog")).toHaveAttribute("aria-current", "page"));
     expect(screen.queryByRole("group", { name: "More options" })).not.toBeInTheDocument(); // the sheet closes once the section opens
     // A group with several sections shows them as tabs; the group stays current on every tab.
-    expect(within(sectionTabs()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Products", "Categories"]);
+    expect(within(sectionTabs()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Products", "Categories", "Pricing"]);
     expect(within(sectionTabs()).getByRole("link", { name: "Products" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(within(sectionTabs()).getByRole("link", { name: "Categories" }));
     await waitFor(() => expect(within(sectionTabs()).getByRole("link", { name: "Categories" })).toHaveAttribute("aria-current", "page"));

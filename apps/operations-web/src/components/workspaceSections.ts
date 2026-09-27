@@ -20,7 +20,9 @@ export const WORKSPACE_SECTIONS = [
   { id: "procurement", label: "procurement.tab", icon: "cart" },
   { id: "analytics", label: "analytics.tab", icon: "chart" },
   { id: "assistant", label: "copilot.tab", icon: "chat" },
+  { id: "pricing", label: "tenantWorkspace.pricingTab", icon: "coin" },
   { id: "branding", label: "branding.tab", icon: "palette" },
+  { id: "storefront", label: "storefront.tab", icon: "shop" },
   { id: "sync", label: "sync.tab", icon: "sync" },
   { id: "backup", label: "backup.tab", icon: "cloud" },
 ] as const satisfies readonly { id: string; label: string; icon: IconName }[];
@@ -41,10 +43,10 @@ export const WORKSPACE_GROUPS = [
   { id: "sales", label: "nav.groups.sales", icon: "invoice", sections: ["orders", "invoices"] },
   { id: "customers", label: "nav.groups.customers", icon: "people", sections: ["customers"] },
   { id: "deliveries", label: "nav.groups.deliveries", icon: "van", sections: ["deliveries"] },
-  { id: "catalog", label: "nav.groups.catalog", icon: "box", sections: ["products", "categories"] },
+  { id: "catalog", label: "nav.groups.catalog", icon: "box", sections: ["products", "categories", "pricing"] },
   { id: "buying", label: "nav.groups.buying", icon: "cart", sections: ["procurement", "suppliers"] },
   { id: "insights", label: "nav.groups.insights", icon: "chart", sections: ["analytics", "assistant"] },
-  { id: "settings", label: "nav.groups.settings", icon: "key", sections: ["branding", "sync", "backup"] },
+  { id: "settings", label: "nav.groups.settings", icon: "key", sections: ["branding", "storefront", "sync", "backup"] },
 ] as const satisfies readonly { id: string; label: string; icon: IconName; sections: readonly WorkspaceSection[] }[];
 
 export type WorkspaceGroup = (typeof WORKSPACE_GROUPS)[number];

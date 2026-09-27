@@ -678,6 +678,14 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .customer-balance .eyebrow { margin: 0; }
 .schedule-form { border-top: 1px solid var(--line); display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; }
 .schedule-form h5 { margin: 0; }
+.catalog-toolbar { align-items: end; display: flex; flex-wrap: wrap; gap: 12px; }
+.catalog-toolbar .field { flex: 1 1 200px; }
+.add-product { display: grid; gap: 16px; }
+.more-options > summary, .product-manage > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.more-options[open] > summary, .product-manage[open] > summary { margin-bottom: 8px; }
+.product-manage { border-top: 1px solid var(--line); padding-top: 4px; }
+.quick-category { align-self: end; }
+.quick-category-fields { background: var(--mist); border-radius: 10px; display: grid; gap: 8px; margin-top: 8px; padding: 10px; }
 .owner-today { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; display: grid; gap: 10px; padding: 14px 16px; }
 .owner-today h2, .owner-today h3 { margin: 0; }
 .owner-today h3 { font-size: 15px; }
