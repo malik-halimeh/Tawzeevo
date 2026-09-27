@@ -6,8 +6,9 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { CopilotResponse } from "../api/intelligence";
 import i18n from "../i18n";
 import { CopilotPanel } from "./CopilotPanel";
+import { clearAllConversations } from "./copilotSession";
 
-afterEach(async () => { cleanup(); vi.unstubAllGlobals(); await i18n.changeLanguage("en"); });
+afterEach(async () => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); await i18n.changeLanguage("en"); });
 
 const CONFIGURED = { configured: true, provider: "groq", model: "test-model" };
 
@@ -172,4 +173,30 @@ test("an English answer that starts with an Arabic customer name still reads lef
   fireEvent.click(screen.getByRole("button", { name: "Ask" }));
   const answer = await screen.findByText("سكافي owes the most: 67.2500 USD.");
   expect(answer.closest("[dir]")).toHaveAttribute("dir", "ltr"); // the question's language, not the first letter
+});
+
+test("the conversation is still there after leaving the section and coming back, until New conversation or sign-out", async () => {
+  const sent = stubAssistant(CONFIGURED, [Response.json(reply()), Response.json(reply({ answer: "Nothing else is overdue.", conversation_text: "Nothing else is overdue.", references: [] }))]);
+  const first = renderPanel();
+  fireEvent.click(await screen.findByRole("button", { name: "Who should I call today?" }));
+  await waitFor(() => expect(screen.getByRole("list", { name: "Conversation" })).toHaveTextContent("Call Tyre Fresh Foods first"));
+  first.unmount(); // another section opened
+
+  renderPanel(); // back to the assistant
+  const thread = await screen.findByRole("list", { name: "Conversation" });
+  expect(thread).toHaveTextContent("Who should I call today?");
+  expect(thread).toHaveTextContent("Call Tyre Fresh Foods first");
+  fireEvent.change(screen.getByRole("textbox", { name: "Your question" }), { target: { value: "Anyone else?" } });
+  fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+  await waitFor(() => expect(thread).toHaveTextContent("Nothing else is overdue."));
+  expect(sent[1]?.conversation).toHaveLength(2); // the restored turn travels as history
+  expect(sent[1]?.conversation_id).toBe("11111111-1111-4111-8111-111111111111");
+
+  fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+  expect(sessionStorage.getItem("tawzeevo.copilot.t1")).toBeNull();
+  cleanup();
+
+  sessionStorage.setItem("tawzeevo.copilot.t1", JSON.stringify([{ question: "Q", response: reply() }]));
+  clearAllConversations(); // what sign-out does
+  expect(sessionStorage.getItem("tawzeevo.copilot.t1")).toBeNull();
 });

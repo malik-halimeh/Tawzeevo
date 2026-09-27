@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiRequest } from "../api/client";
-import { ErrorState } from "./Ui";
+import { ErrorState, PaymentMethodField } from "./Ui";
 import type { Supplier } from "./SupplierSetup";
 import { useKeepFocus } from "./useKeepFocus";
 
@@ -24,7 +24,7 @@ interface SupplierPayment {
  * Owner supplier ledger desk: opening payable, ordinary payments (capped at the payable, D-039),
  * explicit prepayments (labelled credit) and compensating reversals. Aggregate per currency only.
  */
-export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string; suppliers: Supplier[] }) {
+export function SupplierLedgerPanel({ tenantId, suppliers, version = 0, onChanged }: { tenantId: string; suppliers: Supplier[]; version?: number; onChanged?: () => void }) {
   const { t } = useTranslation();
   const [supplierId, setSupplierId] = useState("");
   const [balances, setBalances] = useState<SupplierBalances>();
@@ -51,6 +51,14 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
   }, [tenantId]);
 
   useEffect(() => { void run(() => loadBalances(supplierId)); }, [run, loadBalances, supplierId]);
+  // `version` changes after any payment, reversal or opening (here or in the history below): the
+  // balance follows without clearing the notice that was just shown.
+  const shownVersion = useRef(version);
+  useEffect(() => {
+    if (version === shownVersion.current) return;
+    shownVersion.current = version;
+    loadBalances(supplierId).catch(setError);
+  }, [version, loadBalances, supplierId]);
 
   const recordOpening = (event: FormEvent) => {
     event.preventDefault();
@@ -60,7 +68,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
         body: JSON.stringify({ idempotency_key: crypto.randomUUID(), supplier_id: supplierId, currency, signed_amount: openingAmount, effective_at: new Date().toISOString() }),
       });
       setOpeningAmount("");
-      await loadBalances(supplierId);
+      if (onChanged) onChanged(); else await loadBalances(supplierId);
       setNotice(t("supplierLedger.openingSaved"));
     });
   };
@@ -74,7 +82,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
       });
       setLastPayment(payment);
       setPaymentAmount("");
-      await loadBalances(supplierId);
+      if (onChanged) onChanged(); else await loadBalances(supplierId);
       setNotice(t(prepayment ? "supplierLedger.prepaymentSaved" : "supplierLedger.paymentSaved"));
     });
   };
@@ -87,7 +95,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
         body: JSON.stringify({ idempotency_key: crypto.randomUUID(), reason: reversalReason }),
       });
       setLastPayment(undefined); setReversalReason("");
-      await loadBalances(supplierId);
+      if (onChanged) onChanged(); else await loadBalances(supplierId);
       setNotice(t("supplierLedger.reversed"));
     });
   };
@@ -118,8 +126,8 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
           </form>
           <form className="inline-form" onSubmit={pay(false)}>
             <label className="field"><span>{t("supplierLedger.paymentAmount")}</span><input dir="ltr" min="0.0001" required step="0.0001" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></label>
-            <label className="field"><span>{t("invoiceEditor.paymentMethod")}</span><input value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} /></label>
-            <button className="button" disabled={busy} type="submit">{t("supplierLedger.recordPayment")}</button>
+            <PaymentMethodField value={paymentMethod} onChange={setPaymentMethod} />
+            <button className="button button-money" disabled={busy} type="submit">{t("supplierLedger.recordPayment")}</button>
             <button className="button secondary-button" disabled={busy || !paymentAmount} onClick={pay(true)} type="button">{t("supplierLedger.recordPrepayment")}</button>
           </form>
           {lastPayment ? (

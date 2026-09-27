@@ -93,6 +93,36 @@ class InvoiceEditorDraftRequest(BaseModel):
     items: list[InvoiceEditorItemRequest] = Field(min_length=1, max_length=200)
 
 
+class InvoiceCalculateRequest(BaseModel):
+    """The draft request without command ids: calculated and returned, never saved (D-107)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    customer_id: UUID
+    currency: str = Field(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")
+    invoice_discount_expression: str = Field(default="0", min_length=1, max_length=120)
+    invoice_markup_expression: str = Field(default="0", min_length=1, max_length=120)
+    items: list[InvoiceEditorItemRequest] = Field(min_length=1, max_length=200)
+
+
+class InvoiceCalculatedLine(BaseModel):
+    line_number: int
+    product_name: str
+    effective_unit_price: Decimal
+    line_total: Decimal
+
+
+class InvoiceCalculateResponse(BaseModel):
+    currency: str
+    prior_balance: Decimal
+    subtotal: Decimal
+    discount_total: Decimal
+    markup_total: Decimal
+    net_sales: Decimal
+    total_due: Decimal
+    lines: list[InvoiceCalculatedLine]
+
+
 class InvoiceEditorItemResponse(BaseModel):
     id: UUID
     line_number: int
@@ -173,7 +203,7 @@ class InvoiceHistoryResponse(BaseModel):
 class CatalogMatchResponse(BaseModel):
     product_id: UUID
     name: str
-    barcode: str
+    barcode: str | None
     package_level: ProductPriceBasis
     currency: str
     price_basis: ProductPriceBasis

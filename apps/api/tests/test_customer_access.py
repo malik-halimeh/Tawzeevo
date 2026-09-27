@@ -68,6 +68,7 @@ def test_link_gives_current_customer_pricing_without_exposing_anything_private(
         "granted": True,
         "contact_hint": "",
         "has_saved_address": False,
+        "verification_available": True,  # a server capability, never customer data (D-099)
     }
     assert context.headers["cache-control"] == "no-store"
     for forbidden in ("grade", "balance", "debt", "phone", "invoice", "payment"):

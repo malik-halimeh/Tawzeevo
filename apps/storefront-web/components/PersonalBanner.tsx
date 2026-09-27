@@ -7,7 +7,7 @@ import { type Lang, t } from "@/lib/i18n";
 
 /** Shown while a personalized link is active: who the prices are for and a way out — or, while
  * the business asks for verification, the offer to verify (no prices are personalized yet). */
-export function PersonalBanner({ slug, lang, displayName, granted = true, ctx = null }: { slug: string; lang: Lang; displayName: string; granted?: boolean; ctx?: string | null }) {
+export function PersonalBanner({ slug, lang, displayName, granted = true, verificationAvailable = true, ctx = null }: { slug: string; lang: Lang; displayName: string; granted?: boolean; verificationAvailable?: boolean; ctx?: string | null }) {
   const [busy, setBusy] = useState(false);
   const exit = () => {
     setBusy(true);
@@ -16,6 +16,16 @@ export function PersonalBanner({ slug, lang, displayName, granted = true, ctx = 
       .catch(() => undefined)
       .finally(() => { window.location.reload(); });
   };
+  // Verification cannot be offered right now (no way to deliver a code): no dead-end "Verify" link;
+  // the visitor sees the shop's public prices and can leave the personal link (D-099).
+  if (!granted && !verificationAvailable) {
+    return (
+      <div className="notice personal" role="status">
+        <span>{t(lang, "verifyNotOffered")}</span>
+        <button className="link-button" disabled={busy} onClick={exit} type="button">{t(lang, "personalExit")}</button>
+      </div>
+    );
+  }
   if (!granted) {
     return (
       <div className="notice personal" role="status">

@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Phase 3 critical flow (PHASE_03.md N E2E): supplier/cost setup -> invoice create -> confirm ->
@@ -45,7 +46,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await expect(page).toHaveURL(/\/workspace/);
 
   // ----- Browser: supplier and cost setup (D-041) -----
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Suppliers & costs", exact: true }).click();
+  await openSection(page, "Suppliers & costs");
   await page.getByRole("textbox", { name: "Supplier name" }).fill("Bekaa Wholesale");
   await page.getByRole("button", { name: "Add supplier" }).click();
   await expect(page.getByText("Supplier created.")).toBeVisible();
@@ -72,7 +73,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await expect(ledger.getByText("-5.0000")).toBeVisible();
 
   // ----- Browser: invoice create -> confirm -----
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Invoices", exact: true }).click();
+  await openSection(page, "Invoices");
   // The section renders after the address changes; wait for it before using its fields.
   await expect(page.getByRole("heading", { name: "Invoices", level: 3 })).toBeVisible();
   await page.getByRole("textbox", { name: "Phone", exact: true }).fill(customerPhone);
@@ -94,7 +95,6 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
 
   // ----- Browser: sharing is confirmed-only; cancellation revokes; Arabic/RTL renders -----
   await page.getByRole("group", { name: "Invoice views" }).getByRole("button", { name: "Invoice", exact: true }).click();
-  await page.getByRole("button", { name: "Manage invoice links" }).click();
   await page.getByRole("button", { name: "Create private link" }).click();
   const publicUrl = await page.getByLabel("Private invoice URL").inputValue();
   expect(publicUrl).toContain("/api/v1/public/invoice#");
@@ -108,12 +108,14 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
 
   await page.getByRole("button", { name: "العربية" }).first().click();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await expect(page.getByRole("navigation", { name: "التنقل في مساحة العمل" }).getByRole("link", { name: "الفواتير", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "التنقل في مساحة العمل" }).getByRole("link", { name: "المبيعات", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "أقسام الصفحة" }).getByRole("link", { name: "الفواتير", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "English" }).first().click();
   await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
 
   await page.getByLabel("Cancellation reason").fill("Customer withdrew the order");
   await page.getByRole("button", { name: "Cancel invoice" }).click();
+  await page.getByRole("button", { name: "Yes, cancel invoice" }).click(); // a final action asks once
   await expect(page.getByText("Invoice cancelled. Payments were preserved and allocations were released as credit.")).toBeVisible();
   expect((await api.get("/api/v1/public/invoice/data", { headers: { "X-Invoice-Capability": secret } })).status()).toBe(404);
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
@@ -11,6 +11,7 @@ from tawzeevo_api.dependencies import require_client, require_system_admin
 from tawzeevo_api.models import TenantApplicationStatus, TenantStatus, User
 from tawzeevo_api.schemas.platform import (
     AccessPeriodRequest,
+    AccessState,
     CloseTenantRequest,
     ReactivateTenantRequest,
     SuspendTenantRequest,
@@ -23,12 +24,15 @@ from tawzeevo_api.schemas.platform import (
     TenantResponse,
 )
 from tawzeevo_api.services.platform import (
+    application_responses,
     approve_application,
     close_tenant,
     list_applications,
     list_tenants,
+    my_applications,
     reactivate_tenant,
     reject_application,
+    send_approved_email,
     set_access_period,
     submit_application,
     suspend_tenant,
@@ -52,6 +56,17 @@ def create_tenant_application(
     return TenantApplicationResponse.model_validate(submit_application(db, applicant, request))
 
 
+@tenant_applications_router.get(
+    "/tenant-applications/mine", response_model=list[TenantApplicationResponse]
+)
+def my_tenant_applications(
+    db: Annotated[Session, Depends(get_db)],
+    applicant: Annotated[User, Depends(require_client)],
+) -> list[TenantApplicationResponse]:
+    """The signed-in person's own applications and their status, newest first (D-111)."""
+    return [TenantApplicationResponse.model_validate(row) for row in my_applications(db, applicant)]
+
+
 @platform_router.get("/tenant-applications", response_model=TenantApplicationListResponse)
 def platform_list_applications(
     db: Annotated[Session, Depends(get_db)],
@@ -71,7 +86,7 @@ def platform_list_applications(
         limit=limit,
         total=total,
         total_pages=total_pages,
-        applications=[TenantApplicationResponse.model_validate(item) for item in applications],
+        applications=application_responses(db, applications),
     )
 
 
@@ -83,13 +98,18 @@ def platform_approve_application(
     application_id: UUID,
     db: Annotated[Session, Depends(get_db)],
     admin: Annotated[User, Depends(require_system_admin)],
+    background: BackgroundTasks,
     request: TenantApplicationApproveRequest = Body(
         default_factory=TenantApplicationApproveRequest
     ),
 ) -> TenantApplicationResponse:
-    return TenantApplicationResponse.model_validate(
-        approve_application(db, application_id, admin, request)
-    )
+    response = application_responses(db, [approve_application(db, application_id, admin, request)])[
+        0
+    ]
+    # The applicant is told by email after the approval is committed; best effort (D-111).
+    if response.applicant_email:
+        background.add_task(send_approved_email, response.applicant_email, response.business_name)
+    return response
 
 
 @platform_router.post(
@@ -102,9 +122,7 @@ def platform_reject_application(
     admin: Annotated[User, Depends(require_system_admin)],
     request: TenantApplicationReviewRequest = Body(default_factory=TenantApplicationReviewRequest),
 ) -> TenantApplicationResponse:
-    return TenantApplicationResponse.model_validate(
-        reject_application(db, application_id, admin, request)
-    )
+    return application_responses(db, [reject_application(db, application_id, admin, request)])[0]
 
 
 @platform_router.get("/tenants", response_model=TenantListResponse)
@@ -115,6 +133,7 @@ def platform_list_tenants(
     limit: Annotated[int, Query(ge=1, le=100)] = 10,
     search: str | None = None,
     tenant_status: Annotated[TenantStatus | None, Query(alias="status")] = None,
+    access_status: AccessState | None = None,
 ) -> TenantListResponse:
     tenants, total, total_pages = list_tenants(
         db,
@@ -122,6 +141,7 @@ def platform_list_tenants(
         limit=limit,
         name_search=search,
         tenant_status=tenant_status,
+        access_status=access_status,
     )
     return TenantListResponse(
         page=page,

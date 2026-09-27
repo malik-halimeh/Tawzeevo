@@ -5,10 +5,11 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
+import { readLastChoice, rememberChoice } from "./lastChoice";
 import { NextSteps } from "./NextSteps";
 import { PENDING_ORDERS_KEY } from "./pendingOrders";
 import { sectionHref } from "./workspaceSections";
-import { ErrorState } from "./Ui";
+import { ConfirmAction, ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 
 /**
@@ -44,6 +45,11 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
   const [grade, setGrade] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [note, setNote] = useState("");
+  // "Confirm and schedule": the same three existing steps an owner takes by hand, in order.
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [createTask, setCreateTask] = useState(true);
+  const [assignee, setAssignee] = useState("");
+  const [crew, setCrew] = useState<{ sole: boolean; members: { membership_id: string; display_name: string; role: string; is_self: boolean }[] }>();
   const root = useRef<HTMLElement>(null);
   useKeepFocus(busy, root);
 
@@ -93,6 +99,47 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
     await apiRequest(`${base}/orders/${selected.order.id}/confirm${q}`, { method: "POST", body: JSON.stringify({ expected_revision_id: selected.invoice.current_revision_id }) });
     return t("orders.confirmed");
   });
+  const scheduling = selected?.order.status === "RECEIVED" && Boolean(selected.order.linked_customer_id) && Boolean(selected.invoice);
+  useEffect(() => {
+    if (!scheduling || crew) return;
+    apiRequest<{ eligible_members: { membership_id: string; display_name: string; role: string; is_self: boolean }[]; sole_operator: boolean }>(`/api/v1/delivery-tasks${q}&status=ASSIGNED`)
+      .then((list) => {
+        setCrew({ sole: list.sole_operator, members: list.eligible_members });
+        // The driver chosen last on this device starts selected while still assignable (D-103).
+        const lastDriver = readLastChoice("driver", tenantId);
+        if (lastDriver && list.eligible_members.some((person) => person.membership_id === lastDriver)) setAssignee((current) => current || lastDriver);
+      })
+      .catch(() => setCrew({ sole: true, members: [] }));
+  }, [scheduling, crew, q, tenantId]);
+  const confirmAndSchedule = (event: FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      if (!selected?.invoice) return undefined;
+      const orderId = selected.order.id;
+      const invoiceId = selected.invoice.id;
+      await apiRequest(`${base}/orders/${orderId}/confirm${q}`, { method: "POST", body: JSON.stringify({ expected_revision_id: selected.invoice.current_revision_id }) });
+      // From here the invoice is official whatever happens next; a later step that fails is named
+      // and can be finished by hand below, exactly as without this shortcut.
+      if (scheduleDate) {
+        try {
+          await apiRequest(`${base}/orders/${orderId}/delivery-date${q}`, { method: "PUT", body: JSON.stringify({ delivery_date: scheduleDate }) });
+        } catch (problem) {
+          setError(problem);
+          return t("orders.schedule.partial", { step: t("orders.schedule.stepDate") });
+        }
+      }
+      if (createTask) {
+        try {
+          await apiRequest(`/api/v1/delivery-tasks${q}`, { method: "POST", body: JSON.stringify({ invoice_id: invoiceId, assigned_membership_id: crew && !crew.sole ? assignee || null : null, delivery_date: scheduleDate || null }) });
+          if (crew && !crew.sole && assignee) rememberChoice("driver", tenantId, assignee);
+        } catch (problem) {
+          setError(problem);
+          return t("orders.schedule.partial", { step: t("orders.schedule.stepTask") });
+        }
+      }
+      return t(scheduleDate && createTask ? "orders.schedule.doneBoth" : createTask ? "orders.schedule.doneTask" : scheduleDate ? "orders.schedule.doneDate" : "orders.confirmed");
+    });
+  };
   const decline = () => run(async () => {
     if (!selected) return undefined;
     await apiRequest(`${base}/orders/${selected.order.id}/decline${q}`, { method: "POST", body: JSON.stringify({ note: note || null }) });
@@ -179,9 +226,26 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
                 <div className="category-actions">
                   <button className="button" disabled={busy || !selected.order.linked_customer_id} onClick={confirm} type="button">{t("orders.confirm")}</button>
                   <label className="field"><span>{t("orders.noteLabel")}</span><input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-                  <button className="text-button" disabled={busy} onClick={decline} type="button">{t("orders.decline")}</button>
+                  <ConfirmAction className="text-button danger-link" confirmLabel={t("orders.confirmDecline")} danger disabled={busy} label={t("orders.decline")} onConfirm={decline}>{t("orders.declineExplain")}</ConfirmAction>
                 </div>
                 <p className="muted">{t("orders.editNote")}</p>
+                {scheduling ? (
+                  <form aria-label={t("orders.schedule.title")} className="schedule-form" onSubmit={confirmAndSchedule}>
+                    <h5>{t("orders.schedule.title")}</h5>
+                    <p className="muted">{t("orders.schedule.body")}</p>
+                    <label className="field"><span>{t("orders.deliveryDate")}</span><input type="date" value={scheduleDate} onChange={(event) => setScheduleDate(event.target.value)} /></label>
+                    <label className="checkbox-row"><input checked={createTask} onChange={(event) => setCreateTask(event.target.checked)} type="checkbox" /><span>{t("orders.schedule.createTask")}</span></label>
+                    {createTask && crew && !crew.sole ? (
+                      <label className="field"><span>{t("delivery.assignTo")}</span>
+                        <select required value={assignee} onChange={(event) => setAssignee(event.target.value)}>
+                          <option value="">—</option>
+                          {crew.members.map((person) => <option key={person.membership_id} value={person.membership_id}>{person.display_name}{person.is_self ? ` (${t("procurement.me")})` : ""}</option>)}
+                        </select>
+                      </label>
+                    ) : null}
+                    <button className="button" disabled={busy || (createTask && crew === undefined)} type="submit">{t("orders.schedule.submit")}</button>
+                  </form>
+                ) : null}
               </div>
             ) : null}
 
@@ -210,7 +274,7 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
                 <p>{t("orders.cancellationPending", { reason: pending.reason ?? "—" })}</p>
                 <label className="field"><span>{t("orders.noteLabel")}</span><input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
                 <div className="category-actions">
-                  <button className="button" disabled={busy} onClick={() => decide(pending.id, true)} type="button">{t("orders.approveCancellation")}</button>
+                  <ConfirmAction confirmLabel={t("orders.confirmApprove")} danger disabled={busy} label={t("orders.approveCancellation")} onConfirm={() => decide(pending.id, true)}>{t("orders.approveExplain")}</ConfirmAction>
                   <button className="text-button" disabled={busy} onClick={() => decide(pending.id, false)} type="button">{t("orders.rejectCancellation")}</button>
                 </div>
               </div>

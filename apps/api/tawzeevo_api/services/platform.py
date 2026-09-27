@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 import math
 from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, func, not_, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -28,11 +30,15 @@ from tawzeevo_api.schemas.platform import (
     SuspendTenantRequest,
     TenantApplicationApproveRequest,
     TenantApplicationCreateRequest,
+    TenantApplicationResponse,
     TenantApplicationReviewRequest,
     TenantResponse,
 )
+from tawzeevo_api.services.mailer import Mail, get_mailer
 from tawzeevo_api.services.storefront import unique_slug
 from tawzeevo_api.services.sync import revoke_tenant_devices
+
+logger = logging.getLogger(__name__)
 
 
 def _set_platform_audit_scope(db: Session) -> None:
@@ -46,6 +52,28 @@ def _access_state(tenant: Tenant, today: date | None = None) -> AccessState:
     if tenant.grace_until is not None and current_date <= tenant.grace_until:
         return AccessState.GRACE
     return AccessState.OVERDUE
+
+
+def application_responses(
+    db: Session, applications: list[TenantApplication]
+) -> list[TenantApplicationResponse]:
+    """Applications with the applicant's name, email and phone for the administrator (D-108)."""
+    users = {
+        user.id: user
+        for user in db.scalars(
+            select(User).where(User.id.in_({row.applicant_user_id for row in applications}))
+        )
+    }
+    responses = []
+    for application in applications:
+        response = TenantApplicationResponse.model_validate(application)
+        user = users.get(application.applicant_user_id)
+        if user is not None:
+            response.applicant_name = f"{user.first_name} {user.last_name}".strip()
+            response.applicant_email = user.email
+            response.applicant_phone = user.phone
+        responses.append(response)
+    return responses
 
 
 def tenant_response(tenant: Tenant) -> TenantResponse:
@@ -68,6 +96,17 @@ def tenant_response(tenant: Tenant) -> TenantResponse:
 def submit_application(
     db: Session, applicant: User, request: TenantApplicationCreateRequest
 ) -> TenantApplication:
+    # One application waiting for review per person (D-111); the index guards concurrent sends.
+    waiting = db.scalar(
+        select(TenantApplication.id).where(
+            TenantApplication.applicant_user_id == applicant.id,
+            TenantApplication.status == TenantApplicationStatus.PENDING,
+        )
+    )
+    if waiting is not None:
+        raise AppError(
+            409, "APPLICATION_ALREADY_PENDING", "You already have an application waiting for review"
+        )
     application = TenantApplication(
         applicant_user_id=applicant.id,
         business_name=request.business_name,
@@ -76,10 +115,49 @@ def submit_application(
     db.add(application)
     # Refresh inside the applicant's transaction: the applicant read policy is bound to the
     # request's user scope, which a commit would drop.
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise AppError(
+            409, "APPLICATION_ALREADY_PENDING", "You already have an application waiting for review"
+        ) from exc
     db.refresh(application)
     db.commit()
     return application
+
+
+def my_applications(db: Session, applicant: User) -> list[TenantApplication]:
+    """The signed-in person's own applications, newest first (D-111)."""
+    return list(
+        db.scalars(
+            select(TenantApplication)
+            .where(TenantApplication.applicant_user_id == applicant.id)
+            .order_by(TenantApplication.created_at.desc(), TenantApplication.id.desc())
+            .limit(20)
+        )
+    )
+
+
+def send_approved_email(email: str, business_name: str) -> None:
+    """Best effort (D-111): the approval stands whether or not the message is delivered."""
+    try:
+        get_mailer().send(
+            Mail(
+                to=email,
+                subject=f"Tawzeevo: {business_name} is approved",
+                text=(
+                    f"Your application for {business_name} was approved. Sign in to open your "
+                    "business workspace.\n\n"
+                    f"تمت الموافقة على طلبك لـ {business_name}. سجّل الدخول لفتح مساحة عمل منشأتك."
+                ),
+            )
+        )
+        logger.info("approval email sent for business=%s", business_name)
+    except Exception:  # noqa: BLE001 - any delivery failure is logged, never raised
+        logger.warning(
+            "approval email could not be sent for business=%s", business_name, exc_info=True
+        )
 
 
 def list_applications(
@@ -216,8 +294,24 @@ def list_tenants(
     limit: int,
     name_search: str | None,
     tenant_status: TenantStatus | None,
+    access_status: AccessState | None = None,
+    today: date | None = None,
 ) -> tuple[list[Tenant], int, int]:
     conditions: list[ColumnElement[bool]] = []
+    # The same rule as `_access_state`, in SQL, so paging and totals are right (D-109).
+    current_date = today or date.today()
+    in_period = or_(Tenant.access_until.is_(None), Tenant.access_until >= current_date)
+    in_grace = and_(
+        Tenant.access_until < current_date,
+        Tenant.grace_until.is_not(None),
+        Tenant.grace_until >= current_date,
+    )
+    if access_status is AccessState.CURRENT:
+        conditions.append(in_period)
+    elif access_status is AccessState.GRACE:
+        conditions.append(in_grace)
+    elif access_status is AccessState.OVERDUE:
+        conditions.append(and_(not_(in_period), not_(in_grace)))
     if name_search is not None and name_search.strip():
         conditions.append(Tenant.name.ilike(f"%{name_search.strip()}%"))
     if tenant_status is not None:

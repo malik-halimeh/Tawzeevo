@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from tawzeevo_api.models import ProductPriceBasis
+from tawzeevo_api.schemas.collection_reports import CollectionClaim
 
 
 class TaskCreateRequest(BaseModel):
@@ -35,6 +36,8 @@ class TaskCompleteRequest(BaseModel):
 
     expected_version: int = Field(ge=1)
     note: str | None = Field(default=None, max_length=500)
+    # What was collected, as the driver says (D-114); not a payment until the owner confirms.
+    collection: CollectionClaim | None = None
 
 
 class TaskCancelRequest(BaseModel):
@@ -197,6 +200,44 @@ class SuggestOrderResponse(BaseModel):
     note: str | None
     stops: list[SuggestedStop]
     unlocated_task_ids: list[UUID]
+
+
+class RoutePathRequest(BaseModel):
+    """Open deliveries in the order to draw; stops without a saved location are skipped."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_ids: list[UUID] = Field(min_length=1, max_length=200)
+
+
+class RoutePathResponse(BaseModel):
+    method: str
+    points: list[tuple[float, float]]  # (latitude, longitude)
+
+
+class DirectionsRequest(BaseModel):
+    """The member's position, read once on request (never stored), and the stop to reach."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin: Coordinates
+    task_id: UUID
+
+
+class DirectionsStepView(BaseModel):
+    type: int
+    name: str | None
+    distance_m: float
+    duration_s: float
+    exit_number: int | None
+
+
+class DirectionsResponse(BaseModel):
+    method: str
+    distance_m: float
+    duration_s: float | None
+    points: list[tuple[float, float]]  # (latitude, longitude)
+    steps: list[DirectionsStepView]
 
 
 class SaveOrderRequest(BaseModel):

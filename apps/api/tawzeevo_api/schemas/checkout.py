@@ -50,6 +50,9 @@ class CheckoutResponse(BaseModel):
 
 
 class ProvisionalItem(BaseModel):
+    # The public product this line was ordered from (None for a line the owner typed by hand), so
+    # the customer can order the same products again (D-102). Published products are public.
+    product_id: UUID | None = None
     name: str
     quantity: Decimal
     unit: str

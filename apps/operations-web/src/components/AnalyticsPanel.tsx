@@ -28,6 +28,8 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
   const [flow, setFlow] = useState<Flow>();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [phoneSearch, setPhoneSearch] = useState("");
+  // "No customer" is an answer to a finished search, never to a number still being typed.
+  const [searched, setSearched] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [lifetime, setLifetime] = useState<Lifetime>();
   const [error, setError] = useState<unknown>();
@@ -45,7 +47,7 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
     event.preventDefault();
     setError(undefined);
     apiRequest<CustomerSearchResponse>(`/api/v1/tenants/${tenantId}/customers/search?phone=${encodeURIComponent(phoneSearch)}`)
-      .then((body) => { setCustomers(body.customers); setCustomerId(body.customers.length === 1 ? body.customers[0]!.id : ""); })
+      .then((body) => { setCustomers(body.customers); setCustomerId(body.customers.length === 1 ? body.customers[0]!.id : ""); setSearched(true); })
       .catch(setError);
   };
   useEffect(() => {
@@ -104,7 +106,7 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
       <h4>{t("analytics.lifetimeTitle")}</h4>
       <p className="muted">{t("analytics.lifetimeBody")}</p>
       <form className="inline-form" onSubmit={findCustomers}>
-        <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label>
+        <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" required value={phoneSearch} onChange={(event) => { setPhoneSearch(event.target.value); setSearched(false); }} /></label>
         <button className="button" type="submit">{t("common.search")}</button>
       </form>
       {customers.length > 1 ? (
@@ -115,7 +117,7 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
           </select>
         </label>
       ) : null}
-      {phoneSearch && customers.length === 0 && !lifetime ? <p className="muted">{t("analytics.noCustomer")}</p> : null}
+      {searched && customers.length === 0 && !lifetime ? <p className="muted">{t("analytics.noCustomer")}</p> : null}
       {lifetime ? (
         <div className="lifetime" aria-live="polite">
           {lifetime.insufficient_data ? <p className="muted">{t("analytics.insufficient")}</p> : (

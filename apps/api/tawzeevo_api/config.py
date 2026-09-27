@@ -18,7 +18,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://tawzeevo:change-me@localhost:5432/tawzeevo"
     test_database_url: str | None = None
     db_pool_size: int = Field(default=5, ge=1, le=50)
-    db_max_overflow: int = Field(default=5, ge=0, le=50)
+    # A bounded burst above the steady pool (10 extra, 15 in all): page loads fire several parallel
+    # reads; a hosted PostgreSQL plan allows far more connections than one instance uses.
+    db_max_overflow: int = Field(default=10, ge=0, le=50)
     db_pool_recycle_seconds: int = Field(default=1800, ge=60)
     db_pool_timeout_seconds: int = Field(default=10, ge=1)
     # Defense in depth only exists when the application role is subject to RLS (no SUPERUSER, no
@@ -72,6 +74,11 @@ class Settings(BaseSettings):
     email_from: str = "Tawzeevo <no-reply@example.com>"
     # Online routing (D-060): OpenRouteService first when its key is set, Google only when its
     # key is set, otherwise the offline stop-order heuristic. Core delivery never depends on it.
+    # Web push to installed phones (D-116): on only when all three are set; hosting secrets only.
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str | None = None
+    push_timeout_seconds: float = Field(default=5.0, gt=0, le=5)
     openrouteservice_api_key: str | None = None
     google_maps_api_key: str | None = None
     routing_timeout_seconds: float = Field(default=8.0, gt=0, le=60)
@@ -123,6 +130,10 @@ class Settings(BaseSettings):
                     "the dev adapter is refused in production"
                 )
         return self
+
+    @property
+    def push_enabled(self) -> bool:
+        return bool(self.vapid_public_key and self.vapid_private_key and self.vapid_subject)
 
 
 @lru_cache

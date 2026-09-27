@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 from uuid import UUID, uuid4
 
 import pytest
+from migration_head import MIGRATION_HEAD
 from sqlalchemy import func, select, text
 from test_invoice_editor import (
     _attach_latest_cost,
@@ -135,7 +136,7 @@ def test_connect_backup_verify_and_status(client, session_factory, monkeypatch):
     manifest = backup["manifest"]
     assert manifest["encryption"]["algorithm"] == "AES-256-GCM"
     assert manifest["encryption"]["kek_id"] == "kek-test-1"
-    assert manifest["migration_version"] == "20260921_0031"
+    assert manifest["migration_version"] == MIGRATION_HEAD
     assert manifest["counts"] == _row_counts(session_factory, tenant)
     assert manifest["counts"]["invoices"] == 1 and manifest["counts"]["payments"] == 1
     # The Drive file holds ciphertext only: no customer name, phone or invoice number in clear.

@@ -34,6 +34,9 @@ from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.schemas.invoice_editor import (
     CatalogMatchResponse,
     CatalogSearchResponse,
+    InvoiceCalculatedLine,
+    InvoiceCalculateRequest,
+    InvoiceCalculateResponse,
     InvoiceEditorDraftRequest,
     InvoiceEditorItemRequest,
     InvoiceEditorItemResponse,
@@ -206,13 +209,18 @@ def _primary_match(
     response = product_response(db, product, preferred_barcode=preferred_barcode)
     primary_barcode = next(
         (item for item in response.barcodes if item.barcode == response.barcode),
-        response.barcodes[0],
+        response.barcodes[0] if response.barcodes else None,
     )
     return CatalogMatchResponse(
         product_id=product.id,
         name=product.name,
         barcode=response.barcode,
-        package_level=ProductPriceBasis(primary_barcode.package_level.value),
+        # A product without a barcode (D-112) is added at its own price basis.
+        package_level=(
+            ProductPriceBasis(primary_barcode.package_level.value)
+            if primary_barcode is not None
+            else product.price_basis
+        ),
         currency=product.currency,
         price_basis=product.price_basis,
         unit_price=money(product.unit_price),
@@ -587,11 +595,14 @@ def _validate_barcode_basis(
     product: TenantProduct,
     barcode: str | None,
     basis: ProductPriceBasis,
-) -> str:
+) -> str | None:
     response = product_response(db, product, preferred_barcode=barcode)
     selected = next((item for item in response.barcodes if item.barcode == barcode), None)
     if barcode is not None and selected is None:
         raise AppError(400, "BARCODE_PRODUCT_MISMATCH", "Barcode does not belong to product")
+    if not response.barcodes:
+        # A product without any barcode (D-112) is invoiced by its product id alone.
+        return None
     selected = selected or next(
         (item for item in response.barcodes if item.package_level.value == basis.value),
         None,
@@ -1000,6 +1011,44 @@ def _create_command_matches(
         for item in items
     ]
     return stored_fingerprint == requested_fingerprint
+
+
+def calculate_invoice(
+    db: Session,
+    tenant_id: UUID,
+    request: InvoiceCalculateRequest,
+    *,
+    fuzzy_threshold: Decimal,
+) -> InvoiceCalculateResponse:
+    """The same item resolution and totals as a saved draft, plus the customer's prior balance, with
+    nothing written (D-107). Saving still recalculates everything on the server."""
+    customer = get_customer(db, tenant_id, request.customer_id)
+    items = _prepare_items(
+        db, tenant_id, customer, request.currency, request.items, fuzzy_threshold
+    )
+    subtotal, discount_total, markup_total, net_sales = _totals(
+        items, request.invoice_discount_expression, request.invoice_markup_expression
+    )
+    applied = apply_customer(db, tenant_id, customer, request.currency, net_sales)
+    db.rollback()  # nothing to keep: a calculation never writes
+    return InvoiceCalculateResponse(
+        currency=request.currency,
+        prior_balance=money(applied.prior_balance_snapshot),
+        subtotal=money(subtotal),
+        discount_total=money(discount_total),
+        markup_total=money(markup_total),
+        net_sales=money(net_sales),
+        total_due=money(applied.amount_due_display),
+        lines=[
+            InvoiceCalculatedLine(
+                line_number=number,
+                product_name=item.name,
+                effective_unit_price=money(item.effective_price),
+                line_total=money(item.line_total),
+            )
+            for number, item in enumerate(items, start=1)
+        ],
+    )
 
 
 def create_editor_draft(

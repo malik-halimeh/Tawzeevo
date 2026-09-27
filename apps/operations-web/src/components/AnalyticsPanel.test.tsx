@@ -50,3 +50,23 @@ test("wide tables scroll inside labelled regions a keyboard can reach", async ()
     expect(region).toContainElement(screen.getByRole("table", { name }));
   }
 });
+
+test("says no customer was found only after a search, not while the phone is being typed", async () => {
+  await i18n.changeLanguage("en");
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    if (url.includes("/analytics/overview")) return Promise.resolve(Response.json({ period: { key: "30d", start: null, end: "2026-09-19T00:00:00Z", timezone: "Asia/Beirut" }, confirmed_invoices: 0, invoiced_sales: [], customer_receipts: [], customer_refunds: [], customer_outstanding: [], customer_credit: [], supplier_payable: [], supplier_credit: [], gross_profit: [] }));
+    if (url.includes("/analytics/events")) return Promise.resolve(Response.json({ totals: [], monthly: [] }));
+    if (url.includes("/tenants/t1/customers/search")) return Promise.resolve(Response.json({ customers: [] }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: url } }, { status: 404 }));
+  }));
+
+  renderPanel();
+  const phone = await screen.findByLabelText("Phone");
+  fireEvent.change(phone, { target: { value: "+961710" } });
+  expect(screen.queryByText("No customer with that phone yet.")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  expect(await screen.findByText("No customer with that phone yet.")).toBeInTheDocument();
+  fireEvent.change(phone, { target: { value: "+9617100" } });
+  expect(screen.queryByText("No customer with that phone yet.")).not.toBeInTheDocument();
+});

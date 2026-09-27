@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
 import { type SyncOutcome, syncNow } from "../offline/pull";
+import { listOutbox } from "../offline/outbox";
 import { queueDeliveryCompletion } from "../offline/supplierCommands";
 import { MyWorkPanel } from "./MyWorkPanel";
 
@@ -11,6 +12,7 @@ import { MyWorkPanel } from "./MyWorkPanel";
 vi.mock("../offline/pull", () => ({ syncNow: vi.fn() }));
 vi.mock("../offline/supplierCommands", () => ({ queueDeliveryCompletion: vi.fn(() => Promise.resolve()) }));
 vi.mock("../offline/sync", () => ({ localSyncStatus: vi.fn(() => Promise.resolve({ bootstrapped_at: "2026-09-23T08:00:00Z" })), bootstrapLocalProjection: vi.fn(() => Promise.resolve()) }));
+vi.mock("../offline/outbox", () => ({ listOutbox: vi.fn(() => Promise.resolve([])) }));
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.mocked(syncNow).mockReset(); vi.mocked(queueDeliveryCompletion).mockClear(); });
 
@@ -59,6 +61,7 @@ test("driver sees only assigned stops with contact, items and amount, and comple
   expect(document.body.textContent).not.toMatch(/cost|margin|profit/i);
   fireEvent.change(screen.getByLabelText("Note for the next completion (optional)"), { target: { value: "paid cash" } });
   fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await screen.findByText("Marked delivered.")).toBeInTheDocument();
   expect(bodies[0]).toEqual({ expected_version: 1, note: "paid cash" });
   expect(await screen.findByText("Nothing assigned to you right now.")).toBeInTheDocument();
@@ -98,6 +101,7 @@ async function queueFirstStopOffline(delivered: { value: boolean }) {
   expect(screen.getByText("0 of 2 completed")).toBeInTheDocument();
   browserOnline(false);
   fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await screen.findByText(/No connection: the completion is saved on this device/)).toBeInTheDocument();
   expect(queueDeliveryCompletion).toHaveBeenCalledWith("t1", "m2", "t1", 1, null);
   expect(screen.getByText("0 of 2 completed")).toBeInTheDocument(); // queued is not delivered
@@ -173,6 +177,7 @@ test("on one pane, a stop's failed or queued completion is shown inside the open
   const list = container.querySelector<HTMLElement>(".workspace-list")!;
 
   fireEvent.click(within(detail).getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(within(detail).getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await within(detail).findByRole("alert")).toHaveTextContent("This stop changed since it was downloaded.");
   expect(panel).toHaveClass("show-detail"); // a failure never closes the stop
   expect(within(list).queryByRole("alert")).not.toBeInTheDocument(); // one copy, where the member is
@@ -180,6 +185,7 @@ test("on one pane, a stop's failed or queued completion is shown inside the open
   browserOnline(false);
   mode = "offline";
   fireEvent.click(within(detail).getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(within(detail).getByRole("button", { name: "Yes, delivered" })); // a final action asks once
   expect(await within(detail).findByRole("status")).toHaveTextContent(/No connection: the completion is saved on this device/);
   expect(within(detail).queryByRole("alert")).not.toBeInTheDocument();
   expect(within(list).queryByText(/No connection: the completion is saved/)).not.toBeInTheDocument();
@@ -191,4 +197,122 @@ test("on one pane, a stop's failed or queued completion is shown inside the open
   expect(within(list).getByText(/No connection: the completion is saved/)).toHaveAttribute("role", "status");
   fireEvent.click(screen.getByRole("button", { name: /02.*Corner Shop/ }));
   expect(screen.queryByText(/No connection: the completion is saved/)).not.toBeInTheDocument();
+});
+
+test("completions queued on this device before a reload are listed again and can be sent", async () => {
+  await i18n.changeLanguage("en");
+  vi.mocked(listOutbox).mockResolvedValueOnce([
+    { entity_type: "delivery_task", entity_id: "t1", operation_type: "complete", state: "pending" },
+    { entity_type: "delivery_task", entity_id: "t9", operation_type: "complete", state: "acknowledged" },
+    { entity_type: "customer", entity_id: "c1", operation_type: "create", state: "pending" },
+  ] as unknown as Awaited<ReturnType<typeof listOutbox>>);
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: [task], membership_id: "m2", role: "driver" }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  expect((await screen.findAllByText("1 completion waiting to send")).length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
+});
+
+test("after a delivery the next stop opens, Navigate hands off to Google Maps, and re-planning starts from the delivered customer", async () => {
+  await i18n.changeLanguage("en");
+  const second = { ...task, id: "t2", customer_name: "Byblos Shop", customer_latitude: "34.121100", customer_longitude: "35.648100", route_sequence: 3 };
+  const third = { ...task, id: "t3", customer_name: "Tyre Shop", customer_latitude: "33.273300", customer_longitude: "35.203600", route_sequence: 4 };
+  const calls: { path: string; body?: Record<string, unknown> }[] = [];
+  let remaining = [task, second, third];
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    calls.push({ path, ...(typeof init?.body === "string" ? { body: JSON.parse(init.body) as Record<string, unknown> } : {}) });
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: remaining, membership_id: "m2", role: "driver" }));
+    if (path.endsWith("/t1/complete")) { remaining = [second, third]; return Promise.resolve(Response.json({ ...task, status: "COMPLETED", version: 2 })); }
+    if (path.endsWith("/routes/path")) return Promise.resolve(Response.json({ method: "straight-line", points: [] }));
+    if (path.endsWith("/routes/suggest-order")) return Promise.resolve(Response.json({ method: "openrouteservice", note: null, stops: [{ task_id: "t3" }, { task_id: "t2" }], unlocated_task_ids: [] }));
+    if (path.endsWith("/routes/order")) { remaining = [{ ...third, route_sequence: 1 }, { ...second, route_sequence: 2 }]; return Promise.resolve(Response.json({ tasks: remaining, membership_id: "m2", role: "driver" })); }
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  expect(await screen.findByRole("heading", { name: "Corner Shop" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Map of the stops" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Navigate" })).toHaveAttribute("href", "https://www.google.com/maps/dir/?api=1&destination=33.895000,35.478000&travelmode=driving");
+
+  fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" })); // a final action asks once
+  expect(await screen.findByText("Marked delivered. Next stop: Byblos Shop")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Byblos Shop" })).toBeInTheDocument(); // the next stop opened by itself
+  expect(calls.some((call) => call.path.endsWith("/routes/suggest-order"))).toBe(false); // never re-planned without asking
+
+  fireEvent.click(screen.getByRole("button", { name: "Re-plan the rest from Corner Shop" }));
+  expect(await screen.findByText("Remaining stops re-planned from Corner Shop and saved.")).toBeInTheDocument();
+  expect(calls.find((call) => call.path.endsWith("/routes/suggest-order"))?.body).toEqual({ origin: { latitude: "33.895000", longitude: "35.478000" }, task_ids: ["t2", "t3"] });
+  expect(calls.find((call) => call.path.endsWith("/routes/order"))?.body).toEqual({ task_ids: ["t3", "t2"] });
+  expect(screen.getByRole("heading", { name: "Tyre Shop" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Re-plan the rest/ })).not.toBeInTheDocument();
+});
+
+test("Directions reads the position once and shows the road route, distance, time and turns inside the app", async () => {
+  await i18n.changeLanguage("en");
+  const getCurrentPosition = vi.fn((success: PositionCallback) => success({ coords: { latitude: 33.8886, longitude: 35.5157, accuracy: 10 } } as GeolocationPosition));
+  vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition, watchPosition: vi.fn() } });
+  const bodies: Record<string, unknown>[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: [task], membership_id: "m2", role: "driver" }));
+    if (path.endsWith("/routes/directions")) {
+      bodies.push(JSON.parse(typeof init?.body === "string" ? init.body : "{}") as Record<string, unknown>);
+      return Promise.resolve(Response.json({ method: "openrouteservice", distance_m: 17445.8, duration_s: 992.5, points: [[33.8886, 35.5157], [33.895, 35.478]], steps: [{ type: 11, name: null, distance_m: 38.6, duration_s: 6.9, exit_number: null }, { type: 1, name: "Charles Helou", distance_m: 3276, duration_s: 143, exit_number: null }, { type: 10, name: null, distance_m: 0, duration_s: 0, exit_number: null }] }));
+    }
+    return Promise.resolve(Response.json({ method: "straight-line", points: [] }));
+  }));
+
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Directions" }));
+  const panel = await screen.findByRole("region", { name: "Directions to Corner Shop" });
+  expect(bodies).toEqual([{ origin: { latitude: "33.888600", longitude: "35.515700" }, task_id: "t1" }]);
+  expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+  expect(within(panel).getByText("17 km")).toBeInTheDocument();
+  expect(within(panel).getByText(/about 17 min by car/)).toBeInTheDocument();
+  expect(within(panel).getByRole("region", { name: "Map of the directions" })).toBeInTheDocument();
+  expect(within(panel).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Head outthen 40 m", "Turn right onto \u2068Charles Helou\u2069then 3.3 km", "Arrive at Corner Shop"]);
+  fireEvent.click(within(panel).getByRole("button", { name: "Hide directions" }));
+  expect(screen.queryByRole("region", { name: "Directions to Corner Shop" })).not.toBeInTheDocument();
+});
+
+test("the driver says what was collected; partly needs the amount; offline it rides the queued completion (D-114)", async () => {
+  await i18n.changeLanguage("en");
+  const bodies: Record<string, unknown>[] = [];
+  let done = false;
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (typeof init?.body === "string") bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: done ? [] : [task], membership_id: "m2", role: "driver" }));
+    if (path.endsWith("/t1/complete")) { done = true; return Promise.resolve(Response.json({ ...task, status: "COMPLETED", version: 2 })); }
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  const question = await screen.findByRole("group", { name: "Payment at this delivery" });
+  fireEvent.click(within(question).getByLabelText("Paid partly"));
+  expect(screen.getByRole("button", { name: "Mark delivered" })).toBeDisabled(); // the amount is required
+  fireEvent.change(within(question).getByLabelText("Amount paid (USD)"), { target: { value: "12.5" } });
+  fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" }));
+  expect(await screen.findByText("Marked delivered.")).toBeInTheDocument();
+  expect(bodies[0]).toEqual({ expected_version: 1, note: null, collection: { kind: "PARTIAL", amount: "12.5" } });
+  cleanup();
+
+  // Offline: "Paid in full" is queued with the completion, once.
+  browserOnline(false);
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: [task], membership_id: "m2", role: "driver" }));
+    return Promise.reject(new TypeError("Failed to fetch"));
+  }));
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  fireEvent.click(within(await screen.findByRole("group", { name: "Payment at this delivery" })).getByLabelText("Paid in full"));
+  fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" }));
+  await waitFor(() => expect(queueDeliveryCompletion).toHaveBeenCalledWith("t1", "m2", "t1", 1, null, { kind: "FULL" }));
 });

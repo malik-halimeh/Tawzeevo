@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 
 import { type PublicStorefront, publicApiBase } from "@/lib/catalog";
 import type { CustomerContext } from "@/lib/personal";
-import { CartBar, CartLink } from "./CartControls";
+import { CartBar, CartLink, YourOrderLink } from "./CartControls";
+import { NotificationsLink } from "./Notifications";
 import { Icon } from "./Icon";
 import { PersonalBanner } from "./PersonalBanner";
 import { CONTEXT_PARAM, isContextRef, shopHref } from "@/lib/format";
@@ -55,6 +56,8 @@ export function ShopFrame({
           </div>
         </div>
         <nav aria-label={t(lang, "storefront")} className="shop-nav">
+          {context?.granted && ctx ? <NotificationsLink ctx={ctx} lang={lang} slug={shop.slug} /> : null}
+          <YourOrderLink ctx={ctx} lang={lang} slug={shop.slug} />
           <CartLink ctx={ctx} lang={lang} slug={shop.slug} />
           <Link className="lang" href={switchHref} hrefLang={other} lang={other}>{t(lang, "language")}</Link>
         </nav>
@@ -69,7 +72,7 @@ export function ShopFrame({
         </form>
       </header>
       <main id="content" tabIndex={-1}>
-        {context ? <PersonalBanner ctx={ctx} displayName={context.display_name} granted={context.granted} lang={lang} slug={shop.slug} /> : null}
+        {context ? <PersonalBanner ctx={ctx} displayName={context.display_name} granted={context.granted} lang={lang} slug={shop.slug} verificationAvailable={context.verification_available !== false} /> : null}
         {!shop.accepting_orders ? <p className="notice warn" role="status">{t(lang, "notAccepting")}</p> : null}
         {brand?.banner_text && currentPath === `/${shop.slug}` ? <p className="brand-banner">{brand.banner_text}</p> : null}
         {children}

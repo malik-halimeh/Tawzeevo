@@ -10,17 +10,22 @@ import type {
   Category,
   CategoryListResponse,
   Customer,
+  CustomerBalancesResponse,
   CustomerGrade,
   CustomerSearchResponse,
   GradeDiscount,
   GradeDiscountListResponse,
   ProductGradePrice,
   ProductImage,
+  ProductPriceBasis,
   TenantContext,
   TenantProduct,
   TenantProductListResponse,
 } from "../api/types";
-import { ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
+import { AllCustomers } from "./AllCustomers";
+import { CameraScanButton } from "./CameraScan";
+import { PickupInbox } from "./PickupReports";
+import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { CopilotPanel } from "./CopilotPanel";
 import { AttentionList, CustomerSignals, TodayBrief } from "./IntelligencePanel";
 import { InvoiceEditor } from "./InvoiceEditor";
@@ -34,14 +39,55 @@ import { BrandingPanel } from "./BrandingPanel";
 import { CampaignPanel } from "./CampaignPanel";
 import { CustomerLinkControls } from "./CustomerLinkControls";
 import { DeliveryPanel } from "./DeliveryPanel";
-import { Arrow, Icon } from "./Icon";
+import { Arrow, Icon, type IconName } from "./Icon";
 import { MyWorkPanel } from "./MyWorkPanel";
 import { OrdersPanel } from "./OrdersPanel";
+import { OwnerSetupChecklist } from "./OwnerSetupChecklist";
+import { OwnerTodayStrip } from "./OwnerTodayStrip";
 import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
+import { readLastChoice, rememberChoice } from "./lastChoice";
 import { SyncPanel } from "./SyncPanel";
-import { SYNC_ANCHOR, type WorkspaceSection, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
+import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
+import { useOptionalUser } from "../auth/AuthContext";
+import { PENDING_ORDERS_KEY, fetchPendingOrders } from "./pendingOrders";
+
+/** The business this member used last on this device (a convenience only; the server checks membership). */
+const lastTenantKey = (userId: string) => `tawzeevo.lastTenant.${userId}`;
+function readLastTenant(userId: string | undefined): string | null {
+  if (!userId) return null;
+  try { return localStorage.getItem(lastTenantKey(userId)); } catch { return null; }
+}
+function rememberTenant(userId: string | undefined, tenantId: string) {
+  if (!userId) return;
+  try { localStorage.setItem(lastTenantKey(userId), tenantId); } catch { /* storage unavailable: nothing to remember */ }
+}
+
+/**
+ * A group's sections as tabs above the page, when the group has more than one (owners only). The
+ * Orders tab repeats the shell's waiting count from the same cached query (it never fetches itself).
+ */
+function SectionTabs({ view, tenantParam, tenantId }: { view: WorkspaceSection; tenantParam: string | null; tenantId: string }) {
+  const { t } = useTranslation();
+  const pending = useQuery({ queryKey: [PENDING_ORDERS_KEY, tenantId], queryFn: () => fetchPendingOrders(tenantId), enabled: false });
+  const group = groupOf(view);
+  if (group.sections.length < 2) return null;
+  const waiting = pending.data?.length ?? 0;
+  return (
+    <nav aria-label={t("nav.sectionTabs")} className="section-tabs">
+      {group.sections.map((id) => {
+        const meta = WORKSPACE_SECTIONS.find((entry) => entry.id === id)!;
+        return (
+          <Link aria-current={id === view ? "page" : undefined} className={id === view ? "active" : undefined} key={id} to={sectionHref(id, tenantParam)}>
+            {t(meta.label)}
+            {id === "orders" && waiting > 0 ? <span className="nav-badge"><span aria-hidden="true">{waiting}</span><span className="sr-only">{t("orders.awaitingBadge", { count: waiting })}</span></span> : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 const grades: CustomerGrade[] = ["A+", "A", "B+", "B"];
 
@@ -74,7 +120,7 @@ const emptyCategory: CategoryDraft = {
   name_en: "",
   name_ar: "",
   slug: "",
-  display_order: "0",
+  display_order: "",
 };
 
 interface ProductDraft {
@@ -102,8 +148,14 @@ const emptyProduct: ProductDraft = {
   currency: "USD",
   price_basis: "PIECE",
   pieces_per_box: "",
-  is_published: false,
+  // New products start published (owner decision 2026-09-27); untick under More options to keep one hidden.
+  is_published: true,
 };
+
+/** A new product starts in the category and currency used last on this device. */
+function freshProduct(tenantId: string): ProductDraft {
+  return { ...emptyProduct, category_id: readLastChoice("category", tenantId) ?? "", currency: readLastChoice("currency", tenantId) ?? emptyProduct.currency };
+}
 
 function optional(value: string): string | null {
   const normalized = value.trim();
@@ -148,6 +200,28 @@ function AuthenticatedProductImage({ image }: { image: ProductImage }) {
   ) : (
     <span className="product-image-placeholder">{t("common.loading")}</span>
   );
+}
+
+/** Plan D: the product's first photo fills the top of its crate in the list. Decorative (the name is beside it and the
+ * described image stays under Manage), so it is hidden from assistive technology and shows nothing until loaded. */
+function CratePhoto({ image }: { image: ProductImage }) {
+  const [source, setSource] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | undefined;
+    void apiBlobRequest(image.url)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSource(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [image.url]);
+  return source ? <span aria-hidden="true" className="crate-photo"><img alt="" src={source} /></span> : null;
 }
 
 function GradeDiscountEditor({ tenantId }: { tenantId: string }) {
@@ -341,6 +415,100 @@ function ProductPricingMediaControls({
   );
 }
 
+interface ProductEditDraft {
+  name: string;
+  name_ar: string;
+  category_id: string;
+  unit_price: string;
+  currency: string;
+  price_basis: ProductPriceBasis;
+  pieces_per_box: string;
+}
+
+/**
+ * Edits an existing product's name, category and price through the existing product update, sending
+ * only the fields that changed (the server keeps its own rules, e.g. grade prices must be cleared
+ * before the currency or price basis changes). Online only: nothing is queued from this form.
+ */
+function ProductEditForm({ product, tenantId, categories, onClose }: { product: TenantProduct; tenantId: string; categories: Category[]; onClose: (saved: boolean) => void }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<ProductEditDraft>({
+    name: product.name,
+    name_ar: product.name_ar ?? "",
+    category_id: product.category_id,
+    unit_price: product.unit_price,
+    currency: product.currency,
+    price_basis: product.price_basis,
+    pieces_per_box: product.pieces_per_box === null ? "" : String(product.pieces_per_box),
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    const changes: Record<string, unknown> = {};
+    if (draft.name.trim() !== product.name) changes.name = draft.name.trim();
+    if (draft.name_ar.trim() !== (product.name_ar ?? "")) changes.name_ar = draft.name_ar.trim() || null;
+    if (draft.category_id !== product.category_id) changes.category_id = draft.category_id;
+    if (Number(draft.unit_price) !== Number(product.unit_price)) changes.unit_price = draft.unit_price;
+    if (draft.currency !== product.currency) changes.currency = draft.currency;
+    if (draft.price_basis !== product.price_basis) changes.price_basis = draft.price_basis;
+    const pieces = draft.pieces_per_box ? Number(draft.pieces_per_box) : null;
+    if (pieces !== product.pieces_per_box) changes.pieces_per_box = pieces;
+    if (!Object.keys(changes).length) { onClose(false); return; }
+    setBusy(true);
+    setError(undefined);
+    void apiRequest<TenantProduct>(`/api/v1/tenants/${tenantId}/products/${product.id}`, { method: "PUT", body: JSON.stringify(changes) })
+      .then(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["tenant-products", tenantId] });
+        onClose(true);
+      })
+      .catch((problem: unknown) => setError(isOfflineFailure(problem) ? new Error(t("errors.NETWORK_UNREACHABLE")) : problem))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <form aria-label={t("tenantWorkspace.editProduct", { name: product.name })} className="form-grid product-edit-form" onSubmit={save}>
+      {error ? <div className="field-wide"><ErrorState error={error} /></div> : null}
+      <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+      <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={draft.name_ar} onChange={(event) => setDraft({ ...draft, name_ar: event.target.value })} /></label>
+      <label className="field"><span>{t("tenantWorkspace.category")}</span><select required value={draft.category_id} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })}>{categories.filter((item) => item.is_active || item.id === product.category_id).map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
+      <label className="field"><span>{t("tenantWorkspace.tenantPrice")}</span><input dir="ltr" min="0" required step="0.0001" type="number" value={draft.unit_price} onChange={(event) => setDraft({ ...draft, unit_price: event.target.value })} /></label>
+      <label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} /></label>
+      <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={draft.price_basis} onChange={(event) => setDraft({ ...draft, price_basis: event.target.value as ProductPriceBasis })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
+      <label className="field"><span>{t("tenantWorkspace.piecesPerBox")}</span><input dir="ltr" min="1" type="number" value={draft.pieces_per_box} onChange={(event) => setDraft({ ...draft, pieces_per_box: event.target.value })} /></label>
+      <div className="form-actions field-wide"><button className="button" disabled={busy} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button><button className="button button-secondary" disabled={busy} onClick={() => onClose(false)} type="button">{t("common.cancel")}</button></div>
+    </form>
+  );
+}
+
+/**
+ * The customer's balance per currency (never added together) with the two things usually done next:
+ * a new invoice or a payment, opened in Invoices with this customer already chosen.
+ */
+function CustomerBalanceActions({ tenantId, customerId }: { tenantId: string; customerId: string }) {
+  const { t } = useTranslation();
+  const balances = useQuery({
+    queryKey: ["customer-balances", tenantId, customerId],
+    queryFn: () => apiRequest<CustomerBalancesResponse>(`/api/v1/customer-ledger/customers/${customerId}/balances?tenant_id=${tenantId}`),
+  });
+  const rows = balances.data?.balances ?? [];
+  const owed = rows.find((row) => Number(row.balance) > 0);
+  return (
+    <section aria-label={t("tenantWorkspace.balanceLabel")} className="customer-balance">
+      <p className="eyebrow">{t("tenantWorkspace.balanceLabel")}</p>
+      {balances.isLoading ? <p className="muted">{t("common.loading")}</p> : rows.length ? (
+        <div className="balance-chips">{rows.map((row) => <span dir="ltr" key={row.currency}>{row.balance} {row.currency}</span>)}</div>
+      ) : balances.error ? null : <p className="muted">{t("invoiceEditor.noLedgerBalance")}</p>}
+      <div className="customer-actions">
+        <Link className="button" to={sectionHref("invoices", tenantId, { customer: customerId })}><Icon name="invoice" small />{t("tenantWorkspace.newInvoice")}</Link>
+        <Link className="button button-secondary button-money" to={sectionHref("invoices", tenantId, { customer: customerId, view: "payments", currency: owed?.currency ?? null })}><Icon name="coin" small />{t("tenantWorkspace.recordPayment")}</Link>
+      </div>
+    </section>
+  );
+}
+
 /** One pane below the 1100px list/detail layout, as on the work screen: an open record replaces the list. */
 const ONE_PANE = "(max-width: 1099px)";
 const singlePane = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(ONE_PANE).matches;
@@ -393,6 +561,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   const [selectedId, setSelectedId] = useState(editingCustomerId);
   const [creating, setCreating] = useState(false);
   const [detailOpen, setDetailOpen] = useState(editingCustomerId !== undefined);
+  // The phone of the last finished search, offered for "Add customer with this phone" when nothing matched.
+  const [searchedPhone, setSearchedPhone] = useState("");
   const [, setFocusRequests] = useState(0);
   const root = useRef<HTMLElement>(null);
   const phoneInput = useRef<HTMLInputElement>(null);
@@ -494,6 +664,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   // The results change beneath the search, so the phone field keeps the focus (Search is busy meanwhile).
   const submitSearch = (event: FormEvent) => {
     phoneInput.current?.focus();
+    setSearchedPhone(phoneSearch.trim());
     searchCustomers(event);
   };
   const openCustomer = (customer: Customer) => {
@@ -510,9 +681,10 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     setDetailOpen(false);
     focusAfterRender({ to: "list", row: selected?.id, scrollY: listScroll.current });
   };
-  const addCustomer = () => {
+  const addCustomer = (phone?: string) => {
     rememberListScroll();
     discardForm(); // an edit left open never leaks into a new customer
+    if (phone) setCustomerDraft({ ...emptyCustomer, phone });
     setCreating(true);
     setDetailOpen(true);
     focusAfterRender({ to: "form" });
@@ -545,7 +717,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" ref={phoneInput} required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label>
             <button className="button button-secondary" disabled={busy} type="submit"><Icon name="search" small />{t("common.search")}</button>
           </form>
-          <button className="button customer-add" onClick={addCustomer} ref={addButton} type="button"><Icon name="plus" small />{t("tenantWorkspace.addCustomer")}</button>
+          <button className="button customer-add" onClick={() => addCustomer()} ref={addButton} type="button"><Icon name="plus" small />{t("tenantWorkspace.addCustomer")}</button>
+          {searchedPhone && !busy && matches.length === 0 ? <button className="button button-secondary" onClick={() => addCustomer(searchedPhone)} type="button"><Icon name="plus" small />{t("tenantWorkspace.addWithPhone", { phone: searchedPhone })}</button> : null}
         </article>
         {matches.length ? (
           <ul aria-label={t("tenantWorkspace.matchList")} className="stop-list customer-list">
@@ -562,6 +735,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
           </ul>
         ) : null}
         <AttentionList tenantId={tenantId} />
+        <AllCustomers tenantId={tenantId} />
       </div>
       {formMode ? (
         <article aria-labelledby="customer-form-title" className="detail customer-detail">
@@ -600,7 +774,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             {linkCustomerId === selected.id ? <CustomerLinkControls customerId={selected.id} tenantId={tenantId} /> : null}
             {/* Why this customer is on today's list (D-089); balances and receipts themselves belong to Invoices. */}
             <CustomerSignals customerId={selected.id} tenantId={tenantId} />
-            <p className="muted customer-balances">{t("tenantWorkspace.balancesElsewhere")} <Link to={sectionHref("invoices", tenantId)}>{t("invoiceEditor.tab")} › {t("invoiceEditor.viewBalances")}</Link></p>
+            <CustomerBalanceActions customerId={selected.id} tenantId={tenantId} />
           </div>
         </article>
       ) : (
@@ -620,8 +794,24 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const user = useOptionalUser();
   const context = selectedContext(contexts, tenantFromSearch(searchParams)) ?? contexts[0]!;
   const view = sectionFromSearch(searchParams);
+  // Entering the workspace without a business in the address: continue with the one used last on
+  // this device (when this member still belongs to it). Only on entry: afterwards an address without
+  // a business keeps meaning the first one (e.g. the browser's Back), as the links assume.
+  const addressTenant = tenantFromSearch(searchParams);
+  const enteredOnce = useRef(false);
+  useEffect(() => {
+    if (enteredOnce.current) return;
+    enteredOnce.current = true;
+    if (addressTenant) return;
+    const last = readLastTenant(user?.id);
+    if (last && last !== contexts[0]?.tenant_id && contexts.some((item) => item.tenant_id === last)) {
+      void navigate({ pathname: "/workspace", search: workspaceSearch(view, last), hash: location.hash }, { replace: true });
+    }
+  }, [addressTenant, contexts, location.hash, navigate, user?.id, view]);
+  useEffect(() => { rememberTenant(user?.id, context.tenant_id); }, [user?.id, context.tenant_id]);
   const setView = useCallback((next: WorkspaceSection, replace = false) => {
     setSearchParams((current) => workspaceSearch(next, tenantFromSearch(current)), { replace });
   }, [setSearchParams]);
@@ -635,6 +825,15 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     void navigate({ pathname: "/workspace", search: workspaceSearch(keepsSection ? view : "work", tenantId), hash });
   };
   const [backupNotice, setBackupNotice] = useState<string>();
+  // Supplier and cost setup opened from an invoice line: shown in place of the invoice while the
+  // editor stays mounted (hidden), so nothing typed is lost; closing it re-reads the missing costs.
+  const [costSetup, setCostSetup] = useState<{ productId?: string } | null>(null);
+  const [costsRefreshKey, setCostsRefreshKey] = useState(0);
+  useEffect(() => { setCostSetup(null); }, [view, context.tenant_id]);
+  const closeCostSetup = () => {
+    setCostSetup(null);
+    setCostsRefreshKey((key) => key + 1);
+  };
   const [linkCustomerId, setLinkCustomerId] = useState<string>();
   const focusCustomerId = view === "customers" ? searchParams.get("customer") : null;
   useEffect(() => {
@@ -657,11 +856,20 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [scanResult, setScanResult] = useState<BarcodeLookupResponse>();
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProduct);
   const [barcodeProductId, setBarcodeProductId] = useState<string>();
+  const [editingProductId, setEditingProductId] = useState<string>();
+  // Products: the list comes first (search and category filter over the loaded list); adding opens on demand.
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [productQuery, setProductQuery] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [quickCategory, setQuickCategory] = useState<{ open: boolean; name_en: string; name_ar: string }>({ open: false, name_en: "", name_ar: "" });
   const [extraBarcode, setExtraBarcode] = useState("");
   const [extraPackage, setExtraPackage] = useState<BarcodePackageLevel>("PIECE");
   const [requestError, setRequestError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
+
+  // A result notice belongs to the section that produced it.
+  useEffect(() => { setNotice(undefined); setRequestError(undefined); }, [view]);
 
   useEffect(() => {
     setMatches([]);
@@ -669,7 +877,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     setEditingCategoryId(undefined);
     setCustomerDraft(emptyCustomer);
     setCategoryDraft(emptyCategory);
-    setProductDraft(emptyProduct);
+    setProductDraft(freshProduct(context.tenant_id));
     setScanBarcode("");
     setScanResult(undefined);
     setBarcodeProductId(undefined);
@@ -700,8 +908,20 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const products = useQuery({
     queryKey: ["tenant-products", context.tenant_id],
     queryFn: () => apiRequest<TenantProductListResponse>(`/api/v1/tenants/${context.tenant_id}/products`),
-    enabled: context.role === "owner" && context.tenant_status === "ACTIVE" && view === "products",
+    enabled: context.role === "owner" && context.tenant_status === "ACTIVE" && (view === "products" || view === "storefront"),
   });
+  const activeCategories = categories.data?.categories.filter((item) => item.is_active) ?? [];
+  // A new category is placed after the others unless the owner gives an order.
+  const nextCategoryOrder = Math.max(0, ...(categories.data?.categories.map((item) => item.display_order) ?? [])) + 1;
+  // A remembered category that is no longer active is not offered.
+  useEffect(() => {
+    if (!categories.data || !productDraft.category_id) return;
+    if (!categories.data.categories.some((item) => item.is_active && item.id === productDraft.category_id)) setProductDraft((draft) => ({ ...draft, category_id: "" }));
+  }, [categories.data, productDraft.category_id]);
+  const productNeedle = productQuery.trim().toLowerCase();
+  const shownProducts = (products.data?.products ?? []).filter((product) =>
+    (!productCategory || product.category_id === productCategory)
+    && (!productNeedle || product.name.toLowerCase().includes(productNeedle) || (product.name_ar ?? "").toLowerCase().includes(productNeedle) || product.barcodes.some((barcode) => barcode.barcode.toLowerCase().includes(productNeedle))));
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -787,8 +1007,9 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       const payload = {
         name_en: categoryDraft.name_en,
         name_ar: categoryDraft.name_ar,
-        slug: categoryDraft.slug,
-        display_order: Number(categoryDraft.display_order),
+        // Left empty, the web address comes from the English name (the server normalises it the same way).
+        slug: categoryDraft.slug.trim() || categoryDraft.name_en,
+        display_order: categoryDraft.display_order === "" ? nextCategoryOrder : Number(categoryDraft.display_order),
       };
       const path = editingCategoryId
         ? `/api/v1/tenants/${context.tenant_id}/categories/${editingCategoryId}`
@@ -825,6 +1046,17 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     });
   };
 
+  const restoreCategory = (category: Category) => {
+    void run(async () => {
+      await apiRequest<Category>(
+        `/api/v1/tenants/${context.tenant_id}/categories/${category.id}/restore`,
+        { method: "POST" },
+      );
+      await queryClient.invalidateQueries({ queryKey: ["tenant-categories", context.tenant_id] });
+      setNotice(t("tenantWorkspace.categoryRestored"));
+    });
+  };
+
   const scanProduct = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
@@ -851,6 +1083,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           setProductDraft((current) => ({
             ...emptyProduct,
             category_id: current.category_id,
+            currency: current.currency,
             barcode: scanBarcode.trim(),
           }));
           setNotice(t("tenantWorkspace.unknownBarcode"));
@@ -864,7 +1097,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const saveProduct = (event: FormEvent) => {
     event.preventDefault();
     void run(async () => {
-      const body = { ...productDraft, name_ar: productDraft.name_ar.trim() || null, pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null };
+      // No barcode is sent as null: the product is found by name until one is added (D-112).
+      const body = { ...productDraft, barcode: productDraft.barcode.trim() || null, name_ar: productDraft.name_ar.trim() || null, pieces_per_box: productDraft.pieces_per_box ? Number(productDraft.pieces_per_box) : null };
       try {
         await apiRequest<TenantProduct>(`/api/v1/tenants/${context.tenant_id}/products`, {
           method: "POST",
@@ -873,17 +1107,36 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       } catch (problem) {
         if (!isOfflineFailure(problem)) throw problem;
         await createProductOffline(context.tenant_id, context.membership_id, body);
-        setProductDraft(emptyProduct);
+        rememberChoice("category", context.tenant_id, body.category_id);
+        rememberChoice("currency", context.tenant_id, body.currency);
+        setProductDraft(freshProduct(context.tenant_id));
         setScanBarcode("");
         setScanResult(undefined);
         setNotice(t("tenantWorkspace.productQueuedOffline"));
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ["tenant-products", context.tenant_id] });
-      setProductDraft(emptyProduct);
+      rememberChoice("category", context.tenant_id, body.category_id);
+      rememberChoice("currency", context.tenant_id, body.currency);
+      setProductDraft(freshProduct(context.tenant_id));
       setScanBarcode("");
       setScanResult(undefined);
       setNotice(t("tenantWorkspace.productCreated"));
+    });
+  };
+
+  // A category created from the product form: same create call, name as its web address, placed last.
+  const createQuickCategory = () => {
+    if (!quickCategory.name_en.trim() || !quickCategory.name_ar.trim()) return;
+    void run(async () => {
+      const created = await apiRequest<Category>(`/api/v1/tenants/${context.tenant_id}/categories`, {
+        method: "POST",
+        body: JSON.stringify({ name_en: quickCategory.name_en, name_ar: quickCategory.name_ar, slug: quickCategory.name_en, display_order: nextCategoryOrder }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["tenant-categories", context.tenant_id] });
+      setProductDraft((draft) => ({ ...draft, category_id: created.id }));
+      setQuickCategory({ open: false, name_en: "", name_ar: "" });
+      setNotice(t("tenantWorkspace.categoryCreated"));
     });
   };
 
@@ -920,10 +1173,17 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     });
   };
 
+  const ownerActive = context.role === "owner" && context.tenant_status === "ACTIVE";
+  const stationLine = ownerActive ? groupOf(view).id : context.role === "driver" ? "deliveries" : "today";
+  const stationIcon: IconName = ownerActive ? groupOf(view).icon : "van";
   return (
     <section className="tenant-workspace" aria-label={t("tenantWorkspace.label")}>
       {/* The page heading of an active workspace: the selected business, its state and the member's
           role, with the picker beside it. Kept to one compact band so the day's work follows at once. */}
+      {/* Plan D "station sign": the business band in the colour of the part of the business on screen, with that part's
+          sign (decorative) and, for a group of several sections, its tabs as stops along the band's edge. */}
+      <div className="station-sign" data-line={stationLine}>
+      <span aria-hidden="true" className="station-tile"><Icon name={stationIcon} /></span>
       <header className="business-head">
         <div className="business">
           <span className="avatar business-avatar" aria-hidden="true">{context.tenant_name.trim().slice(0, 1).toUpperCase()}</span>
@@ -940,6 +1200,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           </label>
         ) : null}
       </header>
+      {context.role === "owner" && context.tenant_status === "ACTIVE" ? <SectionTabs tenantId={context.tenant_id} tenantParam={addressTenant} view={view} /> : null}
+      </div>
       {/* A driver's own work needs no permission notice; it explains only an owner section requested in the address. */}
       {context.role !== "owner" && view !== "work" ? <p className="notice" role="note">{t("tenantWorkspace.ownerOnly")}</p> : null}
       {/* Keyed by business: the work screen's day meter, queued list and pickups never carry over to another membership. */}
@@ -961,8 +1223,13 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 <form className="form-stack" onSubmit={saveCategory}>
                   <label className="field"><span>{t("tenantWorkspace.nameEn")}</span><input required value={categoryDraft.name_en} onChange={(event) => setCategoryDraft({ ...categoryDraft, name_en: event.target.value })} /></label>
                   <label className="field"><span>{t("tenantWorkspace.nameAr")}</span><input dir="rtl" required value={categoryDraft.name_ar} onChange={(event) => setCategoryDraft({ ...categoryDraft, name_ar: event.target.value })} /></label>
-                  <label className="field"><span>{t("tenantWorkspace.slug")}</span><input dir="ltr" required value={categoryDraft.slug} onChange={(event) => setCategoryDraft({ ...categoryDraft, slug: event.target.value })} /></label>
-                  <label className="field"><span>{t("tenantWorkspace.order")}</span><input dir="ltr" min="0" required type="number" value={categoryDraft.display_order} onChange={(event) => setCategoryDraft({ ...categoryDraft, display_order: event.target.value })} /></label>
+                  <details className="more-options" open={editingCategoryId ? true : undefined}>
+                    <summary>{t("tenantWorkspace.moreOptions")}</summary>
+                    <label className="field"><span>{t("tenantWorkspace.slug")}</span><input dir="ltr" placeholder={categoryDraft.name_en} value={categoryDraft.slug} onChange={(event) => setCategoryDraft({ ...categoryDraft, slug: event.target.value })} /></label>
+                    <small className="muted">{t("tenantWorkspace.slugAuto")}</small>
+                    <label className="field"><span>{t("tenantWorkspace.order")}</span><input dir="ltr" min="0" placeholder={String(nextCategoryOrder)} type="number" value={categoryDraft.display_order} onChange={(event) => setCategoryDraft({ ...categoryDraft, display_order: event.target.value })} /></label>
+                    <small className="muted">{t("tenantWorkspace.orderAuto")}</small>
+                  </details>
                   <div className="form-actions"><button className="button" disabled={busy} type="submit">{t("common.saveChanges")}</button>{editingCategoryId ? <button className="button button-secondary" onClick={() => { setEditingCategoryId(undefined); setCategoryDraft(emptyCategory); }} type="button">{t("common.cancel")}</button> : null}</div>
                 </form>
               </article>
@@ -972,51 +1239,96 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 {categories.isLoading ? <LoadingState /> : null}
                 {categories.error ? <ErrorState error={categories.error} /> : null}
                 <ol className="category-route">
-                  {categories.data?.categories.map((category) => <li className={category.is_active ? "" : "is-archived"} key={category.id}><span className="category-order">{String(category.display_order).padStart(2, "0")}</span><div><strong>{category.name_en}</strong><span lang="ar" dir="rtl">{category.name_ar}</span><code dir="ltr">/{category.slug}</code></div><div className="category-actions"><button className="text-button" disabled={!category.is_active} onClick={() => editCategory(category)} type="button">{t("common.edit")}</button><button className="text-button danger-link" disabled={!category.is_active} onClick={() => archiveCategory(category)} type="button">{category.is_active ? t("tenantWorkspace.archive") : t("tenantWorkspace.archived")}</button></div></li>)}
+                  {categories.data?.categories.map((category) => <li className={category.is_active ? "" : "is-archived"} key={category.id}><span className="category-order">{String(category.display_order).padStart(2, "0")}</span><div><strong>{category.name_en}</strong><span lang="ar" dir="rtl">{category.name_ar}</span><code dir="ltr">/{category.slug}</code></div><div className="category-actions"><button className="text-button" disabled={!category.is_active} onClick={() => editCategory(category)} type="button">{t("common.edit")}</button>{category.is_active ? <ConfirmAction className="text-button danger-link" confirmLabel={t("tenantWorkspace.confirmArchive")} danger disabled={busy} label={t("tenantWorkspace.archive")} onConfirm={() => archiveCategory(category)}>{t("tenantWorkspace.archiveExplain")}</ConfirmAction> : <><span className="status-badge">{t("tenantWorkspace.archived")}</span><button className="text-button" disabled={busy} onClick={() => restoreCategory(category)} type="button">{t("tenantWorkspace.restore")}</button></>}</div></li>)}
                 </ol>
               </article>
             </div>
           ) : view === "products" ? (
             <div className="catalog-workspace">
+              <div className="catalog-toolbar">
+                <label className="field"><span>{t("tenantWorkspace.productSearch")}</span><input type="search" value={productQuery} onChange={(event) => setProductQuery(event.target.value)} /></label>
+                <label className="field"><span>{t("tenantWorkspace.category")}</span><select value={productCategory} onChange={(event) => setProductCategory(event.target.value)}><option value="">{t("tenantWorkspace.allCategories")}</option>{categories.data?.categories.map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
+                <button aria-expanded={addingProduct} className="button" onClick={() => setAddingProduct(!addingProduct)} type="button"><Icon name="plus" small />{t("tenantWorkspace.addProduct")}</button>
+              </div>
+              {addingProduct ? (
+                <article className="content-card add-product">
+                  <div className="scan-desk">
+                    <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
+                    <h3>{t("tenantWorkspace.scanTitle")}</h3>
+                    <form className="inline-form" onSubmit={scanProduct}>
+                      <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input autoFocus dir="ltr" required value={scanBarcode} onChange={(event) => setScanBarcode(event.target.value)} /></label>
+                      <button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button>
+                      <CameraScanButton onScan={setScanBarcode} />
+                    </form>
+                    {scanResult?.master_product ? <div className="scan-result"><span className="status-badge status-current">{t("tenantWorkspace.masterCatalog")}</span><strong>{scanResult.master_product.name}</strong><code dir="ltr">{scanResult.barcode}</code></div> : null}
+                  </div>
+                  <div className="route-form-card">
+                    <p className="section-kicker">{productDraft.master_product_id ? t("tenantWorkspace.adoptProduct") : t("tenantWorkspace.manualProduct")}</p>
+                    <h3>{t("tenantWorkspace.productDetails")}</h3>
+                    <form className="form-grid" onSubmit={saveProduct}>
+                      <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label>
+                      <label className="field"><span>{t("tenantWorkspace.category")}</span><select required value={productDraft.category_id} onChange={(event) => setProductDraft({ ...productDraft, category_id: event.target.value })}><option value="">{t("tenantWorkspace.chooseCategory")}</option>{activeCategories.map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
+                      <div className="field quick-category">
+                        <button aria-expanded={quickCategory.open} className="text-button" onClick={() => setQuickCategory({ ...quickCategory, open: !quickCategory.open })} type="button"><Icon name="plus" small />{t("tenantWorkspace.newCategoryInline")}</button>
+                        {quickCategory.open ? (
+                          <div className="quick-category-fields" role="group" aria-label={t("tenantWorkspace.newCategoryInline")}>
+                            <label className="field"><span>{t("tenantWorkspace.nameEn")}</span><input value={quickCategory.name_en} onChange={(event) => setQuickCategory({ ...quickCategory, name_en: event.target.value })} /></label>
+                            <label className="field"><span>{t("tenantWorkspace.nameAr")}</span><input dir="rtl" value={quickCategory.name_ar} onChange={(event) => setQuickCategory({ ...quickCategory, name_ar: event.target.value })} /></label>
+                            <button className="button button-secondary" disabled={busy || !quickCategory.name_en.trim() || !quickCategory.name_ar.trim()} onClick={createQuickCategory} type="button">{t("tenantWorkspace.saveCategory")}</button>
+                          </div>
+                        ) : null}
+                      </div>
+                      <label className="field"><span>{t("tenantWorkspace.barcodeOptional")}</span><input dir="ltr" value={productDraft.barcode} onChange={(event) => setProductDraft({ ...productDraft, barcode: event.target.value })} /></label>
+                      <label className="field"><span>{t("tenantWorkspace.tenantPrice")}</span><input dir="ltr" min="0" required step="0.0001" type="number" value={productDraft.unit_price} onChange={(event) => setProductDraft({ ...productDraft, unit_price: event.target.value })} /></label>
+                      <details className="more-options field-wide">
+                        <summary>{t("tenantWorkspace.moreOptions")}</summary>
+                        <div className="form-grid">
+                          <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={productDraft.name_ar} onChange={(event) => setProductDraft({ ...productDraft, name_ar: event.target.value })} /></label>
+                          <label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={productDraft.barcode_package_level} onChange={(event) => setProductDraft({ ...productDraft, barcode_package_level: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
+                          <label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={productDraft.currency} onChange={(event) => setProductDraft({ ...productDraft, currency: event.target.value.toUpperCase() })} /></label>
+                          <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={productDraft.price_basis} onChange={(event) => setProductDraft({ ...productDraft, price_basis: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
+                          <label className="field"><span>{t("tenantWorkspace.piecesPerBox")}</span><input dir="ltr" min="1" type="number" value={productDraft.pieces_per_box} onChange={(event) => setProductDraft({ ...productDraft, pieces_per_box: event.target.value })} /></label>
+                          <label className="checkbox-row field-wide"><input checked={productDraft.is_published} onChange={(event) => setProductDraft({ ...productDraft, is_published: event.target.checked })} type="checkbox" /><span>{t("tenantWorkspace.publishVisibility")}</span></label>
+                        </div>
+                      </details>
+                      <button className="button field-wide" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button>
+                    </form>
+                  </div>
+                </article>
+              ) : null}
+              <article className="content-card catalog-list">
+                <p className="section-kicker">{t("tenantWorkspace.tenantCatalog")}</p>
+                <h3>{t("tenantWorkspace.products")}</h3>
+                {products.isLoading ? <LoadingState /> : null}
+                {products.error ? <ErrorState error={products.error} /> : null}
+                {products.data?.products.length && !shownProducts.length ? <p className="muted">{t("tenantWorkspace.noProductMatch")}</p> : null}
+                {shownProducts.map((product) => (
+                  <article className="product-card" key={product.id}>
+                    {product.images[0] ? <CratePhoto image={product.images[0]} /> : null}
+                    <div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div>
+                    <strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong>
+                    <div className="category-actions">
+                      <button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button>
+                      <button aria-expanded={editingProductId === product.id} className="text-button" onClick={() => { setNotice(undefined); setEditingProductId(editingProductId === product.id ? undefined : product.id); }} type="button">{t("common.edit")}</button>
+                    </div>
+                    {editingProductId === product.id ? <ProductEditForm categories={categories.data?.categories ?? []} onClose={(saved) => { setEditingProductId(undefined); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={product} tenantId={context.tenant_id} /> : null}
+                    <details className="product-manage">
+                      <summary>{t("common.manage")}</summary>
+                      <div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div>
+                      <button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button>
+                      {barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><CameraScanButton autoSubmit={false} onScan={setExtraBarcode} /><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}
+                      <ProductPricingMediaControls product={product} tenantId={context.tenant_id} />
+                    </details>
+                  </article>
+                ))}
+              </article>
+            </div>
+          ) : view === "pricing" ? (
+            <GradeDiscountEditor tenantId={context.tenant_id} />
+          ) : view === "storefront" ? (
+            <div className="catalog-workspace">
               <StorefrontSettings tenantId={context.tenant_id} />
               <CampaignPanel products={products.data?.products ?? []} tenantId={context.tenant_id} />
-              <article className="content-card scan-desk">
-                <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
-                <h3>{t("tenantWorkspace.scanTitle")}</h3>
-                <p>{t("tenantWorkspace.scanBody")}</p>
-                <form className="inline-form" onSubmit={scanProduct}>
-                  <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input autoFocus dir="ltr" required value={scanBarcode} onChange={(event) => setScanBarcode(event.target.value)} /></label>
-                  <button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button>
-                </form>
-                {scanResult?.master_product ? <div className="scan-result"><span className="status-badge status-current">{t("tenantWorkspace.masterCatalog")}</span><strong>{scanResult.master_product.name}</strong><code dir="ltr">{scanResult.barcode}</code></div> : null}
-              </article>
-              <GradeDiscountEditor tenantId={context.tenant_id} />
-              <div className="catalog-columns">
-                <article className="content-card route-form-card">
-                  <p className="section-kicker">{productDraft.master_product_id ? t("tenantWorkspace.adoptProduct") : t("tenantWorkspace.manualProduct")}</p>
-                  <h3>{t("tenantWorkspace.productDetails")}</h3>
-                  <form className="form-grid" onSubmit={saveProduct}>
-                    <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label>
-                    <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={productDraft.name_ar} onChange={(event) => setProductDraft({ ...productDraft, name_ar: event.target.value })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.category")}</span><select required value={productDraft.category_id} onChange={(event) => setProductDraft({ ...productDraft, category_id: event.target.value })}><option value="">{t("tenantWorkspace.chooseCategory")}</option>{categories.data?.categories.filter((item) => item.is_active).map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
-                    <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={productDraft.barcode} onChange={(event) => setProductDraft({ ...productDraft, barcode: event.target.value })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={productDraft.barcode_package_level} onChange={(event) => setProductDraft({ ...productDraft, barcode_package_level: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
-                    <label className="field"><span>{t("tenantWorkspace.tenantPrice")}</span><input dir="ltr" min="0" required step="0.0001" type="number" value={productDraft.unit_price} onChange={(event) => setProductDraft({ ...productDraft, unit_price: event.target.value })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={productDraft.currency} onChange={(event) => setProductDraft({ ...productDraft, currency: event.target.value.toUpperCase() })} /></label>
-                    <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={productDraft.price_basis} onChange={(event) => setProductDraft({ ...productDraft, price_basis: event.target.value as BarcodePackageLevel })}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
-                    <label className="field"><span>{t("tenantWorkspace.piecesPerBox")}</span><input dir="ltr" min="1" type="number" value={productDraft.pieces_per_box} onChange={(event) => setProductDraft({ ...productDraft, pieces_per_box: event.target.value })} /></label>
-                    <label className="checkbox-row field-wide"><input checked={productDraft.is_published} onChange={(event) => setProductDraft({ ...productDraft, is_published: event.target.checked })} type="checkbox" /><span>{t("tenantWorkspace.publishVisibility")}</span></label>
-                    <button className="button field-wide" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button>
-                  </form>
-                </article>
-                <article className="content-card catalog-list">
-                  <p className="section-kicker">{t("tenantWorkspace.tenantCatalog")}</p>
-                  <h3>{t("tenantWorkspace.products")}</h3>
-                  {products.isLoading ? <LoadingState /> : null}
-                  {products.error ? <ErrorState error={products.error} /> : null}
-                  {products.data?.products.map((product) => <article className="product-card" key={product.id}><div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div><strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong><div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div><div className="category-actions"><button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button><button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button></div>{barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}<ProductPricingMediaControls product={product} tenantId={context.tenant_id} /></article>)}
-                </article>
-              </div>
             </div>
           ) : view === "sync" ? (
             <SyncPanel tenantId={context.tenant_id} membershipId={context.membership_id} />
@@ -1025,7 +1337,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "orders" ? (
             <OrdersPanel orderId={searchParams.get("order")} tenantId={context.tenant_id} />
           ) : view === "procurement" ? (
-            <ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} />
+            <><PickupInbox tenantId={context.tenant_id} /><ProcurementPanel membershipId={context.membership_id} tenantId={context.tenant_id} /></>
           ) : view === "analytics" ? (
             <AnalyticsPanel tenantId={context.tenant_id} />
           ) : view === "assistant" ? (
@@ -1033,13 +1345,26 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "branding" ? (
             <BrandingPanel tenantId={context.tenant_id} />
           ) : view === "work" ? (
-            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} ownerBrief={<TodayBrief tenantId={context.tenant_id} />} tenantId={context.tenant_id} />
+            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} ownerBrief={<><OwnerSetupChecklist tenantId={context.tenant_id} /><OwnerTodayStrip tenantId={context.tenant_id} /><TodayBrief tenantId={context.tenant_id} /></>} tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
             <DeliveryPanel focusInvoiceId={searchParams.get("invoice")} key={searchParams.get("invoice") ?? "all"} tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
           ) : (
-            <InvoiceEditor initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={() => setView("suppliers")} />
+            <>
+              {costSetup ? (
+                <div className="cost-setup-in-place">
+                  <div className="revision-bar">
+                    <p>{t("invoiceEditor.costSetupFromInvoice")}</p>
+                    <button className="text-button" onClick={closeCostSetup} type="button"><Arrow back small />{t("invoiceEditor.backToInvoice")}</button>
+                  </div>
+                  <SupplierSetup key={costSetup.productId ?? "none"} membershipId={context.membership_id} tenantId={context.tenant_id} {...(costSetup.productId ? { initialProductId: costSetup.productId } : {})} />
+                </div>
+              ) : null}
+              <div hidden={costSetup !== null}>
+                <InvoiceEditor costsRefreshKey={costsRefreshKey} customerId={searchParams.get("customer")} initialCurrency={searchParams.get("currency")} initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}:${searchParams.get("customer") ?? ""}:${searchParams.get("fresh") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={(productId) => { setCostSetup(productId ? { productId } : {}); window.scrollTo({ top: 0 }); }} />
+              </div>
+            </>
           )}
         </>
       ) : null}

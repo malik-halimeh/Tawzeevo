@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { apiRequest } from "../api/client";
 import type { TenantApplication, TenantApplicationListResponse, TenantApplicationStatus } from "../api/types";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Pagination, StatusBadge, SuccessNotice } from "../components/Ui";
+import { QuickApprove } from "./QuickApprove";
 
 interface ReviewDraft {
   access_until: string;
@@ -75,7 +76,7 @@ export function ApplicationsPage() {
       {selected ? (
         <section aria-labelledby="review-title" className="content-card review-panel">
           <div className="review-summary"><div><p className="section-kicker">{t("applications.reviewKicker")}</p><h2 id="review-title">{selected.business_name}</h2></div><StatusBadge value={selected.status} /></div>
-          <dl className="compact-details"><div><dt>{t("applications.applicant")}</dt><dd dir="ltr">{selected.applicant_user_id}</dd></div><div><dt>{t("applications.submitted")}</dt><dd>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(selected.created_at))}</dd></div></dl>
+          <dl className="compact-details"><div><dt>{t("applications.applicant")}</dt><dd>{selected.applicant_name ?? <bdi dir="ltr">{selected.applicant_user_id}</bdi>}</dd></div>{selected.applicant_email ? <div><dt>{t("fields.email")}</dt><dd><a dir="ltr" href={`mailto:${selected.applicant_email}`}>{selected.applicant_email}</a></dd></div> : null}{selected.applicant_phone ? <div><dt>{t("fields.phone")}</dt><dd><a dir="ltr" href={`tel:${selected.applicant_phone}`}>{selected.applicant_phone}</a></dd></div> : null}<div><dt>{t("applications.submitted")}</dt><dd>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(selected.created_at))}</dd></div></dl>
           {review.error ? <ErrorState error={review.error} /> : null}
           <div className="form-grid">
             <label className="field"><span>{t("fields.accessUntil")}</span><input type="date" value={draft.access_until} onChange={(event) => setDraft({ ...draft, access_until: event.target.value })} /></label>
@@ -93,8 +94,11 @@ export function ApplicationsPage() {
           {query.data.applications.map((application) => (
             <article className="application-row" key={application.id}>
               <div className="application-route" aria-hidden="true"><span /></div>
-              <div><div className="row-title"><h2>{application.business_name}</h2><StatusBadge value={application.status} /></div><p>{t("applications.submittedOn", { date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(application.created_at)) })}</p>{application.review_notes ? <small>{application.review_notes}</small> : null}</div>
-              <button className="button button-secondary" disabled={application.status !== "PENDING"} onClick={() => openReview(application)} type="button">{application.status === "PENDING" ? t("common.review") : t("applications.reviewed")}</button>
+              <div><div className="row-title"><h2>{application.business_name}</h2><StatusBadge value={application.status} /></div>{application.applicant_name ? <p>{application.applicant_name}{application.applicant_email ? <> · <bdi dir="ltr">{application.applicant_email}</bdi></> : null}</p> : null}<p>{t("applications.submittedOn", { date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(application.created_at)) })}</p>{application.review_notes ? <small>{application.review_notes}</small> : null}</div>
+              <div className="application-actions">
+                {application.status === "PENDING" ? <QuickApprove application={application} onDone={(approved) => setNotice(t("applications.approved", { name: approved.business_name }))} /> : null}
+                <button className="button button-secondary" disabled={application.status !== "PENDING"} onClick={() => openReview(application)} type="button">{application.status === "PENDING" ? t("common.review") : t("applications.reviewed")}</button>
+              </div>
             </article>
           ))}
           <Pagination page={query.data.page} totalPages={query.data.total_pages} onPage={setPage} />

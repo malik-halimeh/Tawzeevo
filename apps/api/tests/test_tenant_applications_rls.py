@@ -115,7 +115,11 @@ def test_applicant_scope_sees_and_submits_only_own_rows(
         )
         assert _count_visible(connection) == 2  # applicant A: the approved one and the pending one
         assert _count_visible(connection, "WHERE id = :b", b=ids["application_b"]) == 0
-        with connection.begin_nested():
+        # D-111: A already has one application waiting; a second PENDING row is refused.
+        with (
+            pytest.raises(Exception, match="uq_tenant_applications_one_pending"),
+            connection.begin_nested(),
+        ):
             connection.execute(
                 text(
                     "INSERT INTO tenant_applications "
@@ -124,7 +128,24 @@ def test_applicant_scope_sees_and_submits_only_own_rows(
                 ),
                 {"id": uuid4(), "u": ids["applicant_a"]},
             )
-        assert _count_visible(connection) == 3
+        assert _count_visible(connection) == 2
+        # B has none waiting: B may submit their own PENDING application under B's scope.
+        connection.execute(
+            text("SELECT set_config('app.current_user_id', :u, false)"), {"u": ids["applicant_b"]}
+        )
+        with connection.begin_nested():
+            connection.execute(
+                text(
+                    "INSERT INTO tenant_applications "
+                    "(id, applicant_user_id, business_name, status) "
+                    "VALUES (:id, :u, 'Second of B', 'PENDING')"
+                ),
+                {"id": uuid4(), "u": ids["applicant_b"]},
+            )
+        assert _count_visible(connection) == 2  # B's approved one and B's new pending one
+        connection.execute(
+            text("SELECT set_config('app.current_user_id', :u, false)"), {"u": ids["applicant_a"]}
+        )
         # Submitting on behalf of someone else, or pre-linked/pre-approved rows, is refused.
         for values in (
             {"id": uuid4(), "u": ids["applicant_b"], "status": "PENDING", "t": None},

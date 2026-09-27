@@ -1,9 +1,12 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
+import { readLastChoice, rememberChoice } from "./lastChoice";
+import { RoutePlanner } from "./RoutePlanner";
+import { type MapRoute, StopMap } from "./StopMap";
 import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 import { sectionHref } from "./workspaceSections";
@@ -12,6 +15,9 @@ import { sectionHref } from "./workspaceSections";
  * Owner delivery desk (PHASE_07.md A/B/C/J; D-063). A sole owner sees "My deliveries" and is the
  * assignee by default; with drivers, the owner chooses and can reassign (audited). Completion and
  * cancellation are terminal; a mistaken completion gets a new task. Tasks never touch invoices.
+ * Route planning (PHASE_07.md J "route planning/manual reorder") is per assignee: each person's
+ * open deliveries get their own stop order, which is what that person sees on My route. The map
+ * (D-092) shows every person's open stops in their saved order, one colour per person.
  */
 interface Assignee { membership_id: string; role: string; display_name: string; is_self: boolean }
 interface Line { product_name: string; quantity: string; price_basis: ProductPriceBasis; pieces_per_box: number | null }
@@ -37,7 +43,11 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
   const [invoiceId, setInvoiceId] = useState("");
   const [assignee, setAssignee] = useState("");
   const [date, setDate] = useState("");
-  const [reason, setReason] = useState("");
+  // One open action per delivery row: its own completion note, cancel reason or date/notes edit, so
+  // text typed for one delivery can never be sent with another.
+  const [rowAction, setRowAction] = useState<{ taskId: string; kind: "complete" | "cancel" | "edit" } | null>(null);
+  const [rowText, setRowText] = useState("");
+  const [rowDate, setRowDate] = useState("");
   const [team, setTeam] = useState<Member[]>([]);
   const [driverEmail, setDriverEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,6 +83,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
     event.preventDefault();
     run(async () => {
       await apiRequest<Task>(`/api/v1/delivery-tasks${q}`, { method: "POST", body: JSON.stringify({ invoice_id: invoiceId, assigned_membership_id: assignee || null, delivery_date: date || null }) });
+      if (assignee) rememberChoice("driver", tenantId, assignee);
       setInvoiceId(""); setDate("");
       return t("delivery.created");
     });
@@ -91,13 +102,56 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
   });
   const act = (task: Task, path: string, body: Record<string, unknown>, message: string, method = "POST") => run(async () => {
     await apiRequest<Task>(`/api/v1/delivery-tasks/${task.id}${path}${q}`, { method, body: JSON.stringify({ expected_version: task.version, ...body }) });
+    setRowAction(null);
     return message;
   });
+  const openRow = (task: Task, kind: "complete" | "cancel" | "edit") => {
+    setRowAction({ taskId: task.id, kind });
+    setRowText(kind === "edit" ? task.notes ?? "" : "");
+    setRowDate(kind === "edit" ? task.delivery_date ?? "" : "");
+  };
+  const saveEdit = (event: FormEvent, task: Task) => {
+    event.preventDefault();
+    // The date is always sent (an emptied field clears it); notes only when they changed.
+    act(task, "", { delivery_date: rowDate || null, ...(rowText !== (task.notes ?? "") ? { notes: rowText } : {}) }, t("delivery.updated"), "PATCH");
+  };
 
   const when = (value: string | null) => (value ? new Date(value).toLocaleString(i18n.language === "ar" ? "ar-LB" : "en-GB") : "—");
   const members = data?.eligible_members ?? [];
   const sole = data?.sole_operator ?? true;
+  // The driver chosen last on this device starts selected while that person can still be assigned
+  // (D-103); the owner can pick anyone else as before.
+  const lastDriverApplied = useRef(false);
+  useEffect(() => {
+    if (lastDriverApplied.current || !data) return;
+    lastDriverApplied.current = true;
+    const lastDriver = readLastChoice("driver", tenantId);
+    if (lastDriver && data.eligible_members.some((person) => person.membership_id === lastDriver)) setAssignee((current) => current || lastDriver);
+  }, [data, tenantId]);
   const label = (person: Assignee) => `${person.display_name} · ${t(`procurement.roles.${person.role}`)}${person.is_self ? ` (${t("procurement.me")})` : ""}`;
+  // One stop order per assignee, over that person's open deliveries only, in the saved order
+  // (stops never ordered keep the list order after the ordered ones, as on My route).
+  const routes = useMemo(() => {
+    const grouped = new Map<string, { person: Assignee; tasks: Task[] }>();
+    for (const task of data?.tasks ?? []) {
+      if (task.status !== "ASSIGNED") continue;
+      const group = grouped.get(task.assignee.membership_id) ?? { person: task.assignee, tasks: [] };
+      group.tasks.push(task);
+      grouped.set(task.assignee.membership_id, group);
+    }
+    for (const group of grouped.values()) group.tasks.sort((a, b) => (a.route_sequence ?? Infinity) - (b.route_sequence ?? Infinity));
+    return grouped;
+  }, [data]);
+  const mapRoutes = useMemo<MapRoute[]>(() => [...routes.values()].map(({ person, tasks }) => ({
+    key: person.membership_id,
+    label: `${person.display_name}${person.is_self ? ` (${t("procurement.me")})` : ""}`,
+    stops: tasks.map((task, index) => ({ taskId: task.id, number: task.route_sequence ?? index + 1, name: task.customer_name, latitude: task.customer_latitude, longitude: task.customer_longitude })),
+  })), [routes, t]);
+  const showRow = (taskId: string) => {
+    const row = document.getElementById(`delivery-${taskId}`);
+    if (row && typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
+    row?.focus({ preventScroll: true });
+  };
 
   return (
     <section className="delivery-panel" aria-labelledby="delivery-title" ref={root}>
@@ -111,7 +165,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
 
       <form className="inline-form delivery-create" onSubmit={create} aria-label={t("delivery.create")}>
         <label className="field"><span>{t("delivery.eligibleInvoice")}</span>
-          <select required value={invoiceId} onChange={(event) => setInvoiceId(event.target.value)}>
+          <select required value={invoiceId} onChange={(event) => { setInvoiceId(event.target.value); const row = eligible.find((item) => item.invoice_id === event.target.value); if (!date && row?.delivery_date) setDate(row.delivery_date); }}>
             <option value="">{loadedEligible === undefined ? t("common.loading") : eligible.length ? "—" : t("delivery.nothingEligible")}</option>
             {eligible.map((row) => <option key={row.invoice_id} value={row.invoice_id}>{row.official_invoice_number ?? "…"} · {row.customer_name} · {row.net_sales} {row.currency}{row.delivery_date ? ` · ${row.delivery_date}` : ""}</option>)}
           </select>
@@ -137,7 +191,6 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
             <option value="">{t("procurement.allLines")}</option>
           </select>
         </label>
-        <label className="field field-wide"><span>{t("delivery.reason")}</span><input maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
       </div>
 
       {data && data.tasks.length === 0 ? <p className="muted">{t("delivery.empty")}</p> : null}
@@ -157,11 +210,22 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
           ))}
         </ul>
       </details>
+      {routes.size > 0 ? (
+        <section aria-labelledby="delivery-routes-title" className="delivery-routes">
+          <h4 id="delivery-routes-title">{t("delivery.routesTitle")}</h4>
+          <StopMap onSelect={showRow} routes={mapRoutes} tenantId={tenantId} />
+          {[...routes.values()].map(({ person, tasks }) => (
+            <RoutePlanner fieldTools={false} key={person.membership_id} onSaved={() => { refresh().catch(setError); }} tasks={tasks.map((task) => ({ id: task.id, customer_name: task.customer_name, version: task.version }))} tenantId={tenantId} title={t("delivery.routeFor", { name: label(person) })} />
+          ))}
+        </section>
+      ) : null}
       <ul className="outbox-list delivery-list" aria-label={t("delivery.list")}>
         {data?.tasks.map((task) => (
-          <li aria-current={task.invoice_id === focusInvoiceId ? "true" : undefined} className={`outbox-row delivery-row${task.invoice_id === focusInvoiceId ? " is-context" : ""}`} key={task.id}>
+          <li aria-current={task.invoice_id === focusInvoiceId ? "true" : undefined} className={`outbox-row delivery-row${task.invoice_id === focusInvoiceId ? " is-context" : ""}`} id={`delivery-${task.id}`} key={task.id} tabIndex={-1}>
             <div>
+              {task.status === "ASSIGNED" && task.route_sequence ? <span className="muted">{t("delivery.stop", { number: String(task.route_sequence).padStart(2, "0") })} · </span> : null}
               <strong>{task.customer_name}</strong> · <bdi dir="ltr">{task.customer_phone}</bdi>{task.customer_address ? ` · ${task.customer_address}` : ""}
+              {" · "}{task.customer_latitude && task.customer_longitude ? <a href={`https://www.google.com/maps?q=${task.customer_latitude},${task.customer_longitude}`} rel="noreferrer" target="_blank">{t("pickup.openMap")}</a> : <span className="muted">{t("delivery.noLocation")}</span>}
               <div className="muted">
                 <Link aria-label={t("delivery.openInvoice", { number: task.official_invoice_number ?? "…" })} to={sectionHref("invoices", tenantId, { invoice: task.invoice_id })}><bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi></Link> · {t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi>
                 {task.delivery_date ? <> · <bdi dir="ltr">{task.delivery_date}</bdi></> : null} · {task.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}
@@ -178,9 +242,31 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
                       {members.map((person) => <option key={person.membership_id} value={person.membership_id}>{label(person)}</option>)}
                     </select>
                   ) : null}
-                  <button className="button" disabled={busy} onClick={() => act(task, "/complete", { note: reason || null }, t("delivery.completed"))} type="button">{t("delivery.complete")}</button>
-                  <button className="text-button" disabled={busy || !reason.trim()} onClick={() => act(task, "/cancel", { reason }, t("delivery.cancelled"))} type="button">{t("delivery.cancel")}</button>
+                  <button aria-expanded={rowAction?.taskId === task.id && rowAction.kind === "complete"} className="button" disabled={busy} onClick={() => openRow(task, "complete")} type="button">{t("delivery.complete")}</button>
+                  <button aria-expanded={rowAction?.taskId === task.id && rowAction.kind === "edit"} className="text-button" disabled={busy} onClick={() => openRow(task, "edit")} type="button">{t("delivery.edit")}</button>
+                  <button aria-expanded={rowAction?.taskId === task.id && rowAction.kind === "cancel"} className="text-button danger-link" disabled={busy} onClick={() => openRow(task, "cancel")} type="button">{t("delivery.cancel")}</button>
                 </div>
+              ) : null}
+              {task.status === "ASSIGNED" && rowAction?.taskId === task.id ? (
+                rowAction.kind === "edit" ? (
+                  <form aria-label={t("delivery.editFor", { customer: task.customer_name })} className="inline-form row-action" onSubmit={(event) => saveEdit(event, task)}>
+                    <label className="field"><span>{t("orders.deliveryDate")}</span><input type="date" value={rowDate} onChange={(event) => setRowDate(event.target.value)} /></label>
+                    <label className="field field-wide"><span>{t("delivery.notes")}</span><input maxLength={1000} value={rowText} onChange={(event) => setRowText(event.target.value)} /></label>
+                    <button className="button" disabled={busy} type="submit">{t("common.saveChanges")}</button>
+                    <button className="text-button" onClick={() => setRowAction(null)} type="button">{t("common.back")}</button>
+                  </form>
+                ) : (
+                  <div aria-label={t(rowAction.kind === "complete" ? "delivery.completeFor" : "delivery.cancelFor", { customer: task.customer_name })} className="row-action" role="group">
+                    {rowAction.kind === "complete" ? <p className="muted">{t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi> · {t("myWork.completionNote")}</p> : null}
+                    <label className="field field-wide"><span>{t(rowAction.kind === "complete" ? "delivery.completionNoteLabel" : "delivery.cancelReason")}</span><input maxLength={500} value={rowText} onChange={(event) => setRowText(event.target.value)} /></label>
+                    <div className="category-actions">
+                      {rowAction.kind === "complete"
+                        ? <button className="button" disabled={busy} onClick={() => act(task, "/complete", { note: rowText.trim() || null }, t("delivery.completed"))} type="button">{t("delivery.confirmComplete")}</button>
+                        : <button className="button button-danger" disabled={busy || !rowText.trim()} onClick={() => act(task, "/cancel", { reason: rowText.trim() }, t("delivery.cancelled"))} type="button">{t("delivery.confirmCancel")}</button>}
+                      <button className="text-button" onClick={() => setRowAction(null)} type="button">{t("common.back")}</button>
+                    </div>
+                  </div>
+                )
               ) : null}
             </div>
             <span className="status-badge">{t(`delivery.status.${task.status}`)}</span>

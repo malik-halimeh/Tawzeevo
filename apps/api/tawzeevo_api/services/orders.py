@@ -10,10 +10,9 @@ zero drivers needs nothing else.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -41,11 +40,10 @@ from tawzeevo_api.schemas.invoice_editor import (
     InvoiceEditorItemRequest,
 )
 from tawzeevo_api.services.cash_van import create_customer, get_customer
+from tawzeevo_api.services.delivery_dates import TENANT_TZ, follow_order_date, schedule_reminder
 from tawzeevo_api.services.invoice_editor import update_editor_draft
 from tawzeevo_api.services.invoice_finance import apply_invoice_cancellation, confirm_invoice
 
-TENANT_TZ = ZoneInfo("Asia/Beirut")
-REMINDER_LOCAL_TIME = time(hour=9, minute=0)  # the morning before the delivery date, tenant-local
 ACTIVE_ORDER_STATES = ("RECEIVED", "CONFIRMED")
 
 
@@ -270,25 +268,7 @@ def set_delivery_date(
     if delivery_date < datetime.now(TENANT_TZ).date():
         raise AppError(422, "DELIVERY_DATE_PAST", "Delivery date cannot be in the past")
     order.delivery_date = delivery_date
-    remind_local = datetime.combine(delivery_date, REMINDER_LOCAL_TIME, tzinfo=TENANT_TZ)
-    remind_at = remind_local.astimezone(UTC)
-    reminder = db.scalar(select(DeliveryReminder).where(DeliveryReminder.order_id == order.id))
-    if reminder is None:
-        db.add(
-            DeliveryReminder(
-                id=uuid4(),
-                tenant_id=tenant_id,
-                order_id=order.id,
-                delivery_date=delivery_date,
-                remind_at=remind_at,
-                status="SCHEDULED",
-            )
-        )
-    else:
-        reminder.delivery_date = delivery_date
-        reminder.remind_at = remind_at
-        reminder.status = "SCHEDULED"
-        reminder.sent_at = None
+    remind_at = schedule_reminder(db, tenant_id, order, delivery_date)
     db.add(
         AuditEvent(
             tenant_id=tenant_id,
@@ -298,10 +278,12 @@ def set_delivery_date(
             entity_id=order.id,
             details={
                 "delivery_date": delivery_date.isoformat(),
-                "remind_at": remind_at.isoformat(),
+                "remind_at": remind_at or "",
             },
         )
     )
+    # The order's open delivery keeps the same date, in this transaction (D-104).
+    follow_order_date(db, tenant_id, actor, order, delivery_date)
     commit_and_restore_tenant_scope(db, tenant_id)
     return order
 

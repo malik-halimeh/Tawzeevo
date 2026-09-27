@@ -1,11 +1,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, get_tenant_context
+from tawzeevo_api.models import TenantRole
 from tawzeevo_api.schemas.sync import (
     BootstrapRequest,
     BootstrapResponse,
@@ -15,6 +16,7 @@ from tawzeevo_api.schemas.sync import (
     SnapshotCollection,
     SnapshotPageResponse,
 )
+from tawzeevo_api.services import push as web_push
 from tawzeevo_api.services.sync import PULL_PAGE_SIZE, bootstrap, pull_changes, snapshot_page
 from tawzeevo_api.services.sync_push import push_operations
 
@@ -57,9 +59,27 @@ def push(
     request: PushRequest,
     db: Annotated[Session, Depends(get_db)],
     context: Annotated[TenantContext, Depends(get_tenant_context)],
+    background: BackgroundTasks,
 ) -> PushResponse:
     """Apply queued device operations exactly once; each operation is its own transaction."""
-    return push_operations(db, context.tenant.id, context.membership, request)
+    result = push_operations(db, context.tenant.id, context.membership, request)
+    # A collection reported offline reaches the owners' phones once, when first applied (D-116).
+    reported = {
+        op.operation_id
+        for op in request.operations
+        if op.entity_type == "delivery_task" and op.payload.get("collection")
+    }
+    if context.membership.role is not TenantRole.OWNER and any(
+        row.operation_id in reported and row.status == "applied" and not row.replayed
+        for row in result.results
+    ):
+        background.add_task(
+            web_push.notify_owners,
+            context.tenant.id,
+            *web_push.COLLECTION,
+            web_push.workspace(context.tenant.id, "work"),
+        )
+    return result
 
 
 @sync_router.get("/pull", response_model=PullResponse)

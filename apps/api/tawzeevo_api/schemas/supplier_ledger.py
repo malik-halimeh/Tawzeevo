@@ -90,3 +90,40 @@ class SupplierPaymentResponse(BaseModel):
     @field_serializer("paid_at")
     def serialize_paid_at(self, value: datetime) -> str:
         return value.astimezone(UTC).isoformat()
+
+
+class SupplierBalanceRow(BaseModel):
+    supplier_id: UUID
+    supplier_name: str
+    balances: list[SupplierCurrencyBalance]
+
+
+class SupplierBalanceListResponse(BaseModel):
+    """Every supplier of the business with its balance per currency (never summed across them)."""
+
+    suppliers: list[SupplierBalanceRow]
+
+
+class SupplierPaymentHistoryRow(BaseModel):
+    id: UUID
+    supplier_id: UUID
+    supplier_name: str
+    direction: PaymentDirection
+    currency: str
+    amount: Decimal
+    paid_at: datetime
+    recorded_at: datetime
+    method: str | None
+    reference: str | None
+    notes: str | None
+    prepayment: bool
+    reverses_payment_id: UUID | None
+    reversed_by_payment_id: UUID | None
+
+
+class SupplierPaymentHistoryResponse(BaseModel):
+    page: int
+    limit: int
+    total: int
+    total_pages: int
+    payments: list[SupplierPaymentHistoryRow]

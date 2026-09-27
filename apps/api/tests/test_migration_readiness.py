@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from migration_head import MIGRATION_HEAD
+
 from tawzeevo_api import migrations
 from tawzeevo_api.migrations import MigrationState, expected_migration_head, migration_state
 
@@ -16,7 +18,7 @@ API_ROOT = Path(__file__).resolve().parents[1]
 
 def test_expected_head_matches_alembic_heads_and_the_repository_script():
     expected = expected_migration_head()
-    assert expected and expected == "20260921_0031"
+    assert expected and expected == MIGRATION_HEAD
     cli = subprocess.run(
         [sys.executable, "-m", "alembic", "heads"], cwd=API_ROOT, capture_output=True, text=True
     )
@@ -58,3 +60,13 @@ def test_health_is_not_ready_when_startup_found_another_revision(client, monkeyp
         migrations, "_ready_state", MigrationState("20260921_0031", "20260921_0031")
     )
     assert client.get("/health").json() == {"status": "ok", "service": "tawzeevo-api"}
+
+
+def test_migration_head_is_the_script_head() -> None:
+    from pathlib import Path
+
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
+    assert ScriptDirectory.from_config(config).get_current_head() == MIGRATION_HEAD

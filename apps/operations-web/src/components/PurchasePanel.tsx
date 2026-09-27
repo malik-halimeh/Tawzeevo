@@ -17,11 +17,17 @@ interface PurchaseLine { id: string; line_number: number; product_id: string; pr
 interface Purchase { id: string; supplier_id: string; supplier_name: string; procurement_list_id: string | null; purchased_at: string; currency: string; total_amount: string; supplier_reference: string | null; reversed_at: string | null; reversal_reason: string | null; replayed: boolean; items: PurchaseLine[] }
 interface CurrencyTotal { currency: string; outstanding: string; credit: string; parties: number }
 interface Totals { customers: CurrencyTotal[]; suppliers: CurrencyTotal[] }
-interface OpenLine { id: string; product_id: string; product_name: string; supplier_id: string | null; remaining_quantity: string; price_basis: ProductPriceBasis; removed_at: string | null; waived_at: string | null; carried_to_item_id: string | null }
+interface OpenLine { id: string; product_id: string; product_name: string; supplier_id: string | null; remaining_quantity: string; price_basis: ProductPriceBasis; removed_at: string | null; waived_at: string | null; carried_to_item_id: string | null; estimate?: { supplier_id: string; unit_cost: string; currency: string } | null }
 interface ListSummary { id: string; status: string; title: string }
-interface DraftLine { product_id: string; quantity: string; unit_cost: string; procurement_item_id: string | null }
+/** `fromEstimate`: the cost was filled from the list's estimate for this supplier and has not been checked yet (D-097). */
+interface DraftLine { product_id: string; quantity: string; unit_cost: string; procurement_item_id: string | null; fromEstimate?: boolean }
 
-export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId: string; membershipId?: string | undefined; suppliers: { id: string; name: string }[] }) {
+/**
+ * Opened from a shopping list (`initialSupplierId`, `initialListId`), the form starts with that
+ * supplier and list, so the list's remaining quantities fill in; costs are always typed by the owner.
+ * `formOnly` leaves out the totals and history (they stay on the Suppliers page).
+ */
+export function PurchasePanel({ tenantId, membershipId, suppliers, initialSupplierId = "", initialListId = "", formOnly = false, onRecorded }: { tenantId: string; membershipId?: string | undefined; suppliers: { id: string; name: string }[]; initialSupplierId?: string; initialListId?: string; formOnly?: boolean; onRecorded?: () => void }) {
   const { t } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -29,8 +35,8 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
   const [products, setProducts] = useState<TenantProduct[]>([]);
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [openLines, setOpenLines] = useState<OpenLine[]>([]);
-  const [supplierId, setSupplierId] = useState("");
-  const [listId, setListId] = useState("");
+  const [supplierId, setSupplierId] = useState(initialSupplierId);
+  const [listId, setListId] = useState(initialListId);
   const [reference, setReference] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([{ product_id: "", quantity: "", unit_cost: "", procurement_item_id: null }]);
   const [key, setKey] = useState(() => crypto.randomUUID());
@@ -61,7 +67,10 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
         const open = detail.items.filter((row) => !row.removed_at && !row.waived_at && !row.carried_to_item_id && Number(row.remaining_quantity) > 0);
         setOpenLines(open);
         const mine = open.filter((row) => !supplierId || row.supplier_id === supplierId);
-        if (mine.length) setLines(mine.map((row) => ({ product_id: row.product_id, quantity: row.remaining_quantity, unit_cost: "", procurement_item_id: row.id })));
+        // A line's latest cost estimate for the chosen supplier pre-fills its cost, marked until the
+        // owner checks it; the owner still records the purchase, so what is booked is what is on screen.
+        const fromEstimate = (row: OpenLine) => Boolean(supplierId && row.estimate && row.estimate.supplier_id === supplierId);
+        if (mine.length) setLines(mine.map((row) => ({ product_id: row.product_id, quantity: row.remaining_quantity, unit_cost: fromEstimate(row) ? row.estimate!.unit_cost : "", procurement_item_id: row.id, fromEstimate: fromEstimate(row) })));
       })
       .catch(setError);
   }, [listId, supplierId, q]);
@@ -81,6 +90,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
       .then((purchase) => {
         setNotice(purchase.replayed ? t("purchases.replayed") : t("purchases.recorded", { total: purchase.total_amount, currency: purchase.currency }));
         reset();
+        onRecorded?.();
         return refresh();
       })
       .catch(async (problem: unknown) => {
@@ -108,7 +118,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
 
-      {totals ? (
+      {totals && !formOnly ? (
         <dl className="supplier-balances totals" aria-label={t("purchases.totalsTitle")}>
           {totals.suppliers.map((row) => <div key={`s-${row.currency}`}><dt>{t("purchases.supplierPayable")} · {row.currency}</dt><dd dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</dd></div>)}
           {totals.customers.map((row) => <div key={`c-${row.currency}`}><dt>{t("purchases.customerOutstanding")} · {row.currency}</dt><dd dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</dd></div>)}
@@ -142,7 +152,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
                   </select>
                 </td>
                 <td><input aria-label={t("purchases.lineQuantity", { n: index + 1 })} dir="ltr" inputMode="decimal" min="0.0001" required step="0.0001" type="number" value={row.quantity} onChange={(event) => setLine(index, { quantity: event.target.value })} /></td>
-                <td><input aria-label={t("purchases.lineCost", { n: index + 1 })} dir="ltr" inputMode="decimal" min="0" required step="0.0001" type="number" value={row.unit_cost} onChange={(event) => setLine(index, { unit_cost: event.target.value })} /></td>
+                <td><input aria-describedby={row.fromEstimate ? `estimate-note-${index}` : undefined} aria-label={t("purchases.lineCost", { n: index + 1 })} dir="ltr" inputMode="decimal" min="0" required step="0.0001" type="number" value={row.unit_cost} onChange={(event) => setLine(index, { unit_cost: event.target.value, fromEstimate: false })} />{row.fromEstimate ? <small className="estimate-note" id={`estimate-note-${index}`}>{t("purchases.fromEstimate")}</small> : null}</td>
                 <td>{lines.length > 1 ? <button className="text-button" onClick={() => setLines((current) => current.filter((_, i) => i !== index))} type="button">{t("common.remove")}</button> : null}</td>
               </tr>
             ))}
@@ -154,7 +164,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
         </div>
       </form>
 
-      {purchases.length > 0 ? (
+      {purchases.length > 0 && !formOnly ? (
         <>
           <h5>{t("purchases.history")}</h5>
           <label className="field field-wide"><span>{t("invoiceEditor.reversalReason")}</span><input maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>

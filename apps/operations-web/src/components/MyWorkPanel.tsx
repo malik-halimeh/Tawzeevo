@@ -1,16 +1,21 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInRouterContext, useLocation } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
 import { browserOffline } from "../offline/network";
+import { SYNC_COMPLETED_EVENT } from "../offline/events";
+import { listOutbox } from "../offline/outbox";
 import { syncNow } from "../offline/pull";
 import { bootstrapLocalProjection, localSyncStatus } from "../offline/sync";
-import { queueDeliveryCompletion } from "../offline/supplierCommands";
+import { type CollectionClaim, queueDeliveryCompletion } from "../offline/supplierCommands";
+import { useStopDirections } from "./directions";
+import { DirectionsView } from "./DirectionsView";
 import { Arrow, Icon } from "./Icon";
 import { RoutePlanner } from "./RoutePlanner";
-import { ErrorState } from "./Ui";
+import { type MapRoute, StopMap } from "./StopMap";
+import { ConfirmAction, ErrorState } from "./Ui";
 import { SYNC_ANCHOR, WORK_ANCHOR } from "./workspaceSections";
 
 /**
@@ -22,10 +27,16 @@ import { SYNC_ANCHOR, WORK_ANCHOR } from "./workspaceSections";
  *
  * Presentation follows the Daylight work screen: an ordered stop list beside the selected stop
  * on wide screens, one focused pane on phones, and the completion action attached to the stop.
+ * D-092: a map of the stops in route order; after a delivery the next stop opens by itself, the
+ * rest can be re-planned from the delivered customer's saved location on request (no position is
+ * read or tracked), and Navigate hands the directions to Google Maps. D-093: Directions shows the
+ * road route from the member's position (read once on request) to the stop inside the app.
  */
 interface Line { product_name: string; quantity: string; price_basis: ProductPriceBasis; pieces_per_box: number | null }
 interface WorkTask { id: string; status: string; official_invoice_number: string | null; customer_name: string; customer_phone: string; customer_address: string | null; customer_latitude: string | null; customer_longitude: string | null; delivery_date: string | null; route_sequence: number | null; currency: string; amount_to_collect: string; items: Line[]; notes: string | null; version: number }
 interface MyWork { tasks: WorkTask[]; membership_id: string; role: string }
+interface Delivered { name: string; latitude: string | null; longitude: string | null }
+interface Suggestion { method: string; stops: { task_id: string }[] }
 
 const cacheKey = (tenantId: string, membershipId: string) => `tawzeevo.mywork.${tenantId}.${membershipId}`;
 
@@ -65,12 +76,17 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
   const [queued, setQueued] = useState<string[]>([]);
   const [doneIds, setDoneIds] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  // What was collected at this stop (D-114), asked before completing when money is owed.
+  const [collection, setCollection] = useState<{ kind: "" | CollectionClaim["kind"]; amount: string }>({ kind: "", amount: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
   const [revokedReason, setRevokedReason] = useState<string>();
   const [selectedId, setSelectedId] = useState<string>();
   const [detailOpen, setDetailOpen] = useState(false);
+  // The stop just delivered: the start for an on-request re-plan of the remaining stops.
+  const [delivered, setDelivered] = useState<Delivered>();
+  const directions = useStopDirections(tenantId);
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const detailFeedback = useRef<HTMLDivElement>(null);
   const stopButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -98,32 +114,100 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
     } catch { /* offline or storage unavailable: completion still queues; sync retries registration */ }
   }, [tenantId, membershipId]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<MyWork> => {
     try {
       const fresh = await apiRequest<MyWork>(`/api/v1/delivery-tasks/my-work?tenant_id=${tenantId}`);
       setWork(fresh); setFromCache(false);
       try { localStorage.setItem(cacheKey(tenantId, membershipId), JSON.stringify(fresh)); } catch { /* storage may be unavailable */ }
       if (fresh.role === "driver") void ensureDevice();
+      return fresh;
     } catch (problem) {
       // Offline: show the last downloaded list so the stops are still readable.
       if (!(problem instanceof TypeError) || !browserOffline()) throw problem;
       const cached = localStorage.getItem(cacheKey(tenantId, membershipId));
-      if (cached) { setWork(JSON.parse(cached) as MyWork); setFromCache(true); } else throw problem;
+      if (!cached) throw problem;
+      const stored = JSON.parse(cached) as MyWork;
+      setWork(stored); setFromCache(true);
+      return stored;
     }
   }, [tenantId, membershipId, ensureDevice]);
   useEffect(() => { load().catch(setError); }, [load]);
+  // Completions queued on this device before a reload are still waiting in its outbox: list them
+  // again, so each stop shows as queued and "Sync now" can send them (nothing else changes). After an
+  // automatic send (D-098) the list is read again, so sent completions leave it and the stops refresh.
+  useEffect(() => {
+    let live = true;
+    const waitingCompletions = () => listOutbox(tenantId, membershipId)
+      .then((rows) => rows
+        .filter((row) => row.entity_type === "delivery_task" && row.operation_type === "complete" && (row.state === "pending" || row.state === "sending" || row.state === "retryable_failed"))
+        .map((row) => row.entity_id))
+      .catch(() => [] as string[]); // no device storage: nothing was queued here
+    void waitingCompletions().then((waiting) => {
+      if (live && waiting.length) setQueued((current) => [...current, ...waiting.filter((id) => !current.includes(id))]);
+    });
+    const afterSync = () => {
+      void waitingCompletions().then((waiting) => {
+        if (!live) return;
+        setQueued((current) => {
+          const sent = current.filter((id) => !waiting.includes(id));
+          if (sent.length) setDoneIds((done) => [...done, ...sent.filter((id) => !done.includes(id))]);
+          return current.filter((id) => waiting.includes(id));
+        });
+        load().catch(() => undefined);
+      });
+    };
+    window.addEventListener(SYNC_COMPLETED_EVENT, afterSync);
+    return () => { live = false; window.removeEventListener(SYNC_COMPLETED_EVENT, afterSync); };
+  }, [tenantId, membershipId, load]);
 
+  const owes = (task: WorkTask) => Number(task.amount_to_collect) > 0;
+  const claimFor = (task: WorkTask): CollectionClaim | null => {
+    if (!owes(task) || !collection.kind) return null;
+    return collection.kind === "PARTIAL" ? { kind: "PARTIAL", amount: collection.amount.trim() } : { kind: collection.kind };
+  };
+  // Answering is optional (no answer: no report, as before); a partial payment needs its amount.
+  const claimReady = (task: WorkTask) => !owes(task) || collection.kind !== "PARTIAL"
+    || (collection.kind === "PARTIAL" && Number(collection.amount) > 0 && Number(collection.amount) <= Number(task.amount_to_collect));
   const complete = (task: WorkTask) => {
     setBusy(true); setError(undefined); setNotice(undefined); setRevokedReason(undefined);
-    apiRequest<WorkTask>(`/api/v1/delivery-tasks/${task.id}/complete?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify({ expected_version: task.version, note: note || null }) })
-      .then(() => { setNotice(t("myWork.completed")); setNote(""); setDoneIds((current) => [...current, task.id]); setDetailOpen(false); return load(); })
+    const claim = claimFor(task);
+    apiRequest<WorkTask>(`/api/v1/delivery-tasks/${task.id}/complete?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify({ expected_version: task.version, note: note || null, ...(claim ? { collection: claim } : {}) }) })
+      .then(async () => {
+        setCollection({ kind: "", amount: "" });
+        setNote(""); setDoneIds((current) => [...current, task.id]); setDetailOpen(false);
+        setDelivered({ name: task.customer_name, latitude: task.customer_latitude, longitude: task.customer_longitude });
+        // The next stop in the saved order opens by itself (on a phone it replaces the list).
+        const next = (await load()).tasks[0];
+        if (next) openStop(next);
+        setNotice(next ? `${t("myWork.completed")} ${t("myWork.nextStop", { customer: next.customer_name })}` : t("myWork.completed"));
+      })
       .catch(async (problem: unknown) => {
         if (!(problem instanceof TypeError) || !browserOffline()) { setError(problem); return; }
-        await queueDeliveryCompletion(tenantId, membershipId, task.id, task.version, note || null);
+        await (claim ? queueDeliveryCompletion(tenantId, membershipId, task.id, task.version, note || null, claim) : queueDeliveryCompletion(tenantId, membershipId, task.id, task.version, note || null));
+        setCollection({ kind: "", amount: "" });
         setQueued((current) => [...current, task.id]);
         setNotice(t("myWork.queued"));
         setNote("");
       })
+      .finally(() => setBusy(false));
+  };
+  // On request only: order the remaining stops from the delivered customer's saved location and
+  // save that order, then open the new first stop. The member can still reorder by hand.
+  const replan = () => {
+    if (!delivered?.latitude || !delivered.longitude) return;
+    const from = delivered;
+    const remaining = (work?.tasks ?? []).map((task) => task.id);
+    setBusy(true); setError(undefined); setNotice(undefined);
+    apiRequest<Suggestion>(`/api/v1/routes/suggest-order?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify({ origin: { latitude: from.latitude, longitude: from.longitude }, task_ids: remaining }) })
+      .then((suggestion) => apiRequest(`/api/v1/routes/order?tenant_id=${tenantId}`, { method: "PUT", body: JSON.stringify({ task_ids: suggestion.stops.map((stop) => stop.task_id) }) }))
+      .then(() => load())
+      .then((fresh) => {
+        setDelivered(undefined);
+        const next = fresh.tasks[0];
+        if (next) openStop(next);
+        setNotice(t("myWork.replanned", { customer: from.name }));
+      })
+      .catch(setError)
       .finally(() => setBusy(false));
   };
   const sync = () => {
@@ -146,7 +230,7 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
     }).catch(setError).finally(() => setBusy(false));
   };
 
-  const tasks = work?.tasks ?? [];
+  const tasks = useMemo(() => work?.tasks ?? [], [work]);
   const selected = tasks.find((task) => task.id === selectedId) ?? tasks[0];
   const selectedIndex = selected ? tasks.indexOf(selected) : -1;
   const doneCount = doneIds.length;
@@ -155,11 +239,13 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
   const dateParts = new Intl.DateTimeFormat(i18n.language === "ar" ? "ar-LB" : "en-GB", { day: "numeric", month: "short", weekday: "short" }).formatToParts(today);
   const part = (type: string) => dateParts.find((item) => item.type === type)?.value ?? "";
   const stopNumber = (task: WorkTask, index: number) => String(task.route_sequence ?? index + 1).padStart(2, "0");
+  const mapRoutes = useMemo<MapRoute[]>(() => [{ key: "mine", stops: tasks.map((task, index) => ({ taskId: task.id, number: task.route_sequence ?? index + 1, name: task.customer_name, latitude: task.customer_latitude, longitude: task.customer_longitude })) }], [tasks]);
 
   // On a phone the selected stop replaces the list: move focus to its name and show the record
   // from its top (the way back, the stop number, the name), and bring focus back to the same stop
   // when returning, so the list position is preserved.
   const openStop = (task: WorkTask) => {
+    if (task.id !== selectedId) setCollection({ kind: "", amount: "" });
     setSelectedId(task.id);
     setDetailOpen(true);
     setError(undefined);
@@ -181,10 +267,16 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
   // the open stop on one pane, where the list is hidden; otherwise at the top of the list. Exactly one
   // copy is rendered, so the alert/status is announced once.
   const feedbackInDetail = detailOpen && onePane;
-  const feedback = error || notice || revokedReason ? <>
+  const replanOffer = delivered && tasks.length > 1 && !fromCache ? (
+    delivered.latitude && delivered.longitude
+      ? <button className="text-button replan" disabled={busy} onClick={replan} type="button"><Icon name="sync" small />{t("myWork.replanFrom", { customer: delivered.name })}</button>
+      : <p className="muted">{t("myWork.replanNoLocation", { customer: delivered.name })}</p>
+  ) : null;
+  const feedback = error || notice || revokedReason || replanOffer ? <>
     {error ? <ErrorState error={error} /> : null}
     {revokedReason ? <div className="notice notice-error" role="alert">{t("sync.revoked", { reason: revokedReason })}</div> : null}
     {notice ? <p className="form-status" role="status">{notice}</p> : null}
+    {replanOffer}
   </> : null;
   useEffect(() => {
     if (!feedbackInDetail || (!error && !notice && !revokedReason)) return;
@@ -224,6 +316,7 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
         {tasks.length > 0 ? (
           <>
             <div className="section-title"><h2>{t("myWork.stops")}</h2><small>{t("myWork.inRouteOrder")}</small></div>
+            {!fromCache ? <StopMap onSelect={(id) => { const task = tasks.find((row) => row.id === id); if (task) openStop(task); }} routes={mapRoutes} selectedId={selected?.id} tenantId={tenantId} /> : null}
             <ol aria-label={t("myWork.title")} className="stop-list my-work-list">
               {tasks.map((task, index) => (
                 <li className="stop-item" key={task.id}>
@@ -266,9 +359,15 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
               <h2 className="detail-name" ref={detailHeading} tabIndex={-1}>{selected.customer_name}</h2>
               {selected.customer_address ? <p className="address"><Icon name="pin" small />{selected.customer_address}</p> : null}
               <div className="detail-contact">
+                {selected.customer_latitude && selected.customer_longitude ? <>
+                  {!fromCache ? <button className="button directions-button" disabled={directions.busy} onClick={() => directions.show(selected)} type="button"><Icon name="pin" small />{t("directions.button")}</button> : null}
+                  <a className="button button-secondary navigate" href={`https://www.google.com/maps/dir/?api=1&destination=${selected.customer_latitude},${selected.customer_longitude}&travelmode=driving`} rel="noreferrer" target="_blank"><Icon name="van" small />{t("myWork.navigate")}</a>
+                </> : null}
                 <a className="button button-secondary" dir="ltr" href={`tel:${selected.customer_phone}`}><Icon name="phone" small /><span dir="ltr">{selected.customer_phone}</span></a>
                 {selected.customer_latitude && selected.customer_longitude ? <a className="button button-secondary" href={`https://www.google.com/maps?q=${selected.customer_latitude},${selected.customer_longitude}`} rel="noreferrer" target="_blank"><Icon name="pin" small />{t("pickup.openMap")}</a> : null}
               </div>
+              {directions.problem && directions.result === undefined ? <ErrorState error={directions.problem} /> : null}
+              {directions.result?.taskId === selected.id ? <DirectionsView onClose={directions.clear} result={directions.result} /> : null}
               <div className="row"><h3>{t("myWork.forDelivery")}</h3>{selected.official_invoice_number ? <small className="muted"><bdi dir="ltr">{selected.official_invoice_number}</bdi></small> : null}</div>
               <ul className="line-list">
                 {selected.items.map((line, index) => (
@@ -286,7 +385,19 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
                 <span className="detail-label">{t("myWork.collect")}</span>
                 <strong className="amount"><bdi className="money" dir="ltr">{selected.amount_to_collect} {selected.currency}</bdi></strong>
               </span>
-              <button className="button" disabled={busy || queued.includes(selected.id)} onClick={() => complete(selected)} type="button"><Icon name="check" small />{queued.includes(selected.id) ? t("myWork.queuedShort") : t("delivery.complete")}</button>
+              {owes(selected) && !queued.includes(selected.id) ? (
+                <fieldset className="collection-claim">
+                  <legend>{t("collection.question")}</legend>
+                  {(["FULL", "PARTIAL", "NONE"] as const).map((kind) => (
+                    <label className="checkbox-row" key={kind}><input checked={collection.kind === kind} name={`collection-${selected.id}`} onChange={() => setCollection({ kind, amount: kind === "PARTIAL" ? collection.amount : "" })} type="radio" /><span>{t(`collection.kinds.${kind}`)}</span></label>
+                  ))}
+                  {collection.kind === "PARTIAL" ? <label className="field"><span>{t("collection.amountPaid", { currency: selected.currency })}</span><input dir="ltr" inputMode="decimal" max={selected.amount_to_collect} min="0.0001" required step="0.0001" type="number" value={collection.amount} onChange={(event) => setCollection({ kind: "PARTIAL", amount: event.target.value })} /></label> : null}
+                  <small className="muted">{t("collection.notPaymentYet")}</small>
+                </fieldset>
+              ) : null}
+              {queued.includes(selected.id)
+                ? <button className="button" disabled type="button"><Icon name="check" small />{t("myWork.queuedShort")}</button>
+                : <ConfirmAction confirmLabel={t("myWork.confirmDelivered")} disabled={busy || !claimReady(selected)} icon={<Icon name="check" small />} key={selected.id} label={t("delivery.complete")} onConfirm={() => complete(selected)}>{t("myWork.confirmDeliveredNote", { amount: `${selected.amount_to_collect} ${selected.currency}` })}</ConfirmAction>}
             </div>
             <p className="detail-bottom-note">{t("myWork.completionNote")}</p>
         </article>

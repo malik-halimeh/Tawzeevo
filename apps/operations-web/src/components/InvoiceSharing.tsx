@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL, apiRequest } from "../api/client";
@@ -19,7 +19,9 @@ interface IssuedLink extends LinkRecord {
 
 const copy = {
   en: {
-    title: "Share invoice", manage: "Manage invoice links", create: "Create private link",
+    title: "Share invoice", create: "Create private link",
+    send: "Send on WhatsApp", sendReplace: "Replace link and send on WhatsApp",
+    replaceNote: "Sending replaces the current link: the one sent before stops working.",
     rotate: "Replace link", revoke: "Revoke link", preview: "Open customer view",
     whatsapp: "Share on WhatsApp", expires: "Expires", revoked: "Revoked", expired: "Expired",
     description: "Anyone holding a link can view this invoice. Links expire after 90 days. Replacing a link revokes the old one.",
@@ -29,7 +31,9 @@ const copy = {
     copyLink: "Copy share link", copied: "Share link copied", copyFailed: "Copy did not work; select the link and copy it.",
   },
   ar: {
-    title: "مشاركة الفاتورة", manage: "إدارة روابط الفاتورة", create: "إنشاء رابط خاص",
+    title: "مشاركة الفاتورة", create: "إنشاء رابط خاص",
+    send: "إرسال عبر واتساب", sendReplace: "استبدال الرابط والإرسال عبر واتساب",
+    replaceNote: "الإرسال يستبدل الرابط الحالي: يتوقف الرابط المُرسل سابقاً عن العمل.",
     rotate: "استبدال الرابط", revoke: "إلغاء الرابط", preview: "فتح عرض العميل",
     whatsapp: "مشاركة عبر واتساب", expires: "تنتهي الصلاحية", revoked: "ملغى", expired: "منتهي",
     description: "يمكن لأي شخص يحمل الرابط عرض هذه الفاتورة. تنتهي الصلاحية بعد ٩٠ يوماً. استبدال الرابط يلغي القديم.",
@@ -39,6 +43,13 @@ const copy = {
     copyLink: "نسخ رابط المشاركة", copied: "تم نسخ رابط المشاركة", copyFailed: "تعذّر النسخ؛ حدّد الرابط وانسخه.",
   },
 };
+
+/** The WhatsApp share for an issued link, or undefined when the invoice has no customer phone. */
+function waLink(link: IssuedLink): string | undefined {
+  if (!link.customer_phone) return undefined;
+  const url = `${API_BASE_URL}${link.public_path}`;
+  return `https://wa.me/${link.customer_phone.replace(/^\+/, "")}?text=${encodeURIComponent(`${link.summary}\n${url}`)}`;
+}
 
 export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invoiceId: string }) {
   const { i18n } = useTranslation();
@@ -59,6 +70,34 @@ export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invo
     );
     setIssued(response);
     await load();
+    return response;
+  };
+  // The links are listed as soon as the invoice is shown: nothing to open first.
+  useEffect(() => {
+    let live = true;
+    apiRequest<LinkRecord[]>(`${path}?tenant_id=${tenantId}`)
+      .then((rows) => { if (live) setLinks(Array.isArray(rows) ? rows : []); })
+      .catch((problem: unknown) => { if (live) setError(problem); });
+    return () => { live = false; };
+  }, [path, tenantId]);
+  const activeLink = links?.find((link) => !link.revoked_at && new Date(link.expires_at) > new Date());
+  // One click: issue (or replace) the link, then open WhatsApp with it. The window is opened before
+  // the request so the browser treats it as the owner's own click; without a phone it is closed and
+  // the issued link stays on screen to copy.
+  const sendOnWhatsApp = () => {
+    const opened = window.open("", "_blank");
+    if (opened) opened.opener = null;
+    void run(async () => {
+      try {
+        const response = await issue(activeLink?.id);
+        const target = waLink(response);
+        if (target && opened) opened.location.href = target;
+        else opened?.close();
+      } catch (problem) {
+        opened?.close();
+        throw problem;
+      }
+    });
   };
   const revoke = async (id: string) => {
     await apiRequest(`${path}/${id}?tenant_id=${tenantId}`, { method: "DELETE" });
@@ -73,21 +112,20 @@ export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invo
     if (!url) return;
     void (navigator.clipboard?.writeText(url) ?? Promise.reject(new Error("no clipboard"))).then(() => setCopied("yes")).catch(() => setCopied("failed"));
   };
-  const whatsapp = issued?.customer_phone
-    ? `https://wa.me/${issued.customer_phone.replace(/^\+/, "")}?text=${encodeURIComponent(`${issued.summary}\n${url}`)}`
-    : undefined;
+  const whatsapp = issued ? waLink(issued) : undefined;
 
   return <section className="invoice-sharing" aria-label={words.title}>
     <h4>{words.title}</h4><p>{words.description}</p>
-    <button className="text-button" disabled={busy} onClick={() => void run(load)} type="button">{words.manage}</button>
     {links ? <>
-      <button className="button secondary-button" disabled={busy} onClick={() => void run(() => issue())} type="button">{words.create}</button>
+      <button className="button button-send" disabled={busy} onClick={sendOnWhatsApp} type="button">{activeLink ? words.sendReplace : words.send}</button>
+      {activeLink ? <p className="backend-note">{words.replaceNote}</p> : null}
+      <button className="button secondary-button" disabled={busy} onClick={() => void run(async () => { await issue(); })} type="button">{words.create}</button>
       {links.length === 0 ? <p>{words.empty}</p> : null}
       {links.map(link => <article key={link.id} className="invoice-share-record">
         <span>{words.expires}: <time dateTime={link.expires_at}>{new Date(link.expires_at).toLocaleDateString(i18n.language)}</time></span>
         {link.revoked_at ? <strong>{words.revoked}</strong> : <>
           {new Date(link.expires_at) <= new Date() ? <span>{words.expired}</span> : null}
-          <button className="text-button" disabled={busy} onClick={() => void run(() => issue(link.id))} type="button">{words.rotate}</button>
+          <button className="text-button" disabled={busy} onClick={() => void run(async () => { await issue(link.id); })} type="button">{words.rotate}</button>
           <button className="text-button danger-link" disabled={busy} onClick={() => void run(() => revoke(link.id))} type="button">{words.revoke}</button>
         </>}
       </article>)}
@@ -98,7 +136,7 @@ export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invo
       <button className="text-button" onClick={copyLink} type="button">{copied === "yes" ? words.copied : words.copyLink}</button>
       {copied === "failed" ? <p className="backend-note">{words.copyFailed}</p> : null}
       <a href={url} target="_blank" rel="noopener noreferrer">{words.preview}</a>
-      {whatsapp ? <a className="button" href={whatsapp} target="_blank" rel="noopener noreferrer">{words.whatsapp}</a> : <p>{words.noPhone}</p>}
+      {whatsapp ? <a className="button button-send" href={whatsapp} target="_blank" rel="noopener noreferrer">{words.whatsapp}</a> : <p>{words.noPhone}</p>}
     </div> : null}
     {error ? <ErrorState error={error} /> : null}
   </section>;

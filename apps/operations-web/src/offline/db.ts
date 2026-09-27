@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
+import { announceOutboxChange } from "./events";
 
 /**
  * Local operational projection and outbox (PHASE_04.md E). One database per tenant membership so
@@ -247,6 +248,8 @@ export function openLocalDatabase(tenantId: string, membershipId: string): Tawze
   let db = databases.get(name);
   if (!db) {
     db = new TawzeevoLocalDatabase(name);
+    // Every queued command wakes the automatic sending (D-098).
+    db.outbox.hook("creating", () => { announceOutboxChange(); });
     databases.set(name, db);
   }
   return db;

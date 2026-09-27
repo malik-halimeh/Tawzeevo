@@ -5,7 +5,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
 import type { SuspensionReason, Tenant, TenantListResponse, TenantStatus } from "../api/types";
-import { EmptyState, ErrorState, LoadingState, PageHeader, Pagination, StatusBadge, SuccessNotice } from "../components/Ui";
+import { ConfirmAction, EmptyState, ErrorState, LoadingState, PageHeader, Pagination, StatusBadge, SuccessNotice } from "../components/Ui";
 
 interface AccessDraft {
   access_until: string;
@@ -19,16 +19,22 @@ export function TenantsPage() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | TenantStatus>((searchParams.get("status") as TenantStatus | null) ?? "");
+  // Access filter (D-109), also opened from the dashboard's overdue link.
+  const [accessFilter, setAccessFilter] = useState<"" | "current" | "grace" | "overdue">(() => {
+    const requested = searchParams.get("access_status");
+    return requested === "current" || requested === "grace" || requested === "overdue" ? requested : "";
+  });
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Tenant>();
   const [notice, setNotice] = useState<string>();
   const [draft, setDraft] = useState<AccessDraft>({ access_until: "", grace_until: "", reason: "SUBSCRIPTION_OVERDUE" });
   const query = useQuery({
-    queryKey: ["tenants", search, status, page],
+    queryKey: ["tenants", search, status, accessFilter, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: "10" });
       if (search) params.set("search", search);
       if (status) params.set("status", status);
+      if (accessFilter) params.set("access_status", accessFilter);
       return apiRequest<TenantListResponse>(`/api/v1/platform/tenants?${params}`);
     },
     placeholderData: keepPreviousData,
@@ -125,6 +131,7 @@ export function TenantsPage() {
       <form className="toolbar" onSubmit={(event) => { event.preventDefault(); setPage(1); void query.refetch(); }}>
         <label className="field toolbar-search"><span>{t("common.search")}</span><input placeholder={t("tenants.searchPlaceholder")} value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <label className="field compact-field"><span>{t("fields.status")}</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setPage(1); }}><option value="">{t("common.all")}</option><option value="ACTIVE">{t("status.ACTIVE")}</option><option value="SUSPENDED">{t("status.SUSPENDED")}</option><option value="CLOSED">{t("status.CLOSED")}</option></select></label>
+        <label className="field compact-field"><span>{t("tenants.accessFilter")}</span><select value={accessFilter} onChange={(event) => { setAccessFilter(event.target.value as typeof accessFilter); setPage(1); }}><option value="">{t("common.all")}</option><option value="current">{t("status.current")}</option><option value="grace">{t("status.grace")}</option><option value="overdue">{t("status.overdue")}</option></select></label>
         <button className="button button-secondary" type="submit">{t("common.search")}</button>
       </form>
       {selected ? (
@@ -135,7 +142,7 @@ export function TenantsPage() {
             <label className="field"><span>{t("fields.accessUntil")}</span><input type="date" value={draft.access_until} onChange={(event) => setDraft({ ...draft, access_until: event.target.value })} /></label>
             <label className="field"><span>{t("fields.graceUntil")}</span><input type="date" value={draft.grace_until} onChange={(event) => setDraft({ ...draft, grace_until: event.target.value })} /></label>
             <label className="field field-wide"><span>{t("fields.suspensionReason")}</span><select disabled={selected.status !== "ACTIVE"} value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value as SuspensionReason })}><option value="SUBSCRIPTION_OVERDUE">{t("reasons.SUBSCRIPTION_OVERDUE")}</option><option value="ADMINISTRATIVE">{t("reasons.ADMINISTRATIVE")}</option><option value="SECURITY">{t("reasons.SECURITY")}</option><option value="OTHER">{t("reasons.OTHER")}</option></select></label>
-            <div className="form-actions field-wide"><button className="button button-secondary" onClick={() => setSelected(undefined)} type="button">{t("common.close")}</button><button className="button button-secondary" disabled={setAccess.isPending} onClick={() => { suspend.reset(); reactivate.reset(); setAccess.mutate(); }} type="button">{t("tenants.saveAccess")}</button>{selected.status === "ACTIVE" ? <button className="button button-danger" disabled={suspend.isPending} onClick={() => { setAccess.reset(); reactivate.reset(); suspend.mutate(); }} type="button">{t("tenants.suspend")}</button> : null}{selected.status === "SUSPENDED" ? <button className="button" disabled={reactivate.isPending} onClick={() => { setAccess.reset(); suspend.reset(); reactivate.mutate(); }} type="button">{t("tenants.reactivate")}</button> : null}</div>
+            <div className="form-actions field-wide"><button className="button button-secondary" onClick={() => setSelected(undefined)} type="button">{t("common.close")}</button><button className="button button-secondary" disabled={setAccess.isPending} onClick={() => { suspend.reset(); reactivate.reset(); setAccess.mutate(); }} type="button">{t("tenants.saveAccess")}</button>{selected.status === "ACTIVE" ? <ConfirmAction confirmLabel={t("tenants.confirmSuspend")} danger disabled={suspend.isPending} label={t("tenants.suspend")} onConfirm={() => { setAccess.reset(); reactivate.reset(); suspend.mutate(); }}>{t("tenants.suspendExplain", { name: selected.name })}</ConfirmAction> : null}{selected.status === "SUSPENDED" ? <button className="button" disabled={reactivate.isPending} onClick={() => { setAccess.reset(); suspend.reset(); reactivate.mutate(); }} type="button">{t("tenants.reactivate")}</button> : null}</div>
             {selected.status !== "CLOSED" ? (
               <details className="field-wide close-tenant">
                 <summary>{t("tenants.closeTitle")}</summary>

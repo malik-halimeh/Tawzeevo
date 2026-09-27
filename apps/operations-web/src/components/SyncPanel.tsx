@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OutboxRecord } from "../offline/db";
+import { OUTBOX_CHANGED_EVENT, SYNC_COMPLETED_EVENT } from "../offline/events";
 import { acceptServerVersion, listOutbox, retryDeadLetters, retryWithServerVersion } from "../offline/outbox";
 import { type SyncOutcome, syncNow } from "../offline/pull";
 import { bootstrapLocalProjection, localSyncStatus, type BootstrapProgress, type LocalSyncStatus } from "../offline/sync";
@@ -29,6 +30,13 @@ export function SyncPanel({ tenantId, membershipId }: { tenantId: string; member
   }, [tenantId, membershipId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  // Work sent automatically (D-098) or newly queued elsewhere shows here without a reload.
+  useEffect(() => {
+    const again = () => { void refresh(); };
+    window.addEventListener(SYNC_COMPLETED_EVENT, again);
+    window.addEventListener(OUTBOX_CHANGED_EVENT, again);
+    return () => { window.removeEventListener(SYNC_COMPLETED_EVENT, again); window.removeEventListener(OUTBOX_CHANGED_EVENT, again); };
+  }, [refresh]);
   useEffect(() => {
     const up = () => setOnline(true);
     const down = () => setOnline(false);

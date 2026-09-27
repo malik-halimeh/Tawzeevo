@@ -136,7 +136,7 @@ export async function updateCustomerOffline(
 export async function createProductOffline(
   tenantId: string,
   membershipId: string,
-  input: { category_id: string; name: string; name_ar?: string | null; barcode: string; barcode_package_level?: "PIECE" | "BOX"; unit_price: string; currency: string; price_basis: "PIECE" | "BOX"; pieces_per_box: number | null; is_published?: boolean; master_product_id?: string | null },
+  input: { category_id: string; name: string; name_ar?: string | null; barcode: string | null; barcode_package_level?: "PIECE" | "BOX"; unit_price: string; currency: string; price_basis: "PIECE" | "BOX"; pieces_per_box: number | null; is_published?: boolean; master_product_id?: string | null },
 ): Promise<LocalProduct> {
   const db = openLocalDatabase(tenantId, membershipId);
   const row: LocalProduct = {
@@ -154,7 +154,7 @@ export async function createProductOffline(
   };
   await db.transaction("rw", [db.products, db.barcodes, db.outbox], async () => {
     await db.products.put(row);
-    await db.barcodes.put({ id: crypto.randomUUID(), tenant_id: tenantId, tenant_product_id: row.id, barcode: input.barcode, package_level: input.barcode_package_level ?? "PIECE" });
+    if (input.barcode) await db.barcodes.put({ id: crypto.randomUUID(), tenant_id: tenantId, tenant_product_id: row.id, barcode: input.barcode, package_level: input.barcode_package_level ?? "PIECE" });
     await db.outbox.add(newCommand(tenantId, membershipId, "tenant_product", "create", row.id, null, { ...input }));
   });
   return row;

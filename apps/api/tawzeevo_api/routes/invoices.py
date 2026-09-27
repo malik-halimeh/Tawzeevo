@@ -8,10 +8,13 @@ from tawzeevo_api.config import get_settings
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.models import ProductPriceBasis
+from tawzeevo_api.schemas.customer_lists import InvoiceListResponse
 from tawzeevo_api.schemas.invoice_editor import (
     CalculatorRequest,
     CalculatorResponse,
     CatalogSearchResponse,
+    InvoiceCalculateRequest,
+    InvoiceCalculateResponse,
     InvoiceCancelRequest,
     InvoiceConfirmRequest,
     InvoiceEditorDraftRequest,
@@ -21,8 +24,10 @@ from tawzeevo_api.schemas.invoice_editor import (
     ItemParserResponse,
     ProductCostOptionsResponse,
 )
+from tawzeevo_api.services.customer_lists import list_customer_invoices
 from tawzeevo_api.services.invoice_editor import (
     calculate_expression,
+    calculate_invoice,
     create_editor_draft,
     get_editor_draft,
     parse_item_text,
@@ -47,6 +52,21 @@ def invoice_calculator(
     return CalculatorResponse(
         expression=request.expression,
         value=calculate_expression(request.expression),
+    )
+
+
+@invoices_router.post("/calculate", response_model=InvoiceCalculateResponse)
+def invoice_calculate(
+    request: InvoiceCalculateRequest,
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> InvoiceCalculateResponse:
+    """Totals for the invoice as it stands in the editor, not saved (D-107)."""
+    return calculate_invoice(
+        db,
+        context.tenant.id,
+        request,
+        fuzzy_threshold=get_settings().invoice_fuzzy_match_threshold,
     )
 
 
@@ -85,6 +105,19 @@ def invoice_product_cost_options(
     basis: ProductPriceBasis,
 ) -> ProductCostOptionsResponse:
     return product_cost_options(db, context.tenant.id, product_id, currency, basis)
+
+
+@invoices_router.get("", response_model=InvoiceListResponse)
+def list_invoices_of_customer(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    customer_id: UUID,
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> InvoiceListResponse:
+    """Every invoice of one customer, newest first (D-101). The customer is required so the list
+    stays bounded; an unknown customer is 404."""
+    return list_customer_invoices(db, context.tenant.id, customer_id, page, limit)
 
 
 @invoices_router.post("", response_model=InvoiceEditorResponse, status_code=status.HTTP_201_CREATED)

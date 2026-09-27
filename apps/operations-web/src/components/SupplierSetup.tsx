@@ -8,6 +8,8 @@ import { queueCostAppend } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
 import { PurchasePanel } from "./PurchasePanel";
 import { SupplierLedgerPanel } from "./SupplierLedgerPanel";
+import { useSupplierBalances } from "./supplierBalances";
+import { BalanceChips, SupplierPaymentHistory } from "./SupplierPaymentHistory";
 import { useKeepFocus } from "./useKeepFocus";
 
 export interface Supplier {
@@ -86,6 +88,10 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
   // Undefined until the first answer, so "no suppliers yet" is never shown while the list is still loading.
   const [loadedSuppliers, setSuppliers] = useState<Supplier[]>();
   const suppliers = loadedSuppliers ?? [];
+  // Bumped after any supplier payment, reversal or opening balance so balances and history reload (D-100).
+  const [ledgerVersion, setLedgerVersion] = useState(0);
+  const bumpLedger = useCallback(() => setLedgerVersion((value) => value + 1), []);
+  const supplierBalances = useSupplierBalances(tenantId, ledgerVersion + suppliers.length);
   const [products, setProducts] = useState<TenantProduct[]>([]);
   const [profile, setProfile] = useState<SupplierProfileDraft>(emptyProfile());
   const [editing, setEditing] = useState<{ id: string; version: number; draft: SupplierProfileDraft }>();
@@ -246,6 +252,7 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
                         {supplier.contact_name || supplier.contact_phone ? <span className="muted"> · {supplier.contact_name}{supplier.contact_phone ? <> <bdi dir="ltr">{supplier.contact_phone}</bdi></> : null}</span> : null}
                         {supplier.address ? <span className="muted"> · {supplier.address}</span> : null}
                         {supplier.latitude && supplier.longitude ? <span className="muted"> · <bdi dir="ltr">{supplier.latitude}, {supplier.longitude}</bdi></span> : null}
+                        <BalanceChips balances={supplierBalances[supplier.id]} />
                       </div>
                       <button className="text-button" disabled={busy} onClick={() => setEditing({ id: supplier.id, version: supplier.version, draft: profileOf(supplier) })} type="button">{t("supplierSetup.edit")}</button>
                     </div>
@@ -379,7 +386,8 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
         </article>
       </div>
       <PurchasePanel membershipId={membershipId} suppliers={suppliers} tenantId={tenantId} />
-      <SupplierLedgerPanel tenantId={tenantId} suppliers={suppliers} />
+      <SupplierLedgerPanel onChanged={bumpLedger} tenantId={tenantId} suppliers={suppliers} version={ledgerVersion} />
+      <SupplierPaymentHistory onChanged={bumpLedger} suppliers={suppliers} tenantId={tenantId} version={ledgerVersion} />
     </section>
   );
 }

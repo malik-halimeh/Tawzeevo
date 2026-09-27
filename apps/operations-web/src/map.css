@@ -1,0 +1,818 @@
+/* Tawzeevo operations client: Plan D "The Tawzeevo Map" (private plan 2026-09-27, owner-approved 2026-09-28).
+   A layer over styles.css. Every part of the business is a coloured line (Today, Sales, Customers, Deliveries,
+   Catalog, Buying, Insights, Settings); records take the shape of the paper object they stand for; buttons take
+   the shape of what they do. Presentation only: no rule here changes what a screen can do, and colour never
+   replaces a state's words (a paid, late or waiting state always keeps its label). */
+
+/* ---------- Line colours ----------
+   --lc: the line's solid colour (station, tile, active stop, chart); --lc-tint: bands and selected rows;
+   --lc-deep: text and icons on the tint; --lc-on: text on the solid; --lc-edge: outline for a pale solid.
+   Measured contrast: white on every solid >= 4.7:1 (Citron takes ink, 12:1); deep on tint >= 7:1. */
+:root, [data-line="deliveries"] { --lc: #2455d6; --lc-tint: #e4ecfb; --lc-deep: #173b98; --lc-on: #ffffff; --lc-edge: #2455d6; }
+[data-line="today"] { --lc: #ddeb6a; --lc-tint: #f6f9d9; --lc-deep: #4f5a06; --lc-on: #13262f; --lc-edge: #13262f; }
+[data-line="sales"] { --lc: #c4501c; --lc-tint: #fdebdd; --lc-deep: #8a3510; --lc-on: #ffffff; --lc-edge: #c4501c; }
+[data-line="customers"] { --lc: #0b7a6e; --lc-tint: #ddf3ef; --lc-deep: #075a51; --lc-on: #ffffff; --lc-edge: #0b7a6e; }
+[data-line="catalog"] { --lc: #a8326e; --lc-tint: #f9e3ee; --lc-deep: #7c1f50; --lc-on: #ffffff; --lc-edge: #a8326e; }
+[data-line="buying"] { --lc: #557a1f; --lc-tint: #e8f1d8; --lc-deep: #3b5714; --lc-on: #ffffff; --lc-edge: #557a1f; }
+[data-line="insights"] { --lc: #5140b8; --lc-tint: #eae7fa; --lc-deep: #3a2c8f; --lc-on: #ffffff; --lc-edge: #5140b8; }
+[data-line="settings"], [data-line="admin"] { --lc: #44535c; --lc-tint: #e7ecee; --lc-deep: #2e3b42; --lc-on: #ffffff; --lc-edge: #44535c; }
+/* Selected rows, attached action areas and quiet chips take the tint of the place on screen. */
+.frame[data-line] { --mist: var(--lc-tint); }
+
+:root {
+  --indigo: #5140b8;
+  --indigo-tint: #eae7fa;
+  --indigo-deep: #3a2c8f;
+  --radius-control: 10px;
+  --radius-record: 14px;
+  --radius-dialog: 20px;
+  --font-display: "PlexCondensed", "PlexArabic", "Plex", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "PlexMono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --lift: 0 1px 0 rgb(19 38 47 / .05), 0 8px 20px rgb(19 38 47 / .07);
+  --ink-soft: #2b4550;
+}
+
+/* ---------- Type ---------- */
+h1, .business h1, .page-head h1, .detail-name, .section-head h3, .panel-head h3, section > header > h3,
+.content-card > h3, .form-intro h1, .hero-copy h1, .document-head h4, .customer-search h2, .invoice-editor-heading h3,
+.settlement-desk > header h3, .debt-desk h3, .day-summary h2, .customer-detail .customer-form-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -.2px;
+}
+html[lang="ar"] :is(h1, h2, h3, h4) { font-family: var(--font-arabic); letter-spacing: 0; }
+.business h1 { font-size: 32px; }
+.section-head h3, section > header > h3, .content-card > h3, .panel-head h3 { font-size: 27px; line-height: 1.1; }
+code, .mono, kbd, .scan-desk input, .barcode-chips code, a[href^="tel:"] bdi, .customer-record-id bdi { font-family: var(--font-mono); }
+code { font-size: .9em; }
+/* Big figures read like signage: condensed, tabular. */
+.metric-card > strong, .dashboard-metrics strong, .action-area .amount, .date-tab strong, .invoice-tally .total-due dd,
+.document-totals .total-due dd, .payment-slip > div:first-child strong, .route-brief-marker span {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* ---------- Focus: a Citron ring with an ink edge, visible on every colour ---------- */
+:focus-visible { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--ink); border-radius: 6px; }
+input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"], [type="week"]):focus-within { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--ink); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--ink); outline-offset: 0; box-shadow: 0 0 0 5px var(--ink); border-radius: var(--radius-control); }
+::selection { background: var(--citron); color: var(--ink); }
+
+/* ---------- Brand mark: a Citron route pin ---------- */
+.brand { font-family: var(--font-display); font-weight: 600; letter-spacing: -.3px; }
+.brand-symbol { width: 32px; height: 32px; }
+.brand-symbol i { display: none; }
+.brand-symbol::before { content: ""; position: absolute; inset: 1px; height: auto; background: var(--citron); border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); box-shadow: inset 0 0 0 2px var(--ink); }
+.brand-symbol::after { content: ""; position: absolute; width: 9px; height: 9px; inset: 11.5px; border-radius: 50%; background: var(--ink); }
+
+/* ---------- Rail: the map ---------- */
+.frame { grid-template-columns: 236px minmax(0, 1fr); }
+.rail { background: var(--paper); gap: 26px; padding: 24px 16px; }
+.rail-nav { position: relative; gap: 2px; }
+.nav-item { gap: 14px; border-radius: 999px; padding: 8px 12px; font-weight: 500; }
+.nav-item:hover { background: transparent; }
+.nav-item:hover > span:first-of-type { text-decoration: underline; text-underline-offset: 4px; }
+.nav-item.active { background: transparent; color: var(--ink); font-weight: 700; }
+.nav-item.active::before { display: none; }
+/* Stations: the section icon sits in a ring of its line colour; the rail draws the track between them. */
+.rail-nav > .nav-item > .icon, .more-item[data-line] > .icon {
+  box-sizing: border-box; width: 34px; height: 34px; padding: 6px; border: 3px solid var(--lc-edge);
+  border-radius: 50%; background: var(--surface); color: var(--lc-deep); position: relative; z-index: 1;
+  transition: transform .18s ease, background .18s ease;
+}
+.rail-nav > .nav-item[data-line="today"] > .icon { border-color: var(--lc); box-shadow: 0 0 0 1.5px var(--ink); }
+.rail-nav > .nav-item:not(:last-child)::after {
+  content: ""; position: absolute; inset-inline-start: 27px; top: calc(50% + 15px); height: calc(100% - 26px); width: 4px;
+  border-radius: 4px; background: color-mix(in srgb, var(--lc) 45%, var(--line)); z-index: 0;
+}
+.rail-nav > .nav-item.active > .icon {
+  background: var(--lc); color: var(--lc-on); transform: scale(1.12);
+  box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--lc-edge);
+}
+.rail-nav > .nav-item.active > span:first-of-type { background: var(--lc-tint); color: var(--ink); border-radius: 999px; padding: 3px 12px; margin-inline-start: -6px; }
+.nav-item-minor { font-size: 14px; color: var(--muted); }
+.rail-nav > .nav-item-minor > .icon { width: 30px; height: 30px; padding: 5px; }
+.nav-badge { background: var(--ink); color: var(--surface); }
+.rail-context .avatar, .avatar { border-radius: 50%; }
+.rail-context .avatar { background: var(--ink); color: var(--citron); }
+.rail-bottom { border-top: 1px dashed var(--line-strong); }
+.rail-bottom .nav-item { border-radius: 10px; padding: 8px 14px; }
+.rail-bottom .nav-item.active { background: var(--surface); }
+
+/* Platform desk: a dark control-room rail with Citron stations, so it never looks like a business. */
+.frame[data-role="admin"] .rail { background: var(--ink); border-inline-end-color: var(--ink); color: #e5ece9; }
+.frame[data-role="admin"] .rail .brand, .frame[data-role="admin"] .rail .nav-item, .frame[data-role="admin"] .rail strong { color: #f2f5f3; }
+.frame[data-role="admin"] .rail small, .frame[data-role="admin"] .rail .nav-item-minor { color: #b9c7c3; }
+.frame[data-role="admin"] .rail-nav > .nav-item > .icon { background: var(--ink); border-color: var(--citron); color: var(--citron); box-shadow: none; }
+.frame[data-role="admin"] .rail-nav > .nav-item:not(:last-child)::after { background: #35505b; }
+.frame[data-role="admin"] .rail-nav > .nav-item.active > .icon { background: var(--citron); color: var(--ink); box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px var(--citron); }
+.frame[data-role="admin"] .rail-nav > .nav-item.active > span:first-of-type { background: #25404a; color: #fff; }
+.frame[data-role="admin"] .rail-bottom { border-top-color: #35505b; }
+.frame[data-role="admin"] .rail-bottom .text-btn { color: var(--citron); }
+.frame[data-role="admin"] .rail-context .avatar { background: var(--citron); color: var(--ink); }
+.frame[data-role="admin"] .rail-bottom .nav-item.active { background: #25404a; }
+
+/* ---------- Top bar: a ticket strip with a perforated edge ---------- */
+.stage { position: relative; }
+.topline {
+  max-width: none; margin: 0; background: var(--surface); padding: 12px 42px 18px; position: relative;
+  box-shadow: 0 1px 0 rgb(19 38 47 / .04);
+}
+.topline::after {
+  content: ""; position: absolute; inset-inline: 0; bottom: -5px; height: 10px; pointer-events: none;
+  background: radial-gradient(circle 5px at 50% 50%, var(--paper) 96%, transparent 100%) 0 0 / 16px 10px repeat-x;
+}
+.topline-trail { font-size: 14px; }
+.assistant-button { background: var(--indigo); min-height: 42px; padding: 0 16px 0 6px; gap: 9px; }
+.assistant-button:hover, .assistant-button[aria-expanded="true"] { background: var(--indigo-deep); }
+.assistant-button > .icon { box-sizing: border-box; width: 30px; height: 30px; padding: 6px; background: var(--surface); color: var(--indigo); border-radius: 50% 50% 50% 6px; }
+html[dir="rtl"] .assistant-button { padding: 0 6px 0 16px; }
+html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
+.topline-language, .language.topline-language {
+  min-height: 42px; padding: 0 14px; border-radius: 12px; background: var(--ink); color: var(--citron); font-weight: 600;
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / .28); transition: transform .2s ease;
+}
+.topline-language:hover { color: var(--citron); transform: perspective(300px) rotateX(16deg); }
+.topline .online, .sync-chip { min-height: 38px; padding: 0 14px 0 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--good-bg); color: var(--good); gap: 8px; }
+.topline .online::before { width: 11px; height: 11px; box-shadow: 0 0 0 3px rgb(30 107 69 / .18); }
+.topline .online.offline, .topline .online[data-state="waiting"], .topline .online[data-state="sending"] { background: var(--warn-bg); color: var(--warn); }
+.topline .online.offline::before, .topline .online[data-state="waiting"]::before, .topline .online[data-state="sending"]::before { background: var(--warn); box-shadow: 0 0 0 3px rgb(125 78 0 / .16); }
+.topline .online[data-state="attention"] { background: var(--bad-bg); color: var(--bad); }
+.topline .online[data-state="attention"]::before { background: var(--bad); box-shadow: 0 0 0 3px rgb(163 38 58 / .16); }
+.topline .online[data-state="sending"]::before { animation: map-lamp 1.2s ease-in-out infinite; }
+@keyframes map-lamp { 50% { transform: scale(.6); opacity: .55; } }
+.main { padding-top: 26px; }
+
+/* ---------- Station sign: the business band in the colour of the place on screen ---------- */
+.station-sign {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 20px;
+  background: var(--lc-tint); border-radius: var(--radius-dialog); padding: 18px 22px; position: relative;
+}
+.station-tile {
+  grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 58px; height: 58px; border-radius: 14px;
+  background: var(--lc); color: var(--lc-on); box-shadow: inset 0 0 0 1.5px var(--lc-edge);
+}
+.station-tile .icon { width: 30px; height: 30px; stroke-width: 1.8; }
+.station-sign > .business-head { grid-column: 1; grid-row: 1; }
+.station-sign .business h1 { color: var(--ink); }
+.business-avatar { border-radius: 50%; background: var(--ink); color: var(--citron); font-family: var(--font-display); font-size: 22px; }
+.station-sign .status-badge { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.station-sign .status-badge.status-active { background: var(--good-bg); color: var(--good); box-shadow: none; }
+/* Section tabs: stops on the band's bottom edge, the current one filled. */
+.station-sign > .section-tabs { grid-column: 1 / -1; margin: 16px 0 -8px; }
+.section-tabs { border-bottom: 0; gap: 4px 30px; position: relative; padding-bottom: 6px; }
+.section-tabs::before { content: ""; position: absolute; inset-inline: 0; bottom: 11.5px; height: 3px; border-radius: 3px; background: color-mix(in srgb, var(--lc) 30%, transparent); }
+.section-tabs a { flex-direction: column; justify-content: flex-end; gap: 6px; border-bottom: 0; padding: 4px 2px 0; color: var(--lc-deep); min-height: 58px; position: relative; }
+.section-tabs a::after { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--lc-tint); border: 3px solid var(--lc-edge); z-index: 1; box-sizing: border-box; }
+.section-tabs a.active { color: var(--ink); border-bottom: 0; }
+.section-tabs a.active::after { background: var(--lc); box-shadow: 0 0 0 3px var(--lc-tint), 0 0 0 5px var(--lc-edge); }
+.section-tabs a .nav-badge { position: absolute; top: -4px; inset-inline-end: -18px; margin: 0; }
+.section-tabs a:focus-visible { outline: 3px solid var(--citron); box-shadow: 0 0 0 5px var(--ink); }
+
+/* ---------- Phone bar and the More sheet ---------- */
+@media (max-width: 1099px) {
+  .topline { padding: 12px 18px 16px; }
+  .mobile-nav { padding-top: 8px; box-shadow: 0 -6px 18px rgb(19 38 47 / .06); }
+  .mobile-nav::before { content: ""; position: absolute; top: 24px; inset-inline: 12%; height: 3px; border-radius: 3px; background: var(--line); }
+  .mobile-nav-item { z-index: 1; color: var(--muted); font-size: 12px; }
+  .mobile-nav-item > .icon {
+    box-sizing: border-box; width: 34px; height: 34px; padding: 6px; border-radius: 50%;
+    border: 3px solid var(--lc-edge); background: var(--surface); color: var(--lc-deep); transition: transform .18s ease;
+  }
+  .mobile-nav-item[data-line="today"] > .icon { border-color: var(--lc); box-shadow: 0 0 0 1.5px var(--ink); }
+  .mobile-nav > button.mobile-nav-item > .icon, .mobile-nav-item:not([data-line]) > .icon { border-style: dashed; border-color: var(--line-strong); color: var(--muted); box-shadow: none; }
+  .mobile-nav-item.active { color: var(--ink); font-weight: 700; }
+  .mobile-nav-item.active::before { display: none; }
+  .mobile-nav-item.active > .icon { background: var(--lc); color: var(--lc-on); transform: translateY(-3px) scale(1.1); box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--lc-edge); }
+  .mobile-nav > button.mobile-nav-item.active > .icon { background: var(--ink); color: var(--surface); border-style: solid; border-color: var(--ink); }
+  .mobile-nav-item .nav-badge { top: 0; inset-inline-end: 6px; z-index: 2; }
+  .more-sheet { border-radius: var(--radius-dialog); box-shadow: 0 -10px 30px rgb(19 38 47 / .16); padding: 10px; }
+  .more-item { border-radius: 12px; }
+  .more-item:hover, .more-item.active { background: var(--lc-tint); color: var(--ink); }
+  .more-item[data-line] > .icon { width: 32px; height: 32px; }
+  .more-item.active[data-line] > .icon { background: var(--lc); color: var(--lc-on); }
+  .station-sign { padding: 14px 16px; border-radius: 16px; }
+  .station-tile { width: 46px; height: 46px; border-radius: 12px; }
+  .station-tile .icon { width: 24px; height: 24px; }
+}
+@media (max-width: 620px) {
+  .collection-claim { gap: 8px; }
+  .collection-claim > .checkbox-row { min-height: 72px; padding: 8px 4px; gap: 6px; font-size: 13px; }
+  .collection-claim > .checkbox-row > input[type="radio"] { width: 32px; height: 32px; }
+  .action-area .amount { font-size: 26px; }
+  .station-sign { grid-template-columns: minmax(0, 1fr) auto; }
+  .business h1 { font-size: 26px; }
+  .section-tabs { gap: 4px 22px; }
+}
+
+/* ---------- Buttons: shaped by what they do ---------- */
+/* Main action: a Cedar-ink pill everywhere, so the main action is always found the same way; an icon it carries
+   sits on a round disc in the colour of the place on screen. */
+.button {
+  border-radius: 999px; background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600;
+  padding: 12px 22px; transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.button:hover:not(:disabled) { background: #0a1a21; border-color: #0a1a21; }
+.button:active:not(:disabled) { transform: translateY(1px); }
+.button > .icon:first-child {
+  box-sizing: border-box; width: 32px; height: 32px; padding: 6px; margin-block: -6px; margin-inline: -14px 0;
+  border-radius: 50%; background: var(--lc); color: var(--lc-on); box-shadow: inset 0 0 0 1.5px var(--lc-edge);
+}
+.button-small > .icon:first-child { width: 28px; height: 28px; padding: 5px; margin-inline-start: -10px; }
+/* Secondary: a white pill with an outline; its icon disc is the tint. */
+.button-secondary, .secondary-button { background: var(--surface); border-color: var(--line-strong); color: var(--ink); }
+.button-secondary:hover:not(:disabled), .secondary-button:hover:not(:disabled) { background: var(--lc-tint); border-color: var(--lc-edge); }
+.button-secondary > .icon:first-child { background: var(--lc-tint); color: var(--lc-deep); box-shadow: none; }
+.button-quiet { background: var(--lc-tint); border-color: var(--lc-tint); color: var(--lc-deep); }
+/* Danger: an outline in the failed red; the final step is always the inline confirmation. */
+.button-danger { background: var(--surface); border-color: var(--bad); color: var(--bad); }
+.button-danger:hover:not(:disabled) { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+.button-danger > .icon:first-child { background: var(--bad-bg); color: var(--bad); box-shadow: none; }
+.button-confirm { background: var(--good); border-color: var(--good); }
+/* Disabled never looks pressable: a dotted outline instead of a faded fill. */
+.button:disabled { opacity: 1; background: var(--surface); color: var(--muted); border-color: var(--line-strong); border-style: dotted; }
+.button:disabled > .icon:first-child { background: var(--paper); color: var(--muted); box-shadow: none; }
+/* Money: a Citron coin with a milled edge rides on the start of the pill. */
+.button-money::before, .money-link::before {
+  content: ""; flex: none; width: 26px; height: 26px; border-radius: 50%; margin-inline-start: -10px;
+  background: radial-gradient(circle, var(--citron) 55%, transparent 56%), repeating-conic-gradient(var(--ink) 0 5deg, var(--citron) 5deg 15deg);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.button-money:has(> .icon)::before { display: none; }
+.button-money > .icon:first-child { background: var(--citron); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
+.money-link { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.money-link::before { width: 20px; height: 20px; margin: 0; }
+/* Send / share: the end of the pill is pointed like a paper plane (mirrored in Arabic). */
+.button-send {
+  background: var(--lc); border-color: var(--lc); color: var(--lc-on); border-radius: 999px 6px 6px 999px; padding-inline-end: 34px;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%);
+}
+.button-send:hover:not(:disabled) { background: var(--lc-deep); border-color: var(--lc-deep); }
+html[dir="rtl"] .button-send { border-radius: 6px 999px 999px 6px; padding-inline-end: 22px; padding-inline-start: 34px; clip-path: polygon(18px 0, 100% 0, 100% 100%, 18px 100%, 0 50%); }
+/* The final step of a confirmation is a rubber stamp: a double border, pressed down and inked when used. */
+.confirm-action { background: var(--lc-tint); border-radius: 14px; padding: 10px 14px; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lc) 35%, transparent); }
+.confirm-action > .button {
+  border-radius: 12px; background: var(--surface); color: var(--good); border: 0; min-height: 50px; letter-spacing: .2px;
+  box-shadow: inset 0 0 0 2px var(--good), inset 0 0 0 5px var(--surface), inset 0 0 0 6.5px var(--good), 0 4px 0 rgb(19 38 47 / .2);
+  transition: transform .12s ease, box-shadow .12s ease, background .22s ease, color .22s ease;
+}
+.confirm-action > .button:hover:not(:disabled) { background: var(--good-bg); }
+.confirm-action > .button:active:not(:disabled) { transform: translateY(3px); background: var(--good); color: #fff; box-shadow: inset 0 0 0 2px var(--good), inset 0 0 0 5px var(--good), inset 0 0 0 6.5px #fff, 0 1px 0 rgb(19 38 47 / .2); }
+.confirm-action > .button.button-danger { color: var(--bad); box-shadow: inset 0 0 0 2px var(--bad), inset 0 0 0 5px var(--surface), inset 0 0 0 6.5px var(--bad), 0 4px 0 rgb(19 38 47 / .2); }
+.confirm-action > .button.button-danger:hover:not(:disabled) { background: var(--bad-bg); }
+.confirm-action > .button.button-danger:active:not(:disabled) { background: var(--bad); color: #fff; box-shadow: inset 0 0 0 2px var(--bad), inset 0 0 0 5px var(--bad), inset 0 0 0 6.5px #fff, 0 1px 0 rgb(19 38 47 / .2); }
+/* Quiet actions: text with an arrow that slides forward on hover. */
+.text-button, .text-link, .text-btn, .row-actions button { font-weight: 600; }
+.text-button .directional, .text-link .directional, .text-btn .directional { transition: transform .15s ease; }
+.text-button:hover .directional, .text-link:hover .directional, .text-btn:hover .directional { transform: translateX(3px); }
+html[dir="rtl"] .text-button:hover .directional, html[dir="rtl"] .text-link:hover .directional, html[dir="rtl"] .text-btn:hover .directional { transform: scaleX(-1) translateX(3px); }
+.icon-button, .icon-btn { border-radius: 50%; }
+.pagination button { border-radius: 999px; border-color: var(--line-strong); }
+.chips .text-button, .entry-switch button, .invoice-views button, .allocation-mode button, .segmented .text-button { border-radius: 10px; }
+.entry-switch button[aria-pressed="true"], .invoice-views button[aria-pressed="true"], .allocation-mode button[aria-pressed="true"], .segmented .text-button[aria-pressed="true"] {
+  background: var(--lc-tint); color: var(--lc-deep); box-shadow: inset 0 0 0 2px var(--lc-edge); border-color: transparent;
+}
+.entry-switch button[aria-pressed="true"]::before, .invoice-views button[aria-pressed="true"]::before, .allocation-mode button[aria-pressed="true"]::before {
+  content: ""; display: inline-block; width: 10px; height: 6px; border-inline-start: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(-45deg); margin-inline-end: 8px;
+}
+
+/* ---------- Forms: white slips, the label above, the error below ---------- */
+input, select, textarea { border-radius: var(--radius-control); border-width: 1.5px; }
+input:hover, select:hover, textarea:hover { border-color: var(--ink-soft); }
+.field > span, .field > label { font-weight: 600; }
+select { background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2313262f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
+.catalog-toolbar input[type="search"] { padding-inline-start: 44px; background: var(--surface) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f6169' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='6.5'/%3E%3Cpath d='m15 15 6 6'/%3E%3C/svg%3E") no-repeat left 14px center / 18px; }
+html[dir="rtl"] .catalog-toolbar input[type="search"] { background-position: right 14px center; }
+.toolbar, .filter-panel { border-radius: var(--radius-record); border-color: var(--line); }
+fieldset { border-radius: var(--radius-control); }
+
+/* ---------- Badges, notices, states ---------- */
+.badge, .status-badge { border-radius: 999px; padding: 4px 11px; font-weight: 600; }
+.notice, .banner, .form-status { border-radius: 12px; }
+.notice-error { border-inline-start: 5px solid var(--bad); }
+.notice-success, .form-status { border-inline-start: 5px solid var(--good); }
+.notice-warning, .banner { border-inline-start: 5px solid var(--warn); }
+.note { background: var(--surface); border: 1px dashed var(--line-strong); border-radius: 10px; }
+
+/* ---------- Records, base: paper on limestone ---------- */
+.content-card, .panel, .table-card, .application-row, .tenant-card, .detail, .invoice-document, .invoice-sharing, .settlement-desk, .debt-desk, .invoice-lines, .invoice-tally, .invoice-context, .state-panel, .empty-state {
+  border-color: var(--line); box-shadow: var(--lift);
+}
+.detail { border-radius: var(--radius-dialog); }
+.section-kicker, .eyebrow { color: var(--lc-deep); }
+.eyebrow .icon, .section-kicker .icon { color: var(--lc-deep); }
+
+/* ======================================================================================================
+   Records by section
+   ====================================================================================================== */
+
+/* ---------- Deliveries colours wherever a stop, a route or a delivery record appears ---------- */
+.stop-detail, .my-work-list, .day-meter, .stop-map, .delivery-panel, .route-planner, .directions, .pickup-panel {
+  --lc: #2455d6; --lc-tint: #e4ecfb; --lc-deep: #173b98; --lc-on: #ffffff; --lc-edge: #2455d6; --mist: #e4ecfb;
+}
+
+/* ---------- Today: the workday ticket (a tear-off date stub, the day as stations) ---------- */
+.day-summary {
+  background: var(--surface); color: var(--ink); border-radius: var(--radius-record); box-shadow: var(--lift);
+  padding: 22px 24px 16px; padding-inline-start: 112px; border: 1px solid var(--line);
+}
+.day-summary .eyebrow { color: var(--muted); }
+.day-summary h2 { font-size: 28px; max-width: none; color: var(--ink); }
+.day-summary p { color: var(--muted); max-width: none; }
+.day-summary .date-tab {
+  inset-block: 0; inset-inline-start: 0; inset-inline-end: auto; top: 0; width: 88px; border-radius: 0; place-content: center;
+  background: var(--citron); color: var(--ink); font-size: 12px; box-shadow: inset 0 0 0 1.5px var(--ink);
+  border-start-start-radius: var(--radius-record); border-end-start-radius: var(--radius-record);
+}
+.day-summary .date-tab::after {
+  content: ""; position: absolute; inset-block: 10px; inset-inline-end: -2px; border-inline-end: 3px dashed var(--ink); opacity: .55;
+}
+.date-tab strong { font-size: 36px; line-height: 1.05; }
+.day-summary-head { padding-inline-end: 0; }
+.day-meter { position: relative; gap: 0; justify-content: space-between; margin-top: 18px; padding-inline: 2px; }
+.day-meter::before { content: ""; position: absolute; inset-inline: 8px; top: calc(50% - 2px); height: 4px; border-radius: 4px; background: var(--lc-tint); }
+.day-meter span { position: relative; flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 3px var(--lc); }
+.day-meter span.done { background: var(--lc); }
+.day-summary footer { color: var(--muted); font-size: 13px; font-weight: 500; }
+
+/* ---------- Today: "Needs you now" as sticky notes in the colour of where each one leads ---------- */
+.owner-today { background: transparent; border: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
+.owner-today > h2 { flex-basis: 100%; margin: 8px 0 0; font-size: 20px; }
+.today-note {
+  position: relative; flex: 1 1 200px; margin: 0; background: var(--lc-tint); color: var(--lc-deep);
+  border-top: 6px solid var(--lc); border-radius: 4px 4px 18px 4px; padding: 20px 16px 14px;
+  box-shadow: 0 12px 18px -12px rgb(19 38 47 / .35); display: grid; align-content: space-between; gap: 10px;
+}
+.today-note::before {
+  content: ""; position: absolute; top: -12px; left: 50%; width: 72px; height: 20px; transform: translateX(-50%) rotate(-3deg);
+  background: rgb(255 255 255 / .62); box-shadow: 0 1px 2px rgb(19 38 47 / .14);
+}
+.today-note-wide { flex: 2 1 320px; }
+.today-note.owner-today-orders { font-size: 17px; font-weight: 600; }
+.today-note a { color: var(--lc-deep); font-weight: 700; }
+.today-note h3 { margin: 0; font-size: 15px; color: var(--lc-deep); }
+.today-note .owner-today-list li { border-top-color: color-mix(in srgb, var(--lc) 25%, transparent); color: var(--ink); }
+.today-note .collection-inbox h3 { margin-bottom: 6px; }
+
+/* ---------- Today: priorities on a sheet with a Citron edge; the unusual-change note is a speech bubble ---------- */
+.today-brief {
+  background: var(--surface); border: 1px solid var(--line); border-top: 6px solid var(--citron); border-radius: var(--radius-record);
+  padding: 4px 18px 16px; box-shadow: var(--lift);
+}
+.today-brief .section-title { margin-top: 14px; }
+.intel-row:hover { background: var(--paper); }
+.intel-unusual, .explain-card {
+  background: var(--indigo-tint); color: var(--indigo-deep); border-radius: 14px 14px 14px 4px; padding: 10px 14px; border: 0;
+}
+html[dir="rtl"] .intel-unusual, html[dir="rtl"] .explain-card { border-radius: 14px 14px 4px 14px; }
+.intel-unusual .icon { color: var(--indigo); }
+.intel-unusual a { color: var(--indigo-deep); font-weight: 700; }
+
+/* ---------- Stops: numbered map pins on the route line ---------- */
+.my-work-list { position: relative; }
+.my-work-list::before {
+  content: ""; position: absolute; inset-inline-start: 27px; top: 40px; bottom: 40px; width: 4px; border-radius: 4px;
+  background: repeating-linear-gradient(to bottom, var(--lc) 0 14px, color-mix(in srgb, var(--lc) 35%, transparent) 14px 22px);
+}
+.stop-item { border-bottom: 0; }
+.stop-button { border-radius: 14px; position: relative; }
+.stop-button:hover, .stop-button.selected { background: var(--lc-tint); }
+.stop-number {
+  position: relative; z-index: 1; width: 36px; height: 36px; background: var(--surface); border: 3px solid var(--lc);
+  color: var(--lc-deep); font-weight: 700; font-family: var(--font-display); font-size: 15px;
+}
+.stop-number::after {
+  content: ""; position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top: 7px solid var(--lc); border-bottom: 0;
+}
+.selected .stop-number { background: var(--lc); border-color: var(--lc); color: var(--lc-on); }
+.stop-amount bdi { font-weight: 600; }
+.map-pin { border-width: 3px; font-family: var(--font-display); border-radius: 50% 50% 50% 4px; }
+.map-pin > * { display: inline-block; }
+.stop-map-canvas { border-radius: var(--radius-record); box-shadow: var(--lift); }
+
+/* ---------- The open stop: a ticket whose stub (amount, collection, completion) tears off at the bottom ---------- */
+.detail-top .badge, .detail-top .status-badge { background: var(--lc-tint); color: var(--lc-deep); }
+.detail-name { font-size: 32px; }
+.detail-contact a[href^="tel:"] { font-family: var(--font-mono); }
+.line-list li { border-bottom-style: dashed; }
+.action-area {
+  position: relative; background: var(--lc-tint); border-top: 2px dashed var(--line-strong); flex-wrap: wrap;
+}
+.detail .action-area::before, .detail .action-area::after {
+  content: ""; position: absolute; top: -10px; width: 18px; height: 18px; border-radius: 50%; background: var(--paper);
+}
+.detail .action-area::before { inset-inline-start: -10px; }
+.detail .action-area::after { inset-inline-end: -10px; }
+.action-area .detail-label { color: var(--lc-deep); font-weight: 600; }
+.action-area .amount { font-size: 32px; }
+/* The driver's collection answer: three coins that picture it (a full coin, half a coin, no coin). */
+.collection-claim { flex: 1 1 100%; order: 1; border: 0; padding: 0; margin: 4px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.collection-claim > legend { font-weight: 700; margin-bottom: 8px; padding: 0; }
+.collection-claim > .checkbox-row {
+  flex-direction: column; justify-content: center; gap: 8px; min-height: 104px; padding: 12px 6px; text-align: center; cursor: pointer;
+  background: var(--surface); border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--line-strong); font-weight: 600; font-size: 14px;
+}
+.collection-claim > .checkbox-row:has(input:checked) { background: var(--surface); box-shadow: inset 0 0 0 3px var(--lc); color: var(--lc-deep); }
+.collection-claim > .checkbox-row > input[type="radio"] {
+  appearance: none; -webkit-appearance: none; width: 44px; height: 44px; margin: 0; border-radius: 50%; border: 3px solid var(--ink); background: var(--surface); cursor: pointer;
+}
+.collection-claim > .checkbox-row:nth-of-type(1) > input { background: radial-gradient(circle, var(--citron) 52%, rgb(19 38 47 / .35) 53% 58%, var(--citron) 59%); }
+.collection-claim > .checkbox-row:nth-of-type(2) > input { background: linear-gradient(90deg, var(--citron) 50%, var(--surface) 50%); }
+html[dir="rtl"] .collection-claim > .checkbox-row:nth-of-type(2) > input { background: linear-gradient(-90deg, var(--citron) 50%, var(--surface) 50%); }
+.collection-claim > .checkbox-row:nth-of-type(3) > input { border-style: dashed; }
+.collection-claim > .checkbox-row > input:checked { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--lc); }
+.collection-claim > .field, .collection-claim > small { grid-column: 1 / -1; }
+.action-area > .confirm-action, .action-area > .button { order: 2; margin-inline-start: auto; }
+
+/* ---------- Sales › Orders: each order is a docket with a perforated top and a tear-off status stub ---------- */
+.orders-panel .outbox-list { gap: 14px; }
+.orders-panel .outbox-list > .outbox-row {
+  position: relative; flex-wrap: nowrap; align-items: stretch; gap: 0; padding: 0; border-top: 0; background: var(--surface);
+  border-radius: 4px 4px 14px 14px; filter: drop-shadow(0 1px 0 rgb(19 38 47 / .08)) drop-shadow(0 6px 10px rgb(19 38 47 / .07));
+  -webkit-mask: radial-gradient(circle 5px at 50% 0, #0000 96%, #000 100%) 0 0 / 14px 100% repeat-x;
+  mask: radial-gradient(circle 5px at 50% 0, #0000 96%, #000 100%) 0 0 / 14px 100% repeat-x;
+}
+.orders-panel .outbox-list > .outbox-row.muted { background: transparent; filter: none; -webkit-mask: none; mask: none; padding: 12px 0; }
+.orders-panel .outbox-row > .text-button { flex: 1; padding: 16px 12px 12px 16px; border-top: 5px solid var(--lc); color: var(--ink); font-weight: 500; line-height: 1.45; display: block; }
+.orders-panel .outbox-row > .text-button strong { display: block; font-size: 16px; }
+.orders-panel .outbox-row > .text-button[aria-current="true"] { background: var(--lc-tint); }
+.orders-panel .outbox-row > .status-badge {
+  margin: 0; flex: none; width: 104px; white-space: normal; text-align: center; justify-content: center; border-radius: 0; padding: 14px 8px;
+  border-top: 5px solid var(--lc); border-inline-start: 2px dashed var(--line-strong); background: var(--lc-tint); color: var(--lc-deep); font-size: 12px;
+}
+.order-detail { border-top: 5px solid var(--lc); }
+.order-lines tfoot th { font-family: var(--font-display); font-size: 18px; }
+
+/* ---------- Sales › Invoices: a draft is a working pad; a confirmed invoice is a sheet with a folded corner and a stamp ---------- */
+.invoice-lines { background: var(--surface) repeating-linear-gradient(to bottom, transparent 0 47px, var(--lc-tint) 47px 48px); }
+.line-number { font-family: var(--font-mono); color: var(--lc-deep); }
+.invoice-tally {
+  border: 0; border-top: 6px solid var(--lc); border-radius: 4px 4px 0 0; padding-bottom: 30px; font-family: var(--font-latin);
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+  filter: drop-shadow(0 6px 10px rgb(19 38 47 / .08)); box-shadow: none;
+}
+.invoice-tally dd, .tally-top strong, .document-totals dd, .document-lines td:last-child { font-family: var(--font-mono); font-weight: 600; }
+.invoice-tally .total-due, .document-totals .total-due { background: var(--lc-tint); border-radius: 10px; padding: 10px 12px; border-top: 0; color: var(--lc-deep); }
+.invoice-tally .total-due dt, .document-totals .total-due dt { color: var(--lc-deep); }
+.invoice-document {
+  position: relative; border: 0; box-shadow: none; border-radius: 0 0 14px 14px;
+  clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 34px, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom left, transparent 50%, #d6dfdb 50%) top right / 34px 34px no-repeat, var(--surface);
+  filter: drop-shadow(0 1px 0 rgb(19 38 47 / .1)) drop-shadow(0 8px 14px rgb(19 38 47 / .08));
+}
+html[dir="rtl"] .invoice-document {
+  clip-path: polygon(34px 0, 100% 0, 100% 100%, 0 100%, 0 34px);
+  background: linear-gradient(to bottom right, transparent 50%, #d6dfdb 50%) top left / 34px 34px no-repeat, var(--surface);
+}
+.document-head { position: relative; }
+.document-head h4 { font-family: var(--font-mono); font-size: 24px; letter-spacing: 0; color: var(--lc-deep); }
+.document-head .doc-stamp {
+  position: absolute; inset-inline-end: 140px; top: -12px; width: 100px; height: 100px; margin: 0; border-radius: 50%;
+  display: grid; place-items: center; text-align: center; transform: rotate(-9deg); color: var(--good); background: rgb(228 244 234 / .6);
+  font-family: var(--font-display); font-size: 12.5px; font-weight: 700; letter-spacing: .04em; line-height: 1.1; padding: 14px;
+  box-shadow: inset 0 0 0 3px var(--good), inset 0 0 0 7px transparent, inset 0 0 0 8.5px var(--good); pointer-events: none;
+}
+.document-head .doc-stamp.is-cancelled { color: var(--bad); background: rgb(253 233 236 / .6); box-shadow: inset 0 0 0 3px var(--bad), inset 0 0 0 7px transparent, inset 0 0 0 8.5px var(--bad); }
+.document-summary { background: var(--lc-tint); }
+.revision-bar { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+.invoice-history details { border-radius: 4px 12px 12px 4px; box-shadow: 3px 3px 0 -1px var(--surface), 3px 3px 0 0 var(--line); }
+.invoice-history details.is-current { border-inline-start-color: var(--lc); }
+.invoice-context .grade-seal, .grade-seal { border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink); }
+/* Invoice links: small tickets with the code in Mono. */
+.invoice-sharing { border-top: 5px solid var(--lc); }
+.invoice-share-record { border-top: 1.5px dashed var(--line-strong); }
+.invoice-share-issued input, .issued-link input { font-family: var(--font-mono); font-size: 14px; background: var(--paper); }
+.debt-row.is-overdue { border-inline-start: 5px solid var(--bad); }
+.balance-chips span, .balance-chip { border-radius: 999px; font-weight: 600; background: var(--lc-tint); color: var(--lc-deep); }
+
+/* ---------- Customers: each customer is a file folder with a tab ---------- */
+.customers .stop-list { display: grid; gap: 18px; padding-top: 12px; }
+.customers .stop-list .stop-item { border-bottom: 0; }
+.customers .stop-list .stop-button {
+  position: relative; background: var(--surface); border-radius: 0 14px 14px 14px; border-top: 4px solid var(--lc);
+  box-shadow: var(--lift); min-height: 76px;
+}
+html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 14px; }
+.customers .stop-list .stop-button::before {
+  content: ""; position: absolute; top: -16px; inset-inline-start: 0; width: 38%; max-width: 150px; height: 12px;
+  background: var(--lc); border-radius: 10px 10px 0 0;
+}
+.customers .stop-list .stop-button:hover, .customers .stop-list .stop-button.selected { background: var(--lc-tint); }
+.customer-detail { border-top: 0; background: linear-gradient(var(--lc) 0 0) top / 100% 6px no-repeat, var(--surface); }
+.customer-detail::before {
+  content: ""; position: absolute; top: 6px; inset-inline-start: 26px; width: 120px; height: 12px; background: var(--lc);
+  border-radius: 0 0 10px 10px;
+}
+.customer-identity .avatar, .customer-identity .grade-seal { border-radius: 50%; }
+.customers .avatar, .customer-identity .avatar { background: var(--lc); color: var(--lc-on); font-family: var(--font-display); }
+.customer-facts > div { border-bottom-style: dashed; }
+.customer-link { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+.all-customers { border-top: 4px solid var(--lc); }
+.all-customers-list > li { background: var(--surface); border-radius: 0 10px 10px 10px; box-shadow: inset 0 0 0 1px var(--line); padding: 6px 12px; }
+.customer-invoices { border-inline-start: 3px dashed color-mix(in srgb, var(--lc) 50%, transparent); }
+
+/* ---------- Deliveries: every delivery hangs off the route line as a pin ---------- */
+.delivery-panel .outbox-list { position: relative; gap: 12px; }
+.delivery-panel .outbox-list > .delivery-row {
+  position: relative; background: var(--surface); border-top: 0; border-radius: 14px; padding: 14px 16px; padding-inline-start: 50px; box-shadow: var(--lift);
+}
+.delivery-panel .outbox-list > .delivery-row::before {
+  content: ""; position: absolute; inset-inline-start: 16px; top: 16px; width: 20px; height: 20px; border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg); background: var(--lc); box-shadow: inset 0 0 0 5px var(--lc), inset 0 0 0 10px var(--surface);
+}
+.delivery-panel .outbox-list > .delivery-row:not(:last-child)::after {
+  content: ""; position: absolute; inset-inline-start: 24px; top: 42px; bottom: -14px; width: 4px; border-radius: 4px;
+  background: repeating-linear-gradient(to bottom, var(--lc) 0 10px, transparent 10px 16px);
+}
+.delivery-panel .outbox-list > .delivery-row.is-context { background: var(--lc-tint); }
+.row-action { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+.team { border-radius: var(--radius-record); }
+
+/* ---------- Catalog › Products: crates with hanging price tags ---------- */
+.catalog-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.catalog-list > :not(.product-card) { grid-column: 1 / -1; }
+.product-card {
+  position: relative; border-top: 0; background: var(--surface); border-radius: 14px; padding: 34px 16px 12px;
+  box-shadow: inset 0 0 0 1px var(--line), 0 6px 14px -8px rgb(19 38 47 / .18); align-content: start;
+}
+.product-card::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 22px; border-radius: 14px 14px 0 0;
+  background: repeating-linear-gradient(to bottom, var(--lc-tint) 0 5px, color-mix(in srgb, var(--lc) 45%, var(--lc-tint)) 5px 7px);
+}
+.product-card > strong[dir="ltr"] {
+  justify-self: start; position: relative; display: inline-flex; align-items: center; background: var(--lc); color: var(--lc-on);
+  padding: 5px 14px 5px 26px; font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%); border-radius: 0 6px 6px 0;
+}
+.product-card > strong[dir="ltr"]::before { content: ""; position: absolute; left: 10px; top: calc(50% - 4px); width: 8px; height: 8px; border-radius: 50%; background: var(--surface); }
+.product-card:has(.status-closed) { box-shadow: inset 0 0 0 2px var(--line-strong); background: var(--paper); }
+.product-card:has(.status-closed)::before { background: repeating-linear-gradient(to bottom, #eef2f0 0 5px, #dfe6e3 5px 7px); }
+.product-card:has(.status-closed) > strong[dir="ltr"] { background: var(--muted); }
+.product-manage { border-top: 1.5px dashed var(--line); }
+/* The product's photo sits inside the crate, under its slats. */
+.product-card:has(.crate-photo) { padding-top: 0; }
+.product-card:has(.crate-photo)::before { z-index: 1; }
+.crate-photo { display: block; margin: 0 -16px 4px; height: 150px; overflow: hidden; border-radius: 14px 14px 0 0; background: var(--lc-tint); }
+.crate-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.barcode-chips code { background: var(--paper); border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); }
+.add-product { border-top: 5px solid var(--lc); }
+.product-image, .product-image-placeholder, .invoice-line-image { border-radius: 10px; }
+/* Categories: shelf labels, stacked like shelves. */
+.category-route { gap: 12px; }
+.category-route li {
+  border-top: 0; background: var(--surface); border-inline-start: 8px solid var(--lc); border-radius: 6px 14px 14px 6px;
+  padding: 12px 14px; box-shadow: 0 6px 0 -3px var(--lc-tint), inset 0 0 0 1px var(--line);
+}
+html[dir="rtl"] .category-route li { border-radius: 14px 6px 6px 14px; }
+.category-order { background: var(--lc-tint); color: var(--lc-deep); border: 0; font-family: var(--font-mono); }
+/* Pricing: each grade's discount is a price tag with a punched hole. */
+.grade-discount-grid form {
+  position: relative; background: var(--lc-tint); border-radius: 0 14px 14px 0; padding: 14px 14px 12px 34px;
+  clip-path: polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 50%);
+}
+.grade-discount-grid form::before { content: ""; position: absolute; left: 14px; top: calc(50% - 5px); width: 10px; height: 10px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--lc); }
+html[dir="rtl"] .grade-discount-grid form { border-radius: 14px 0 0 14px; padding: 14px 34px 12px 14px; clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%); }
+html[dir="rtl"] .grade-discount-grid form::before { left: auto; right: 14px; }
+.grade-discount-grid form .field > span { color: var(--lc-deep); }
+.price-pair div { background: var(--lc-tint); }
+.grade-price-chips span { border-radius: 999px; }
+
+/* ---------- Buying › Procurement: every shopping list is a clipboard ---------- */
+.procurement-detail {
+  position: relative; border: 3px solid var(--lc); border-radius: 16px; margin-top: 16px; padding-top: 34px;
+  background: var(--surface) repeating-linear-gradient(to bottom, transparent 0 39px, var(--lc-tint) 39px 40px);
+}
+.procurement-detail::before {
+  content: ""; position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 86px; height: 26px; border-radius: 9px 9px 7px 7px;
+  background: linear-gradient(#9aa7a3, #5e6b67); box-shadow: inset 0 -3px 0 rgb(0 0 0 / .22), 0 2px 3px rgb(19 38 47 / .2);
+}
+.procurement-panel .outbox-list > li { border-top-style: dashed; }
+.procurement-panel .outbox-list > li > button::before {
+  content: ""; display: inline-block; width: 14px; height: 18px; margin-inline-end: 8px; vertical-align: -3px; border-radius: 3px;
+  border: 2px solid var(--lc); box-shadow: inset 0 3px 0 var(--lc-tint);
+}
+.procurement-lines tr.line-removed td, .procurement-lines tr.line-waived td, .procurement-lines tr.line-carried td { text-decoration-color: var(--lc); }
+.pickup-inbox { border-top: 5px solid var(--lc); }
+/* Suppliers: ledger pages with a margin line. */
+.supplier-setup .content-card, .supplier-ledger, .purchase-history {
+  background: var(--surface) linear-gradient(90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
+}
+html[dir="rtl"] :is(.supplier-setup .content-card, .supplier-ledger, .purchase-history) {
+  background: var(--surface) linear-gradient(-90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
+}
+.supplier-list > li, .purchase-history .outbox-row { border-top: 1px solid var(--lc-tint); }
+.supplier-balances > div, .sync-facts > div { border-bottom-color: var(--lc-tint); }
+.supplier-balances dd { font-family: var(--font-mono); font-weight: 600; }
+.payment-slip { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); border-radius: 12px; }
+
+/* ---------- Insights › Analytics: figures on grid paper ---------- */
+.analytics-panel .analytics-facts, .cash-currency {
+  background-color: var(--surface);
+  background-image: linear-gradient(color-mix(in srgb, var(--lc) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--lc) 9%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px; border-radius: var(--radius-record); padding: 0 16px; box-shadow: inset 0 0 0 1px var(--line);
+}
+.cash-currency { padding: 16px; }
+.cash-currency .analytics-facts, .cash-currency .sync-facts { background: none; box-shadow: none; padding: 0; }
+.analytics-facts dd, .cash-currency dd { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+.city-bar i { background: var(--lc); }
+/* Assistant: questions and answers are speech bubbles; names still open the record. */
+.copilot-question { background: var(--ink); color: #fff; border-radius: 18px 18px 4px 18px; padding: 11px 16px; }
+html[dir="rtl"] .copilot-question { border-radius: 18px 18px 18px 4px; }
+.copilot-answer {
+  border-inline-start: 0; background: var(--surface); border-radius: 18px 18px 18px 4px; padding: 14px 16px;
+  box-shadow: inset 0 0 0 2px var(--indigo), var(--lift); max-width: 92%;
+}
+html[dir="rtl"] .copilot-answer { border-radius: 18px 18px 4px 18px; }
+.chip-link { border-radius: 999px; border-color: var(--indigo); color: var(--indigo-deep); font-weight: 600; }
+.chip-link:hover { background: var(--indigo-tint); }
+.copilot .empty-state, .copilot .state-panel { border-radius: 22px 22px 22px 6px; }
+.copilot-form textarea { border-radius: 16px; }
+.assistant-drawer { border-start-start-radius: 22px; border-end-start-radius: 22px; box-shadow: -12px 0 40px rgb(19 38 47 / .18); }
+.assistant-drawer-head { background: var(--indigo-tint); border-bottom: 0; border-start-start-radius: 22px; }
+.assistant-drawer-head strong { color: var(--indigo-deep); font-family: var(--font-display); font-size: 18px; }
+
+/* ---------- Settings: a shopfront awning, an outbox tray and a sealed vault ---------- */
+.branding-panel, .sync-panel, .backup-panel { background: var(--surface); border-radius: var(--radius-record); padding: 22px; box-shadow: var(--lift); }
+.branding-form h4 { border-top: 1.5px dashed var(--line-strong); }
+.storefront-address { font-family: var(--font-mono); }
+.catalog-workspace > .content-card[aria-labelledby="storefront-settings-title"] { position: relative; padding-top: 50px; overflow: hidden; }
+.catalog-workspace > .content-card[aria-labelledby="storefront-settings-title"]::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 34px;
+  background:
+    radial-gradient(circle at 12px 0, var(--lc) 11.5px, transparent 12px) 0 22px / 48px 12px repeat-x,
+    radial-gradient(circle at 36px 0, var(--citron) 11.5px, transparent 12px) 0 22px / 48px 12px repeat-x,
+    repeating-linear-gradient(90deg, var(--lc) 0 24px, var(--citron) 24px 48px) 0 0 / 100% 22px no-repeat;
+}
+/* Offline: the outbox tray; each change stacks like an envelope. */
+.sync-panel .outbox-list, .work-sync .ledger { background: var(--lc-tint); border-radius: 0 0 16px 16px; padding: 4px 14px 10px; border: 3px solid var(--lc); border-top: 0; }
+.sync-panel .outbox-row, .work-sync .ledger li { border-top: 1.5px dashed color-mix(in srgb, var(--lc) 35%, transparent); }
+.sync-panel .outbox-row::before, .work-sync .ledger li::before {
+  content: ""; flex: none; width: 26px; height: 18px; border-radius: 3px; border: 2px solid var(--lc);
+  background:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--lc) 50%, transparent calc(50% + 1px)) left top / 50% 70% no-repeat,
+    linear-gradient(to bottom left, transparent calc(50% - 1px), var(--lc) 50%, transparent calc(50% + 1px)) right top / 50% 70% no-repeat, var(--surface);
+}
+.sync-panel > header::before {
+  content: ""; display: block; width: 46px; height: 34px; margin-bottom: 12px; border-radius: 0 0 12px 12px;
+  background: linear-gradient(var(--lc-tint), var(--lc-tint)) bottom / 100% 45% no-repeat; box-shadow: inset 0 0 0 3px var(--lc);
+}
+/* Backup: a sealed vault with a double border and a dial. */
+.backup-panel { box-shadow: inset 0 0 0 3px var(--lc), inset 0 0 0 7px var(--surface), inset 0 0 0 9px var(--lc), var(--lift); padding: 28px; }
+.backup-panel > header::before {
+  content: ""; display: block; width: 46px; height: 46px; margin-bottom: 12px; border-radius: 50%;
+  background: radial-gradient(circle, var(--lc) 18%, var(--lc-tint) 19% 55%, var(--lc) 56% 61%, transparent 62%), repeating-conic-gradient(var(--lc) 0 4deg, transparent 4deg 30deg);
+  box-shadow: inset 0 0 0 3px var(--lc);
+}
+
+/* ======================================================================================================
+   Platform desk (admin)
+   ====================================================================================================== */
+/* Figures read like a departures board: dark tiles, Citron numbers. */
+.dashboard-metrics article { background: var(--ink); border-color: var(--ink); color: #dbe5e1; box-shadow: var(--lift); }
+.dashboard-metrics article > span { color: #b9c7c3; }
+.dashboard-metrics strong {
+  color: var(--citron); font-size: 44px; font-weight: 700;
+  background: repeating-linear-gradient(to bottom, transparent 0 21px, rgb(0 0 0 / .35) 21px 23px); -webkit-background-clip: text; background-clip: text;
+}
+.dashboard-metrics a { color: var(--citron); }
+.dashboard-metrics .metric-attention { background: var(--ink); border-color: var(--warn-line); box-shadow: inset 0 0 0 3px #e6b54c; }
+.route-brief-marker { border-radius: 50%; }
+/* Applications arrive as envelopes; their status is a postmark. */
+.application-row {
+  position: relative; background-color: var(--surface);
+  background-image: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--line) 50%, transparent calc(50% + 1px)), linear-gradient(to bottom left, transparent calc(50% - 1px), var(--line) 50%, transparent calc(50% + 1px));
+  background-size: 50% 46px; background-repeat: no-repeat; background-position: left top, right top; padding-top: 30px;
+}
+.application-row .status-badge, .pending-applications .status-badge {
+  border-radius: 999px; background: var(--surface); border: 2px dashed currentColor; transform: rotate(-4deg); padding: 3px 12px; letter-spacing: .04em; text-transform: uppercase; font-size: 11px;
+}
+/* Businesses are shopfronts under a striped awning. */
+.tenant-card { position: relative; overflow: hidden; padding-top: 42px; }
+.tenant-card::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 30px;
+  background:
+    radial-gradient(circle at 10px 0, #44535c 9.5px, transparent 10px) 0 20px / 40px 10px repeat-x,
+    radial-gradient(circle at 30px 0, var(--citron) 9.5px, transparent 10px) 0 20px / 40px 10px repeat-x,
+    repeating-linear-gradient(90deg, #44535c 0 20px, var(--citron) 20px 40px) 0 0 / 100% 20px no-repeat;
+}
+.tenant-monogram { border-radius: 50%; background: var(--ink); color: var(--citron); }
+
+/* ======================================================================================================
+   Public pages
+   ====================================================================================================== */
+.site-nav-link.active, .site-nav-link:hover { color: var(--ink); text-decoration: underline; text-decoration-color: var(--citron); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+/* Landing: the day drawn as a transit map in the eight line colours. */
+.hero-copy h1 span { color: var(--blue); }
+.hero-art::before {
+  background:
+    linear-gradient(118deg, transparent 0 30%, #c4501c 30% calc(30% + 7px), transparent calc(30% + 7px)),
+    linear-gradient(64deg, transparent 0 58%, #0b7a6e 58% calc(58% + 7px), transparent calc(58% + 7px)),
+    linear-gradient(160deg, transparent 0 72%, #a8326e 72% calc(72% + 7px), transparent calc(72% + 7px)),
+    linear-gradient(20deg, transparent 0 18%, #557a1f 18% calc(18% + 7px), transparent calc(18% + 7px)),
+    var(--citron);
+  opacity: .9;
+}
+.art-sun { color: var(--ink); }
+.day-board { border: 0; border-radius: 20px; box-shadow: 0 18px 40px -18px rgb(19 38 47 / .35); }
+.board-date { background: var(--citron); color: var(--ink); border-radius: 50%; }
+.route-row:not(:last-child)::before { width: 4px; inset-inline-start: 22px; border-radius: 4px; background: linear-gradient(var(--from, #c4501c), var(--to, #2455d6)); }
+.route-icon { border-radius: 50%; border-width: 3px; }
+.board-route > .route-row:nth-child(1) .route-icon { border-color: #c4501c; color: #8a3510; background: #fdebdd; }
+.board-route > .route-row:nth-child(1) { --from: #c4501c; --to: #0b7a6e; }
+.board-route > .route-row:nth-child(2) .route-icon { border-color: #0b7a6e; color: #075a51; background: #ddf3ef; }
+.board-route > .route-row:nth-child(2) { --from: #0b7a6e; --to: #2455d6; }
+.route-icon.blue { background: var(--blue); border-color: var(--blue); color: #fff; }
+.board-action { background: var(--citron); }
+.board-action:hover { background: var(--citron-deep); }
+.board-action .icon { color: var(--ink); }
+.feature-icon { border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 3px currentColor; }
+.feature-grid article:nth-child(1) .feature-icon { color: #0b7a6e; }
+.feature-grid article:nth-child(2) .feature-icon { color: #2455d6; }
+.feature-grid article:nth-child(3) .feature-icon { color: #a8326e; }
+.closing { background: var(--ink); color: #eef3f1; }
+.closing .eyebrow { color: var(--citron); }
+.closing p:not(.eyebrow) { color: #c3d0cc; }
+.closing .button { background: var(--citron); color: var(--ink); border-color: var(--citron); }
+.closing .button:hover:not(:disabled) { background: var(--citron-deep); border-color: var(--citron-deep); }
+/* Statistics: a departures board. */
+.metric-card { background: var(--ink); border-color: var(--ink); color: #dbe5e1; }
+.metric-card > span, .metric-card > small { color: #b9c7c3; }
+.metric-card > strong { color: var(--citron); font-weight: 700; }
+.city-card { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.city-card header span { color: var(--muted); }
+.city-bar { background: var(--paper); height: 8px; }
+.city-bar i { background: var(--blue); }
+.city-card li:nth-child(2) .city-bar i { background: #0b7a6e; }
+.city-card li:nth-child(3) .city-bar i { background: #c4501c; }
+.city-card li:nth-child(4) .city-bar i { background: #a8326e; }
+.city-card li:nth-child(5) .city-bar i { background: #557a1f; }
+/* Sign in, register, password: the form is a boarding ticket with a Citron stub; the story is the night map. */
+.signin-panel {
+  position: relative; background: var(--surface); border-radius: 22px; padding: 34px 36px; padding-inline-end: 64px;
+  box-shadow: 0 18px 40px -22px rgb(19 38 47 / .4);
+  background-image: linear-gradient(var(--citron), var(--citron)); background-repeat: no-repeat; background-size: 26px 100%; background-position: right top;
+}
+html[dir="rtl"] .signin-panel { background-position: left top; }
+.signin-panel::after {
+  content: ""; position: absolute; inset-block: 14px; inset-inline-end: 26px; border-inline-end: 3px dashed var(--ink); opacity: .45;
+}
+.signin-panel.wide { max-width: 600px; }
+.welcome-icon { border-radius: 50%; background: var(--citron); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.signin-story { background: var(--ink); }
+.signin-story .eyebrow { color: var(--citron); }
+.signin-story > p:not(.eyebrow), .story-foot { color: #c3d0cc; }
+.story-foot { border-top-color: #35505b; }
+.mural-path { stroke: var(--citron); opacity: .7; }
+.mural-icon { background: var(--ink); border-radius: 50%; }
+.m0 { color: #ddeb6a; } .m1 { color: #f08a5d; } .m2 { color: #e27fb0; } .m3 { color: #8fb0ff; } .m4 { color: #5fd0c1; }
+.customer-note .icon { color: var(--ink); }
+.not-found h1 { font-size: clamp(40px, 6vw, 72px); }
+
+/* ---------- Loading, empty, error, messages ---------- */
+.skeleton { background: linear-gradient(90deg, #e3e9e6, #f3f6f4, #e3e9e6); background-size: 200% 100%; border-radius: 999px; }
+.loading-state { border-style: dashed; border-color: var(--line-strong); box-shadow: none; }
+.empty-state { border: 2px dashed var(--line-strong); box-shadow: none; background: var(--surface); }
+.empty-state > .icon { box-sizing: border-box; width: 64px; height: 64px; padding: 14px; border-radius: 50%; background: var(--lc-tint); color: var(--lc-deep); border: 3px dashed var(--lc-edge); }
+.notice-error { padding-bottom: 18px; -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 7px) no-repeat, conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) bottom / 14px 7px repeat-x; mask: linear-gradient(#000 0 0) top / 100% calc(100% - 7px) no-repeat, conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) bottom / 14px 7px repeat-x; }
+/* A new-order or collection notice arrives as a printed receipt slip. */
+.toast {
+  border: 0; border-top: 5px solid var(--citron); border-radius: 4px 4px 0 0; padding-bottom: 22px; box-shadow: none;
+  filter: drop-shadow(0 10px 18px rgb(19 38 47 / .22));
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+}
+.toast > .icon { box-sizing: border-box; width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: var(--citron); color: var(--ink); }
+.toast a { color: var(--ink); text-decoration-color: var(--citron); text-decoration-thickness: 3px; }
+
+/* ---------- Motion (motivated only; all of it is removed under reduced motion by styles.css) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  /* The assistant slides in from where its button is; a notice slides up like a printed slip. */
+  .assistant-drawer { animation: map-drawer .22s ease-out; }
+  .toast { animation: map-slip .3s ease-out; }
+  /* The route draws itself once, in stop order. */
+  .my-work-list::before { transform-origin: top; animation: map-draw .6s ease-out; }
+  /* A confirmed invoice is stamped. */
+  .document-head .doc-stamp { animation: map-stamp .26s ease-out; }
+  /* The current station settles into place. */
+  .rail-nav > .nav-item.active > .icon { animation: map-station .18s ease-out; }
+}
+@keyframes map-drawer { from { transform: translateX(24px); opacity: 0; } }
+@keyframes map-slip { from { transform: translateY(18px); opacity: 0; } }
+@keyframes map-draw { from { transform: scaleY(0); } }
+@keyframes map-stamp { from { transform: rotate(-9deg) scale(1.35); opacity: 0; } }
+@keyframes map-station { from { transform: scale(.8); } }
+
+@media print {
+  /* The printed invoice stays plain black on white: no fold, stamp ring, tints or coloured figures. */
+  .invoice-document { clip-path: none !important; filter: none !important; background: #fff !important; }
+  .document-head .doc-stamp { position: static; width: auto; height: auto; transform: none; box-shadow: none; background: none; color: #000; padding: 0; display: block; text-align: start; font-size: 12px; animation: none; }
+  .document-head h4, .invoice-tally .total-due, .document-totals .total-due, .document-totals .total-due dt { color: #000 !important; }
+  .document-summary, .document-totals .total-due { background: none !important; }
+  .station-sign { background: none; padding: 0; }
+  .station-tile, .topline::after { display: none !important; }
+}

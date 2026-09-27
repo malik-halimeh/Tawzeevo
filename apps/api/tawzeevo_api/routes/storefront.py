@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -62,11 +62,12 @@ from tawzeevo_api.services import (
     customer_access,
     customer_verification,
     orders,
+    push,
     storefront,
     storefront_signals,
 )
 from tawzeevo_api.services.media import ObjectStorage
-from tawzeevo_api.services.otp_delivery import dev_delivery
+from tawzeevo_api.services.otp_delivery import delivery_is_usable, dev_delivery
 
 storefront_public_router = APIRouter(prefix="/api/v1/public", tags=["storefront"])
 storefront_owner_router = APIRouter(prefix="/api/v1/tenants/{tenant_id}", tags=["storefront"])
@@ -311,6 +312,7 @@ def read_customer_context(
         granted=context.granted,
         contact_hint=context.contact_hint if not context.granted else "",
         has_saved_address=context.has_saved_address if context.granted else False,
+        verification_available=delivery_is_usable(),
     )
 
 
@@ -508,6 +510,7 @@ def guest_checkout(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
     idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+    background: BackgroundTasks,
 ) -> CheckoutResponse:
     """One order per Idempotency-Key: a replay returns the original; a different body is 409.
     A granted personalized capability makes the order that customer's (D-090)."""
@@ -515,7 +518,7 @@ def guest_checkout(
     context = customer_access.resolve_context(
         db, http_request.headers.get(CAPABILITY_HEADER), http_request.headers.get(SESSION_HEADER)
     )
-    return checkout.checkout(
+    result = checkout.checkout(
         db,
         tenant_slug,
         request,
@@ -523,6 +526,14 @@ def guest_checkout(
         context,
         fuzzy_threshold=get_settings().invoice_fuzzy_match_threshold,
     )
+    if not result.replayed:  # the owners' phones hear of a new order once (D-116)
+        background.add_task(
+            push.notify_owners_of_shop,
+            tenant_slug,
+            *push.NEW_ORDER,
+            "/workspace?section=orders&tenant=",
+        )
+    return result
 
 
 @storefront_public_router.get("/order", response_model=ProvisionalOrderResponse)

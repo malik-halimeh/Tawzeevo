@@ -20,7 +20,9 @@ export const WORKSPACE_SECTIONS = [
   { id: "procurement", label: "procurement.tab", icon: "cart" },
   { id: "analytics", label: "analytics.tab", icon: "chart" },
   { id: "assistant", label: "copilot.tab", icon: "chat" },
+  { id: "pricing", label: "tenantWorkspace.pricingTab", icon: "coin" },
   { id: "branding", label: "branding.tab", icon: "palette" },
+  { id: "storefront", label: "storefront.tab", icon: "shop" },
   { id: "sync", label: "sync.tab", icon: "sync" },
   { id: "backup", label: "backup.tab", icon: "cloud" },
 ] as const satisfies readonly { id: string; label: string; icon: IconName }[];
@@ -29,6 +31,34 @@ export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]["id"];
 
 /** The three sections that sit directly in the phone bottom navigation; the rest live under More. */
 export const PHONE_PRIMARY_SECTIONS: readonly WorkspaceSection[] = ["work", "customers", "invoices"];
+
+/**
+ * The owner navigation groups the sections by job (report 2026-09-27, Part D): the rail and the phone
+ * bar show groups, and a group with several sections shows them as tabs above the page. Groups are a
+ * presentation layer only: every section id and address above keeps working unchanged, and the first
+ * section of a group is where the group opens.
+ */
+export const WORKSPACE_GROUPS = [
+  { id: "today", label: "nav.groups.today", icon: "work", sections: ["work"] },
+  { id: "sales", label: "nav.groups.sales", icon: "invoice", sections: ["orders", "invoices"] },
+  { id: "customers", label: "nav.groups.customers", icon: "people", sections: ["customers"] },
+  { id: "deliveries", label: "nav.groups.deliveries", icon: "van", sections: ["deliveries"] },
+  { id: "catalog", label: "nav.groups.catalog", icon: "box", sections: ["products", "categories", "pricing"] },
+  { id: "buying", label: "nav.groups.buying", icon: "cart", sections: ["procurement", "suppliers"] },
+  { id: "insights", label: "nav.groups.insights", icon: "chart", sections: ["analytics", "assistant"] },
+  { id: "settings", label: "nav.groups.settings", icon: "key", sections: ["branding", "storefront", "sync", "backup"] },
+] as const satisfies readonly { id: string; label: string; icon: IconName; sections: readonly WorkspaceSection[] }[];
+
+export type WorkspaceGroup = (typeof WORKSPACE_GROUPS)[number];
+export type WorkspaceGroupId = WorkspaceGroup["id"];
+
+/** The groups that sit directly in the owner's phone bar; the others live under More. */
+export const PHONE_PRIMARY_GROUPS: readonly WorkspaceGroupId[] = ["today", "sales", "customers"];
+
+/** The group a section belongs to (every section belongs to exactly one). */
+export function groupOf(section: WorkspaceSection): WorkspaceGroup {
+  return WORKSPACE_GROUPS.find((group) => (group.sections as readonly WorkspaceSection[]).includes(section))!;
+}
 
 /** In-page anchors of the member work screen (MyWorkPanel): the driver's "My work / Sync" grouping. */
 export const WORK_ANCHOR = "my-work";
@@ -70,11 +100,11 @@ export function selectedContext<T extends Pick<TenantContext, "tenant_id">>(cont
  * a customer (Customers, e.g. from a priority or an assistant answer).
  * These only select context; each panel still loads it from the API and ignores what it cannot find.
  */
-export interface SectionContext { order?: string | null; invoice?: string | null; view?: string | null; customer?: string | null }
-const CONTEXT_PARAMS = ["order", "invoice", "view", "customer"] as const;
+export interface SectionContext { order?: string | null; invoice?: string | null; view?: string | null; customer?: string | null; currency?: string | null }
+const CONTEXT_PARAMS = ["order", "invoice", "view", "customer", "currency"] as const;
 
 export function contextFromSearch(search: URLSearchParams): SectionContext {
-  return { order: search.get("order"), invoice: search.get("invoice"), view: search.get("view"), customer: search.get("customer") };
+  return { order: search.get("order"), invoice: search.get("invoice"), view: search.get("view"), customer: search.get("customer"), currency: search.get("currency") };
 }
 
 /** Query string for a business and section: Work is the bare section and the first business needs no parameter. */

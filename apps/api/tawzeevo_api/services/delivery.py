@@ -39,9 +39,17 @@ from tawzeevo_api.models import (
     TenantSupplier,
     User,
 )
-from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
+from tawzeevo_api.repositories.tenancy import (
+    commit_and_restore_tenant_scope,
+    released_for_outside_call,
+    set_tenant_scope,
+)
+from tawzeevo_api.schemas.collection_reports import CollectionClaim
 from tawzeevo_api.schemas.delivery import (
     AssigneeView,
+    DirectionsRequest,
+    DirectionsResponse,
+    DirectionsStepView,
     EligibleInvoice,
     LocationUpdateRequest,
     LocationView,
@@ -50,6 +58,8 @@ from tawzeevo_api.schemas.delivery import (
     NearbyItem,
     NearbyResponse,
     NearbySupplier,
+    RoutePathRequest,
+    RoutePathResponse,
     SuggestedStop,
     SuggestOrderRequest,
     SuggestOrderResponse,
@@ -58,9 +68,17 @@ from tawzeevo_api.schemas.delivery import (
     TaskListResponse,
     TaskResponse,
 )
+from tawzeevo_api.services.collection_reports import create_report_row
+from tawzeevo_api.services.delivery_dates import follow_task_date
 from tawzeevo_api.services.invoice_editor import money
 from tawzeevo_api.services.procurement import _line_is_settled
-from tawzeevo_api.services.routing import Stop, haversine_m, suggest_order
+from tawzeevo_api.services.routing import (
+    Stop,
+    directions,
+    haversine_m,
+    route_path,
+    suggest_order,
+)
 
 TERMINAL = {DeliveryTaskStatus.COMPLETED.value, DeliveryTaskStatus.CANCELLED.value}
 
@@ -268,6 +286,8 @@ def update_task(
     if touch_date and delivery_date != task.delivery_date:
         changed["delivery_date"] = delivery_date or ""
         task.delivery_date = delivery_date
+        # The order this delivery came from keeps the same date, in this transaction (D-104).
+        follow_task_date(db, tenant_id, actor, task, delivery_date)
     if notes is not None and notes != task.notes:
         changed["notes"] = notes
         task.notes = notes
@@ -285,10 +305,11 @@ def complete_task(
     task_id: UUID,
     expected_version: int,
     note: str | None,
+    collection: CollectionClaim | None = None,
 ) -> DeliveryTask:
     """Owner or the assigned member; the performer is recorded (PHASE_07.md A rule 8)."""
     task = get_task(db, tenant_id, task_id, for_update=True)
-    complete_task_row(db, tenant_id, membership, task, expected_version, note)
+    complete_task_row(db, tenant_id, membership, task, expected_version, note, collection)
     commit_and_restore_tenant_scope(db, tenant_id)
     return get_task(db, tenant_id, task_id)
 
@@ -541,6 +562,9 @@ def my_work(db: Session, tenant_id: UUID, membership: TenantMembership) -> MyWor
         status=DeliveryTaskStatus.ASSIGNED.value,
         assigned_membership_id=membership.id,
     )
+    # The screen lists stops "in route order": a saved stop order wins over the delivery date;
+    # stops never ordered keep their date/creation order after the ordered ones (stable sort).
+    rows.sort(key=lambda row: (row.route_sequence is None, row.route_sequence or 0))
     return MyWorkResponse(
         tasks=[my_work_task(db, tenant_id, row) for row in rows],
         membership_id=membership.id,
@@ -555,8 +579,11 @@ def complete_task_row(
     task: DeliveryTask,
     expected_version: int | None,
     note: str | None,
+    collection: CollectionClaim | None = None,
+    collection_key: UUID | None = None,
 ) -> DeliveryTask:
-    """Completion without commit (shared by the API and the sync push applier)."""
+    """Completion without commit (shared by the API and the sync push applier). A collection
+    claim is stored with it as a pending report, once per delivery (D-114)."""
     if membership.role is not TenantRole.OWNER and task.assigned_membership_id != membership.id:
         raise AppError(
             403, "DELIVERY_TASK_NOT_ASSIGNED", "Only the assigned member can complete it"
@@ -577,6 +604,20 @@ def complete_task_row(
         task.id,
         performed_by_membership_id=membership.id,
     )
+    if collection is not None:
+        invoice = db.get(Invoice, task.invoice_id)
+        if invoice is not None:
+            revision = db.get(InvoiceRevision, invoice.current_revision_id)
+            create_report_row(
+                db,
+                tenant_id,
+                membership,
+                task,
+                revision.currency if revision else "USD",
+                amount_to_collect(db, tenant_id, invoice),
+                collection,
+                collection_key,
+            )
     return task
 
 
@@ -709,7 +750,8 @@ def suggest_stop_order(
         origin = (located[0].latitude, located[0].longitude)
     else:
         origin = (0.0, 0.0)
-    ordered, method, note = suggest_order(origin, located, allow_online=request.allow_online)
+    with released_for_outside_call(db):
+        ordered, method, note = suggest_order(origin, located, allow_online=request.allow_online)
     by_task = {task.id: task for task in tasks}
     stops: list[SuggestedStop] = []
     for index, stop in enumerate(ordered, start=1):
@@ -737,6 +779,62 @@ def suggest_stop_order(
             )
         )
     return SuggestOrderResponse(method=method, note=note, stops=stops, unlocated_task_ids=unlocated)
+
+
+def stop_route_path(
+    db: Session, tenant_id: UUID, membership: TenantMembership, request: RoutePathRequest
+) -> RoutePathResponse:
+    """The map's line through the given deliveries in the given order (D-092); stops without a
+    saved location are skipped. Only coordinates reach the provider."""
+    tasks = _member_tasks(db, tenant_id, membership, request.task_ids)
+    customers = {
+        row.id: row
+        for row in db.scalars(
+            select(Customer).where(Customer.id.in_([task.customer_id for task in tasks]))
+        )
+    }
+    points: list[tuple[float, float]] = []
+    for task in tasks:
+        customer = customers.get(task.customer_id)
+        if customer is None or customer.latitude is None or customer.longitude is None:
+            continue
+        points.append((float(customer.latitude), float(customer.longitude)))
+    with released_for_outside_call(db):
+        path, method = route_path(points)
+    return RoutePathResponse(method=method, points=path)
+
+
+def stop_directions(
+    db: Session, tenant_id: UUID, membership: TenantMembership, request: DirectionsRequest
+) -> DirectionsResponse:
+    """In-site directions preview (D-093): from the member's one-time position to one open stop
+    the member may work (owner or assignee). The position is passed through, never stored."""
+    task = _authorized_task(db, tenant_id, membership, request.task_id)
+    _require_open(task)
+    customer = db.get(Customer, task.customer_id)
+    if customer is None or customer.latitude is None or customer.longitude is None:
+        raise AppError(409, "CUSTOMER_LOCATION_MISSING", "This customer has no saved location")
+    destination = (float(customer.latitude), float(customer.longitude))
+    with released_for_outside_call(db):
+        found, method = directions(
+            (float(request.origin.latitude), float(request.origin.longitude)), destination
+        )
+    return DirectionsResponse(
+        method=method,
+        distance_m=found.distance_m,
+        duration_s=found.duration_s,
+        points=found.points,
+        steps=[
+            DirectionsStepView(
+                type=step.type,
+                name=step.name,
+                distance_m=step.distance_m,
+                duration_s=step.duration_s,
+                exit_number=step.exit_number,
+            )
+            for step in found.steps
+        ],
+    )
 
 
 def save_stop_order(

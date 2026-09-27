@@ -1,30 +1,55 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
 from tawzeevo_api.dependencies import TenantContext, require_tenant_owner
 from tawzeevo_api.schemas.payments import PaymentReversalRequest
 from tawzeevo_api.schemas.supplier_ledger import (
+    SupplierBalanceListResponse,
     SupplierBalancesResponse,
     SupplierLedgerEntryResponse,
     SupplierOpeningCorrectionRequest,
     SupplierOpeningRequest,
+    SupplierPaymentHistoryResponse,
     SupplierPaymentRequest,
     SupplierPaymentResponse,
 )
 from tawzeevo_api.services.supplier_ledger import (
+    all_supplier_balances,
     correct_supplier_opening,
     record_supplier_opening,
     record_supplier_payment,
     reverse_supplier_payment,
     supplier_balances,
+    supplier_payment_history,
 )
 
 supplier_ledger_router = APIRouter(prefix="/api/v1/supplier-ledger", tags=["supplier ledger"])
 supplier_payments_router = APIRouter(prefix="/api/v1/payments", tags=["supplier ledger"])
+
+
+@supplier_ledger_router.get("/balances", response_model=SupplierBalanceListResponse)
+def list_balances(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+) -> SupplierBalanceListResponse:
+    """Every supplier of the business with its balance per currency (D-100)."""
+    return all_supplier_balances(db, context.tenant.id)
+
+
+@supplier_payments_router.get("/supplier-payments", response_model=SupplierPaymentHistoryResponse)
+def list_supplier_payments(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    supplier_id: UUID | None = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> SupplierPaymentHistoryResponse:
+    """Supplier payments, newest first, optionally for one supplier (D-100)."""
+    return supplier_payment_history(db, context.tenant.id, supplier_id, page, limit)
 
 
 @supplier_ledger_router.get("/{supplier_id}/balances", response_model=SupplierBalancesResponse)

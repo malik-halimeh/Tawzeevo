@@ -7,6 +7,8 @@ import json
 import logging
 import re
 
+from migration_head import MIGRATION_HEAD
+
 
 def test_request_id_is_echoed_or_generated_and_errors_carry_it(client):
     generated = client.get("/health")
@@ -44,7 +46,7 @@ def test_access_log_has_route_template_and_no_query_or_secret(client, caplog, mo
 
 def test_database_health_reports_the_migration_head(client):
     body = client.get("/health/database").json()
-    assert body["status"] == "ok" and body["migration_head"] == "20260921_0031"
+    assert body["status"] == "ok" and body["migration_head"] == MIGRATION_HEAD
 
 
 def test_health_metrics_counts_without_content(client):

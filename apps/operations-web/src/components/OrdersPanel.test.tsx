@@ -127,6 +127,6 @@ test("a confirmed order offers next steps and links its invoice and delivery, so
   expect(within(steps).getByRole("link", { name: /2026-000008/ })).toHaveAttribute("href", `${base}invoices&invoice=inv8`);
   expect(within(steps).getByRole("link", { name: "Record payment" })).toHaveAttribute("href", `${base}invoices&invoice=inv8&view=payments`);
   expect(within(steps).getByRole("link", { name: "Create delivery" })).toHaveAttribute("href", `${base}deliveries&invoice=inv8`);
-  expect(within(steps).getByRole("button", { name: "Manage invoice links" })).toBeInTheDocument(); // existing sharing
+  expect(within(steps).getByRole("region", { name: "Share invoice" })).toBeInTheDocument(); // existing sharing, its links listed at once
   expect(screen.getByRole("link", { name: /Delivery · Assigned/ })).toHaveAttribute("href", `${base}deliveries&invoice=inv8`);
 });

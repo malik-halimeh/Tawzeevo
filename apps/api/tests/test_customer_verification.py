@@ -331,6 +331,7 @@ def test_link_policy_customers_are_unaffected_and_dev_code_is_guarded(
         "granted": True,
         "contact_hint": "",
         "has_saved_address": False,
+        "verification_available": True,  # a server capability, never customer data (D-099)
     }
     # ACCOUNT_REQUIRED is still not selectable (P9-M6).
     refused = client.put(

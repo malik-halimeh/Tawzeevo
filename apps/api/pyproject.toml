@@ -19,6 +19,8 @@ dependencies = [
   "pydantic-settings>=2.7,<3",
   "pwdlib[argon2]>=0.2,<1",
   "python-multipart>=0.0.20,<1",
+  # Web push to installed phones (D-116); MPL-2.0, used unmodified.
+  "pywebpush>=2.5,<3",
   "PyJWT>=2.10,<3",
   "qrcode>=8,<9",
   "sqlalchemy>=2.0,<2.1",  # 2.1 removed the mypy plugin (sqlalchemy.ext.mypy) this package uses

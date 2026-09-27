@@ -3,7 +3,7 @@
  * Navigations are network-first with the cached shell as the offline fallback.
  * API calls are never cached here: business data lives in the local IndexedDB projection.
  */
-const CACHE_NAME = "tawzeevo-shell-v2";
+const CACHE_NAME = "tawzeevo-shell-v3";
 const SHELL_URLS = ["/", "/index.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -53,4 +53,33 @@ self.addEventListener("fetch", (event) => {
       ),
     );
   }
+});
+
+// Phone notifications (D-116): the server sends a title, a short line and an address only.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  const title = typeof data.title === "string" ? data.title : "Tawzeevo";
+  const url = typeof data.url === "string" && data.url.startsWith("/") ? data.url : "/";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof data.body === "string" ? data.body : "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url },
+    }),
+  );
+});
+
+// Opening a notification focuses an open Tawzeevo window on that address, or opens one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url ?? "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((client) => new URL(client.url).origin === self.location.origin);
+      if (open) return open.navigate(target).then((client) => (client ?? open).focus());
+      return self.clients.openWindow(target);
+    }),
+  );
 });

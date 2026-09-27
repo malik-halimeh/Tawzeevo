@@ -43,6 +43,7 @@ from tawzeevo_api.schemas.cash_van import (
     TenantProductCreateRequest,
     TenantProductUpdateRequest,
 )
+from tawzeevo_api.schemas.collection_reports import CollectionClaim
 from tawzeevo_api.schemas.invoice_editor import InvoiceCancelRequest, InvoiceEditorDraftRequest
 from tawzeevo_api.schemas.payments import (
     CustomerReceiptRequest,
@@ -352,8 +353,18 @@ def _apply_delivery_task(
         raise AppError(403, "TENANT_MEMBERSHIP_REQUIRED", "Active membership is required")
     task = get_delivery_task(db, tenant_id, operation.entity_id, for_update=True)
     note = operation.payload.get("note")
+    raw_collection = operation.payload.get("collection")
+    # The operation id is the report's key: a replay of this push never makes a second report.
+    collection = CollectionClaim.model_validate(raw_collection) if raw_collection else None
     complete_task_row(
-        db, tenant_id, membership, task, operation.expected_version, str(note) if note else None
+        db,
+        tenant_id,
+        membership,
+        task,
+        operation.expected_version,
+        str(note) if note else None,
+        collection,
+        operation.operation_id,
     )
     db.flush()
     return task

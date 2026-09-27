@@ -65,10 +65,14 @@ export async function queuePurchase(tenantId: string, membershipId: string, inpu
   return cmd.operation_id;
 }
 
+/** What the driver says was collected (D-114): not a payment until the owner confirms it. */
+export interface CollectionClaim { kind: "FULL" | "PARTIAL" | "NONE"; amount?: string }
+
 /** Phase 7 (PHASE_07.md I): complete an assigned delivery offline with the version this screen saw. */
-export async function queueDeliveryCompletion(tenantId: string, membershipId: string, taskId: string, expectedVersion: number, note: string | null): Promise<string> {
+export async function queueDeliveryCompletion(tenantId: string, membershipId: string, taskId: string, expectedVersion: number, note: string | null, collection: CollectionClaim | null = null): Promise<string> {
   const db = openLocalDatabase(tenantId, membershipId);
-  const cmd = command(tenantId, membershipId, "delivery_task", "complete", taskId, expectedVersion, { note });
+  // The collection claim rides the completion (D-114); the operation id makes it exactly once.
+  const cmd = command(tenantId, membershipId, "delivery_task", "complete", taskId, expectedVersion, collection ? { note, collection } : { note });
   await db.outbox.add(cmd);
   return cmd.operation_id;
 }

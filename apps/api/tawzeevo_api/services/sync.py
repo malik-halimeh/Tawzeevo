@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.errors import AppError
@@ -110,6 +110,12 @@ def bootstrap(
 ) -> BootstrapResponse:
     _protocol_check(request.protocol_version, request.app_schema_version)
     now = datetime.now(UTC)
+    # Two first bootstraps of one installation (the automatic sender and a screen at once) are
+    # serialized, so the second finds the first's registration instead of failing on the index.
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": request.device_installation_id.int & ((1 << 63) - 1)},
+    )
     device = db.scalar(
         select(SyncDevice)
         .where(

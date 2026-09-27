@@ -378,6 +378,16 @@ class TenantApplication(TimestampMixin, Base):
         ForeignKey("tenants.id", ondelete="RESTRICT"), unique=True
     )
 
+    __table_args__ = (
+        # One application waiting for review per applicant (D-111).
+        Index(
+            "uq_tenant_applications_one_pending",
+            "applicant_user_id",
+            unique=True,
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+    )
+
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
@@ -446,6 +456,8 @@ class Customer(TimestampMixin, Base):
         ),
         UniqueConstraint("id", "tenant_id", name="uq_customers_id_tenant"),
         Index("ix_customers_tenant_phone", "tenant_id", "phone"),
+        # The owner's customers list, by name (D-101).
+        Index("ix_customers_tenant_name", "tenant_id", "name"),
         CheckConstraint(
             "(latitude IS NULL) = (longitude IS NULL)",
             name="ck_customers_coordinates_paired",
@@ -1413,6 +1425,14 @@ class Payment(Base):
         ),
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_payments_idempotency"),
         UniqueConstraint("tenant_id", "reverses_payment_id", name="uq_payments_single_reversal"),
+        # Supplier payment history per business and supplier, newest first (D-100).
+        Index(
+            "ix_payments_tenant_supplier_paid_at",
+            "tenant_id",
+            "supplier_id",
+            "paid_at",
+            postgresql_where=text("supplier_id IS NOT NULL"),
+        ),
         CheckConstraint("amount > 0", name="ck_payments_amount_positive"),
         CheckConstraint(
             "((direction IN ('CUSTOMER_RECEIPT', 'CUSTOMER_RECEIPT_REVERSAL', "
@@ -2335,6 +2355,173 @@ class ProcurementItem(Base):
     def remaining_quantity(self) -> Decimal:
         remaining = Decimal(self.target_quantity) - Decimal(self.purchased_quantity)
         return max(Decimal("0"), remaining).quantize(Decimal("0.0001"))
+
+
+class PushSubscription(Base):
+    """One browser's web-push subscription for one person (D-116). It belongs to the person, not
+    to a business: rows are visible only to their own user (or to the sender, which binds
+    `app.push_delivery` for one transaction); `tenant_id` only records where it was turned on."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_id: Mapped[UUID | None] = mapped_column(ForeignKey("tenants.id", ondelete="SET NULL"))
+    endpoint: Mapped[str] = mapped_column(String(1000), nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(200), nullable=False)
+    auth: Mapped[str] = mapped_column(String(100), nullable=False)
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "endpoint", name="uq_push_subscriptions_user_endpoint"),
+    )
+
+
+class CollectionReport(Base):
+    """What the driver says was collected at a delivery (D-114). Not a payment: the customer's
+    balance changes only when the owner confirms it, through the existing receipt service."""
+
+    __tablename__ = "collection_reports"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[UUID] = mapped_column(
+        ForeignKey("delivery_tasks.id", ondelete="RESTRICT"), nullable=False
+    )
+    invoice_id: Mapped[UUID] = mapped_column(
+        ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False
+    )
+    reporter_membership_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 4))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, server_default="PENDING")
+    idempotency_key: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    confirmed_payment_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payments.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str | None] = mapped_column(String(500))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('FULL', 'PARTIAL', 'NONE')", name="ck_collection_reports_kind"),
+        CheckConstraint(
+            "status IN ('PENDING', 'CONFIRMED', 'REJECTED')", name="ck_collection_reports_status"
+        ),
+        CheckConstraint(
+            "(kind = 'NONE') = (amount IS NULL) AND (amount IS NULL OR amount > 0)",
+            name="ck_collection_reports_amount",
+        ),
+        CheckConstraint(
+            "confirmed_payment_id IS NULL OR (status = 'CONFIRMED' AND kind <> 'NONE')",
+            name="ck_collection_reports_payment",
+        ),
+        UniqueConstraint("tenant_id", "task_id", name="uq_collection_reports_task"),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_collection_reports_idempotency"),
+        Index("ix_collection_reports_tenant_status_created", "tenant_id", "status", "created_at"),
+    )
+
+
+class CustomerNotification(Base):
+    """A message for one customer, shown on their personalized storefront (D-114). The text is
+    rendered by the shop from `kind` and `data`; nothing here is shown to anyone else."""
+
+    __tablename__ = "customer_notifications"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index(
+            "ix_customer_notifications_tenant_customer_created",
+            "tenant_id",
+            "customer_id",
+            "created_at",
+        ),
+    )
+
+
+class PickupReport(Base):
+    """A runner's report of what was picked up from one supplier for one procurement list (D-106).
+    It is not a purchase: nothing reaches the supplier ledger, costs or the list until the owner
+    confirms it, which records one purchase through the existing purchase service. Lines are
+    {procurement_item_id, product_id, quantity, unit_cost} as reported."""
+
+    __tablename__ = "pickup_reports"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    procurement_list_id: Mapped[UUID] = mapped_column(
+        ForeignKey("procurement_lists.id", ondelete="RESTRICT"), nullable=False
+    )
+    supplier_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_suppliers.id", ondelete="RESTRICT"), nullable=False
+    )
+    reporter_membership_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(10), nullable=False, server_default="PENDING")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    lines: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    notes: Mapped[str | None] = mapped_column(String(500))
+    idempotency_key: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    confirmed_purchase_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("supplier_purchases.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str | None] = mapped_column(String(500))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING', 'CONFIRMED', 'REJECTED')", name="ck_pickup_reports_status"
+        ),
+        CheckConstraint(
+            "(status = 'CONFIRMED') = (confirmed_purchase_id IS NOT NULL)",
+            name="ck_pickup_reports_confirmed_purchase",
+        ),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_pickup_reports_idempotency"),
+        Index("ix_pickup_reports_tenant_status_created", "tenant_id", "status", "created_at"),
+    )
 
 
 class SupplierPurchase(Base):

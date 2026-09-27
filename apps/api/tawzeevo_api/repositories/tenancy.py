@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from uuid import UUID
 
 from sqlalchemy import func, select, text
@@ -45,6 +47,27 @@ def set_platform_scope(db: Session) -> None:
     and user scopes, so a commit drops it and any later read must restore it.
     """
     db.execute(text("SELECT set_config('app.platform_admin', 'true', true)"))
+
+
+@contextmanager
+def released_for_outside_call(db: Session, tenant_id: UUID | None = None) -> Iterator[None]:
+    """Hand the pooled database connection back while this request waits on a slow outside
+    service (route provider, assistant provider), then restore the tenant scope for later reads.
+
+    Holding a pooled connection (inside an open transaction) for the whole outside call let a few
+    parallel map or assistant requests use up the small pool, so unrelated requests waited for a
+    free connection until the pool timeout (the ~10 s stalls). Only read-only work may come before:
+    the transaction is committed empty (objects stay loaded because expire_on_commit is off), and a
+    pending change here is a programming error, never silently committed early.
+    """
+    if db.new or db.dirty or db.deleted:
+        raise RuntimeError("pending changes must be committed before an outside call")
+    db.commit()
+    try:
+        yield
+    finally:
+        if tenant_id is not None:
+            set_tenant_scope(db, tenant_id)
 
 
 def commit_and_restore_tenant_scope(db: Session, tenant_id: UUID) -> None:

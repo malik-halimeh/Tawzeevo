@@ -140,7 +140,10 @@ export interface TenantProduct {
   category_id: string;
   master_product_id: string | null;
   name: string;
-  barcode: string;
+  /** Returned by the server; optional here because older fixtures omit it. */
+  name_ar?: string | null;
+  /** None when the product has no barcode (D-112). */
+  barcode: string | null;
   barcodes: ProductBarcode[];
   images: ProductImage[];
   grade_prices: ProductGradePrice[];
@@ -170,7 +173,7 @@ export interface BarcodeLookupResponse {
 export interface InvoiceCatalogMatch {
   product_id: string;
   name: string;
-  barcode: string;
+  barcode: string | null;
   package_level: ProductPriceBasis;
   currency: string;
   price_basis: ProductPriceBasis;
@@ -398,6 +401,9 @@ export interface UserListResponse {
 export interface TenantApplication {
   id: string;
   applicant_user_id: string;
+  applicant_name?: string | null;
+  applicant_email?: string | null;
+  applicant_phone?: string | null;
   business_name: string;
   status: TenantApplicationStatus;
   reviewed_by_user_id: string | null;

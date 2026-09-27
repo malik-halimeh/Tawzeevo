@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render as renderBare, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
@@ -771,6 +771,7 @@ function sectionFetch(routes: (url: string, method: string, body: string | undef
     if (url.includes("/balances")) return json({ customer_id: customerId, customer_name: "Maya Market", balances: [] });
     if (url.includes("/obligations")) return json({ customer_id: customerId, currency: "USD", obligations: [] });
     if (url.includes("/suppliers")) return json({ suppliers: [] });
+    if (url.includes("/capabilities")) return json([]); // the share links of a confirmed invoice load at once
     throw new Error(`Unexpected request: ${method} ${url}`);
   });
 }
@@ -907,7 +908,6 @@ test("after confirmation, cancellation and sharing stay reachable, and a just-is
   expect(screen.getByLabelText("Cancellation reason")).toBeVisible();
 
   const sharing = screen.getByRole("region", { name: "Share invoice" });
-  fireEvent.click(within(sharing).getByRole("button", { name: "Manage invoice links" }));
   fireEvent.click(await within(sharing).findByRole("button", { name: "Create private link" }));
   const url = (await within(sharing).findByLabelText<HTMLInputElement>("Private invoice URL")).value;
   expect(url).toContain("#secret-abc");
@@ -922,6 +922,7 @@ test("after confirmation, cancellation and sharing stay reachable, and a just-is
 
   fireEvent.change(screen.getByLabelText("Cancellation reason"), { target: { value: "Customer withdrew" } });
   fireEvent.click(screen.getByRole("button", { name: "Cancel invoice" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, cancel invoice" })); // a final action asks once
   expect(await screen.findByText("Cancelled · the invoice and its revisions stay on record")).toBeVisible();
   expect(JSON.parse(cancelBodies[0] ?? "{}")).toMatchObject({ reason: "Customer withdrew" });
   expect(screen.queryByRole("button", { name: "Create revision" })).not.toBeInTheDocument();
@@ -938,4 +939,60 @@ test("Payments without a customer explains why and switches to the customer step
   fireEvent.click(within(guide).getByRole("button", { name: "Choose the customer" }));
   expect(within(screen.getByRole("group", { name: "Invoice views" })).getByRole("button", { name: "Invoice" })).toHaveAttribute("aria-pressed", "true");
   await waitFor(() => expect(screen.getByLabelText("Phone")).toHaveFocus());
+});
+
+test("a draft changed after saving cannot be confirmed until it is saved again", async () => {
+  const requests: Array<{ url: string; method: string; body?: string | undefined }> = [];
+  vi.stubGlobal("fetch", sectionFetch((url, method, body) => {
+    requests.push({ url, method, body });
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") return json(invoiceAnswer(), 201);
+    if (url.includes(`/invoices/${invoiceId}?`) && method === "PUT") return json(invoiceAnswer({ current_revision_id: "rev-2", server_revision_number: 2 }));
+    if (url.includes("/confirm") && method === "POST") return json(confirmedR1());
+    if (url.includes("/history")) return json({ revisions: [] });
+    return undefined;
+  }));
+  renderEditor();
+  await chooseCustomer();
+  addManualLine("Water crate", "5");
+  fireEvent.click(screen.getByRole("button", { name: "Calculate and save draft" }));
+  const confirm = await screen.findByRole("button", { name: "Confirm and assign invoice number" });
+  expect(confirm).toBeEnabled();
+  expect(screen.queryByText(/Save it first, then confirm/)).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Quantity / calculator"), { target: { value: "3" } });
+  expect(screen.getByRole("button", { name: "Confirm and assign invoice number" })).toBeDisabled();
+  expect(screen.getByText("You changed this invoice after saving. Save it first, then confirm.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Confirm and assign invoice number" }));
+  expect(requests.some((request) => request.url.includes("/confirm"))).toBe(false);
+
+  fireEvent.click(screen.getByRole("button", { name: "Save a new draft revision" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Confirm and assign invoice number" })).toBeEnabled());
+  expect(screen.queryByText(/Save it first, then confirm/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Confirm and assign invoice number" }));
+  await screen.findByRole("article", { name: "2026-000007" });
+  const confirmCall = requests.find((request) => request.url.includes("/confirm"));
+  expect(JSON.parse(confirmCall?.body ?? "{}")).toEqual({ expected_revision_id: "rev-2" });
+});
+
+test("a confirmed invoice can be printed on its own and a new invoice started right after", async () => {
+  vi.stubGlobal("fetch", sectionFetch((url, method) => {
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") return json(invoiceAnswer(), 201);
+    if (url.includes("/confirm") && method === "POST") return json(confirmedR1());
+    if (url.includes("/history")) return json({ revisions: [] });
+    if (url.includes("/capabilities")) return json([]);
+    return undefined;
+  }));
+  const print = vi.fn(() => { expect(document.body).toHaveClass("print-invoice"); });
+  vi.stubGlobal("print", print);
+  let address = "";
+  function Probe() { const location = useLocation(); address = `${location.pathname}${location.search}`; return null; }
+  render(<><InvoiceEditor tenantId={tenantId} membershipId="66666666-6666-4666-8666-666666666666" /><Probe /></>);
+  const document_ = await confirmOneInvoice(confirmedR1());
+  fireEvent.click(within(document_).getByRole("button", { name: "Print" }));
+  expect(print).toHaveBeenCalledTimes(1);
+  window.dispatchEvent(new Event("afterprint"));
+  expect(document.body).not.toHaveClass("print-invoice");
+
+  fireEvent.click(within(document_).getByRole("button", { name: "Start a new invoice" }));
+  expect(address).toMatch(new RegExp(`^/workspace\\?tenant=${tenantId}&section=invoices&fresh=\\d+$`));
 });

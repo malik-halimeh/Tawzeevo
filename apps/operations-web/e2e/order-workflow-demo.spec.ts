@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Order workflow fix — the whole demo path in real browsers (D-090, M1–M4):
@@ -51,7 +52,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
   const rail = page.getByRole("navigation", { name: "Workspace navigation" });
-  await rail.getByRole("link", { name: "Customers", exact: true }).click();
+  await openSection(page, "Customers");
   const finder = page.getByRole("heading", { name: "Find every matching customer" }).locator("..");
   await finder.getByLabel("Phone").fill(customer.phone as string);
   await finder.getByRole("button", { name: "Search" }).click();
@@ -79,7 +80,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
   await expect(buyer).toHaveURL(new RegExp(`/${slug}/order`));
 
   // ----- 3. The owner, still on Customers, sees the badge, the "(1)" title and the notice -----
-  await expect(rail.getByRole("link", { name: /^Orders/ })).toContainText("1", { timeout: 45_000 });
+  await expect(rail.getByRole("link", { name: /^Sales/ })).toContainText("1", { timeout: 45_000 }); // the waiting orders sit on Sales
   await expect(page).toHaveTitle(`(1) ${titleBefore}`);
   const notice = page.getByRole("link", { name: "New order from Karim Grocery" });
   await expect(notice).toBeVisible();
@@ -100,7 +101,6 @@ test("personalized order → badge and notice → confirm → share → pay → 
   await expect(steps.getByRole("link", { name: invoice.official_invoice_number })).toBeVisible();
 
   // ----- 5. Share the invoice: the copied link works signed out and shows only this invoice -----
-  await steps.getByRole("button", { name: "Manage invoice links" }).click();
   await steps.getByRole("button", { name: "Create private link" }).click();
   const shared = await steps.getByLabel("Private invoice URL").inputValue();
   await expect(steps.getByRole("button", { name: "Copy share link" })).toBeVisible();
@@ -128,19 +128,22 @@ test("personalized order → badge and notice → confirm → share → pay → 
   expect(obligations.find((row) => row.source_id === invoice.id)).toBeUndefined(); // settled
 
   // ----- 7. Back on the order (resume), create the delivery with the invoice preselected -----
-  await rail.getByRole("link", { name: /^Orders/ }).click();
+  await openSection(page, "Orders");
   await page.getByRole("button", { name: /Karim Grocery/ }).click();
   await page.getByRole("region", { name: "Next steps" }).getByRole("link", { name: "Create delivery" }).click();
   await expect(page.getByLabel("Confirmed invoice")).toHaveValue(invoice.id);
   await page.getByRole("button", { name: "Create delivery" }).click();
   await expect(page.getByText("Delivery created.")).toBeVisible();
   await page.getByRole("button", { name: "Mark delivered" }).click();
+  await page.getByRole("button", { name: "Yes, mark delivered" }).click(); // a final action asks once
   await expect(page.getByText("Delivery marked done.")).toBeVisible();
 
   // ----- 8. The invoice is clickable from the delivery -----
   await page.getByRole("link", { name: `Open invoice ${invoice.official_invoice_number}` }).first().click();
   await expect(page.getByRole("heading", { name: invoice.official_invoice_number })).toBeVisible();
-  await expect(page.getByText(/Opened for viewing, sharing and payments/)).toBeVisible();
+  // Opened by link, a confirmed invoice can be revised or cancelled (D-101).
+  await expect(page.getByRole("button", { name: "Create revision" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel invoice" })).toBeVisible();
 
   await shop.close();
   await api.dispose();
