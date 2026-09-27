@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Phase 4 offline flow (PHASE_04.md M/O E2E): download the business, lose the connection, find a
@@ -45,7 +46,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Offline", exact: true }).click();
+  await openSection(page, "Offline");
   await page.getByRole("button", { name: "Download for offline use" }).click();
   await expect(page.getByRole("button", { name: "Download again" })).toBeVisible();
   await expect(page.getByText(/1 \/ 1 \/ 0/)).toBeVisible();
@@ -53,7 +54,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   // ----- Connection lost: a new customer is created on the device -----
   await context.setOffline(true);
   await expect(page.locator(".status-badge", { hasText: "Offline" })).toBeVisible();
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Customers", exact: true }).click();
+  await openSection(page, "Customers");
   await page.getByRole("button", { name: "Add customer" }).click();
   await page.getByRole("textbox", { name: "Customer name" }).fill("Offline Corner Shop");
   await page.locator("form.form-grid").getByRole("textbox", { name: "Phone" }).fill(newCustomerPhone);
@@ -61,7 +62,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await expect(page.getByText("No connection: the customer was saved on this device and will be sent once when you are back online.")).toBeVisible();
 
   // ----- Still offline: search (device projection), scan (device catalog), queue the invoice -----
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Invoices", exact: true }).click();
+  await openSection(page, "Invoices");
   // The section renders after the address changes; until then the Customers phone search is still on screen.
   await expect(page.getByRole("heading", { name: "Invoices", level: 3 })).toBeVisible();
   await page.getByRole("textbox", { name: "Phone", exact: true }).fill(newCustomerPhone);
@@ -75,7 +76,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await expect(page.getByText(/No connection: the invoice was saved on this device as PENDING-[0-9A-F]{8}/)).toBeVisible();
 
   // ----- The queued command is visible, never hidden -----
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Offline", exact: true }).click();
+  await openSection(page, "Offline");
   await expect(page.getByText("Waiting to send").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Sync now" })).toBeDisabled();
 

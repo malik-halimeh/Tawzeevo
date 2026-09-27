@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Phase 9 P9-M5 (D-072/D-073): a business that asks for VERIFIED customers. The personalized
@@ -72,7 +73,7 @@ test("VERIFIED policy: link offers verification, the code unlocks prices, the ow
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Customers", exact: true }).click();
+  await openSection(page, "Customers");
   const finder = page.getByRole("heading", { name: "Find every matching customer" }).locator("..");
   await finder.getByLabel("Phone").fill(customer.phone as string);
   await finder.getByRole("button", { name: "Search" }).click();

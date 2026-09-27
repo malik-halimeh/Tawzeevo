@@ -667,6 +667,11 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .delivery-row .category-actions { margin-top: 8px; }
 .row-action { background: var(--mist); border-radius: 10px; display: grid; gap: 8px; margin-top: 8px; padding: 12px; }
 .row-action .category-actions { margin-top: 0; }
+.section-tabs { border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.section-tabs a { align-items: center; border-bottom: 3px solid transparent; color: var(--muted); display: inline-flex; font-weight: 600; gap: 8px; min-height: 48px; padding: 0 12px; text-decoration: none; }
+.section-tabs a.active { border-bottom-color: var(--blue); color: var(--ink); }
+.section-tabs a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media print { .section-tabs { display: none; } }
 .confirm-action { align-items: center; background: var(--mist); border-radius: 10px; display: inline-flex; flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; }
 .confirm-action-note { flex-basis: 100%; }
 .delivery-row.is-context { background: var(--mist); border-radius: 10px; padding-inline: 12px; }

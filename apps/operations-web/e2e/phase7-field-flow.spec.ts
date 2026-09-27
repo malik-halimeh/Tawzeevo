@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Phase 7 field flow (PHASE_07.md L): a sole owner creates and completes their own delivery; a
@@ -51,7 +52,7 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Deliveries", exact: true }).click();
+  await openSection(page, "Deliveries");
   await expect(page.getByRole("heading", { name: "My deliveries", level: 3 })).toBeVisible();
   await expect(page.getByLabel("Deliver by")).toHaveCount(0); // no driver setup demanded
   const pickInvoice = async (customer: string) => {

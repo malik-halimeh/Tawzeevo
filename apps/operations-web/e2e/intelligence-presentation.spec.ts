@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Owner intelligence in real browsers (D-089): a customer with an old overdue balance appears in
@@ -71,8 +72,7 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
   await expect(page.getByRole("list", { name: "Priorities · USD" })).toContainText("Tyre Fresh Foods");
 
   // ----- Analytics: the same 250 USD is overdue and sits in the 31–60 day bucket -----
-  const rail = page.getByRole("navigation", { name: "Workspace navigation" });
-  await rail.getByRole("link", { name: "Analytics", exact: true }).click();
+  await openSection(page, "Analytics");
   const cash = page.getByRole("article", { name: "Cash position in USD" });
   await expect(cash).toContainText(loose("250.0000 USD of 250.0000 USD owed (1 customer)"));
   await expect(cash.getByRole("table", { name: "Unpaid balances by age, USD" })).toContainText("31–60 days");
@@ -81,7 +81,7 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
   await expect(page.locator(".intel-cash")).not.toContainText(/probabilit|will pay/i);
 
   // ----- Assistant without a provider key: a clear setup state, nothing else affected -----
-  await rail.getByRole("link", { name: "Assistant", exact: true }).click();
+  await openSection(page, "Assistant");
   await expect(page.getByText("The assistant is not switched on")).toBeVisible();
   await page.getByRole("link", { name: "See today's priorities" }).click();
   await expect(page.getByRole("list", { name: "Priorities · USD" })).toContainText("Tyre Fresh Foods");
@@ -176,8 +176,7 @@ test("written explanations sit beside the calculated facts: a customer, an unusu
   await expect(signals).toContainText("Based on:");
   await expect(signals).toContainText("Collect the overdue balance"); // the calculated signals stay
 
-  const rail = page.getByRole("navigation", { name: "Workspace navigation" });
-  await rail.getByRole("link", { name: "Analytics", exact: true }).click();
+  await openSection(page, "Analytics");
   const changes = page.getByRole("list", { name: "Unusual changes in USD" });
   const crossed = changes.getByRole("listitem").filter({ hasText: "A balance has just become overdue" });
   await crossed.getByRole("button", { name: "Explain this change" }).click();

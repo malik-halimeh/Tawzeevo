@@ -42,7 +42,45 @@ import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { SyncPanel } from "./SyncPanel";
-import { SYNC_ANCHOR, type WorkspaceSection, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
+import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
+import { useOptionalUser } from "../auth/AuthContext";
+import { PENDING_ORDERS_KEY, fetchPendingOrders } from "./pendingOrders";
+
+/** The business this member used last on this device (a convenience only; the server checks membership). */
+const lastTenantKey = (userId: string) => `tawzeevo.lastTenant.${userId}`;
+function readLastTenant(userId: string | undefined): string | null {
+  if (!userId) return null;
+  try { return localStorage.getItem(lastTenantKey(userId)); } catch { return null; }
+}
+function rememberTenant(userId: string | undefined, tenantId: string) {
+  if (!userId) return;
+  try { localStorage.setItem(lastTenantKey(userId), tenantId); } catch { /* storage unavailable: nothing to remember */ }
+}
+
+/**
+ * A group's sections as tabs above the page, when the group has more than one (owners only). The
+ * Orders tab repeats the shell's waiting count from the same cached query (it never fetches itself).
+ */
+function SectionTabs({ view, tenantParam, tenantId }: { view: WorkspaceSection; tenantParam: string | null; tenantId: string }) {
+  const { t } = useTranslation();
+  const pending = useQuery({ queryKey: [PENDING_ORDERS_KEY, tenantId], queryFn: () => fetchPendingOrders(tenantId), enabled: false });
+  const group = groupOf(view);
+  if (group.sections.length < 2) return null;
+  const waiting = pending.data?.length ?? 0;
+  return (
+    <nav aria-label={t("nav.sectionTabs")} className="section-tabs">
+      {group.sections.map((id) => {
+        const meta = WORKSPACE_SECTIONS.find((entry) => entry.id === id)!;
+        return (
+          <Link aria-current={id === view ? "page" : undefined} className={id === view ? "active" : undefined} key={id} to={sectionHref(id, tenantParam)}>
+            {t(meta.label)}
+            {id === "orders" && waiting > 0 ? <span className="nav-badge"><span aria-hidden="true">{waiting}</span><span className="sr-only">{t("orders.awaitingBadge", { count: waiting })}</span></span> : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 const grades: CustomerGrade[] = ["A+", "A", "B+", "B"];
 
@@ -689,8 +727,24 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const user = useOptionalUser();
   const context = selectedContext(contexts, tenantFromSearch(searchParams)) ?? contexts[0]!;
   const view = sectionFromSearch(searchParams);
+  // Entering the workspace without a business in the address: continue with the one used last on
+  // this device (when this member still belongs to it). Only on entry: afterwards an address without
+  // a business keeps meaning the first one (e.g. the browser's Back), as the links assume.
+  const addressTenant = tenantFromSearch(searchParams);
+  const enteredOnce = useRef(false);
+  useEffect(() => {
+    if (enteredOnce.current) return;
+    enteredOnce.current = true;
+    if (addressTenant) return;
+    const last = readLastTenant(user?.id);
+    if (last && last !== contexts[0]?.tenant_id && contexts.some((item) => item.tenant_id === last)) {
+      void navigate({ pathname: "/workspace", search: workspaceSearch(view, last), hash: location.hash }, { replace: true });
+    }
+  }, [addressTenant, contexts, location.hash, navigate, user?.id, view]);
+  useEffect(() => { rememberTenant(user?.id, context.tenant_id); }, [user?.id, context.tenant_id]);
   const setView = useCallback((next: WorkspaceSection, replace = false) => {
     setSearchParams((current) => workspaceSearch(next, tenantFromSearch(current)), { replace });
   }, [setSearchParams]);
@@ -741,6 +795,9 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [requestError, setRequestError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
+
+  // A result notice belongs to the section that produced it.
+  useEffect(() => { setNotice(undefined); setRequestError(undefined); }, [view]);
 
   useEffect(() => {
     setMatches([]);
@@ -1027,6 +1084,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       {context.role === "owner" && context.tenant_status === "ACTIVE" ? (
         <>
           {/* Sections are chosen from the shell (desktop rail, phone bar and More), all carried by the address. */}
+          <SectionTabs tenantId={context.tenant_id} tenantParam={addressTenant} view={view} />
           {requestError ? <ErrorState error={requestError} /> : null}
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
           {view === "customers" ? (

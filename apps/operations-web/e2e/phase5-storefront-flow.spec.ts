@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Phase 5 storefront flow (PHASE_05.md E2E): a guest browses the public shop, checks out, sees the
@@ -66,7 +67,7 @@ test("guest checkout → owner link, confirm, delivery date → customer cancell
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: /^Orders/ }).click();
+  await openSection(page, "Orders");
   await expect(page.getByRole("heading", { name: /Order inbox/ })).toContainText("1 awaiting review");
   await page.getByRole("button", { name: /Guest Buyer/ }).click();
   await expect(page.getByRole("button", { name: "Confirm and assign invoice number" })).toBeDisabled();

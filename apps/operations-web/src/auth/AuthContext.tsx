@@ -93,6 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext value={value}>{children}</AuthContext>;
 }
 
+/** The signed-in user when rendered inside the provider, otherwise undefined (for panels also used standalone). */
+export function useOptionalUser(): User | null | undefined {
+  return useContext(AuthContext)?.user;
+}
+
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within AuthProvider");

@@ -1,4 +1,5 @@
 import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { openSection } from "./nav";
 
 /**
  * Order workflow fix — the whole demo path in real browsers (D-090, M1–M4):
@@ -51,7 +52,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
   const rail = page.getByRole("navigation", { name: "Workspace navigation" });
-  await rail.getByRole("link", { name: "Customers", exact: true }).click();
+  await openSection(page, "Customers");
   const finder = page.getByRole("heading", { name: "Find every matching customer" }).locator("..");
   await finder.getByLabel("Phone").fill(customer.phone as string);
   await finder.getByRole("button", { name: "Search" }).click();
@@ -79,7 +80,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
   await expect(buyer).toHaveURL(new RegExp(`/${slug}/order`));
 
   // ----- 3. The owner, still on Customers, sees the badge, the "(1)" title and the notice -----
-  await expect(rail.getByRole("link", { name: /^Orders/ })).toContainText("1", { timeout: 45_000 });
+  await expect(rail.getByRole("link", { name: /^Sales/ })).toContainText("1", { timeout: 45_000 }); // the waiting orders sit on Sales
   await expect(page).toHaveTitle(`(1) ${titleBefore}`);
   const notice = page.getByRole("link", { name: "New order from Karim Grocery" });
   await expect(notice).toBeVisible();
@@ -128,7 +129,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
   expect(obligations.find((row) => row.source_id === invoice.id)).toBeUndefined(); // settled
 
   // ----- 7. Back on the order (resume), create the delivery with the invoice preselected -----
-  await rail.getByRole("link", { name: /^Orders/ }).click();
+  await openSection(page, "Orders");
   await page.getByRole("button", { name: /Karim Grocery/ }).click();
   await page.getByRole("region", { name: "Next steps" }).getByRole("link", { name: "Create delivery" }).click();
   await expect(page.getByLabel("Confirmed invoice")).toHaveValue(invoice.id);

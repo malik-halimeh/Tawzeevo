@@ -8,7 +8,7 @@ import type { TenantContextListResponse } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { Icon, type IconName } from "./Icon";
 import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
-import { PHONE_PRIMARY_SECTIONS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_SECTIONS, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
+import { PHONE_PRIMARY_GROUPS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, type WorkspaceGroup, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
 
 type ShellLink = readonly [string, string, IconName];
 
@@ -202,16 +202,16 @@ export function AppShell() {
       </NavLink>
     );
   };
-  // Section and anchor links keep the selected business in the address so a tap never
-  // silently returns the member to their first business.
-  const sectionItem = (id: (typeof WORKSPACE_SECTIONS)[number]["id"], className: string) => {
-    const meta = WORKSPACE_SECTIONS.find((entry) => entry.id === id)!;
-    const active = section === id;
+  // Group and anchor links keep the selected business in the address so a tap never silently
+  // returns the member to their first business. A group opens on its first section and is the
+  // current one while any of its sections is open; the orders waiting sit on Sales.
+  const groupItem = (group: WorkspaceGroup, className: string) => {
+    const active = section !== null && (group.sections as readonly string[]).includes(section);
     return (
-      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} key={id} to={sectionHref(id, tenantParam)}>
-        <Icon name={meta.icon} />
-        <span>{t(meta.label)}</span>
-        {id === "orders" && pendingCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{t("orders.awaitingBadge", { count: pendingCount })}</span></span> : null}
+      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} key={group.id} to={sectionHref(group.sections[0], tenantParam)}>
+        <Icon name={group.icon} />
+        <span>{t(group.label)}</span>
+        {group.id === "sales" && pendingCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{t("orders.awaitingBadge", { count: pendingCount })}</span></span> : null}
       </Link>
     );
   };
@@ -224,24 +224,19 @@ export function AppShell() {
       </Link>
     );
   };
-  const moreSections = WORKSPACE_SECTIONS.filter((entry) => !PHONE_PRIMARY_SECTIONS.includes(entry.id));
+  const phoneGroups = WORKSPACE_GROUPS.filter((group) => PHONE_PRIMARY_GROUPS.includes(group.id));
+  const moreGroups = WORKSPACE_GROUPS.filter((group) => !PHONE_PRIMARY_GROUPS.includes(group.id));
 
   return (
     <div className="frame">
       <a className="skip-link" href="#main-content">{t("skipToContent")}</a>
       <aside className="rail">
         <BrandMark />
-        {/* Desktop mirrors the phone grouping of the selected business: an owner's Work, Customers and
-            Invoices, then the More sections; a driver's My work and Sync. Account links sit below. */}
+        {/* Desktop shows the same groups as the phone for the selected business: an owner's seven
+            job groups with Settings last; a driver's My work and Sync. Account links sit below. */}
         <nav aria-label={t("nav.workspaceNav")} className="rail-nav">
           {ownerNav ? (
-            <>
-              {PHONE_PRIMARY_SECTIONS.map((id) => sectionItem(id, "nav-item"))}
-              <div aria-labelledby="rail-more-sections" className="rail-group" role="group">
-                <p className="eyebrow rail-label" id="rail-more-sections">{t("nav.more")}</p>
-                {moreSections.map((entry) => sectionItem(entry.id, "nav-item nav-item-minor"))}
-              </div>
-            </>
+            WORKSPACE_GROUPS.map((group) => groupItem(group, group.id === "settings" ? "nav-item nav-item-minor" : "nav-item"))
           ) : driverNav ? (
             <>{anchorItem(WORK_ANCHOR, "nav.myWork", "work", "nav-item")}{anchorItem(SYNC_ANCHOR, "nav.sync", "sync", "nav-item")}</>
           ) : links.map((link) => navItem(link))}
@@ -252,7 +247,6 @@ export function AppShell() {
             <span><strong>{user?.first_name} {user?.last_name}</strong><small>{roleLabel}</small></span>
           </div>
           {navItem(["/profile", "nav.profile", "person"], "nav-item nav-item-minor")}
-          {navItem(["/stats", "nav.statistics", "chart"], "nav-item nav-item-minor")}
           <LanguageButton className="text-btn" />
           <button className="text-btn" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}</button>
         </div>
@@ -268,14 +262,13 @@ export function AppShell() {
         </main>
       </div>
       <nav aria-label={t("nav.primary")} className="mobile-nav">
-        {ownerNav ? PHONE_PRIMARY_SECTIONS.map((id) => sectionItem(id, "mobile-nav-item")) : null}
+        {ownerNav ? phoneGroups.map((group) => groupItem(group, "mobile-nav-item")) : null}
         {driverNav ? <>{anchorItem(WORK_ANCHOR, "nav.myWork", "work")}{anchorItem(SYNC_ANCHOR, "nav.sync", "sync")}</> : null}
         {!ownerNav && !driverNav ? links.map((link) => navItem(link, "mobile-nav-item")) : null}
         {!ownerNav && !driverNav && !isAdmin ? navItem(["/profile", "nav.profile", "person"], "mobile-nav-item") : null}
         <button aria-controls="more-sheet" aria-expanded={moreOpen} className={`mobile-nav-item${moreOpen ? " active" : ""}`} onClick={() => setMoreOpen((open) => !open)} ref={moreButton} type="button">
           <Icon name="more" />
           <span>{t("nav.more")}</span>
-          {ownerNav && pendingCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{t("orders.awaitingBadge", { count: pendingCount })}</span></span> : null}
         </button>
       </nav>
       {/* One polite live region, always present, so a new-order notice is announced once. */}
@@ -295,13 +288,12 @@ export function AppShell() {
           {ownerNav ? (
             <div className="more-group" role="group" aria-label={t("tenantWorkspace.sections")}>
               <p className="eyebrow">{t("tenantWorkspace.sections")}</p>
-              {moreSections.map((entry) => sectionItem(entry.id, "more-item"))}
+              {moreGroups.map((group) => groupItem(group, "more-item"))}
             </div>
           ) : null}
           <div className="more-group" role="group" aria-label={t("shell.account")}>
             <p className="eyebrow">{t("shell.account")}</p>
             {isAdmin || ownerNav || driverNav ? <NavLink className="more-item" to="/profile"><Icon name="person" />{t("nav.profile")}</NavLink> : null}
-            <NavLink className="more-item" to="/stats"><Icon name="chart" />{t("nav.statistics")}</NavLink>
             <LanguageButton className="more-item" />
             <button className="more-item" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}</button>
           </div>
