@@ -26,6 +26,14 @@ export function ClientHomePage() {
     refetchInterval: application ? 30_000 : false,
   });
   const tenants = tenantContexts.data?.tenants;
+  // This person's own applications (D-111): one waiting for review is shown instead of the form.
+  const mine = useQuery({
+    queryKey: ["my-applications"],
+    queryFn: () => apiRequest<TenantApplication[]>("/api/v1/tenant-applications/mine"),
+    enabled: tenants !== undefined && tenants.length === 0,
+  });
+  const latest = application ?? mine.data?.[0];
+  const waiting = latest?.status === "PENDING" ? latest : undefined;
   const schema = z.object({ business_name: z.string().trim().min(1, t("validation.required")).max(200) });
   const { formState: { errors, isSubmitting }, handleSubmit, register, reset, setValue } = useForm<{ business_name: string }>({ resolver: zodResolver(schema) });
 
@@ -47,15 +55,17 @@ export function ClientHomePage() {
   // if it cannot be sent the form keeps the name and shows why.
   const pendingHandled = useRef(false);
   useEffect(() => {
-    if (pendingHandled.current || !tenants || tenants.length > 0 || application) return;
+    if (pendingHandled.current || !tenants || tenants.length > 0 || application || (mine.data === undefined && !mine.isError)) return;
     pendingHandled.current = true;
+    // Already waiting for review: the name typed at registration is not sent a second time.
+    if (mine.data?.some((row) => row.status === "PENDING")) { takePendingApplication(); return; }
     const pending = takePendingApplication();
     if (!pending) return;
     setValue("business_name", pending);
     apiRequest<TenantApplication>("/api/v1/tenant-applications", { method: "POST", body: JSON.stringify({ business_name: pending }) })
       .then((submitted) => { setApplication(submitted); reset(); })
       .catch(setRequestError);
-  }, [tenants, application, reset, setValue]);
+  }, [tenants, application, mine.data, mine.isError, reset, setValue]);
 
   // A member of a business opens straight onto that workspace: its compact business header is the
   // page heading and follows the selected business, so no generic greeting or role summary sits
@@ -74,17 +84,22 @@ export function ClientHomePage() {
           <p>{t("clientHome.applicationBody")}</p>
           <p className="muted">{t("clientHome.driverNote")}</p>
           {/* Once sent, the form gives way to the answer, so a second application is not invited. */}
-          {application ? (
+          {waiting ? (
             <>
               <SuccessNotice>
-                <span>{t("clientHome.applicationReceived", { name: application.business_name })}</span>
-                <StatusBadge value={application.status} />
+                <span>{t("clientHome.applicationReceived", { name: waiting.business_name })}</span>
+                <StatusBadge value={waiting.status} />
               </SuccessNotice>
               <p className="muted">{t("clientHome.applicationNext")}</p>
-              <button className="text-button" onClick={() => setApplication(undefined)} type="button">{t("clientHome.applyAnother")}</button>
             </>
           ) : (
             <>
+              {latest?.status === "REJECTED" ? (
+                <div className="notice notice-warning" role="status">
+                  <span>{t("clientHome.applicationNotApproved", { name: latest.business_name })}</span>
+                  {latest.review_notes ? <small>{latest.review_notes}</small> : null}
+                </div>
+              ) : null}
               {requestError ? <ErrorState error={requestError} /> : null}
               <form className="inline-form" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
                 <label className="field"><span>{t("fields.businessName")}</span><input {...register("business_name")} /><FieldError message={errors.business_name?.message} /></label>

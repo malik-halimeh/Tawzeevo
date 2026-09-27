@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
@@ -29,8 +29,10 @@ from tawzeevo_api.services.platform import (
     close_tenant,
     list_applications,
     list_tenants,
+    my_applications,
     reactivate_tenant,
     reject_application,
+    send_approved_email,
     set_access_period,
     submit_application,
     suspend_tenant,
@@ -52,6 +54,17 @@ def create_tenant_application(
     applicant: Annotated[User, Depends(require_client)],
 ) -> TenantApplicationResponse:
     return TenantApplicationResponse.model_validate(submit_application(db, applicant, request))
+
+
+@tenant_applications_router.get(
+    "/tenant-applications/mine", response_model=list[TenantApplicationResponse]
+)
+def my_tenant_applications(
+    db: Annotated[Session, Depends(get_db)],
+    applicant: Annotated[User, Depends(require_client)],
+) -> list[TenantApplicationResponse]:
+    """The signed-in person's own applications and their status, newest first (D-111)."""
+    return [TenantApplicationResponse.model_validate(row) for row in my_applications(db, applicant)]
 
 
 @platform_router.get("/tenant-applications", response_model=TenantApplicationListResponse)
@@ -85,11 +98,18 @@ def platform_approve_application(
     application_id: UUID,
     db: Annotated[Session, Depends(get_db)],
     admin: Annotated[User, Depends(require_system_admin)],
+    background: BackgroundTasks,
     request: TenantApplicationApproveRequest = Body(
         default_factory=TenantApplicationApproveRequest
     ),
 ) -> TenantApplicationResponse:
-    return application_responses(db, [approve_application(db, application_id, admin, request)])[0]
+    response = application_responses(db, [approve_application(db, application_id, admin, request)])[
+        0
+    ]
+    # The applicant is told by email after the approval is committed; best effort (D-111).
+    if response.applicant_email:
+        background.add_task(send_approved_email, response.applicant_email, response.business_name)
+    return response
 
 
 @platform_router.post(

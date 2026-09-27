@@ -378,6 +378,16 @@ class TenantApplication(TimestampMixin, Base):
         ForeignKey("tenants.id", ondelete="RESTRICT"), unique=True
     )
 
+    __table_args__ = (
+        # One application waiting for review per applicant (D-111).
+        Index(
+            "uq_tenant_applications_one_pending",
+            "applicant_user_id",
+            unique=True,
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+    )
+
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"

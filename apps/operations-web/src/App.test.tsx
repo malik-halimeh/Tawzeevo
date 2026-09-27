@@ -408,6 +408,7 @@ describe("public and authentication flows", () => {
       if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
       if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [] }));
       if (url.endsWith("/api/v1/tenant-applications") && init?.method === "POST") { posts.push(requestBody(init.body)); return Promise.resolve(json(application, 201)); }
+      if (url.endsWith("/api/v1/tenant-applications/mine")) return Promise.resolve(json([]));
       throw new Error(`Unexpected request: ${url}`);
     }));
     renderApp("/workspace");
@@ -418,8 +419,22 @@ describe("public and authentication flows", () => {
     expect(screen.queryByLabelText("Business name")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit application" })).not.toBeInTheDocument();
     expect(posts).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Apply for another business" })); // a second business needs no reload
-    expect(screen.getByLabelText("Business name")).toHaveValue("");
+    // One application waits for review at a time (D-111): no second form while this one is pending.
+    expect(screen.queryByRole("button", { name: "Apply for another business" })).not.toBeInTheDocument();
+  });
+
+  test("a returning applicant sees the application waiting for review instead of the form (D-111)", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
+      if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
+      if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [] }));
+      if (url.endsWith("/api/v1/tenant-applications/mine")) return Promise.resolve(json([application]));
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderApp("/workspace");
+    expect(await screen.findByText("Application received for Cedar Distribution.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Business name")).not.toBeInTheDocument();
   });
 });
 
