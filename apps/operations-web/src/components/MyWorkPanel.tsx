@@ -5,6 +5,7 @@ import { useInRouterContext, useLocation } from "react-router-dom";
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
 import { browserOffline } from "../offline/network";
+import { SYNC_COMPLETED_EVENT } from "../offline/events";
 import { listOutbox } from "../offline/outbox";
 import { syncNow } from "../offline/pull";
 import { bootstrapLocalProjection, localSyncStatus } from "../offline/sync";
@@ -130,20 +131,32 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
   }, [tenantId, membershipId, ensureDevice]);
   useEffect(() => { load().catch(setError); }, [load]);
   // Completions queued on this device before a reload are still waiting in its outbox: list them
-  // again, so each stop shows as queued and "Sync now" can send them (nothing else changes).
+  // again, so each stop shows as queued and "Sync now" can send them (nothing else changes). After an
+  // automatic send (D-098) the list is read again, so sent completions leave it and the stops refresh.
   useEffect(() => {
     let live = true;
-    listOutbox(tenantId, membershipId)
-      .then((rows) => {
+    const waitingCompletions = () => listOutbox(tenantId, membershipId)
+      .then((rows) => rows
+        .filter((row) => row.entity_type === "delivery_task" && row.operation_type === "complete" && (row.state === "pending" || row.state === "sending" || row.state === "retryable_failed"))
+        .map((row) => row.entity_id))
+      .catch(() => [] as string[]); // no device storage: nothing was queued here
+    void waitingCompletions().then((waiting) => {
+      if (live && waiting.length) setQueued((current) => [...current, ...waiting.filter((id) => !current.includes(id))]);
+    });
+    const afterSync = () => {
+      void waitingCompletions().then((waiting) => {
         if (!live) return;
-        const waiting = rows
-          .filter((row) => row.entity_type === "delivery_task" && row.operation_type === "complete" && (row.state === "pending" || row.state === "sending" || row.state === "retryable_failed"))
-          .map((row) => row.entity_id);
-        if (waiting.length) setQueued((current) => [...current, ...waiting.filter((id) => !current.includes(id))]);
-      })
-      .catch(() => { /* no device storage: nothing was queued here */ });
-    return () => { live = false; };
-  }, [tenantId, membershipId]);
+        setQueued((current) => {
+          const sent = current.filter((id) => !waiting.includes(id));
+          if (sent.length) setDoneIds((done) => [...done, ...sent.filter((id) => !done.includes(id))]);
+          return current.filter((id) => waiting.includes(id));
+        });
+        load().catch(() => undefined);
+      });
+    };
+    window.addEventListener(SYNC_COMPLETED_EVENT, afterSync);
+    return () => { live = false; window.removeEventListener(SYNC_COMPLETED_EVENT, afterSync); };
+  }, [tenantId, membershipId, load]);
 
   const complete = (task: WorkTask) => {
     setBusy(true); setError(undefined); setNotice(undefined); setRevokedReason(undefined);

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { apiRequest } from "../api/client";
 import type { TenantContextListResponse } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { type AutoSyncState, useAutoSync } from "../offline/autoSync";
 import { Icon, type IconName } from "./Icon";
 import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
 import { PHONE_PRIMARY_GROUPS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, type WorkspaceGroup, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
@@ -112,6 +113,17 @@ function useSoftwareKeyboard() {
   }, []);
 }
 
+/** The top-line connection chip: what is waiting, being sent, sent, or needs a look. */
+function SyncChip({ state, online, attentionHref }: { state: AutoSyncState; online: boolean; attentionHref: string }) {
+  const { t } = useTranslation();
+  if (state.attention > 0) return <Link className="online offline sync-chip" to={attentionHref}>{t("shell.syncAttention", { count: state.attention })}</Link>;
+  if (!online) return <span className="online offline">{state.pending ? t("shell.offlineWaiting", { count: state.pending }) : t("shell.browserOffline")}</span>;
+  if (state.sending) return <span className="online sync-chip" role="status">{t("shell.sending")}</span>;
+  if (state.pending) return <span className="online sync-chip">{t("shell.waiting", { count: state.pending })}</span>;
+  if (state.justSent) return <span className="online sync-chip" role="status">{t("shell.allSent")}</span>;
+  return <span className="online">{t("shell.browserOnline")}</span>;
+}
+
 export function AppShell() {
   const { t } = useTranslation();
   const { logout, user } = useAuth();
@@ -174,6 +186,8 @@ export function AppShell() {
     return () => window.clearTimeout(timer);
   }, [arrival]);
   const shownArrival = arrival && arrival.tenant === ownerTenant ? arrival.orders : null;
+  // Work queued on this device is sent by itself for the business on screen (D-098).
+  const autoSync = useAutoSync(!isAdmin && activeSelection && selected ? selected.tenant_id : null, !isAdmin && activeSelection && selected ? selected.membership_id : null);
   const initials = `${user?.first_name?.[0] ?? ""}${user?.last_name?.[0] ?? ""}`;
   const roleLabel = t(isAdmin ? "roles.platformAdmin" : "roles.client");
 
@@ -256,7 +270,7 @@ export function AppShell() {
         <div className="topline">
           <div className="topline-trail"><span>{roleLabel}</span><span aria-hidden="true">/</span><strong>{t(isAdmin ? "shell.admin" : "shell.workspace")}</strong></div>
           <BrandMark />
-          <span className={`online${online ? "" : " offline"}`}>{t(online ? "shell.browserOnline" : "shell.browserOffline")}</span>
+          <SyncChip attentionHref={driverNav ? `${sectionHref("work", tenantParam)}#${SYNC_ANCHOR}` : sectionHref("sync", tenantParam)} online={online} state={autoSync} />
         </div>
         <main id="main-content" className="main" tabIndex={-1}>
           <Outlet />
