@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import { ApplicationRoot } from "./ApplicationRoot";
 import { isDemoPath } from "./demo/demoPath";
 import "./styles.css";
+import "./map.css";
 
 const demoEnabled = import.meta.env.VITE_DEMO_PREVIEW === "true";
 

@@ -56,32 +56,32 @@ export function OwnerTodayStrip({ tenantId }: { tenantId: string }) {
     <section aria-labelledby="needs-you-title" className="owner-today">
       <h2 className="section-title" id="needs-you-title">{t("today.needsYou")}</h2>
       {waiting ? (
-        <p className="owner-today-orders">
+        <p className="owner-today-orders today-note" data-line="sales">
           <span>{t("orders.awaiting", { count: waiting })}</span>
           <Link to={sectionHref("orders", tenantId)}>{t("today.review")} <Arrow small /></Link>
         </p>
       ) : null}
-      {reportedCount ? <CollectionInbox tenantId={tenantId} /> : null}
+      {reportedCount ? <div className="today-note today-note-wide" data-line="customers"><CollectionInbox tenantId={tenantId} /></div> : null}
       {pickupCount ? (
-        <p className="owner-today-orders">
+        <p className="owner-today-orders today-note" data-line="buying">
           <span>{t("pickupReport.toConfirm", { count: pickupCount })}</span>
           <Link to={sectionHref("procurement", tenantId)}>{t("today.review")} <Arrow small /></Link>
         </p>
       ) : null}
       {rows.length ? (
-        <>
+        <div className="today-note today-note-wide" data-line="customers">
           <h3>{t("today.collectionsTitle")}</h3>
           <ul aria-label={t("today.collectionsTitle")} className="owner-today-list">
             {rows.slice(0, SHOWN).map(({ task, outstanding }) => (
               <li key={task.id}>
                 <span><strong>{task.customer_name}</strong> · <bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi></span>
                 <bdi className="money" dir="ltr">{outstanding} {task.currency}</bdi>
-                <Link to={sectionHref("invoices", tenantId, { invoice: task.invoice_id, view: "payments" })}>{t("tenantWorkspace.recordPayment")}</Link>
+                <Link className="money-link" to={sectionHref("invoices", tenantId, { invoice: task.invoice_id, view: "payments" })}>{t("tenantWorkspace.recordPayment")}</Link>
               </li>
             ))}
           </ul>
           {rows.length > SHOWN ? <p className="muted">{t("today.andMore", { count: rows.length - SHOWN })}</p> : null}
-        </>
+        </div>
       ) : null}
     </section>
   );

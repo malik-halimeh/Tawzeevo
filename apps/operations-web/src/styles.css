@@ -6,29 +6,34 @@
 @font-face { font-family: "Plex"; src: url("./assets/fonts/plex-sans.ttf") format("truetype"); font-weight: 100 700; font-display: swap; }
 @font-face { font-family: "PlexArabic"; src: url("./assets/fonts/plex-arabic-Regular.ttf") format("truetype"); font-weight: 400 500; font-display: swap; }
 @font-face { font-family: "PlexArabic"; src: url("./assets/fonts/plex-arabic-SemiBold.ttf") format("truetype"); font-weight: 600 700; font-display: swap; }
+/* Plan D (2026-09-28): signage titles and big numbers, and receipt-style references (same IBM Plex family, SIL OFL). */
+@font-face { font-family: "PlexCondensed"; src: url("./assets/fonts/plex-condensed-SemiBold.woff2") format("woff2"); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: "PlexCondensed"; src: url("./assets/fonts/plex-condensed-Bold.woff2") format("woff2"); font-weight: 700 800; font-display: swap; }
+@font-face { font-family: "PlexMono"; src: url("./assets/fonts/plex-mono-Regular.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: "PlexMono"; src: url("./assets/fonts/plex-mono-SemiBold.woff2") format("woff2"); font-weight: 600 700; font-display: swap; }
 
-/* ---------- Tokens ---------- */
+/* ---------- Tokens (Plan D "The Tawzeevo Map": limestone paper, cedar ink; line colours live in map.css) ---------- */
 :root {
-  --paper: #f5f7fa;
+  --paper: #f2f5f3;
   --surface: #ffffff;
-  --ink: #172a3a;
-  --muted: #586a7c;
+  --ink: #13262f;
+  --muted: #4f6169;
   --blue: #2455d6;
   --blue-deep: #173b98;
-  --mist: #e7eef8;
-  --citron: #e5ef92;
-  --citron-deep: #d7e27c;
-  --line: #dbe2eb;
-  --line-strong: #8f9ead;
-  --good: #216447;
-  --good-bg: #e9f5ee;
-  --good-line: #c4dece;
-  --warn: #815108;
-  --warn-bg: #fff3d6;
-  --warn-line: #e2cb9c;
-  --bad: #a32d3b;
-  --bad-bg: #fdeef0;
-  --bad-line: #ecc7cc;
+  --mist: #e4ecfb;
+  --citron: #ddeb6a;
+  --citron-deep: #c9d94f;
+  --line: #d5deda;
+  --line-strong: #8e9c98;
+  --good: #1e6b45;
+  --good-bg: #e4f4ea;
+  --good-line: #bddcc9;
+  --warn: #7d4e00;
+  --warn-bg: #fff1cf;
+  --warn-line: #e6cd92;
+  --bad: #a3263a;
+  --bad-bg: #fde9ec;
+  --bad-line: #efc3ca;
   --radius-control: 8px;
   --radius-record: 13px;
   --radius-dialog: 16px;

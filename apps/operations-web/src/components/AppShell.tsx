@@ -11,7 +11,7 @@ import { AssistantButton, AssistantDrawer } from "./AssistantDrawer";
 import { Icon, type IconName } from "./Icon";
 import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
 import { COLLECTION_REPORTS_KEY, type CollectionReport, fetchPendingCollections } from "./collectionReportsApi";
-import { PHONE_PRIMARY_GROUPS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, type WorkspaceGroup, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
+import { PHONE_PRIMARY_GROUPS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, type WorkspaceGroup, groupOf, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
 
 type ShellLink = readonly [string, string, IconName];
 
@@ -118,12 +118,12 @@ function useSoftwareKeyboard() {
 /** The top-line connection chip: what is waiting, being sent, sent, or needs a look. */
 function SyncChip({ state, online, attentionHref }: { state: AutoSyncState; online: boolean; attentionHref: string }) {
   const { t } = useTranslation();
-  if (state.attention > 0) return <Link className="online offline sync-chip" to={attentionHref}>{t("shell.syncAttention", { count: state.attention })}</Link>;
-  if (!online) return <span className="online offline">{state.pending ? t("shell.offlineWaiting", { count: state.pending }) : t("shell.browserOffline")}</span>;
-  if (state.sending) return <span className="online sync-chip" role="status">{t("shell.sending")}</span>;
-  if (state.pending) return <span className="online sync-chip">{t("shell.waiting", { count: state.pending })}</span>;
-  if (state.justSent) return <span className="online sync-chip" role="status">{t("shell.allSent")}</span>;
-  return <span className="online">{t("shell.browserOnline")}</span>;
+  if (state.attention > 0) return <Link className="online offline sync-chip" data-state="attention" to={attentionHref}>{t("shell.syncAttention", { count: state.attention })}</Link>;
+  if (!online) return <span className="online offline" data-state="offline">{state.pending ? t("shell.offlineWaiting", { count: state.pending }) : t("shell.browserOffline")}</span>;
+  if (state.sending) return <span className="online sync-chip" data-state="sending" role="status">{t("shell.sending")}</span>;
+  if (state.pending) return <span className="online sync-chip" data-state="waiting">{t("shell.waiting", { count: state.pending })}</span>;
+  if (state.justSent) return <span className="online sync-chip" data-state="sent" role="status">{t("shell.allSent")}</span>;
+  return <span className="online" data-state="online">{t("shell.browserOnline")}</span>;
 }
 
 export function AppShell() {
@@ -223,6 +223,10 @@ export function AppShell() {
   const autoSync = useAutoSync(!isAdmin && activeSelection && selected ? selected.tenant_id : null, !isAdmin && activeSelection && selected ? selected.membership_id : null);
   const initials = `${user?.first_name?.[0] ?? ""}${user?.last_name?.[0] ?? ""}`;
   const roleLabel = t(isAdmin ? "roles.platformAdmin" : "roles.client");
+  // Plan D: the coloured "line" of the place on screen (one per owner group; the driver rides the delivery line;
+  // the platform desk has its own dark rail). Presentation only: it sets colours, never what a member can do.
+  const mapLine = isAdmin ? "admin" : ownerNav && section ? groupOf(section).id : driverNav ? "deliveries" : "today";
+  const mapRole = isAdmin ? "admin" : ownerNav ? "owner" : driverNav ? "driver" : "client";
 
   useEffect(() => { setMoreOpen(false); }, [location.key]);
   useEffect(() => {
@@ -255,7 +259,7 @@ export function AppShell() {
   const groupItem = (group: WorkspaceGroup, className: string) => {
     const active = section !== null && (group.sections as readonly string[]).includes(section);
     return (
-      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} key={group.id} to={sectionHref(group.sections[0], tenantParam)}>
+      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} data-line={group.id} key={group.id} to={sectionHref(group.sections[0], tenantParam)}>
         <Icon name={group.icon} />
         <span>{t(group.label)}</span>
         {group.id === "sales" && pendingCount + reportedCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount + reportedCount}</span><span className="sr-only">{[pendingCount ? t("orders.awaitingBadge", { count: pendingCount }) : "", reportedCount ? t("collection.badge", { count: reportedCount }) : ""].filter(Boolean).join(", ")}</span></span> : null}
@@ -265,7 +269,7 @@ export function AppShell() {
   const anchorItem = (anchor: string, label: string, icon: IconName, className = "mobile-nav-item") => {
     const active = onWorkspace && (anchor === SYNC_ANCHOR ? location.hash === `#${SYNC_ANCHOR}` : location.hash !== `#${SYNC_ANCHOR}`);
     return (
-      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} key={anchor} to={`${sectionHref("work", tenantParam)}#${anchor}`}>
+      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} data-line={anchor === SYNC_ANCHOR ? "settings" : "deliveries"} key={anchor} to={`${sectionHref("work", tenantParam)}#${anchor}`}>
         <Icon name={icon} />
         <span>{t(label)}</span>
       </Link>
@@ -275,7 +279,7 @@ export function AppShell() {
   const moreGroups = WORKSPACE_GROUPS.filter((group) => !PHONE_PRIMARY_GROUPS.includes(group.id));
 
   return (
-    <div className="frame">
+    <div className="frame" data-line={mapLine} data-role={mapRole}>
       <a className="skip-link" href="#main-content">{t("skipToContent")}</a>
       <aside className="rail">
         <BrandMark />

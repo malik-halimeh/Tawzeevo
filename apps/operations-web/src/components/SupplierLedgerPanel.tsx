@@ -127,7 +127,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers, version = 0, onChange
           <form className="inline-form" onSubmit={pay(false)}>
             <label className="field"><span>{t("supplierLedger.paymentAmount")}</span><input dir="ltr" min="0.0001" required step="0.0001" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></label>
             <PaymentMethodField value={paymentMethod} onChange={setPaymentMethod} />
-            <button className="button" disabled={busy} type="submit">{t("supplierLedger.recordPayment")}</button>
+            <button className="button button-money" disabled={busy} type="submit">{t("supplierLedger.recordPayment")}</button>
             <button className="button secondary-button" disabled={busy || !paymentAmount} onClick={pay(true)} type="button">{t("supplierLedger.recordPrepayment")}</button>
           </form>
           {lastPayment ? (

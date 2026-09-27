@@ -1247,7 +1247,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
             <label className="field"><span>{t("invoiceEditor.receiptAmount")}</span><input dir="ltr" min="0.0001" required step="0.0001" type="number" value={receiptAmount} onChange={(event) => setReceiptAmount(event.target.value)} /></label>
             <PaymentMethodField value={receiptMethod} onChange={setReceiptMethod} />
             <label className="field"><span>{t("invoiceEditor.paymentReference")}</span><input value={receiptReference} onChange={(event) => setReceiptReference(event.target.value)} /></label>
-            <button className="button" disabled={busy || !customer} type="submit">{t("invoiceEditor.recordReceipt")}</button>
+            <button className="button button-money" disabled={busy || !customer} type="submit">{t("invoiceEditor.recordReceipt")}</button>
           </form>
           <form className="content-card refund-card" onSubmit={recordRefund}>
             <div className="settlement-card-heading"><div><span>03</span><h4>{t("invoiceEditor.issueRefund")}</h4></div></div>

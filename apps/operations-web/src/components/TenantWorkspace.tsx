@@ -39,7 +39,7 @@ import { BrandingPanel } from "./BrandingPanel";
 import { CampaignPanel } from "./CampaignPanel";
 import { CustomerLinkControls } from "./CustomerLinkControls";
 import { DeliveryPanel } from "./DeliveryPanel";
-import { Arrow, Icon } from "./Icon";
+import { Arrow, Icon, type IconName } from "./Icon";
 import { MyWorkPanel } from "./MyWorkPanel";
 import { OrdersPanel } from "./OrdersPanel";
 import { OwnerSetupChecklist } from "./OwnerSetupChecklist";
@@ -481,7 +481,7 @@ function CustomerBalanceActions({ tenantId, customerId }: { tenantId: string; cu
       ) : balances.error ? null : <p className="muted">{t("invoiceEditor.noLedgerBalance")}</p>}
       <div className="customer-actions">
         <Link className="button" to={sectionHref("invoices", tenantId, { customer: customerId })}><Icon name="invoice" small />{t("tenantWorkspace.newInvoice")}</Link>
-        <Link className="button button-secondary" to={sectionHref("invoices", tenantId, { customer: customerId, view: "payments", currency: owed?.currency ?? null })}><Icon name="coin" small />{t("tenantWorkspace.recordPayment")}</Link>
+        <Link className="button button-secondary button-money" to={sectionHref("invoices", tenantId, { customer: customerId, view: "payments", currency: owed?.currency ?? null })}><Icon name="coin" small />{t("tenantWorkspace.recordPayment")}</Link>
       </div>
     </section>
   );
@@ -1151,10 +1151,17 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     });
   };
 
+  const ownerActive = context.role === "owner" && context.tenant_status === "ACTIVE";
+  const stationLine = ownerActive ? groupOf(view).id : context.role === "driver" ? "deliveries" : "today";
+  const stationIcon: IconName = ownerActive ? groupOf(view).icon : "van";
   return (
     <section className="tenant-workspace" aria-label={t("tenantWorkspace.label")}>
       {/* The page heading of an active workspace: the selected business, its state and the member's
           role, with the picker beside it. Kept to one compact band so the day's work follows at once. */}
+      {/* Plan D "station sign": the business band in the colour of the part of the business on screen, with that part's
+          sign (decorative) and, for a group of several sections, its tabs as stops along the band's edge. */}
+      <div className="station-sign" data-line={stationLine}>
+      <span aria-hidden="true" className="station-tile"><Icon name={stationIcon} /></span>
       <header className="business-head">
         <div className="business">
           <span className="avatar business-avatar" aria-hidden="true">{context.tenant_name.trim().slice(0, 1).toUpperCase()}</span>
@@ -1171,6 +1178,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           </label>
         ) : null}
       </header>
+      {context.role === "owner" && context.tenant_status === "ACTIVE" ? <SectionTabs tenantId={context.tenant_id} tenantParam={addressTenant} view={view} /> : null}
+      </div>
       {/* A driver's own work needs no permission notice; it explains only an owner section requested in the address. */}
       {context.role !== "owner" && view !== "work" ? <p className="notice" role="note">{t("tenantWorkspace.ownerOnly")}</p> : null}
       {/* Keyed by business: the work screen's day meter, queued list and pickups never carry over to another membership. */}
@@ -1179,7 +1188,6 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
       {context.role === "owner" && context.tenant_status === "ACTIVE" ? (
         <>
           {/* Sections are chosen from the shell (desktop rail, phone bar and More), all carried by the address. */}
-          <SectionTabs tenantId={context.tenant_id} tenantParam={addressTenant} view={view} />
           {requestError ? <ErrorState error={requestError} /> : null}
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
           {view === "customers" ? (

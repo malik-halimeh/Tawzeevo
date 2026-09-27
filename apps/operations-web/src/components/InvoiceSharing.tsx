@@ -117,7 +117,7 @@ export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invo
   return <section className="invoice-sharing" aria-label={words.title}>
     <h4>{words.title}</h4><p>{words.description}</p>
     {links ? <>
-      <button className="button" disabled={busy} onClick={sendOnWhatsApp} type="button">{activeLink ? words.sendReplace : words.send}</button>
+      <button className="button button-send" disabled={busy} onClick={sendOnWhatsApp} type="button">{activeLink ? words.sendReplace : words.send}</button>
       {activeLink ? <p className="backend-note">{words.replaceNote}</p> : null}
       <button className="button secondary-button" disabled={busy} onClick={() => void run(async () => { await issue(); })} type="button">{words.create}</button>
       {links.length === 0 ? <p>{words.empty}</p> : null}
@@ -136,7 +136,7 @@ export function InvoiceSharing({ tenantId, invoiceId }: { tenantId: string; invo
       <button className="text-button" onClick={copyLink} type="button">{copied === "yes" ? words.copied : words.copyLink}</button>
       {copied === "failed" ? <p className="backend-note">{words.copyFailed}</p> : null}
       <a href={url} target="_blank" rel="noopener noreferrer">{words.preview}</a>
-      {whatsapp ? <a className="button" href={whatsapp} target="_blank" rel="noopener noreferrer">{words.whatsapp}</a> : <p>{words.noPhone}</p>}
+      {whatsapp ? <a className="button button-send" href={whatsapp} target="_blank" rel="noopener noreferrer">{words.whatsapp}</a> : <p>{words.noPhone}</p>}
     </div> : null}
     {error ? <ErrorState error={error} /> : null}
   </section>;

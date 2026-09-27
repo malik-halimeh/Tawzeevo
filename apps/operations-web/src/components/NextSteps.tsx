@@ -41,9 +41,9 @@ export function NextSteps({
         ) : null}
         <li>
           {onRecordPayment ? (
-            <button className="button button-secondary" onClick={onRecordPayment} type="button">{t("nextSteps.recordPayment")}</button>
+            <button className="button button-secondary button-money" onClick={onRecordPayment} type="button">{t("nextSteps.recordPayment")}</button>
           ) : (
-            <Link className="button button-secondary" to={paymentHref}>{t("nextSteps.recordPayment")}</Link>
+            <Link className="button button-secondary button-money" to={paymentHref}>{t("nextSteps.recordPayment")}</Link>
           )}
           <Link className="button button-secondary" to={sectionHref("deliveries", tenantId, { invoice: invoice.id })}>{t("nextSteps.createDelivery")}</Link>
         </li>
