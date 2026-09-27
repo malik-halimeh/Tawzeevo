@@ -39,6 +39,7 @@ import { DeliveryPanel } from "./DeliveryPanel";
 import { Arrow, Icon } from "./Icon";
 import { MyWorkPanel } from "./MyWorkPanel";
 import { OrdersPanel } from "./OrdersPanel";
+import { OwnerTodayStrip } from "./OwnerTodayStrip";
 import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
@@ -1202,7 +1203,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           ) : view === "branding" ? (
             <BrandingPanel tenantId={context.tenant_id} />
           ) : view === "work" ? (
-            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} ownerBrief={<TodayBrief tenantId={context.tenant_id} />} tenantId={context.tenant_id} />
+            <MyWorkPanel key={context.tenant_id} membershipId={context.membership_id} ownerBrief={<><OwnerTodayStrip tenantId={context.tenant_id} /><TodayBrief tenantId={context.tenant_id} /></>} tenantId={context.tenant_id} />
           ) : view === "deliveries" ? (
             <DeliveryPanel focusInvoiceId={searchParams.get("invoice")} key={searchParams.get("invoice") ?? "all"} tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
