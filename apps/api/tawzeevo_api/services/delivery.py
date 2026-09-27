@@ -63,6 +63,7 @@ from tawzeevo_api.schemas.delivery import (
     TaskListResponse,
     TaskResponse,
 )
+from tawzeevo_api.services.delivery_dates import follow_task_date
 from tawzeevo_api.services.invoice_editor import money
 from tawzeevo_api.services.procurement import _line_is_settled
 from tawzeevo_api.services.routing import (
@@ -279,6 +280,8 @@ def update_task(
     if touch_date and delivery_date != task.delivery_date:
         changed["delivery_date"] = delivery_date or ""
         task.delivery_date = delivery_date
+        # The order this delivery came from keeps the same date, in this transaction (D-104).
+        follow_task_date(db, tenant_id, actor, task, delivery_date)
     if notes is not None and notes != task.notes:
         changed["notes"] = notes
         task.notes = notes
