@@ -202,6 +202,28 @@ function AuthenticatedProductImage({ image }: { image: ProductImage }) {
   );
 }
 
+/** Plan D: the product's first photo fills the top of its crate in the list. Decorative (the name is beside it and the
+ * described image stays under Manage), so it is hidden from assistive technology and shows nothing until loaded. */
+function CratePhoto({ image }: { image: ProductImage }) {
+  const [source, setSource] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | undefined;
+    void apiBlobRequest(image.url)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSource(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [image.url]);
+  return source ? <span aria-hidden="true" className="crate-photo"><img alt="" src={source} /></span> : null;
+}
+
 function GradeDiscountEditor({ tenantId }: { tenantId: string }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -1282,6 +1304,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 {products.data?.products.length && !shownProducts.length ? <p className="muted">{t("tenantWorkspace.noProductMatch")}</p> : null}
                 {shownProducts.map((product) => (
                   <article className="product-card" key={product.id}>
+                    {product.images[0] ? <CratePhoto image={product.images[0]} /> : null}
                     <div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div>
                     <strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong>
                     <div className="category-actions">

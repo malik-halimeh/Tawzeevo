@@ -554,6 +554,11 @@ html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 
 .product-card:has(.status-closed)::before { background: repeating-linear-gradient(to bottom, #eef2f0 0 5px, #dfe6e3 5px 7px); }
 .product-card:has(.status-closed) > strong[dir="ltr"] { background: var(--muted); }
 .product-manage { border-top: 1.5px dashed var(--line); }
+/* The product's photo sits inside the crate, under its slats. */
+.product-card:has(.crate-photo) { padding-top: 0; }
+.product-card:has(.crate-photo)::before { z-index: 1; }
+.crate-photo { display: block; margin: 0 -16px 4px; height: 150px; overflow: hidden; border-radius: 14px 14px 0 0; background: var(--lc-tint); }
+.crate-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .barcode-chips code { background: var(--paper); border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); }
 .add-product { border-top: 5px solid var(--lc); }
 .product-image, .product-image-placeholder, .invoice-line-image { border-radius: 10px; }
