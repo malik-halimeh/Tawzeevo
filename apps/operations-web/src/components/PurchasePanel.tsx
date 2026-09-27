@@ -21,7 +21,12 @@ interface OpenLine { id: string; product_id: string; product_name: string; suppl
 interface ListSummary { id: string; status: string; title: string }
 interface DraftLine { product_id: string; quantity: string; unit_cost: string; procurement_item_id: string | null }
 
-export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId: string; membershipId?: string | undefined; suppliers: { id: string; name: string }[] }) {
+/**
+ * Opened from a shopping list (`initialSupplierId`, `initialListId`), the form starts with that
+ * supplier and list, so the list's remaining quantities fill in; costs are always typed by the owner.
+ * `formOnly` leaves out the totals and history (they stay on the Suppliers page).
+ */
+export function PurchasePanel({ tenantId, membershipId, suppliers, initialSupplierId = "", initialListId = "", formOnly = false, onRecorded }: { tenantId: string; membershipId?: string | undefined; suppliers: { id: string; name: string }[]; initialSupplierId?: string; initialListId?: string; formOnly?: boolean; onRecorded?: () => void }) {
   const { t } = useTranslation();
   const q = `?tenant_id=${tenantId}`;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -29,8 +34,8 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
   const [products, setProducts] = useState<TenantProduct[]>([]);
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [openLines, setOpenLines] = useState<OpenLine[]>([]);
-  const [supplierId, setSupplierId] = useState("");
-  const [listId, setListId] = useState("");
+  const [supplierId, setSupplierId] = useState(initialSupplierId);
+  const [listId, setListId] = useState(initialListId);
   const [reference, setReference] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([{ product_id: "", quantity: "", unit_cost: "", procurement_item_id: null }]);
   const [key, setKey] = useState(() => crypto.randomUUID());
@@ -81,6 +86,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
       .then((purchase) => {
         setNotice(purchase.replayed ? t("purchases.replayed") : t("purchases.recorded", { total: purchase.total_amount, currency: purchase.currency }));
         reset();
+        onRecorded?.();
         return refresh();
       })
       .catch(async (problem: unknown) => {
@@ -108,7 +114,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
 
-      {totals ? (
+      {totals && !formOnly ? (
         <dl className="supplier-balances totals" aria-label={t("purchases.totalsTitle")}>
           {totals.suppliers.map((row) => <div key={`s-${row.currency}`}><dt>{t("purchases.supplierPayable")} · {row.currency}</dt><dd dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</dd></div>)}
           {totals.customers.map((row) => <div key={`c-${row.currency}`}><dt>{t("purchases.customerOutstanding")} · {row.currency}</dt><dd dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</dd></div>)}
@@ -154,7 +160,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers }: { tenantId:
         </div>
       </form>
 
-      {purchases.length > 0 ? (
+      {purchases.length > 0 && !formOnly ? (
         <>
           <h5>{t("purchases.history")}</h5>
           <label className="field field-wide"><span>{t("invoiceEditor.reversalReason")}</span><input maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label>

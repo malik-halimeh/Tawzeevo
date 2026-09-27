@@ -5,6 +5,7 @@ import { apiBlobRequest, apiRequest } from "../api/client";
 import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from "../api/types";
 import { browserOffline } from "../offline/network";
 import { queueProcurementItemEdit } from "../offline/supplierCommands";
+import { PurchasePanel } from "./PurchasePanel";
 import { ErrorState } from "./Ui";
 import { useKeepFocus } from "./useKeepFocus";
 import { tenantCalendarDate } from "../utils/tenantCalendar";
@@ -44,6 +45,8 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
   const [manualQty, setManualQty] = useState("");
   const [reason, setReason] = useState("");
   const [groupBySupplier, setGroupBySupplier] = useState(true);
+  // The group whose purchase form is open under it (one at a time).
+  const [purchaseFor, setPurchaseFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
@@ -165,6 +168,16 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
             {groups.map(([group, lines]) => (
               <div className="procurement-group" key={group}>
                 {groupBySupplier ? <h5>{group}</h5> : null}
+                {editable && lines.some((line) => state(line) === "open") ? (() => {
+                  const supplierId = groupBySupplier ? lines.find((line) => line.supplier_id)?.supplier_id ?? "" : "";
+                  const supplierName = supplierId ? suppliers.find((supplier) => supplier.id === supplierId)?.name ?? group : "";
+                  return (
+                    <>
+                      <button aria-expanded={purchaseFor === group} className="button button-secondary" onClick={() => setPurchaseFor(purchaseFor === group ? null : group)} type="button">{supplierName ? t("procurement.purchaseFrom", { supplier: supplierName }) : t("procurement.purchaseNoSupplier")}</button>
+                      {purchaseFor === group ? <PurchasePanel formOnly initialListId={detail.id} initialSupplierId={supplierId} key={`${detail.id}:${group}`} membershipId={membershipId} onRecorded={() => { setPurchaseFor(null); open(detail.id); }} suppliers={suppliers} tenantId={tenantId} /> : null}
+                    </>
+                  );
+                })() : null}
                 {/* A real table: on a narrow screen it scrolls inside its own region instead of widening the page. */}
                 <div aria-label={group} className="table-region" role="region" tabIndex={0}>
                   <table className="order-lines procurement-lines">
