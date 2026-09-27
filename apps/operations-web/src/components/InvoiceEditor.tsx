@@ -29,6 +29,7 @@ import { Arrow } from "./Icon";
 import { ConfirmAction, ErrorState, PaymentMethodField, SuccessNotice } from "./Ui";
 import { readLastChoice, rememberChoice } from "./lastChoice";
 import { InvoiceSharing } from "./InvoiceSharing";
+import { CameraScanButton } from "./CameraScan";
 import { rebuildFromRevision } from "./invoiceRevisionLines";
 import { NextSteps } from "./NextSteps";
 import { sectionHref } from "./workspaceSections";
@@ -1118,7 +1119,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
             </div>
             <div className="entry-methods" ref={entryMethods}>
               <form className="entry-method" hidden={entryMethod !== "barcode"} id="entry-method-barcode" onSubmit={scanBarcode}>
-                <div className="inline-form"><input aria-label={t("tenantWorkspace.barcode")} dir="ltr" required value={barcode} onChange={(event) => setBarcode(event.target.value)} /><button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button></div>
+                <div className="inline-form"><input aria-label={t("tenantWorkspace.barcode")} dir="ltr" required value={barcode} onChange={(event) => setBarcode(event.target.value)} /><button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button><CameraScanButton onScan={setBarcode} /></div>
               </form>
               <form className="entry-method" hidden={entryMethod !== "catalog"} id="entry-method-catalog" onSubmit={searchCatalog}>
                 <div className="inline-form"><input aria-label={t("invoiceEditor.catalogSearch")} required value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} /><button className="button button-secondary" disabled={busy} type="submit">{t("common.search")}</button></div>

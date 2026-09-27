@@ -1256,3 +1256,7 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
 .application-actions { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 8px; }
 .pending-applications { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .pending-applications li { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+
+/* Scan with camera (D-113). */
+.camera-scan { display: inline-grid; gap: 6px; }
+.camera-preview { background: #000; border-radius: var(--radius-control); max-height: 240px; max-width: min(100%, 360px); }

@@ -23,6 +23,7 @@ import type {
   TenantProductListResponse,
 } from "../api/types";
 import { AllCustomers } from "./AllCustomers";
+import { CameraScanButton } from "./CameraScan";
 import { PickupInbox } from "./PickupReports";
 import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { CopilotPanel } from "./CopilotPanel";
@@ -1227,6 +1228,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                     <form className="inline-form" onSubmit={scanProduct}>
                       <label className="field"><span>{t("tenantWorkspace.barcode")}</span><input autoFocus dir="ltr" required value={scanBarcode} onChange={(event) => setScanBarcode(event.target.value)} /></label>
                       <button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button>
+                      <CameraScanButton onScan={setScanBarcode} />
                     </form>
                     {scanResult?.master_product ? <div className="scan-result"><span className="status-badge status-current">{t("tenantWorkspace.masterCatalog")}</span><strong>{scanResult.master_product.name}</strong><code dir="ltr">{scanResult.barcode}</code></div> : null}
                   </div>
@@ -1283,7 +1285,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                       <summary>{t("common.manage")}</summary>
                       <div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div>
                       <button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button>
-                      {barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}
+                      {barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><CameraScanButton autoSubmit={false} onScan={setExtraBarcode} /><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}
                       <ProductPricingMediaControls product={product} tenantId={context.tenant_id} />
                     </details>
                   </article>
