@@ -12,6 +12,7 @@ import { BrandMark, LanguageButton } from "../components/AppShell";
 import { Arrow, Icon, type IconName } from "../components/Icon";
 import { RouteMural } from "../components/Illustrations";
 import { ErrorState, FieldError } from "../components/Ui";
+import { keepPendingApplication } from "./pendingApplication";
 
 interface LoginValues {
   email: string;
@@ -20,6 +21,7 @@ interface LoginValues {
 
 interface RegistrationValues extends UserInput {
   password_confirmation: string;
+  business_name?: string | undefined;
 }
 
 /**
@@ -199,6 +201,7 @@ export function RegisterPage() {
       age: z.number().int().min(1, t("validation.age")).max(120, t("validation.age")),
       password: z.string().min(10, t("validation.passwordLength")).max(128),
       password_confirmation: z.string(),
+      business_name: z.string().trim().max(200).optional(),
     })
     .refine((values) => values.password === values.password_confirmation, {
       path: ["password_confirmation"],
@@ -235,8 +238,11 @@ export function RegisterPage() {
       setRequestError(error);
       return;
     }
-    // The account exists: sign in with what was just typed. If that does not work, the sign-in page
-    // opens as before with the "account created" message, so nothing is lost.
+    // The account exists. A business name typed here is sent as the application by the client home
+    // once the account is signed in (D-096); it is never part of the registration itself.
+    if (registration.business_name?.trim()) keepPendingApplication(registration.business_name.trim());
+    // Sign in with what was just typed. If that does not work, the sign-in page opens as before with
+    // the "account created" message, so nothing is lost.
     try {
       const signedIn = await login(values.email, values.password);
       void navigate(signedIn.type === "admin" ? "/admin" : "/workspace", { replace: true });
@@ -258,6 +264,8 @@ export function RegisterPage() {
         <span className="form-spacer" aria-hidden="true" />
         <PasswordField autoComplete="new-password" dir="ltr" error={errors.password?.message} field={register("password")} label={t("fields.password")} />
         <PasswordField autoComplete="new-password" dir="ltr" error={errors.password_confirmation?.message} field={register("password_confirmation")} label={t("fields.confirmPassword")} />
+        <EntryField autoComplete="organization" error={errors.business_name?.message} field={register("business_name")} label={t("register.businessNameOptional")} wide />
+        <p className="muted field-wide register-business-note">{t("register.businessNameNote")}</p>
         <button className="button button-arrow submit field-wide" disabled={isSubmitting} type="submit">
           {isSubmitting ? t("common.creatingAccount") : t("register.action")}<Arrow />
         </button>

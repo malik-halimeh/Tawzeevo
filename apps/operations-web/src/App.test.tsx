@@ -236,6 +236,37 @@ describe("public and authentication flows", () => {
     expect(screen.getByText(/Joining a team as a driver/)).toBeInTheDocument();
   });
 
+  test("a business name typed at registration is sent as the application once the account is signed in", async () => {
+    const applications: Record<string, unknown>[] = [];
+    let registration: Record<string, unknown> | undefined;
+    let signedIn = false;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(unauthenticated());
+      if (url.endsWith("/register")) { registration = JSON.parse(requestBody(init?.body)) as Record<string, unknown>; return Promise.resolve(json(clientUser, 201)); }
+      if (url.endsWith("/login")) { signedIn = true; return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 })); }
+      if (url.endsWith("/users/me") && signedIn) return Promise.resolve(json(clientUser));
+      if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [] }));
+      if (url.endsWith("/api/v1/tenant-applications") && init?.method === "POST") { applications.push(JSON.parse(requestBody(init.body)) as Record<string, unknown>); return Promise.resolve(json({ ...application, business_name: "Nour Foods" }, 201)); }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderApp("/register");
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Nour" } });
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Haddad" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "nour@example.com" } });
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170123456" } });
+    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Beirut" } });
+    fireEvent.change(screen.getByLabelText("Age"), { target: { value: "34" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a secure password" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "a secure password" } });
+    fireEvent.change(screen.getByLabelText("Business name (optional)"), { target: { value: "  Nour Foods " } });
+    fireEvent.click(screen.getByRole("button", { name: "Create client account" }));
+    expect(await screen.findByText("Application received for Nour Foods.")).toBeInTheDocument();
+    expect(applications).toEqual([{ business_name: "Nour Foods" }]);
+    expect(registration).not.toHaveProperty("business_name"); // never part of the registration itself
+    expect(sessionStorage.getItem("tawzeevo.pendingApplication")).toBeNull();
+  });
+
   test("registers only the public client fields and returns to sign in", async () => {
     let registrationBody: Record<string, unknown> | undefined;
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

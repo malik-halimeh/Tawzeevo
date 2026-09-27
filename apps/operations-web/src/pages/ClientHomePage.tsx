@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -11,6 +11,7 @@ import type { TenantApplication, TenantContextListResponse } from "../api/types"
 import { useAuth } from "../auth/AuthContext";
 import { ErrorState, FieldError, LoadingState, PageHeader, StatusBadge, SuccessNotice } from "../components/Ui";
 import { TenantWorkspace } from "../components/TenantWorkspace";
+import { takePendingApplication } from "./pendingApplication";
 
 export function ClientHomePage() {
   const { t } = useTranslation();
@@ -26,7 +27,7 @@ export function ClientHomePage() {
   });
   const tenants = tenantContexts.data?.tenants;
   const schema = z.object({ business_name: z.string().trim().min(1, t("validation.required")).max(200) });
-  const { formState: { errors, isSubmitting }, handleSubmit, register, reset } = useForm<{ business_name: string }>({ resolver: zodResolver(schema) });
+  const { formState: { errors, isSubmitting }, handleSubmit, register, reset, setValue } = useForm<{ business_name: string }>({ resolver: zodResolver(schema) });
 
   const onSubmit = async (values: { business_name: string }) => {
     setRequestError(undefined);
@@ -41,6 +42,20 @@ export function ClientHomePage() {
       setRequestError(error);
     }
   };
+
+  // A business name typed at registration is sent now, once, as this account's application (D-096);
+  // if it cannot be sent the form keeps the name and shows why.
+  const pendingHandled = useRef(false);
+  useEffect(() => {
+    if (pendingHandled.current || !tenants || tenants.length > 0 || application) return;
+    pendingHandled.current = true;
+    const pending = takePendingApplication();
+    if (!pending) return;
+    setValue("business_name", pending);
+    apiRequest<TenantApplication>("/api/v1/tenant-applications", { method: "POST", body: JSON.stringify({ business_name: pending }) })
+      .then((submitted) => { setApplication(submitted); reset(); })
+      .catch(setRequestError);
+  }, [tenants, application, reset, setValue]);
 
   // A member of a business opens straight onto that workspace: its compact business header is the
   // page heading and follows the selected business, so no generic greeting or role summary sits
