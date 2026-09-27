@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CONNECT_RESULT_KEY, PENDING_CONNECT_KEY, completeGoogleConnect } from "../backup/connect";
 import { ErrorState, PageHeader } from "../components/Ui";
+import { sectionHref } from "../components/workspaceSections";
 
 /** Google sends the owner back here; the code is exchanged once and never shown or stored. */
 export function BackupCallbackPage() {
@@ -27,7 +28,8 @@ export function BackupCallbackPage() {
           sessionStorage.removeItem(PENDING_CONNECT_KEY);
           sessionStorage.setItem(CONNECT_RESULT_KEY, JSON.stringify({ tenant_id: tenantId, email: connection.account_email }));
         } catch { /* the workspace simply opens without the notice */ }
-        void navigate("/workspace", { replace: true });
+        // Back to the Backup desk of the business that was being connected, not the first listed one.
+        void navigate(sectionHref("backup", tenantId), { replace: true });
       })
       .catch(setError);
   }, [navigate, params, t]);
