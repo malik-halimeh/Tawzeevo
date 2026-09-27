@@ -152,3 +152,26 @@ test("open deliveries get one stop order per assignee, with the stop number and 
   expect(await screen.findByText("Road route from OpenRouteService")).toBeInTheDocument();
   expect(bodies[0]).toEqual({ origin: null, task_ids: ["t2"] }); // only that driver's open deliveries
 });
+
+test("with drivers, the driver chosen last on this device starts selected in the create form (D-103)", async () => {
+  await i18n.changeLanguage("en");
+  localStorage.setItem("tawzeevo.last.driver.t1", "m2");
+  const driver = { membership_id: "m2", role: "driver", display_name: "Karim", is_self: false };
+  const bodies: Record<string, unknown>[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (typeof init?.body === "string") bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+    if (path.endsWith("/delivery-tasks") && init?.method === "POST") return Promise.resolve(Response.json({ ...baseTask, assignee: driver }, { status: 201 }));
+    if (path.endsWith("/delivery-tasks")) return Promise.resolve(Response.json({ tasks: [], eligible_members: [me, driver], sole_operator: false }));
+    if (path.endsWith("/memberships")) return Promise.resolve(Response.json({ members: [] }));
+    if (path.endsWith("/eligible-invoices")) return Promise.resolve(Response.json({ invoices: [{ invoice_id: "inv1", official_invoice_number: "2026-000001", customer_id: "c1", customer_name: "Corner Shop", currency: "USD", net_sales: "30.0000", confirmed_at: "2026-09-19T05:00:00Z", order_id: null, delivery_date: null }] }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+  render(<DeliveryPanel tenantId="t1" />);
+  await waitFor(() => expect(screen.getByLabelText("Deliver by")).toHaveValue("m2"));
+  fireEvent.change(screen.getByLabelText("Confirmed invoice"), { target: { value: "inv1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Create delivery" }));
+  expect(await screen.findByText("Delivery created.")).toBeInTheDocument();
+  expect(bodies[0]).toMatchObject({ assigned_membership_id: "m2" });
+  localStorage.clear();
+});

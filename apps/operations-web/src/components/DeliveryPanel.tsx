@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
+import { readLastChoice, rememberChoice } from "./lastChoice";
 import { RoutePlanner } from "./RoutePlanner";
 import { type MapRoute, StopMap } from "./StopMap";
 import { ErrorState } from "./Ui";
@@ -82,6 +83,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
     event.preventDefault();
     run(async () => {
       await apiRequest<Task>(`/api/v1/delivery-tasks${q}`, { method: "POST", body: JSON.stringify({ invoice_id: invoiceId, assigned_membership_id: assignee || null, delivery_date: date || null }) });
+      if (assignee) rememberChoice("driver", tenantId, assignee);
       setInvoiceId(""); setDate("");
       return t("delivery.created");
     });
@@ -117,6 +119,15 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
   const when = (value: string | null) => (value ? new Date(value).toLocaleString(i18n.language === "ar" ? "ar-LB" : "en-GB") : "—");
   const members = data?.eligible_members ?? [];
   const sole = data?.sole_operator ?? true;
+  // The driver chosen last on this device starts selected while that person can still be assigned
+  // (D-103); the owner can pick anyone else as before.
+  const lastDriverApplied = useRef(false);
+  useEffect(() => {
+    if (lastDriverApplied.current || !data) return;
+    lastDriverApplied.current = true;
+    const lastDriver = readLastChoice("driver", tenantId);
+    if (lastDriver && data.eligible_members.some((person) => person.membership_id === lastDriver)) setAssignee((current) => current || lastDriver);
+  }, [data, tenantId]);
   const label = (person: Assignee) => `${person.display_name} · ${t(`procurement.roles.${person.role}`)}${person.is_self ? ` (${t("procurement.me")})` : ""}`;
   // One stop order per assignee, over that person's open deliveries only, in the saved order
   // (stops never ordered keep the list order after the ordered ones, as on My route).

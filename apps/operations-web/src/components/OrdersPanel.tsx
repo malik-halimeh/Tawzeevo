@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
+import { readLastChoice, rememberChoice } from "./lastChoice";
 import { NextSteps } from "./NextSteps";
 import { PENDING_ORDERS_KEY } from "./pendingOrders";
 import { sectionHref } from "./workspaceSections";
@@ -102,9 +103,14 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
   useEffect(() => {
     if (!scheduling || crew) return;
     apiRequest<{ eligible_members: { membership_id: string; display_name: string; role: string; is_self: boolean }[]; sole_operator: boolean }>(`/api/v1/delivery-tasks${q}&status=ASSIGNED`)
-      .then((list) => setCrew({ sole: list.sole_operator, members: list.eligible_members }))
+      .then((list) => {
+        setCrew({ sole: list.sole_operator, members: list.eligible_members });
+        // The driver chosen last on this device starts selected while still assignable (D-103).
+        const lastDriver = readLastChoice("driver", tenantId);
+        if (lastDriver && list.eligible_members.some((person) => person.membership_id === lastDriver)) setAssignee((current) => current || lastDriver);
+      })
       .catch(() => setCrew({ sole: true, members: [] }));
-  }, [scheduling, crew, q]);
+  }, [scheduling, crew, q, tenantId]);
   const confirmAndSchedule = (event: FormEvent) => {
     event.preventDefault();
     run(async () => {
@@ -125,6 +131,7 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
       if (createTask) {
         try {
           await apiRequest(`/api/v1/delivery-tasks${q}`, { method: "POST", body: JSON.stringify({ invoice_id: invoiceId, assigned_membership_id: crew && !crew.sole ? assignee || null : null, delivery_date: scheduleDate || null }) });
+          if (crew && !crew.sole && assignee) rememberChoice("driver", tenantId, assignee);
         } catch (problem) {
           setError(problem);
           return t("orders.schedule.partial", { step: t("orders.schedule.stepTask") });

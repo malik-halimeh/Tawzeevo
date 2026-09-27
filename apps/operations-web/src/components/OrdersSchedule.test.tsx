@@ -69,3 +69,23 @@ test("without creating the delivery, only the confirmation is sent", async () =>
   expect(await screen.findByText("Order confirmed; the invoice is now official.")).toBeInTheDocument();
   expect(writes.map((write) => write.path)).toEqual(["/api/v1/tenants/t1/orders/o1/confirm"]);
 });
+
+test("the driver chosen last on this device starts selected, and a choice no longer offered is ignored (D-103)", async () => {
+  localStorage.setItem("tawzeevo.last.driver.t1", "m2");
+  let writes = stub({ sole: false });
+  let form = await screen.findByRole("form", { name: "Confirm and schedule" });
+  await waitFor(() => expect(within(form).getByLabelText("Deliver by")).toHaveValue("m2"));
+  fireEvent.click(within(form).getByRole("button", { name: "Confirm and schedule" }));
+  await waitFor(() => expect(writes.some((write) => write.path === "/api/v1/delivery-tasks")).toBe(true));
+  expect(writes.find((write) => write.path === "/api/v1/delivery-tasks")?.body).toMatchObject({ assigned_membership_id: "m2" });
+
+  cleanup();
+  localStorage.setItem("tawzeevo.last.driver.t1", "someone-gone");
+  writes = stub({ sole: false });
+  form = await screen.findByRole("form", { name: "Confirm and schedule" });
+  expect(await within(form).findByLabelText("Deliver by")).toHaveValue("");
+  fireEvent.change(within(form).getByLabelText("Deliver by"), { target: { value: "m1" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Confirm and schedule" }));
+  await waitFor(() => expect(localStorage.getItem("tawzeevo.last.driver.t1")).toBe("m1"));
+  localStorage.clear();
+});
