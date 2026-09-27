@@ -10,6 +10,7 @@ import type {
   Category,
   CategoryListResponse,
   Customer,
+  CustomerBalancesResponse,
   CustomerGrade,
   CustomerSearchResponse,
   GradeDiscount,
@@ -448,6 +449,32 @@ function ProductEditForm({ product, tenantId, categories, onClose }: { product: 
   );
 }
 
+/**
+ * The customer's balance per currency (never added together) with the two things usually done next:
+ * a new invoice or a payment, opened in Invoices with this customer already chosen.
+ */
+function CustomerBalanceActions({ tenantId, customerId }: { tenantId: string; customerId: string }) {
+  const { t } = useTranslation();
+  const balances = useQuery({
+    queryKey: ["customer-balances", tenantId, customerId],
+    queryFn: () => apiRequest<CustomerBalancesResponse>(`/api/v1/customer-ledger/customers/${customerId}/balances?tenant_id=${tenantId}`),
+  });
+  const rows = balances.data?.balances ?? [];
+  const owed = rows.find((row) => Number(row.balance) > 0);
+  return (
+    <section aria-label={t("tenantWorkspace.balanceLabel")} className="customer-balance">
+      <p className="eyebrow">{t("tenantWorkspace.balanceLabel")}</p>
+      {balances.isLoading ? <p className="muted">{t("common.loading")}</p> : rows.length ? (
+        <div className="balance-chips">{rows.map((row) => <span dir="ltr" key={row.currency}>{row.balance} {row.currency}</span>)}</div>
+      ) : balances.error ? null : <p className="muted">{t("invoiceEditor.noLedgerBalance")}</p>}
+      <div className="customer-actions">
+        <Link className="button" to={sectionHref("invoices", tenantId, { customer: customerId })}><Icon name="invoice" small />{t("tenantWorkspace.newInvoice")}</Link>
+        <Link className="button button-secondary" to={sectionHref("invoices", tenantId, { customer: customerId, view: "payments", currency: owed?.currency ?? null })}><Icon name="coin" small />{t("tenantWorkspace.recordPayment")}</Link>
+      </div>
+    </section>
+  );
+}
+
 /** One pane below the 1100px list/detail layout, as on the work screen: an open record replaces the list. */
 const ONE_PANE = "(max-width: 1099px)";
 const singlePane = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(ONE_PANE).matches;
@@ -500,6 +527,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   const [selectedId, setSelectedId] = useState(editingCustomerId);
   const [creating, setCreating] = useState(false);
   const [detailOpen, setDetailOpen] = useState(editingCustomerId !== undefined);
+  // The phone of the last finished search, offered for "Add customer with this phone" when nothing matched.
+  const [searchedPhone, setSearchedPhone] = useState("");
   const [, setFocusRequests] = useState(0);
   const root = useRef<HTMLElement>(null);
   const phoneInput = useRef<HTMLInputElement>(null);
@@ -601,6 +630,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   // The results change beneath the search, so the phone field keeps the focus (Search is busy meanwhile).
   const submitSearch = (event: FormEvent) => {
     phoneInput.current?.focus();
+    setSearchedPhone(phoneSearch.trim());
     searchCustomers(event);
   };
   const openCustomer = (customer: Customer) => {
@@ -617,9 +647,10 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     setDetailOpen(false);
     focusAfterRender({ to: "list", row: selected?.id, scrollY: listScroll.current });
   };
-  const addCustomer = () => {
+  const addCustomer = (phone?: string) => {
     rememberListScroll();
     discardForm(); // an edit left open never leaks into a new customer
+    if (phone) setCustomerDraft({ ...emptyCustomer, phone });
     setCreating(true);
     setDetailOpen(true);
     focusAfterRender({ to: "form" });
@@ -652,7 +683,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" ref={phoneInput} required value={phoneSearch} onChange={(event) => setPhoneSearch(event.target.value)} /></label>
             <button className="button button-secondary" disabled={busy} type="submit"><Icon name="search" small />{t("common.search")}</button>
           </form>
-          <button className="button customer-add" onClick={addCustomer} ref={addButton} type="button"><Icon name="plus" small />{t("tenantWorkspace.addCustomer")}</button>
+          <button className="button customer-add" onClick={() => addCustomer()} ref={addButton} type="button"><Icon name="plus" small />{t("tenantWorkspace.addCustomer")}</button>
+          {searchedPhone && !busy && matches.length === 0 ? <button className="button button-secondary" onClick={() => addCustomer(searchedPhone)} type="button"><Icon name="plus" small />{t("tenantWorkspace.addWithPhone", { phone: searchedPhone })}</button> : null}
         </article>
         {matches.length ? (
           <ul aria-label={t("tenantWorkspace.matchList")} className="stop-list customer-list">
@@ -707,7 +739,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             {linkCustomerId === selected.id ? <CustomerLinkControls customerId={selected.id} tenantId={tenantId} /> : null}
             {/* Why this customer is on today's list (D-089); balances and receipts themselves belong to Invoices. */}
             <CustomerSignals customerId={selected.id} tenantId={tenantId} />
-            <p className="muted customer-balances">{t("tenantWorkspace.balancesElsewhere")} <Link to={sectionHref("invoices", tenantId)}>{t("invoiceEditor.tab")} › {t("invoiceEditor.viewBalances")}</Link></p>
+            <CustomerBalanceActions customerId={selected.id} tenantId={tenantId} />
           </div>
         </article>
       ) : (
@@ -1187,7 +1219,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                 </div>
               ) : null}
               <div hidden={costSetup !== null}>
-                <InvoiceEditor costsRefreshKey={costsRefreshKey} initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={(productId) => { setCostSetup(productId ? { productId } : {}); window.scrollTo({ top: 0 }); }} />
+                <InvoiceEditor costsRefreshKey={costsRefreshKey} customerId={searchParams.get("customer")} initialCurrency={searchParams.get("currency")} initialView={searchParams.get("view")} invoiceId={searchParams.get("invoice")} key={`${searchParams.get("invoice") ?? "new"}:${searchParams.get("view") ?? ""}:${searchParams.get("customer") ?? ""}`} tenantId={context.tenant_id} membershipId={context.membership_id} onOpenSupplierSetup={(productId) => { setCostSetup(productId ? { productId } : {}); window.scrollTo({ top: 0 }); }} />
               </div>
             </>
           )}

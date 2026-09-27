@@ -98,11 +98,11 @@ export function selectedContext<T extends Pick<TenantContext, "tenant_id">>(cont
  * a customer (Customers, e.g. from a priority or an assistant answer).
  * These only select context; each panel still loads it from the API and ignores what it cannot find.
  */
-export interface SectionContext { order?: string | null; invoice?: string | null; view?: string | null; customer?: string | null }
-const CONTEXT_PARAMS = ["order", "invoice", "view", "customer"] as const;
+export interface SectionContext { order?: string | null; invoice?: string | null; view?: string | null; customer?: string | null; currency?: string | null }
+const CONTEXT_PARAMS = ["order", "invoice", "view", "customer", "currency"] as const;
 
 export function contextFromSearch(search: URLSearchParams): SectionContext {
-  return { order: search.get("order"), invoice: search.get("invoice"), view: search.get("view"), customer: search.get("customer") };
+  return { order: search.get("order"), invoice: search.get("invoice"), view: search.get("view"), customer: search.get("customer"), currency: search.get("currency") };
 }
 
 /** Query string for a business and section: Work is the bare section and the first business needs no parameter. */

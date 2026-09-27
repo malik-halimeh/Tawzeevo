@@ -411,6 +411,7 @@ describe("tenant customer and category workspace", () => {
       if (record && method === "PUT") return Promise.resolve(refuseUpdate ? json({ detail: { code: "VALIDATION_ERROR", message: "Phone number is not valid" } }, 422) : json({ ...record, ...body }));
       if (url.includes("/access-link?")) return Promise.resolve(json({ active: null, effective_policy: "LINK", policy_override: null, tenant_policy: "LINK", available_policies: ["LINK", "VERIFIED"], verified_sessions: 0 }));
       if (url.includes("/categories?")) return Promise.resolve(json({ categories: [] }));
+      if (url.includes("/customer-ledger/customers/") && url.includes("/balances")) return Promise.resolve(json({ customer_id: phoneMatches[1]!.id, customer_name: phoneMatches[1]!.name, balances: [{ currency: "USD", balance: "120.0000" }] }));
       throw new Error(`Unexpected request: ${method} ${url}`);
     }));
     return calls;
@@ -462,7 +463,7 @@ describe("tenant customer and category workspace", () => {
     await waitFor(() => expect(updateBody).toMatchObject({ address: "Achrafieh, Beirut", grade: "A" }));
   });
 
-  test("a chosen result shows the customer's identity, then Edit and Storefront link, and points to Invoices › Balances", async () => {
+  test("a chosen result shows the customer's identity, then Edit and Storefront link, then the balance with New invoice and Record payment", async () => {
     const southRoute = { ...ownerContext, membership_id: "56565656-5656-4656-8656-565656565656", tenant_id: "45454545-4545-4545-8545-454545454545", tenant_name: "South Route" };
     const calls = customerApi([ownerContext, southRoute]);
     renderApp(`/workspace?tenant=${southRoute.tenant_id}&section=customers`);
@@ -491,11 +492,16 @@ describe("tenant customer and category workspace", () => {
     expect(await within(record).findByRole("button", { name: "Create personalized link" })).toBeInTheDocument();
     expect(within(record).getByLabelText("Personalized storefront link")).toBeInTheDocument();
 
-    // Balances and receipts are not shown here: one line points to Invoices › Balances of this business.
-    const balances = within(record).getByRole("link", { name: "Invoices › Balances" });
-    expect(balances).toHaveAttribute("href", `/workspace?tenant=${southRoute.tenant_id}&section=invoices`);
-    expect(balances.closest("p")).toHaveTextContent("Balances and receipts for this customer are kept in Invoices › Balances");
-    expect(calls.map((call) => call.url).filter((url) => /ledger|payments|invoices/.test(url))).toEqual([]);
+    // The balance per currency sits on the record, with the two usual next steps for this customer.
+    const balance = within(record).getByRole("region", { name: "Balance" });
+    expect(await within(balance).findByText("120.0000 USD")).toBeInTheDocument();
+    const id = phoneMatches[1]!.id;
+    expect(within(balance).getByRole("link", { name: "New invoice" })).toHaveAttribute("href", `/workspace?tenant=${southRoute.tenant_id}&section=invoices&customer=${id}`);
+    expect(within(balance).getByRole("link", { name: "Record payment" })).toHaveAttribute("href", `/workspace?tenant=${southRoute.tenant_id}&section=invoices&view=payments&customer=${id}&currency=USD`);
+    const ledger = calls.map((call) => call.url).filter((url) => /ledger/.test(url));
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toContain(`/api/v1/customer-ledger/customers/${id}/balances?tenant_id=${southRoute.tenant_id}`);
+    expect(calls.map((call) => call.url).filter((url) => /payments|invoices/.test(url))).toEqual([]);
   });
 
   test("Edit opens the pre-filled form in the record and Save sends the same update as before", async () => {

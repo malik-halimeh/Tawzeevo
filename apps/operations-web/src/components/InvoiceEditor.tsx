@@ -157,12 +157,12 @@ function InvoiceLineImage({ url, name }: { url: string; name: string }) {
  * mounted (hidden), so the invoice in progress survives; each change of `costsRefreshKey` (the
  * owner came back) re-reads suppliers and the cost options of the lines that still had no cost.
  */
-export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, costsRefreshKey = 0, invoiceId = null, initialView = null }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: (productId?: string) => void; costsRefreshKey?: number; invoiceId?: string | null; initialView?: string | null }) {
+export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, costsRefreshKey = 0, invoiceId = null, initialView = null, customerId = null, initialCurrency = null }: { tenantId: string; membershipId: string; onOpenSupplierSetup?: (productId?: string) => void; costsRefreshKey?: number; invoiceId?: string | null; initialView?: string | null; customerId?: string | null; initialCurrency?: string | null }) {
   const { t } = useTranslation();
   const [customerPhone, setCustomerPhone] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customer, setCustomer] = useState<Customer>();
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(initialCurrency && /^[A-Z]{3}$/.test(initialCurrency) ? initialCurrency : "USD");
   const [barcode, setBarcode] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogMatches, setCatalogMatches] = useState<InvoiceCatalogMatch[]>([]);
@@ -328,6 +328,31 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     })();
     return () => { live = false; };
   }, [invoiceId, initialView, tenantId, loadHistory]);
+
+  // Opened for a customer (from their record or a balance row): that customer is chosen, and the
+  // payments view opens when asked. The server still checks the customer belongs to this business.
+  useEffect(() => {
+    if (!customerId || invoiceId) return;
+    let live = true;
+    apiRequest<Customer>(`/api/v1/tenants/${tenantId}/customers/${customerId}?tenant_id=${tenantId}`)
+      .then((found) => {
+        if (!live) return;
+        setCustomer(found);
+        if (initialView === "payments") setView("payments");
+      })
+      .catch(() => { /* not this business's customer: nothing is chosen */ });
+    return () => { live = false; };
+  }, [customerId, invoiceId, initialView, tenantId]);
+
+  // A debt row opens that customer's payments here (only when no invoice is in progress in this editor).
+  const payDebt = (debt: { customer_id: string; currency: string }) => {
+    void run(async () => {
+      const found = await apiRequest<Customer>(`/api/v1/tenants/${tenantId}/customers/${debt.customer_id}?tenant_id=${tenantId}`);
+      setCurrency(debt.currency);
+      setCustomer(found);
+      setView("payments");
+    });
+  };
 
   // Once the customer's open obligations are on screen, select this invoice's open amount once.
   useEffect(() => {
@@ -1163,7 +1188,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
         <header><div><p className="section-kicker">{t("invoiceEditor.debtKicker")}</p><h3 id="debt-desk-title">{t("invoiceEditor.debtTitle")}</h3></div><form className="threshold-form" onSubmit={saveOverdueThreshold}><label className="field"><span>{t("invoiceEditor.overdueThreshold")}</span><input dir="ltr" min="0" type="number" value={overdueThreshold} onChange={(event) => setOverdueThreshold(event.target.value)} /></label><button className="button button-secondary" disabled={busy} type="submit">{t("common.saveChanges")}</button></form></header>
         <div className="debt-desk-grid">
           <article className="content-card opening-balance-card"><h4>{t("invoiceEditor.openingBalance")}</h4><p>{t("invoiceEditor.openingBalanceBody")}</p>{customer ? <><strong>{customer.name}</strong><div className="balance-chips">{balances?.balances.length ? balances.balances.map((balance) => <span dir="ltr" key={balance.currency}>{money(balance.balance, balance.currency)}</span>) : <span>{t("invoiceEditor.noLedgerBalance")}</span>}</div></> : null}<form className="form-grid" onSubmit={recordOpeningBalance}><label className="field"><span>{t("invoiceEditor.signedOpeningAmount")}</span><input dir="ltr" required step="0.0001" type="number" value={openingAmount} onChange={(event) => setOpeningAmount(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={openingCurrency} onChange={(event) => setOpeningCurrency(event.target.value.toUpperCase())} /></label><label className="field field-wide"><span>{t("invoiceEditor.effectiveAt")}</span><input required type="datetime-local" value={openingEffectiveAt} onChange={(event) => setOpeningEffectiveAt(event.target.value)} /></label><button className="button field-wide" disabled={busy || !customer} type="submit">{t("invoiceEditor.recordOpeningBalance")}</button></form></article>
-          <article className="content-card debt-register"><h4>{t("invoiceEditor.customerDebt")}</h4>{debts.debts.length ? debts.debts.map((debt) => <div className={debt.is_overdue ? "debt-row is-overdue" : "debt-row"} key={`${debt.customer_id}-${debt.currency}`}><span className="debt-alert-mark" aria-hidden="true">{debt.is_overdue ? "!" : "·"}</span><div><strong>{debt.customer_name}</strong><bdi dir="ltr">{debt.customer_phone}</bdi></div><bdi className="debt-amount" dir="ltr">{money(debt.balance, debt.currency)}</bdi><span>{debt.is_overdue ? t("invoiceEditor.overdueBy", { days: debt.overdue_age_days }) : t("invoiceEditor.currentDebt")}</span></div>) : <p className="empty-copy">{t("invoiceEditor.noCustomerDebt")}</p>}</article>
+          <article className="content-card debt-register"><h4>{t("invoiceEditor.customerDebt")}</h4>{debts.debts.length ? debts.debts.map((debt) => <div className={debt.is_overdue ? "debt-row is-overdue" : "debt-row"} key={`${debt.customer_id}-${debt.currency}`}><span className="debt-alert-mark" aria-hidden="true">{debt.is_overdue ? "!" : "·"}</span><div><strong>{debt.customer_name}</strong><bdi dir="ltr">{debt.customer_phone}</bdi></div><bdi className="debt-amount" dir="ltr">{money(debt.balance, debt.currency)}</bdi><span>{debt.is_overdue ? t("invoiceEditor.overdueBy", { days: debt.overdue_age_days }) : t("invoiceEditor.currentDebt")}</span>{!saved && !lines.length ? <button className="text-button" disabled={busy} onClick={() => payDebt(debt)} type="button">{t("tenantWorkspace.recordPayment")}</button> : null}</div>) : <p className="empty-copy">{t("invoiceEditor.noCustomerDebt")}</p>}</article>
         </div>
       </section>
       </section>
