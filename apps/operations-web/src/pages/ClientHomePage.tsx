@@ -20,6 +20,9 @@ export function ClientHomePage() {
   const tenantContexts = useQuery({
     queryKey: ["tenant-contexts"],
     queryFn: () => apiRequest<TenantContextListResponse>("/api/v1/tenant-contexts"),
+    // After an application is sent from this page, look again now and then, so an approval opens
+    // the workspace without a manual reload. Nothing is polled before that.
+    refetchInterval: application ? 30_000 : false,
   });
   const tenants = tenantContexts.data?.tenants;
   const schema = z.object({ business_name: z.string().trim().min(1, t("validation.required")).max(200) });
@@ -54,17 +57,24 @@ export function ClientHomePage() {
           <p className="section-kicker">{t("clientHome.tenantApplication")}</p>
           <h2>{t("clientHome.applicationTitle")}</h2>
           <p>{t("clientHome.applicationBody")}</p>
+          {/* Once sent, the form gives way to the answer, so a second application is not invited. */}
           {application ? (
-            <SuccessNotice>
-              <span>{t("clientHome.applicationReceived", { name: application.business_name })}</span>
-              <StatusBadge value={application.status} />
-            </SuccessNotice>
-          ) : null}
-          {requestError ? <ErrorState error={requestError} /> : null}
-          <form className="inline-form" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
-            <label className="field"><span>{t("fields.businessName")}</span><input {...register("business_name")} /><FieldError message={errors.business_name?.message} /></label>
-            <button className="button" disabled={isSubmitting} type="submit">{isSubmitting ? t("common.sending") : t("clientHome.submitApplication")}</button>
-          </form>
+            <>
+              <SuccessNotice>
+                <span>{t("clientHome.applicationReceived", { name: application.business_name })}</span>
+                <StatusBadge value={application.status} />
+              </SuccessNotice>
+              <p className="muted">{t("clientHome.applicationNext")}</p>
+            </>
+          ) : (
+            <>
+              {requestError ? <ErrorState error={requestError} /> : null}
+              <form className="inline-form" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+                <label className="field"><span>{t("fields.businessName")}</span><input {...register("business_name")} /><FieldError message={errors.business_name?.message} /></label>
+                <button className="button" disabled={isSubmitting} type="submit">{isSubmitting ? t("common.sending") : t("clientHome.submitApplication")}</button>
+              </form>
+            </>
+          )}
         </article>
         <aside className="content-card next-stop-card">
           <p className="section-kicker">{t("clientHome.account")}</p>

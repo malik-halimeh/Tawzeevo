@@ -332,6 +332,26 @@ describe("public and authentication flows", () => {
     expect(await screen.findByRole("heading", { name: "Profile" })).toBeInTheDocument();
     expect(currentAddress).toBe("/profile?section=orders&order=abc#details");
   });
+
+  test("after sending a business application the form gives way to the answer", async () => {
+    const posts: string[] = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
+      if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
+      if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [] }));
+      if (url.endsWith("/api/v1/tenant-applications") && init?.method === "POST") { posts.push(requestBody(init.body)); return Promise.resolve(json(application, 201)); }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderApp("/workspace");
+    fireEvent.change(await screen.findByLabelText("Business name"), { target: { value: "Cedar Distribution" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(await screen.findByText("Application received for Cedar Distribution.")).toBeInTheDocument();
+    expect(screen.getByText(/switches to your workspace once it is approved/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Business name")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit application" })).not.toBeInTheDocument();
+    expect(posts).toHaveLength(1);
+  });
 });
 
 describe("tenant customer and category workspace", () => {
