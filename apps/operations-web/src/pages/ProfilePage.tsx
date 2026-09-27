@@ -9,6 +9,7 @@ import { apiRequest } from "../api/client";
 import type { User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { ErrorState, FieldError, PageHeader, SuccessNotice } from "../components/Ui";
+import { PhoneNotifications } from "./PhoneNotifications";
 
 interface ProfileValues {
   first_name: string;
@@ -99,6 +100,7 @@ export function ProfilePage() {
           <div className="form-actions field-wide"><button className="button" disabled={isSubmitting} type="submit">{isSubmitting ? t("common.saving") : t("common.saveChanges")}</button></div>
         </form>
       </section>
+      <PhoneNotifications />
     </div>
   );
 }

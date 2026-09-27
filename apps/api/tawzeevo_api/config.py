@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     email_from: str = "Tawzeevo <no-reply@example.com>"
     # Online routing (D-060): OpenRouteService first when its key is set, Google only when its
     # key is set, otherwise the offline stop-order heuristic. Core delivery never depends on it.
+    # Web push to installed phones (D-116): on only when all three are set; hosting secrets only.
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str | None = None
+    push_timeout_seconds: float = Field(default=5.0, gt=0, le=5)
     openrouteservice_api_key: str | None = None
     google_maps_api_key: str | None = None
     routing_timeout_seconds: float = Field(default=8.0, gt=0, le=60)
@@ -123,6 +128,10 @@ class Settings(BaseSettings):
                     "the dev adapter is refused in production"
                 )
         return self
+
+    @property
+    def push_enabled(self) -> bool:
+        return bool(self.vapid_public_key and self.vapid_private_key and self.vapid_subject)
 
 
 @lru_cache

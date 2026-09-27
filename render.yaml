@@ -75,6 +75,13 @@ services:
       # (503 COPILOT_NOT_CONFIGURED) until it exists. Deterministic intelligence needs nothing.
       - key: GROQ_API_KEY
         sync: false
+      # Phone notifications (D-116): off until all three are set in the dashboard.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
 
   - type: web
     name: tawzeevo-malik-halimeh

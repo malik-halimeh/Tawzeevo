@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
@@ -30,7 +30,7 @@ from tawzeevo_api.schemas.delivery import (
     TaskResponse,
     TaskUpdateRequest,
 )
-from tawzeevo_api.services import delivery
+from tawzeevo_api.services import delivery, push
 
 delivery_router = APIRouter(prefix="/api/v1/delivery-tasks", tags=["delivery"])
 routes_router = APIRouter(prefix="/api/v1/routes", tags=["delivery"])
@@ -65,9 +65,26 @@ def get_eligible_invoices(db: Db, context: Owner) -> EligibleInvoiceListResponse
 
 
 @delivery_router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
-def post_task(request: TaskCreateRequest, db: Db, context: Owner) -> TaskResponse:
+def post_task(
+    request: TaskCreateRequest, db: Db, context: Owner, background: BackgroundTasks
+) -> TaskResponse:
     task = delivery.create_task(db, context.tenant.id, context.membership.user_id, request)
+    _tell_assignee(background, context, task.assigned_membership_id)
     return delivery.task_response(db, context.tenant.id, task, context.membership.id)
+
+
+def _tell_assignee(
+    background: BackgroundTasks, context: TenantContext, membership_id: UUID
+) -> None:
+    """The driver's phone hears of a delivery given to them (D-116); not the owner's own."""
+    if membership_id != context.membership.id:
+        background.add_task(
+            push.notify_membership,
+            context.tenant.id,
+            membership_id,
+            *push.ASSIGNED,
+            push.workspace(context.tenant.id, "work"),
+        )
 
 
 @delivery_router.get("/{task_id}", response_model=TaskResponse)
@@ -77,8 +94,15 @@ def get_task(task_id: UUID, db: Db, context: Owner) -> TaskResponse:
 
 
 @delivery_router.put("/{task_id}/assignee", response_model=TaskResponse)
-def put_assignee(task_id: UUID, request: TaskAssignRequest, db: Db, context: Owner) -> TaskResponse:
+def put_assignee(
+    task_id: UUID,
+    request: TaskAssignRequest,
+    db: Db,
+    context: Owner,
+    background: BackgroundTasks,
+) -> TaskResponse:
     """Owner only (PHASE_07.md A rule 7): drivers never assign or reassign."""
+    before = delivery.get_task(db, context.tenant.id, task_id).assigned_membership_id
     task = delivery.assign_task(
         db,
         context.tenant.id,
@@ -87,6 +111,8 @@ def put_assignee(task_id: UUID, request: TaskAssignRequest, db: Db, context: Own
         request.assigned_membership_id,
         request.expected_version,
     )
+    if task.assigned_membership_id != before:
+        _tell_assignee(background, context, task.assigned_membership_id)
     return delivery.task_response(db, context.tenant.id, task, context.membership.id)
 
 
@@ -107,7 +133,11 @@ def patch_task(task_id: UUID, request: TaskUpdateRequest, db: Db, context: Owner
 
 @delivery_router.post("/{task_id}/complete", response_model=TaskResponse | MyWorkTask)
 def complete_task(
-    task_id: UUID, request: TaskCompleteRequest, db: Db, context: Member
+    task_id: UUID,
+    request: TaskCompleteRequest,
+    db: Db,
+    context: Member,
+    background: BackgroundTasks,
 ) -> TaskResponse | MyWorkTask:
     """Owner or the assigned member. A driver gets back the least-privilege projection only."""
     task = delivery.complete_task(
@@ -119,6 +149,13 @@ def complete_task(
         request.note,
         request.collection,
     )
+    if request.collection is not None and context.membership.role is not TenantRole.OWNER:
+        background.add_task(
+            push.notify_owners,
+            context.tenant.id,
+            *push.COLLECTION,
+            push.workspace(context.tenant.id, "work"),
+        )
     if context.membership.role is not TenantRole.OWNER:
         return delivery.my_work_task(db, context.tenant.id, task)
     return delivery.task_response(db, context.tenant.id, task, context.membership.id)

@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from tawzeevo_api.database import get_db
@@ -12,7 +12,7 @@ from tawzeevo_api.schemas.pickup_reports import (
     PickupReportRejectRequest,
     PickupReportResponse,
 )
-from tawzeevo_api.services import pickup_reports
+from tawzeevo_api.services import pickup_reports, push
 
 pickup_reports_router = APIRouter(prefix="/api/v1/procurement/pickup-reports", tags=["procurement"])
 
@@ -23,13 +23,24 @@ Db = Annotated[Session, Depends(get_db)]
 
 @pickup_reports_router.post("", response_model=PickupReportResponse)
 def post_report(
-    request: PickupReportCreateRequest, response: Response, db: Db, context: Member
+    request: PickupReportCreateRequest,
+    response: Response,
+    db: Db,
+    context: Member,
+    background: BackgroundTasks,
 ) -> PickupReportResponse:
     """The list's runner (or the owner) reports a pickup; nothing is purchased yet (D-106)."""
     report, replayed = pickup_reports.create_report(
         db, context.tenant.id, context.membership, request
     )
     response.status_code = status.HTTP_200_OK if replayed else status.HTTP_201_CREATED
+    if not replayed:
+        background.add_task(
+            push.notify_owners,
+            context.tenant.id,
+            *push.PICKUP,
+            push.workspace(context.tenant.id, "procurement"),
+        )
     return pickup_reports.report_response(db, context.tenant.id, report)
 
 

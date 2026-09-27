@@ -2357,6 +2357,34 @@ class ProcurementItem(Base):
         return max(Decimal("0"), remaining).quantize(Decimal("0.0001"))
 
 
+class PushSubscription(Base):
+    """One browser's web-push subscription for one person (D-116). It belongs to the person, not
+    to a business: rows are visible only to their own user (or to the sender, which binds
+    `app.push_delivery` for one transaction); `tenant_id` only records where it was turned on."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_id: Mapped[UUID | None] = mapped_column(ForeignKey("tenants.id", ondelete="SET NULL"))
+    endpoint: Mapped[str] = mapped_column(String(1000), nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(200), nullable=False)
+    auth: Mapped[str] = mapped_column(String(100), nullable=False)
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "endpoint", name="uq_push_subscriptions_user_endpoint"),
+    )
+
+
 class CollectionReport(Base):
     """What the driver says was collected at a delivery (D-114). Not a payment: the customer's
     balance changes only when the owner confirms it, through the existing receipt service."""
