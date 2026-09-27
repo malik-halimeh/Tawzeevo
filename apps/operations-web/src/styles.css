@@ -684,7 +684,7 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .more-options > summary, .product-manage > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
 .more-options[open] > summary, .product-manage[open] > summary { margin-bottom: 8px; }
 .more-options > summary::before, .product-manage > summary::before { content: "+"; display: inline-block; font-weight: 700; margin-inline-end: 8px; width: 1em; }
-.more-options[open] > summary::before, .product-manage[open] > summary::before { content: "2"; }
+.more-options[open] > summary::before, .product-manage[open] > summary::before { content: "\2212"; }
 .product-manage { border-top: 1px solid var(--line); padding-top: 4px; }
 .quick-category { align-self: end; }
 .quick-category-fields { background: var(--mist); border-radius: 10px; display: grid; gap: 8px; margin-top: 8px; padding: 10px; }
