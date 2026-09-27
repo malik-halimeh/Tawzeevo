@@ -197,6 +197,10 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
   .station-tile .icon { width: 24px; height: 24px; }
 }
 @media (max-width: 620px) {
+  .collection-claim { gap: 8px; }
+  .collection-claim > .checkbox-row { min-height: 72px; padding: 8px 4px; gap: 6px; font-size: 13px; }
+  .collection-claim > .checkbox-row > input[type="radio"] { width: 32px; height: 32px; }
+  .action-area .amount { font-size: 26px; }
   .station-sign { grid-template-columns: minmax(0, 1fr) auto; }
   .business h1 { font-size: 26px; }
   .section-tabs { gap: 4px 22px; }
