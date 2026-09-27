@@ -50,8 +50,15 @@ export function SupplierLedgerPanel({ tenantId, suppliers, version = 0, onChange
     setBalances(await apiRequest<SupplierBalances>(`/api/v1/supplier-ledger/${id}/balances?tenant_id=${tenantId}`));
   }, [tenantId]);
 
-  // `version` changes when a payment is reversed from the history below, so the balance here follows.
-  useEffect(() => { void run(() => loadBalances(supplierId)); }, [run, loadBalances, supplierId, version]);
+  useEffect(() => { void run(() => loadBalances(supplierId)); }, [run, loadBalances, supplierId]);
+  // `version` changes after any payment, reversal or opening (here or in the history below): the
+  // balance follows without clearing the notice that was just shown.
+  const shownVersion = useRef(version);
+  useEffect(() => {
+    if (version === shownVersion.current) return;
+    shownVersion.current = version;
+    loadBalances(supplierId).catch(setError);
+  }, [version, loadBalances, supplierId]);
 
   const recordOpening = (event: FormEvent) => {
     event.preventDefault();

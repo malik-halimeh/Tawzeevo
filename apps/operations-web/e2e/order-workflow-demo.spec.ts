@@ -141,7 +141,9 @@ test("personalized order → badge and notice → confirm → share → pay → 
   // ----- 8. The invoice is clickable from the delivery -----
   await page.getByRole("link", { name: `Open invoice ${invoice.official_invoice_number}` }).first().click();
   await expect(page.getByRole("heading", { name: invoice.official_invoice_number })).toBeVisible();
-  await expect(page.getByText(/Opened for viewing, sharing and payments/)).toBeVisible();
+  // Opened by link, a confirmed invoice can be revised or cancelled (D-101).
+  await expect(page.getByRole("button", { name: "Create revision" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel invoice" })).toBeVisible();
 
   await shop.close();
   await api.dispose();

@@ -80,12 +80,11 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await expect(page.getByText("Waiting to send").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Sync now" })).toBeDisabled();
 
-  // ----- Back online: one sync sends it once; the server creates the draft -----
+  // ----- Back online: the queued work is sent by itself, once (D-098); the server creates the draft -----
   await context.setOffline(false);
-  await expect(page.getByRole("button", { name: "Sync now" })).toBeEnabled();
-  await page.getByRole("button", { name: "Sync now" }).click();
-  await expect(page.getByText(/Synced: 2 changes sent/)).toBeVisible();
   await expect(page.getByText("Nothing waiting: every change has been sent and accepted.")).toBeVisible();
+  // A manual sync afterwards has nothing left to send.
+  await expect(page.getByRole("button", { name: "Sync now" })).toBeEnabled();
   await page.getByRole("button", { name: "Sync now" }).click();
   await expect(page.getByText(/Synced: 0 changes sent/)).toBeVisible();
 
