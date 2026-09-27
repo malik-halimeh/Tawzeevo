@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from migration_head import MIGRATION_HEAD
 from sqlalchemy import Engine, create_engine, inspect, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
@@ -188,9 +189,10 @@ def test_migrations_build_a_new_database_from_zero(test_engine: Engine) -> None:
             connection.exec_driver_sql(f'CREATE DATABASE "{database_name}"')
         command.upgrade(config, "head")
         with target_engine.connect() as connection:
-            assert connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("20260927_0034")
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == MIGRATION_HEAD
+            )
         assert {
             "users",
             "auth_sessions",

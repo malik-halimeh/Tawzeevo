@@ -11,6 +11,7 @@ from tawzeevo_api.dependencies import require_client, require_system_admin
 from tawzeevo_api.models import TenantApplicationStatus, TenantStatus, User
 from tawzeevo_api.schemas.platform import (
     AccessPeriodRequest,
+    AccessState,
     CloseTenantRequest,
     ReactivateTenantRequest,
     SuspendTenantRequest,
@@ -112,6 +113,7 @@ def platform_list_tenants(
     limit: Annotated[int, Query(ge=1, le=100)] = 10,
     search: str | None = None,
     tenant_status: Annotated[TenantStatus | None, Query(alias="status")] = None,
+    access_status: AccessState | None = None,
 ) -> TenantListResponse:
     tenants, total, total_pages = list_tenants(
         db,
@@ -119,6 +121,7 @@ def platform_list_tenants(
         limit=limit,
         name_search=search,
         tenant_status=tenant_status,
+        access_status=access_status,
     )
     return TenantListResponse(
         page=page,

@@ -4,7 +4,7 @@ import math
 from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, func, not_, or_, select, text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -239,8 +239,24 @@ def list_tenants(
     limit: int,
     name_search: str | None,
     tenant_status: TenantStatus | None,
+    access_status: AccessState | None = None,
+    today: date | None = None,
 ) -> tuple[list[Tenant], int, int]:
     conditions: list[ColumnElement[bool]] = []
+    # The same rule as `_access_state`, in SQL, so paging and totals are right (D-109).
+    current_date = today or date.today()
+    in_period = or_(Tenant.access_until.is_(None), Tenant.access_until >= current_date)
+    in_grace = and_(
+        Tenant.access_until < current_date,
+        Tenant.grace_until.is_not(None),
+        Tenant.grace_until >= current_date,
+    )
+    if access_status is AccessState.CURRENT:
+        conditions.append(in_period)
+    elif access_status is AccessState.GRACE:
+        conditions.append(in_grace)
+    elif access_status is AccessState.OVERDUE:
+        conditions.append(and_(not_(in_period), not_(in_grace)))
     if name_search is not None and name_search.strip():
         conditions.append(Tenant.name.ilike(f"%{name_search.strip()}%"))
     if tenant_status is not None:

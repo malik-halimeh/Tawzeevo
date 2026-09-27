@@ -19,16 +19,22 @@ export function TenantsPage() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | TenantStatus>((searchParams.get("status") as TenantStatus | null) ?? "");
+  // Access filter (D-109), also opened from the dashboard's overdue link.
+  const [accessFilter, setAccessFilter] = useState<"" | "current" | "grace" | "overdue">(() => {
+    const requested = searchParams.get("access_status");
+    return requested === "current" || requested === "grace" || requested === "overdue" ? requested : "";
+  });
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Tenant>();
   const [notice, setNotice] = useState<string>();
   const [draft, setDraft] = useState<AccessDraft>({ access_until: "", grace_until: "", reason: "SUBSCRIPTION_OVERDUE" });
   const query = useQuery({
-    queryKey: ["tenants", search, status, page],
+    queryKey: ["tenants", search, status, accessFilter, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: "10" });
       if (search) params.set("search", search);
       if (status) params.set("status", status);
+      if (accessFilter) params.set("access_status", accessFilter);
       return apiRequest<TenantListResponse>(`/api/v1/platform/tenants?${params}`);
     },
     placeholderData: keepPreviousData,
@@ -125,6 +131,7 @@ export function TenantsPage() {
       <form className="toolbar" onSubmit={(event) => { event.preventDefault(); setPage(1); void query.refetch(); }}>
         <label className="field toolbar-search"><span>{t("common.search")}</span><input placeholder={t("tenants.searchPlaceholder")} value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <label className="field compact-field"><span>{t("fields.status")}</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setPage(1); }}><option value="">{t("common.all")}</option><option value="ACTIVE">{t("status.ACTIVE")}</option><option value="SUSPENDED">{t("status.SUSPENDED")}</option><option value="CLOSED">{t("status.CLOSED")}</option></select></label>
+        <label className="field compact-field"><span>{t("tenants.accessFilter")}</span><select value={accessFilter} onChange={(event) => { setAccessFilter(event.target.value as typeof accessFilter); setPage(1); }}><option value="">{t("common.all")}</option><option value="current">{t("status.current")}</option><option value="grace">{t("status.grace")}</option><option value="overdue">{t("status.overdue")}</option></select></label>
         <button className="button button-secondary" type="submit">{t("common.search")}</button>
       </form>
       {selected ? (

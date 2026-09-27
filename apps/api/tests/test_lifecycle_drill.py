@@ -12,6 +12,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from alembic.config import Config
+from migration_head import MIGRATION_HEAD
 from sqlalchemy import create_engine, inspect, text
 from test_delivery_tasks import _driver, _post
 from test_invoice_editor import _attach_latest_cost, _auth, _catalog, _login, _owner_context
@@ -171,7 +172,7 @@ def test_production_like_upgrade_from_the_phase7_head(test_engine) -> None:
         with target_engine.connect() as connection:
             assert (
                 connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                == "20260921_0031"
+                == MIGRATION_HEAD
             )
             tables_after = set(inspect(connection).get_table_names())
         # Phase 8/9 only added structures; nothing from Phase 7 was dropped or renamed.

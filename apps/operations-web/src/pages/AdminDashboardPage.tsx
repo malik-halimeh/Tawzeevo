@@ -43,7 +43,7 @@ export function AdminDashboardPage() {
           <section className="content-card route-brief">
             <div className={`route-brief-marker${overview.data.overdue ? " attention" : ""}`}><span>{overview.data.overdue}</span><small>{t("admin.overdue")}</small></div>
             <div><p className="section-kicker">{t("admin.accessDesk")}</p><h2>{t("admin.accessTitle")}</h2><p>{overview.data.overdue ? t("admin.accessAttention", { count: overview.data.overdue }) : t("admin.accessClear")}</p></div>
-            <Link className="button button-secondary" to="/admin/tenants">{t("admin.openTenantDesk")}</Link>
+            <Link className="button button-secondary" to={overview.data.overdue ? "/admin/tenants?access_status=overdue" : "/admin/tenants"}>{t("admin.openTenantDesk")}</Link>
           </section>
         </>
       ) : null}
