@@ -387,6 +387,8 @@ describe("public and authentication flows", () => {
     expect(screen.queryByLabelText("Business name")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit application" })).not.toBeInTheDocument();
     expect(posts).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Apply for another business" })); // a second business needs no reload
+    expect(screen.getByLabelText("Business name")).toHaveValue("");
   });
 });
 
@@ -1046,7 +1048,7 @@ describe("phone navigation follows the member's role", () => {
     const more = within(primaryNav()).getByRole("button", { name: "More" });
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
-    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Deliveries", "Catalog", "Buying", "Insights", "Settings", "Profile"]);
+    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Deliveries", "Catalog", "Buying", "Insights", "Settings", "Profile", "Public statistics"]);
     expect(within(moreSheet()).getByRole("link", { name: "Deliveries" })).toHaveAttribute("href", "/workspace?section=deliveries"); // management stays one step away
     expect(within(moreSheet()).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -1077,7 +1079,7 @@ describe("phone navigation follows the member's role", () => {
     expect(railLink("Settings")).toHaveAttribute("href", "/workspace?section=branding");
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument(); // no section strip between the member and the work
     expect(screen.queryByRole("navigation", { name: "Section tabs" })).not.toBeInTheDocument(); // Today is a single page
-    expect(within(screen.getByRole("group", { name: "Account" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile"]); // public statistics stay on the public pages
+    expect(within(screen.getByRole("group", { name: "Account" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile", "Public statistics"]);
 
     // The page heading is the selected business with its state and role; no generic greeting precedes the route.
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("North Route");
@@ -1104,7 +1106,7 @@ describe("phone navigation follows the member's role", () => {
     expect(screen.queryByText(/does not have owner permission/)).not.toBeInTheDocument(); // a valid driver membership is not a permission problem
 
     fireEvent.click(within(primaryNav()).getByRole("button", { name: "More" }));
-    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile"]);
+    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile", "Public statistics"]);
     expect(moreSheet().textContent).not.toMatch(/customers|invoices|deliveries|analytics|branding|backup|cost|margin|profit/i);
     fireEvent.click(within(moreSheet()).getByRole("button", { name: "Close menu" }));
 
@@ -1131,11 +1133,11 @@ describe("phone navigation follows the member's role", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("North Route");
     expect(railLinks()).toEqual(["Overview"]);
     expect(railLink("Overview")).toHaveAttribute("href", "/workspace");
-    expect(within(screen.getByRole("group", { name: "Account" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile"]);
+    expect(within(screen.getByRole("group", { name: "Account" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile", "Public statistics"]);
     expect(primaryLinks()).toEqual(["Overview", "Profile"]);
     fireEvent.click(within(primaryNav()).getByRole("button", { name: "More" }));
     expect(within(moreSheet()).queryByRole("group", { name: "Workspace sections" })).not.toBeInTheDocument();
-    expect(within(moreSheet()).queryAllByRole("link")).toHaveLength(0);
+    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Public statistics"]);
     expect(document.querySelectorAll("a[href*='section=']")).toHaveLength(0);
   });
 
@@ -1168,7 +1170,7 @@ describe("phone navigation follows the member's role", () => {
     expect(businessRole()).toBe("Driver"); // the page heading follows the selected business, not the member's other role
     expect(screen.queryByText(/does not have owner permission/)).not.toBeInTheDocument();
     fireEvent.click(within(primaryNav()).getByRole("button", { name: "More" }));
-    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile"]);
+    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile", "Public statistics"]);
     expect(moreSheet().textContent).not.toMatch(/customers|invoices|deliveries|analytics|branding|backup/i);
     fireEvent.keyDown(document, { key: "Escape" });
 

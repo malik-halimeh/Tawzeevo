@@ -66,6 +66,7 @@ export function ClientHomePage() {
                 <StatusBadge value={application.status} />
               </SuccessNotice>
               <p className="muted">{t("clientHome.applicationNext")}</p>
+              <button className="text-button" onClick={() => setApplication(undefined)} type="button">{t("clientHome.applyAnother")}</button>
             </>
           ) : (
             <>

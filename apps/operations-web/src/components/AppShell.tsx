@@ -247,6 +247,7 @@ export function AppShell() {
             <span><strong>{user?.first_name} {user?.last_name}</strong><small>{roleLabel}</small></span>
           </div>
           {navItem(["/profile", "nav.profile", "person"], "nav-item nav-item-minor")}
+          {navItem(["/stats", "nav.statistics", "chart"], "nav-item nav-item-minor")}
           <LanguageButton className="text-btn" />
           <button className="text-btn" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}</button>
         </div>
@@ -294,6 +295,7 @@ export function AppShell() {
           <div className="more-group" role="group" aria-label={t("shell.account")}>
             <p className="eyebrow">{t("shell.account")}</p>
             {isAdmin || ownerNav || driverNav ? <NavLink className="more-item" to="/profile"><Icon name="person" />{t("nav.profile")}</NavLink> : null}
+            <NavLink className="more-item" to="/stats"><Icon name="chart" />{t("nav.statistics")}</NavLink>
             <LanguageButton className="more-item" />
             <button className="more-item" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}</button>
           </div>
