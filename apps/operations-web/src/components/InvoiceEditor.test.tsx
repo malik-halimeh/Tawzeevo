@@ -939,3 +939,36 @@ test("Payments without a customer explains why and switches to the customer step
   expect(within(screen.getByRole("group", { name: "Invoice views" })).getByRole("button", { name: "Invoice" })).toHaveAttribute("aria-pressed", "true");
   await waitFor(() => expect(screen.getByLabelText("Phone")).toHaveFocus());
 });
+
+test("a draft changed after saving cannot be confirmed until it is saved again", async () => {
+  const requests: Array<{ url: string; method: string; body?: string | undefined }> = [];
+  vi.stubGlobal("fetch", sectionFetch((url, method, body) => {
+    requests.push({ url, method, body });
+    if (url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST") return json(invoiceAnswer(), 201);
+    if (url.includes(`/invoices/${invoiceId}?`) && method === "PUT") return json(invoiceAnswer({ current_revision_id: "rev-2", server_revision_number: 2 }));
+    if (url.includes("/confirm") && method === "POST") return json(confirmedR1());
+    if (url.includes("/history")) return json({ revisions: [] });
+    return undefined;
+  }));
+  renderEditor();
+  await chooseCustomer();
+  addManualLine("Water crate", "5");
+  fireEvent.click(screen.getByRole("button", { name: "Calculate and save draft" }));
+  const confirm = await screen.findByRole("button", { name: "Confirm and assign invoice number" });
+  expect(confirm).toBeEnabled();
+  expect(screen.queryByText(/Save it first, then confirm/)).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Quantity / calculator"), { target: { value: "3" } });
+  expect(screen.getByRole("button", { name: "Confirm and assign invoice number" })).toBeDisabled();
+  expect(screen.getByText("You changed this invoice after saving. Save it first, then confirm.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Confirm and assign invoice number" }));
+  expect(requests.some((request) => request.url.includes("/confirm"))).toBe(false);
+
+  fireEvent.click(screen.getByRole("button", { name: "Save a new draft revision" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Confirm and assign invoice number" })).toBeEnabled());
+  expect(screen.queryByText(/Save it first, then confirm/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Confirm and assign invoice number" }));
+  await screen.findByRole("article", { name: "2026-000007" });
+  const confirmCall = requests.find((request) => request.url.includes("/confirm"));
+  expect(JSON.parse(confirmCall?.body ?? "{}")).toEqual({ expected_revision_id: "rev-2" });
+});

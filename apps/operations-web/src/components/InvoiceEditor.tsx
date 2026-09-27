@@ -170,6 +170,10 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
   const [invoiceDiscount, setInvoiceDiscount] = useState("0");
   const [invoiceMarkup, setInvoiceMarkup] = useState("0");
   const [saved, setSaved] = useState<InvoiceEditorResponse>();
+  // What the last successful online save sent (see draftSignature). A draft whose lines changed
+  // since then cannot be confirmed until it is saved again: confirmation always applies to the
+  // saved revision, so an unsaved edit would otherwise be silently left out.
+  const [savedSignature, setSavedSignature] = useState<string>();
   const [history, setHistory] = useState<InvoiceHistoryResponse>();
   const [balances, setBalances] = useState<CustomerBalancesResponse>();
   const [debts, setDebts] = useState<CustomerDebtListResponse>({ debts: [] });
@@ -487,6 +491,16 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
     setNotice(t("invoiceEditor.manualAdded"));
   };
 
+  // Everything the save request carries for this invoice, except the per-request command ids.
+  const draftSignature = () => JSON.stringify({
+    customer: customer?.id ?? null,
+    currency,
+    invoiceDiscount,
+    invoiceMarkup,
+    lines: lines.map((line) => [line.productId ?? null, line.manualName ?? null, line.barcode ?? null, line.quantity, line.basis, line.piecesPerBox ?? null, line.manualUnitPrice ?? null, line.lineDiscount, line.lineMarkup, line.supplierId ?? null, line.costOverride, line.costOverrideReason, line.acceptedMatch ?? null]),
+  });
+  const unsavedChanges = saved?.status === "DRAFT" && savedSignature !== undefined && draftSignature() !== savedSignature;
+
   const saveDraft = () => {
     if (!customer) {
       setError(new Error(t("invoiceEditor.chooseCustomerFirst")));
@@ -496,6 +510,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
       setError(new Error(t("invoiceEditor.addItemFirst")));
       return;
     }
+    const signature = draftSignature();
     void run(async () => {
       if (!saved && !createCommandRef.current) createCommandRef.current = crypto.randomUUID();
       const payload = {
@@ -570,6 +585,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
         return;
       }
       setSaved(result);
+      setSavedSignature(signature);
       createCommandRef.current = undefined;
       await loadHistory(result.id);
       await Promise.all([
@@ -590,7 +606,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
   };
 
   const confirmSaved = () => {
-    if (!saved) return;
+    if (!saved || unsavedChanges) return;
     void run(async () => {
       let confirmed: InvoiceEditorResponse;
       try {
@@ -1052,7 +1068,8 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, inv
           <div className="tally-adjustments"><label className="field"><span>{t("invoiceEditor.invoiceDiscount")}</span><input dir="ltr" value={invoiceDiscount} onChange={(event) => setInvoiceDiscount(event.target.value)} /></label><label className="field"><span>{t("invoiceEditor.invoiceMarkup")}</span><input dir="ltr" value={invoiceMarkup} onChange={(event) => setInvoiceMarkup(event.target.value)} /></label></div>
           {saved?.items.map((item) => <div className="saved-line-proof" key={item.id}>{item.media_snapshot.images?.[0]?.url ? <InvoiceLineImage name={item.product_name} url={item.media_snapshot.images[0].url} /> : null}<strong>{item.product_name}</strong><span>{item.price_source === "EXPLICIT_GRADE_PRICE" ? t("invoiceEditor.explicitGradePrice") : item.price_source === "GRADE_DISCOUNT" ? t("invoiceEditor.gradeDiscount", { value: item.grade_discount_percent }) : t("invoiceEditor.normalPrice")}</span><bdi dir="ltr">{money(item.line_total, saved.currency)}</bdi>{item.unit_cost ? <small>{t("invoiceEditor.costSnapshot", { value: item.unit_cost, currency: item.cost_currency })}</small> : null}</div>)}
           {saved?.status !== "CANCELLED" ? <button className="button tally-save" disabled={busy || !customer || !lines.length} onClick={saveDraft} type="button">{busy ? t("common.saving") : t(saved?.status === "CONFIRMED" ? "invoiceEditor.saveConfirmedRevision" : saved ? "invoiceEditor.recalculate" : "invoiceEditor.saveDraft")}</button> : null}
-          {saved?.status === "DRAFT" ? <button className="button button-confirm" disabled={busy} onClick={confirmSaved} type="button">{t("invoiceEditor.confirmInvoice")}</button> : null}
+          {saved?.status === "DRAFT" ? <button className="button button-confirm" disabled={busy || unsavedChanges} onClick={confirmSaved} type="button">{t("invoiceEditor.confirmInvoice")}</button> : null}
+          {unsavedChanges ? <p className="notice" role="note">{t("invoiceEditor.saveBeforeConfirm")}</p> : null}
           {saved && saved.status !== "CANCELLED" ? <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><button className="button button-danger" disabled={busy} onClick={cancelSaved} type="button">{t("invoiceEditor.cancelInvoice")}</button></div> : null}
           <p className="backend-note">{t("invoiceEditor.backendNote")}</p>
         </aside>
