@@ -19,11 +19,15 @@ from tawzeevo_api.models import (
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope
 from tawzeevo_api.schemas.payments import PaymentReversalRequest
 from tawzeevo_api.schemas.supplier_ledger import (
+    SupplierBalanceListResponse,
+    SupplierBalanceRow,
     SupplierBalancesResponse,
     SupplierCurrencyBalance,
     SupplierLedgerEntryResponse,
     SupplierOpeningCorrectionRequest,
     SupplierOpeningRequest,
+    SupplierPaymentHistoryResponse,
+    SupplierPaymentHistoryRow,
     SupplierPaymentRequest,
     SupplierPaymentResponse,
 )
@@ -483,3 +487,115 @@ def reverse_supplier_payment(
     )
     _write_payment_effect(db, reversal, actor, original)
     return _payment_response(db, reversal)
+
+
+def all_supplier_balances(db: Session, tenant_id: UUID) -> SupplierBalanceListResponse:
+    """One aggregate over the business's supplier ledger (D-100): each supplier with its balance per
+    currency, including suppliers with no entries yet. Currencies are never added together."""
+    suppliers = db.execute(
+        select(TenantSupplier.id, TenantSupplier.name)
+        .where(TenantSupplier.tenant_id == tenant_id)
+        .order_by(func.lower(TenantSupplier.name), TenantSupplier.id)
+    ).all()
+    sums = db.execute(
+        select(
+            SupplierLedgerEntry.supplier_id,
+            SupplierLedgerEntry.currency,
+            func.sum(SupplierLedgerEntry.signed_amount),
+        )
+        .where(SupplierLedgerEntry.tenant_id == tenant_id)
+        .group_by(SupplierLedgerEntry.supplier_id, SupplierLedgerEntry.currency)
+        .order_by(SupplierLedgerEntry.currency)
+    ).all()
+    by_supplier: dict[UUID, list[SupplierCurrencyBalance]] = {}
+    for supplier_id, currency, balance in sums:
+        by_supplier.setdefault(supplier_id, []).append(
+            SupplierCurrencyBalance(currency=currency, balance=Decimal(balance))
+        )
+    return SupplierBalanceListResponse(
+        suppliers=[
+            SupplierBalanceRow(
+                supplier_id=sid, supplier_name=name, balances=by_supplier.get(sid, [])
+            )
+            for sid, name in suppliers
+        ]
+    )
+
+
+def supplier_payment_history(
+    db: Session, tenant_id: UUID, supplier_id: UUID | None, page: int, limit: int
+) -> SupplierPaymentHistoryResponse:
+    """Supplier payments of the business, newest first, optionally for one supplier (D-100). Each
+    row says whether it is a prepayment and whether it was reversed, so any payment can be reversed
+    through the existing reversal (its rules are unchanged)."""
+    if supplier_id is not None:
+        exists = db.scalar(
+            select(TenantSupplier.id).where(
+                TenantSupplier.tenant_id == tenant_id, TenantSupplier.id == supplier_id
+            )
+        )
+        if exists is None:
+            raise AppError(404, "SUPPLIER_NOT_FOUND", "Supplier was not found")
+    conditions = [Payment.tenant_id == tenant_id, Payment.supplier_id.is_not(None)]
+    if supplier_id is not None:
+        conditions.append(Payment.supplier_id == supplier_id)
+    total = int(db.scalar(select(func.count()).select_from(Payment).where(*conditions)) or 0)
+    rows = db.execute(
+        select(Payment, TenantSupplier.name)
+        .join(
+            TenantSupplier,
+            (TenantSupplier.id == Payment.supplier_id)
+            & (TenantSupplier.tenant_id == Payment.tenant_id),
+        )
+        .where(*conditions)
+        .order_by(Payment.paid_at.desc(), Payment.id.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+    ).all()
+    ids = [payment.id for payment, _name in rows]
+    reversed_by: dict[UUID, UUID] = {}
+    prepayments: set[str] = set()
+    if ids:
+        for original, reversal in db.execute(
+            select(Payment.reverses_payment_id, Payment.id).where(
+                Payment.tenant_id == tenant_id, Payment.reverses_payment_id.in_(ids)
+            )
+        ).all():
+            if original is not None:
+                reversed_by[original] = reversal
+        prepayments = set(
+            db.scalars(
+                select(SupplierLedgerEntry.source_effect_key).where(
+                    SupplierLedgerEntry.tenant_id == tenant_id,
+                    SupplierLedgerEntry.entry_type == SupplierLedgerEntryType.SUPPLIER_PREPAYMENT,
+                    SupplierLedgerEntry.source_effect_key.in_(
+                        [f"supplier-payment:{payment_id}" for payment_id in ids]
+                    ),
+                )
+            )
+        )
+    return SupplierPaymentHistoryResponse(
+        page=page,
+        limit=limit,
+        total=total,
+        total_pages=(total + limit - 1) // limit if total else 0,
+        payments=[
+            SupplierPaymentHistoryRow(
+                id=payment.id,
+                supplier_id=payment.supplier_id,
+                supplier_name=name,
+                direction=payment.direction,
+                currency=payment.currency,
+                amount=payment.amount,
+                paid_at=payment.paid_at,
+                recorded_at=payment.recorded_at,
+                method=payment.method,
+                reference=payment.reference,
+                notes=payment.notes,
+                prepayment=f"supplier-payment:{payment.id}" in prepayments,
+                reverses_payment_id=payment.reverses_payment_id,
+                reversed_by_payment_id=reversed_by.get(payment.id),
+            )
+            for payment, name in rows
+        ],
+    )

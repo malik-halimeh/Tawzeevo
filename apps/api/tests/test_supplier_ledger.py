@@ -256,3 +256,101 @@ def test_supplier_ledger_forced_rls_hides_other_tenant_and_rejects_insert(
         with test_engine.begin() as connection:
             connection.exec_driver_sql(f'DROP OWNED BY "{role}"')
             connection.exec_driver_sql(f'DROP ROLE "{role}"')
+
+
+def _pay(client, tenant, token, supplier, amount, currency="USD", prepayment=False):
+    kind = "supplier-prepayments" if prepayment else "supplier-payments"
+    response = client.post(
+        f"/api/v1/payments/{kind}?tenant_id={tenant}",
+        headers=_auth(token),
+        json={
+            "idempotency_key": str(uuid4()),
+            "supplier_id": supplier,
+            "currency": currency,
+            "amount": amount,
+            "paid_at": datetime.now(UTC).isoformat(),
+            "method": "CASH",
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_all_supplier_balances_and_the_payment_history_d100(client, session_factory):
+    _, tenant, token, supplier = _supplier_context(client, session_factory)
+    headers = _auth(token)
+    with session_factory() as db:
+        quiet = TenantSupplier(tenant_id=tenant, name="Another supplier")
+        db.add(quiet)
+        db.commit()
+        quiet_id = str(quiet.id)
+    _payable(client, tenant, token, supplier, "USD", "30.0000")
+    _payable(client, tenant, token, supplier, "LBP", "900000.0000")
+    first = _pay(client, tenant, token, supplier, "5.0000")
+    _pay(client, tenant, token, supplier, "7.0000")
+    credit = _pay(client, tenant, token, supplier, "2.0000", prepayment=True)
+    reversal = client.post(
+        f"/api/v1/payments/supplier-payments/{first['id']}/reverse?tenant_id={tenant}",
+        headers=headers,
+        json={"idempotency_key": str(uuid4()), "reason": "Entered twice"},
+    )
+    assert reversal.status_code == 201, reversal.text
+
+    # Balances: every supplier (also one without entries), per currency, never summed across them.
+    listed = client.get(f"/api/v1/supplier-ledger/balances?tenant_id={tenant}", headers=headers)
+    assert listed.status_code == 200, listed.text
+    rows = {row["supplier_id"]: row for row in listed.json()["suppliers"]}
+    assert {b["currency"]: b["balance"] for b in rows[supplier]["balances"]} == {
+        "USD": "21.0000",  # 30 - 5 - 7 - 2 (credit) + 5 (the reversal gives the 5 back)
+        "LBP": "900000.0000",
+    }
+    assert rows[quiet_id]["balances"] == []
+    assert [row["supplier_name"] for row in listed.json()["suppliers"]] == [
+        "Another supplier",
+        "Independent tenant supplier",
+    ]
+
+    # History: newest first, paginated, with the reversal and prepayment flags.
+    page = client.get(
+        f"/api/v1/payments/supplier-payments?tenant_id={tenant}&supplier_id={supplier}&limit=2",
+        headers=headers,
+    )
+    assert page.status_code == 200, page.text
+    body = page.json()
+    assert (body["total"], body["total_pages"], len(body["payments"])) == (4, 2, 2)
+    everything = client.get(
+        f"/api/v1/payments/supplier-payments?tenant_id={tenant}&limit=100", headers=headers
+    ).json()["payments"]
+    by_id = {row["id"]: row for row in everything}
+    assert by_id[first["id"]]["reversed_by_payment_id"] == reversal.json()["id"]
+    assert by_id[reversal.json()["id"]]["reverses_payment_id"] == first["id"]
+    assert by_id[credit["id"]]["prepayment"] is True
+    assert by_id[first["id"]]["prepayment"] is False
+    assert all(row["supplier_name"] == "Independent tenant supplier" for row in everything)
+
+    missing = client.get(
+        f"/api/v1/payments/supplier-payments?tenant_id={tenant}&supplier_id={uuid4()}",
+        headers=headers,
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "SUPPLIER_NOT_FOUND"
+
+
+def test_supplier_lists_never_show_another_business(client, session_factory):
+    _, tenant, token, supplier = _supplier_context(client, session_factory)
+    _payable(client, tenant, token, supplier, "USD", "10.0000")
+    _pay(client, tenant, token, supplier, "1.0000")
+    _, other_tenant, other_token = _owner_context(client, session_factory, "supplier-ledger-2")
+    theirs = client.get(
+        f"/api/v1/supplier-ledger/balances?tenant_id={other_tenant}", headers=_auth(other_token)
+    ).json()
+    assert theirs["suppliers"] == []
+    history = client.get(
+        f"/api/v1/payments/supplier-payments?tenant_id={other_tenant}", headers=_auth(other_token)
+    ).json()
+    assert history["total"] == 0
+    foreign = client.get(
+        f"/api/v1/payments/supplier-payments?tenant_id={other_tenant}&supplier_id={supplier}",
+        headers=_auth(other_token),
+    )
+    assert foreign.status_code == 404

@@ -1413,6 +1413,14 @@ class Payment(Base):
         ),
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_payments_idempotency"),
         UniqueConstraint("tenant_id", "reverses_payment_id", name="uq_payments_single_reversal"),
+        # Supplier payment history per business and supplier, newest first (D-100).
+        Index(
+            "ix_payments_tenant_supplier_paid_at",
+            "tenant_id",
+            "supplier_id",
+            "paid_at",
+            postgresql_where=text("supplier_id IS NOT NULL"),
+        ),
         CheckConstraint("amount > 0", name="ck_payments_amount_positive"),
         CheckConstraint(
             "((direction IN ('CUSTOMER_RECEIPT', 'CUSTOMER_RECEIPT_REVERSAL', "

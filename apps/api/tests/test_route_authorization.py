@@ -107,6 +107,8 @@ EXPECTED: dict[str, str] = {
     "POST /api/v1/payments/customer-refunds": "TENANT_OWNER",
     "GET /api/v1/payments/customers/{customer_id}/obligations": "TENANT_OWNER",
     "POST /api/v1/payments/supplier-payments": "TENANT_OWNER",
+    "GET /api/v1/payments/supplier-payments": "TENANT_OWNER",
+    "GET /api/v1/supplier-ledger/balances": "TENANT_OWNER",
     "POST /api/v1/payments/supplier-payments/{payment_id}/reverse": "TENANT_OWNER",
     "POST /api/v1/payments/supplier-prepayments": "TENANT_OWNER",
     "POST /api/v1/payments/{payment_id}/reverse": "TENANT_OWNER",

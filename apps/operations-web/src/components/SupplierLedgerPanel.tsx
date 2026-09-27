@@ -24,7 +24,7 @@ interface SupplierPayment {
  * Owner supplier ledger desk: opening payable, ordinary payments (capped at the payable, D-039),
  * explicit prepayments (labelled credit) and compensating reversals. Aggregate per currency only.
  */
-export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string; suppliers: Supplier[] }) {
+export function SupplierLedgerPanel({ tenantId, suppliers, version = 0, onChanged }: { tenantId: string; suppliers: Supplier[]; version?: number; onChanged?: () => void }) {
   const { t } = useTranslation();
   const [supplierId, setSupplierId] = useState("");
   const [balances, setBalances] = useState<SupplierBalances>();
@@ -50,7 +50,8 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
     setBalances(await apiRequest<SupplierBalances>(`/api/v1/supplier-ledger/${id}/balances?tenant_id=${tenantId}`));
   }, [tenantId]);
 
-  useEffect(() => { void run(() => loadBalances(supplierId)); }, [run, loadBalances, supplierId]);
+  // `version` changes when a payment is reversed from the history below, so the balance here follows.
+  useEffect(() => { void run(() => loadBalances(supplierId)); }, [run, loadBalances, supplierId, version]);
 
   const recordOpening = (event: FormEvent) => {
     event.preventDefault();
@@ -60,7 +61,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
         body: JSON.stringify({ idempotency_key: crypto.randomUUID(), supplier_id: supplierId, currency, signed_amount: openingAmount, effective_at: new Date().toISOString() }),
       });
       setOpeningAmount("");
-      await loadBalances(supplierId);
+      if (onChanged) onChanged(); else await loadBalances(supplierId);
       setNotice(t("supplierLedger.openingSaved"));
     });
   };
@@ -74,7 +75,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
       });
       setLastPayment(payment);
       setPaymentAmount("");
-      await loadBalances(supplierId);
+      if (onChanged) onChanged(); else await loadBalances(supplierId);
       setNotice(t(prepayment ? "supplierLedger.prepaymentSaved" : "supplierLedger.paymentSaved"));
     });
   };
@@ -87,7 +88,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers }: { tenantId: string;
         body: JSON.stringify({ idempotency_key: crypto.randomUUID(), reason: reversalReason }),
       });
       setLastPayment(undefined); setReversalReason("");
-      await loadBalances(supplierId);
+      if (onChanged) onChanged(); else await loadBalances(supplierId);
       setNotice(t("supplierLedger.reversed"));
     });
   };

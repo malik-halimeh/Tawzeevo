@@ -669,6 +669,10 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .supplier-profile .button { grid-column: 1 / -1; justify-self: start; }
 .supplier-row { align-items: center; display: flex; gap: 12px; justify-content: space-between; width: 100%; }
 .supplier-row > div { font-size: 14px; }
+.balance-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-inline-start: 8px; }
+.balance-chip { background: var(--mist); border-radius: 999px; color: var(--ink); font-size: 12px; padding: 1px 8px; }
+.supplier-history-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.supplier-history-list .status-badge { margin-inline-start: 6px; }
 .cost-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cost-form .button { grid-column: 1 / -1; justify-self: start; }
 .cost-history { margin: 12px 0; }
