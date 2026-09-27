@@ -147,7 +147,8 @@ const emptyProduct: ProductDraft = {
   currency: "USD",
   price_basis: "PIECE",
   pieces_per_box: "",
-  is_published: false,
+  // New products start published (owner decision 2026-09-27); untick under More options to keep one hidden.
+  is_published: true,
 };
 
 /** A new product starts in the category and currency used last on this device. */

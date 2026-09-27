@@ -772,7 +772,8 @@ describe("tenant customer and category workspace", () => {
     fireEvent.change(within(productForm).getByLabelText("Category"), { target: { value: category.id } });
     fireEvent.change(within(productForm).getByLabelText("Tenant price"), { target: { value: "1.25" } });
     fireEvent.click(within(productForm).getByText("More options"));
-    fireEvent.click(within(productForm).getByLabelText("Publish this product in customer-facing catalog views"));
+    // New products start published (owner decision 2026-09-27); nothing to tick.
+    expect(within(productForm).getByLabelText("Publish this product in customer-facing catalog views")).toBeChecked();
     fireEvent.click(within(productForm).getByRole("button", { name: "Save tenant product" }));
 
     await waitFor(() => expect(createBody).toMatchObject({ master_product_id: masterId, barcode: "012345", category_id: category.id, unit_price: "1.25", is_published: true }));
