@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { apiRequest, clearSession, loginRequest, refreshAccessToken } from "../api/client";
+import { clearAllConversations } from "../components/copilotSession";
 import type { User } from "../api/types";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const endLocalSession = useCallback(() => {
     clearSession();
+    clearAllConversations();
     setUser(null);
     setStatus("unauthenticated");
   }, []);

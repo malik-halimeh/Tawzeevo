@@ -1,10 +1,11 @@
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { askCopilot, type CopilotResponse, type CopilotTurn, useCopilotStatus } from "../api/intelligence";
 import { AnswerDetails, AnswerText } from "./AiAnswer";
+import { readConversation, writeConversation } from "./copilotSession";
 import { Icon } from "./Icon";
 import { ErrorState, LoadingState } from "./Ui";
 import { sectionHref } from "./workspaceSections";
@@ -51,7 +52,11 @@ function SetupRequired({ tenantId }: { tenantId: string }) {
 export function CopilotPanel({ tenantId }: { tenantId: string }) {
   const { t } = useTranslation();
   const status = useCopilotStatus(tenantId);
-  const [turns, setTurns] = useState<Turn[]>([]);
+  // The answered turns of this tab's conversation come back when the owner returns to the section.
+  const [turns, setTurns] = useState<Turn[]>(() => readConversation(tenantId));
+  useEffect(() => {
+    writeConversation(tenantId, turns.filter((turn): turn is Turn & { response: CopilotResponse } => turn.response !== undefined).map(({ question, response }) => ({ question, response })));
+  }, [tenantId, turns]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [unconfigured, setUnconfigured] = useState(false);
