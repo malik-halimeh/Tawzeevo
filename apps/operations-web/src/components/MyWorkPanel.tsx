@@ -5,6 +5,7 @@ import { useInRouterContext, useLocation } from "react-router-dom";
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
 import { browserOffline } from "../offline/network";
+import { listOutbox } from "../offline/outbox";
 import { syncNow } from "../offline/pull";
 import { bootstrapLocalProjection, localSyncStatus } from "../offline/sync";
 import { queueDeliveryCompletion } from "../offline/supplierCommands";
@@ -112,6 +113,21 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
     }
   }, [tenantId, membershipId, ensureDevice]);
   useEffect(() => { load().catch(setError); }, [load]);
+  // Completions queued on this device before a reload are still waiting in its outbox: list them
+  // again, so each stop shows as queued and "Sync now" can send them (nothing else changes).
+  useEffect(() => {
+    let live = true;
+    listOutbox(tenantId, membershipId)
+      .then((rows) => {
+        if (!live) return;
+        const waiting = rows
+          .filter((row) => row.entity_type === "delivery_task" && row.operation_type === "complete" && (row.state === "pending" || row.state === "sending" || row.state === "retryable_failed"))
+          .map((row) => row.entity_id);
+        if (waiting.length) setQueued((current) => [...current, ...waiting.filter((id) => !current.includes(id))]);
+      })
+      .catch(() => { /* no device storage: nothing was queued here */ });
+    return () => { live = false; };
+  }, [tenantId, membershipId]);
 
   const complete = (task: WorkTask) => {
     setBusy(true); setError(undefined); setNotice(undefined); setRevokedReason(undefined);

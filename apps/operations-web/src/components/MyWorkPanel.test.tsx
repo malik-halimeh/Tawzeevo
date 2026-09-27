@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import i18n from "../i18n";
 import { type SyncOutcome, syncNow } from "../offline/pull";
+import { listOutbox } from "../offline/outbox";
 import { queueDeliveryCompletion } from "../offline/supplierCommands";
 import { MyWorkPanel } from "./MyWorkPanel";
 
@@ -11,6 +12,7 @@ import { MyWorkPanel } from "./MyWorkPanel";
 vi.mock("../offline/pull", () => ({ syncNow: vi.fn() }));
 vi.mock("../offline/supplierCommands", () => ({ queueDeliveryCompletion: vi.fn(() => Promise.resolve()) }));
 vi.mock("../offline/sync", () => ({ localSyncStatus: vi.fn(() => Promise.resolve({ bootstrapped_at: "2026-09-23T08:00:00Z" })), bootstrapLocalProjection: vi.fn(() => Promise.resolve()) }));
+vi.mock("../offline/outbox", () => ({ listOutbox: vi.fn(() => Promise.resolve([])) }));
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.mocked(syncNow).mockReset(); vi.mocked(queueDeliveryCompletion).mockClear(); });
 
@@ -191,4 +193,22 @@ test("on one pane, a stop's failed or queued completion is shown inside the open
   expect(within(list).getByText(/No connection: the completion is saved/)).toHaveAttribute("role", "status");
   fireEvent.click(screen.getByRole("button", { name: /02.*Corner Shop/ }));
   expect(screen.queryByText(/No connection: the completion is saved/)).not.toBeInTheDocument();
+});
+
+test("completions queued on this device before a reload are listed again and can be sent", async () => {
+  await i18n.changeLanguage("en");
+  vi.mocked(listOutbox).mockResolvedValueOnce([
+    { entity_type: "delivery_task", entity_id: "t1", operation_type: "complete", state: "pending" },
+    { entity_type: "delivery_task", entity_id: "t9", operation_type: "complete", state: "acknowledged" },
+    { entity_type: "customer", entity_id: "c1", operation_type: "create", state: "pending" },
+  ] as unknown as Awaited<ReturnType<typeof listOutbox>>);
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: [task], membership_id: "m2", role: "driver" }));
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  expect((await screen.findAllByText("1 completion waiting to send")).length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
 });
