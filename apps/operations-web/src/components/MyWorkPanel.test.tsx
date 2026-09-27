@@ -280,3 +280,39 @@ test("Directions reads the position once and shows the road route, distance, tim
   fireEvent.click(within(panel).getByRole("button", { name: "Hide directions" }));
   expect(screen.queryByRole("region", { name: "Directions to Corner Shop" })).not.toBeInTheDocument();
 });
+
+test("the driver says what was collected; partly needs the amount; offline it rides the queued completion (D-114)", async () => {
+  await i18n.changeLanguage("en");
+  const bodies: Record<string, unknown>[] = [];
+  let done = false;
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (typeof init?.body === "string") bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: done ? [] : [task], membership_id: "m2", role: "driver" }));
+    if (path.endsWith("/t1/complete")) { done = true; return Promise.resolve(Response.json({ ...task, status: "COMPLETED", version: 2 })); }
+    return Promise.resolve(Response.json({ detail: { code: "NOT_FOUND", message: path } }, { status: 404 }));
+  }));
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  const question = await screen.findByRole("group", { name: "Payment at this delivery" });
+  fireEvent.click(within(question).getByLabelText("Paid partly"));
+  expect(screen.getByRole("button", { name: "Mark delivered" })).toBeDisabled(); // the amount is required
+  fireEvent.change(within(question).getByLabelText("Amount paid (USD)"), { target: { value: "12.5" } });
+  fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" }));
+  expect(await screen.findByText("Marked delivered.")).toBeInTheDocument();
+  expect(bodies[0]).toEqual({ expected_version: 1, note: null, collection: { kind: "PARTIAL", amount: "12.5" } });
+  cleanup();
+
+  // Offline: "Paid in full" is queued with the completion, once.
+  browserOnline(false);
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const path = (input instanceof Request ? input.url : input.toString()).split("?")[0]!;
+    if (path.endsWith("/my-work")) return Promise.resolve(Response.json({ tasks: [task], membership_id: "m2", role: "driver" }));
+    return Promise.reject(new TypeError("Failed to fetch"));
+  }));
+  render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
+  fireEvent.click(within(await screen.findByRole("group", { name: "Payment at this delivery" })).getByLabelText("Paid in full"));
+  fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" }));
+  await waitFor(() => expect(queueDeliveryCompletion).toHaveBeenCalledWith("t1", "m2", "t1", 1, null, { kind: "FULL" }));
+});

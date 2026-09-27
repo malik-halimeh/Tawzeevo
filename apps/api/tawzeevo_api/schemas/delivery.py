@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from tawzeevo_api.models import ProductPriceBasis
+from tawzeevo_api.schemas.collection_reports import CollectionClaim
 
 
 class TaskCreateRequest(BaseModel):
@@ -35,6 +36,8 @@ class TaskCompleteRequest(BaseModel):
 
     expected_version: int = Field(ge=1)
     note: str | None = Field(default=None, max_length=500)
+    # What was collected, as the driver says (D-114); not a payment until the owner confirms.
+    collection: CollectionClaim | None = None
 
 
 class TaskCancelRequest(BaseModel):

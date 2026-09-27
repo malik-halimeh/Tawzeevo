@@ -40,6 +40,7 @@ from tawzeevo_api.models import (
     User,
 )
 from tawzeevo_api.repositories.tenancy import commit_and_restore_tenant_scope, set_tenant_scope
+from tawzeevo_api.schemas.collection_reports import CollectionClaim
 from tawzeevo_api.schemas.delivery import (
     AssigneeView,
     DirectionsRequest,
@@ -63,6 +64,7 @@ from tawzeevo_api.schemas.delivery import (
     TaskListResponse,
     TaskResponse,
 )
+from tawzeevo_api.services.collection_reports import create_report_row
 from tawzeevo_api.services.delivery_dates import follow_task_date
 from tawzeevo_api.services.invoice_editor import money
 from tawzeevo_api.services.procurement import _line_is_settled
@@ -299,10 +301,11 @@ def complete_task(
     task_id: UUID,
     expected_version: int,
     note: str | None,
+    collection: CollectionClaim | None = None,
 ) -> DeliveryTask:
     """Owner or the assigned member; the performer is recorded (PHASE_07.md A rule 8)."""
     task = get_task(db, tenant_id, task_id, for_update=True)
-    complete_task_row(db, tenant_id, membership, task, expected_version, note)
+    complete_task_row(db, tenant_id, membership, task, expected_version, note, collection)
     commit_and_restore_tenant_scope(db, tenant_id)
     return get_task(db, tenant_id, task_id)
 
@@ -572,8 +575,11 @@ def complete_task_row(
     task: DeliveryTask,
     expected_version: int | None,
     note: str | None,
+    collection: CollectionClaim | None = None,
+    collection_key: UUID | None = None,
 ) -> DeliveryTask:
-    """Completion without commit (shared by the API and the sync push applier)."""
+    """Completion without commit (shared by the API and the sync push applier). A collection
+    claim is stored with it as a pending report, once per delivery (D-114)."""
     if membership.role is not TenantRole.OWNER and task.assigned_membership_id != membership.id:
         raise AppError(
             403, "DELIVERY_TASK_NOT_ASSIGNED", "Only the assigned member can complete it"
@@ -594,6 +600,20 @@ def complete_task_row(
         task.id,
         performed_by_membership_id=membership.id,
     )
+    if collection is not None:
+        invoice = db.get(Invoice, task.invoice_id)
+        if invoice is not None:
+            revision = db.get(InvoiceRevision, invoice.current_revision_id)
+            create_report_row(
+                db,
+                tenant_id,
+                membership,
+                task,
+                revision.currency if revision else "USD",
+                amount_to_collect(db, tenant_id, invoice),
+                collection,
+                collection_key,
+            )
     return task
 
 

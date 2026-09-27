@@ -1260,3 +1260,7 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
 /* Scan with camera (D-113). */
 .camera-scan { display: inline-grid; gap: 6px; }
 .camera-preview { background: #000; border-radius: var(--radius-control); max-height: 240px; max-width: min(100%, 360px); }
+
+/* Driver collection reports (D-114). */
+.collection-claim { border: 1px solid var(--line); border-radius: var(--radius-control); display: grid; gap: 6px; margin: 0 0 8px; padding: 8px 12px; }
+.collection-inbox { margin-block-end: 12px; }

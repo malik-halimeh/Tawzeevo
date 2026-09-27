@@ -2357,6 +2357,94 @@ class ProcurementItem(Base):
         return max(Decimal("0"), remaining).quantize(Decimal("0.0001"))
 
 
+class CollectionReport(Base):
+    """What the driver says was collected at a delivery (D-114). Not a payment: the customer's
+    balance changes only when the owner confirms it, through the existing receipt service."""
+
+    __tablename__ = "collection_reports"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[UUID] = mapped_column(
+        ForeignKey("delivery_tasks.id", ondelete="RESTRICT"), nullable=False
+    )
+    invoice_id: Mapped[UUID] = mapped_column(
+        ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False
+    )
+    reporter_membership_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenant_memberships.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 4))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, server_default="PENDING")
+    idempotency_key: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    confirmed_payment_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payments.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str | None] = mapped_column(String(500))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('FULL', 'PARTIAL', 'NONE')", name="ck_collection_reports_kind"),
+        CheckConstraint(
+            "status IN ('PENDING', 'CONFIRMED', 'REJECTED')", name="ck_collection_reports_status"
+        ),
+        CheckConstraint(
+            "(kind = 'NONE') = (amount IS NULL) AND (amount IS NULL OR amount > 0)",
+            name="ck_collection_reports_amount",
+        ),
+        CheckConstraint(
+            "confirmed_payment_id IS NULL OR (status = 'CONFIRMED' AND kind <> 'NONE')",
+            name="ck_collection_reports_payment",
+        ),
+        UniqueConstraint("tenant_id", "task_id", name="uq_collection_reports_task"),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_collection_reports_idempotency"),
+        Index("ix_collection_reports_tenant_status_created", "tenant_id", "status", "created_at"),
+    )
+
+
+class CustomerNotification(Base):
+    """A message for one customer, shown on their personalized storefront (D-114). The text is
+    rendered by the shop from `kind` and `data`; nothing here is shown to anyone else."""
+
+    __tablename__ = "customer_notifications"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(
+        ForeignKey("customers.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index(
+            "ix_customer_notifications_tenant_customer_created",
+            "tenant_id",
+            "customer_id",
+            "created_at",
+        ),
+    )
+
+
 class PickupReport(Base):
     """A runner's report of what was picked up from one supplier for one procurement list (D-106).
     It is not a purchase: nothing reaches the supplier ledger, costs or the list until the owner

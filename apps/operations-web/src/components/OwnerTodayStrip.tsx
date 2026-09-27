@@ -7,6 +7,8 @@ import type { CustomerObligationListResponse } from "../api/types";
 import { Arrow } from "./Icon";
 import { PENDING_ORDERS_KEY, fetchPendingOrders } from "./pendingOrders";
 import { PICKUP_REPORTS_KEY, fetchPendingPickups } from "./pickupReportsApi";
+import { CollectionInbox } from "./CollectionInbox";
+import { COLLECTION_REPORTS_KEY, fetchPendingCollections } from "./collectionReportsApi";
 import { sectionHref } from "./workspaceSections";
 
 /** The fields of a delivery used here (the owner's delivery list answer carries more). */
@@ -45,8 +47,11 @@ export function OwnerTodayStrip({ tenantId }: { tenantId: string }) {
   const pickups = useQuery({ queryKey: [PICKUP_REPORTS_KEY, tenantId], queryFn: () => fetchPendingPickups(tenantId) });
   const waiting = pending.data?.length ?? 0;
   const pickupCount = pickups.data?.length ?? 0;
+  // Payments drivers reported at deliveries, waiting for confirmation (D-114).
+  const reported = useQuery({ queryKey: [COLLECTION_REPORTS_KEY, tenantId], queryFn: () => fetchPendingCollections(tenantId) });
+  const reportedCount = reported.data?.length ?? 0;
   const rows = collections.data ?? [];
-  if (!waiting && !rows.length && !pickupCount) return null;
+  if (!waiting && !rows.length && !pickupCount && !reportedCount) return null;
   return (
     <section aria-labelledby="needs-you-title" className="owner-today">
       <h2 className="section-title" id="needs-you-title">{t("today.needsYou")}</h2>
@@ -56,6 +61,7 @@ export function OwnerTodayStrip({ tenantId }: { tenantId: string }) {
           <Link to={sectionHref("orders", tenantId)}>{t("today.review")} <Arrow small /></Link>
         </p>
       ) : null}
+      {reportedCount ? <CollectionInbox tenantId={tenantId} /> : null}
       {pickupCount ? (
         <p className="owner-today-orders">
           <span>{t("pickupReport.toConfirm", { count: pickupCount })}</span>

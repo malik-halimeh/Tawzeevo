@@ -288,3 +288,9 @@ html:has(.shop-cartbar) { scroll-padding-bottom: calc(108px + env(safe-area-inse
 .remember .check { align-items: center; display: flex; gap: 8px; }
 .order-link { align-items: center; display: inline-flex; min-height: 44px; }
 .reorder { display: grid; gap: 6px; margin-block: 12px; }
+
+/* Customer notifications (D-114). */
+.notification-list { display: grid; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.notification-list li { border: 1px solid var(--line, #dbe2eb); border-radius: 10px; padding: 10px 12px; }
+.notification-list li.unread { border-inline-start-width: 4px; }
+.notification-list p { margin: 0 0 4px; }

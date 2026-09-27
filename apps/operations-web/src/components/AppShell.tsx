@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthContext";
 import { type AutoSyncState, useAutoSync } from "../offline/autoSync";
 import { Icon, type IconName } from "./Icon";
 import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
+import { COLLECTION_REPORTS_KEY, type CollectionReport, fetchPendingCollections } from "./collectionReportsApi";
 import { PHONE_PRIMARY_GROUPS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, type WorkspaceGroup, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
 
 type ShellLink = readonly [string, string, IconName];
@@ -177,6 +178,32 @@ export function AppShell() {
     refetchIntervalInBackground: true, // the title keeps counting in a hidden tab (throttling is fine)
   });
   const pendingCount = ownerTenant ? pending.data?.length ?? 0 : 0;
+  // Payments drivers reported at deliveries (D-114): polled like orders, a notice when one arrives
+  // while the workspace is open, counted on Sales and listed on Today.
+  const reportBaseline = useRef<{ tenant: string; ids: Set<string> } | null>(null);
+  const [reportArrival, setReportArrival] = useState<{ tenant: string; reports: CollectionReport[] } | null>(null);
+  const reported = useQuery({
+    queryKey: [COLLECTION_REPORTS_KEY, ownerTenant],
+    queryFn: async () => {
+      const tenant = ownerTenant!;
+      const reports = await fetchPendingCollections(tenant);
+      const previous = reportBaseline.current?.tenant === tenant ? reportBaseline.current.ids : null;
+      const fresh = previous === null ? [] : reports.filter((report) => !previous.has(report.id));
+      reportBaseline.current = { tenant, ids: new Set(reports.map((report) => report.id)) };
+      if (fresh.length) setReportArrival({ tenant, reports: fresh });
+      return reports;
+    },
+    enabled: ownerTenant !== null,
+    refetchInterval: PENDING_POLL_MS,
+    refetchIntervalInBackground: true,
+  });
+  const reportedCount = ownerTenant ? reported.data?.length ?? 0 : 0;
+  useEffect(() => {
+    if (!reportArrival) return;
+    const timer = window.setTimeout(() => setReportArrival(null), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [reportArrival]);
+  const shownReports = reportArrival && reportArrival.tenant === ownerTenant ? reportArrival.reports : null;
   const baseTitle = useRef(document.title);
   useEffect(() => { document.title = titleWithCount(baseTitle.current, pendingCount); }, [pendingCount]);
   useEffect(() => () => { document.title = baseTitle.current; }, []);
@@ -225,7 +252,7 @@ export function AppShell() {
       <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} key={group.id} to={sectionHref(group.sections[0], tenantParam)}>
         <Icon name={group.icon} />
         <span>{t(group.label)}</span>
-        {group.id === "sales" && pendingCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount}</span><span className="sr-only">{t("orders.awaitingBadge", { count: pendingCount })}</span></span> : null}
+        {group.id === "sales" && pendingCount + reportedCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount + reportedCount}</span><span className="sr-only">{[pendingCount ? t("orders.awaitingBadge", { count: pendingCount }) : "", reportedCount ? t("collection.badge", { count: reportedCount }) : ""].filter(Boolean).join(", ")}</span></span> : null}
       </Link>
     );
   };
@@ -295,6 +322,15 @@ export function AppShell() {
               {shownArrival.length === 1 ? t("orders.newOrderFrom", { name: shownArrival[0]!.contact_name }) : t("orders.newOrders", { count: shownArrival.length })}
             </Link>
             <button aria-label={t("orders.dismissNotice")} className="toast-close" onClick={() => setArrival(null)} type="button"><Icon name="close" /></button>
+          </div>
+        ) : null}
+        {shownReports ? (
+          <div className="toast">
+            <Icon name="check" />
+            <Link onClick={() => setReportArrival(null)} to={sectionHref("work", tenantParam)}>
+              {shownReports.length === 1 ? t("collection.newReport", { driver: shownReports[0]!.reporter_name, customer: shownReports[0]!.customer_name }) : t("collection.newReports", { count: shownReports.length })}
+            </Link>
+            <button aria-label={t("orders.dismissNotice")} className="toast-close" onClick={() => setReportArrival(null)} type="button"><Icon name="close" /></button>
           </div>
         ) : null}
       </div>

@@ -111,7 +111,13 @@ def complete_task(
 ) -> TaskResponse | MyWorkTask:
     """Owner or the assigned member. A driver gets back the least-privilege projection only."""
     task = delivery.complete_task(
-        db, context.tenant.id, context.membership, task_id, request.expected_version, request.note
+        db,
+        context.tenant.id,
+        context.membership,
+        task_id,
+        request.expected_version,
+        request.note,
+        request.collection,
     )
     if context.membership.role is not TenantRole.OWNER:
         return delivery.my_work_task(db, context.tenant.id, task)

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { type PublicStorefront, publicApiBase } from "@/lib/catalog";
 import type { CustomerContext } from "@/lib/personal";
 import { CartBar, CartLink, YourOrderLink } from "./CartControls";
+import { NotificationsLink } from "./Notifications";
 import { Icon } from "./Icon";
 import { PersonalBanner } from "./PersonalBanner";
 import { CONTEXT_PARAM, isContextRef, shopHref } from "@/lib/format";
@@ -55,6 +56,7 @@ export function ShopFrame({
           </div>
         </div>
         <nav aria-label={t(lang, "storefront")} className="shop-nav">
+          {context?.granted && ctx ? <NotificationsLink ctx={ctx} lang={lang} slug={shop.slug} /> : null}
           <YourOrderLink ctx={ctx} lang={lang} slug={shop.slug} />
           <CartLink ctx={ctx} lang={lang} slug={shop.slug} />
           <Link className="lang" href={switchHref} hrefLang={other} lang={other}>{t(lang, "language")}</Link>

@@ -9,7 +9,7 @@ import { SYNC_COMPLETED_EVENT } from "../offline/events";
 import { listOutbox } from "../offline/outbox";
 import { syncNow } from "../offline/pull";
 import { bootstrapLocalProjection, localSyncStatus } from "../offline/sync";
-import { queueDeliveryCompletion } from "../offline/supplierCommands";
+import { type CollectionClaim, queueDeliveryCompletion } from "../offline/supplierCommands";
 import { useStopDirections } from "./directions";
 import { DirectionsView } from "./DirectionsView";
 import { Arrow, Icon } from "./Icon";
@@ -76,6 +76,8 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
   const [queued, setQueued] = useState<string[]>([]);
   const [doneIds, setDoneIds] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  // What was collected at this stop (D-114), asked before completing when money is owed.
+  const [collection, setCollection] = useState<{ kind: "" | CollectionClaim["kind"]; amount: string }>({ kind: "", amount: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
@@ -158,10 +160,20 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
     return () => { live = false; window.removeEventListener(SYNC_COMPLETED_EVENT, afterSync); };
   }, [tenantId, membershipId, load]);
 
+  const owes = (task: WorkTask) => Number(task.amount_to_collect) > 0;
+  const claimFor = (task: WorkTask): CollectionClaim | null => {
+    if (!owes(task) || !collection.kind) return null;
+    return collection.kind === "PARTIAL" ? { kind: "PARTIAL", amount: collection.amount.trim() } : { kind: collection.kind };
+  };
+  // Answering is optional (no answer: no report, as before); a partial payment needs its amount.
+  const claimReady = (task: WorkTask) => !owes(task) || collection.kind !== "PARTIAL"
+    || (collection.kind === "PARTIAL" && Number(collection.amount) > 0 && Number(collection.amount) <= Number(task.amount_to_collect));
   const complete = (task: WorkTask) => {
     setBusy(true); setError(undefined); setNotice(undefined); setRevokedReason(undefined);
-    apiRequest<WorkTask>(`/api/v1/delivery-tasks/${task.id}/complete?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify({ expected_version: task.version, note: note || null }) })
+    const claim = claimFor(task);
+    apiRequest<WorkTask>(`/api/v1/delivery-tasks/${task.id}/complete?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify({ expected_version: task.version, note: note || null, ...(claim ? { collection: claim } : {}) }) })
       .then(async () => {
+        setCollection({ kind: "", amount: "" });
         setNote(""); setDoneIds((current) => [...current, task.id]); setDetailOpen(false);
         setDelivered({ name: task.customer_name, latitude: task.customer_latitude, longitude: task.customer_longitude });
         // The next stop in the saved order opens by itself (on a phone it replaces the list).
@@ -171,7 +183,8 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
       })
       .catch(async (problem: unknown) => {
         if (!(problem instanceof TypeError) || !browserOffline()) { setError(problem); return; }
-        await queueDeliveryCompletion(tenantId, membershipId, task.id, task.version, note || null);
+        await (claim ? queueDeliveryCompletion(tenantId, membershipId, task.id, task.version, note || null, claim) : queueDeliveryCompletion(tenantId, membershipId, task.id, task.version, note || null));
+        setCollection({ kind: "", amount: "" });
         setQueued((current) => [...current, task.id]);
         setNotice(t("myWork.queued"));
         setNote("");
@@ -232,6 +245,7 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
   // from its top (the way back, the stop number, the name), and bring focus back to the same stop
   // when returning, so the list position is preserved.
   const openStop = (task: WorkTask) => {
+    if (task.id !== selectedId) setCollection({ kind: "", amount: "" });
     setSelectedId(task.id);
     setDetailOpen(true);
     setError(undefined);
@@ -371,9 +385,19 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
                 <span className="detail-label">{t("myWork.collect")}</span>
                 <strong className="amount"><bdi className="money" dir="ltr">{selected.amount_to_collect} {selected.currency}</bdi></strong>
               </span>
+              {owes(selected) && !queued.includes(selected.id) ? (
+                <fieldset className="collection-claim">
+                  <legend>{t("collection.question")}</legend>
+                  {(["FULL", "PARTIAL", "NONE"] as const).map((kind) => (
+                    <label className="checkbox-row" key={kind}><input checked={collection.kind === kind} name={`collection-${selected.id}`} onChange={() => setCollection({ kind, amount: kind === "PARTIAL" ? collection.amount : "" })} type="radio" /><span>{t(`collection.kinds.${kind}`)}</span></label>
+                  ))}
+                  {collection.kind === "PARTIAL" ? <label className="field"><span>{t("collection.amountPaid", { currency: selected.currency })}</span><input dir="ltr" inputMode="decimal" max={selected.amount_to_collect} min="0.0001" required step="0.0001" type="number" value={collection.amount} onChange={(event) => setCollection({ kind: "PARTIAL", amount: event.target.value })} /></label> : null}
+                  <small className="muted">{t("collection.notPaymentYet")}</small>
+                </fieldset>
+              ) : null}
               {queued.includes(selected.id)
                 ? <button className="button" disabled type="button"><Icon name="check" small />{t("myWork.queuedShort")}</button>
-                : <ConfirmAction confirmLabel={t("myWork.confirmDelivered")} disabled={busy} icon={<Icon name="check" small />} key={selected.id} label={t("delivery.complete")} onConfirm={() => complete(selected)}>{t("myWork.confirmDeliveredNote", { amount: `${selected.amount_to_collect} ${selected.currency}` })}</ConfirmAction>}
+                : <ConfirmAction confirmLabel={t("myWork.confirmDelivered")} disabled={busy || !claimReady(selected)} icon={<Icon name="check" small />} key={selected.id} label={t("delivery.complete")} onConfirm={() => complete(selected)}>{t("myWork.confirmDeliveredNote", { amount: `${selected.amount_to_collect} ${selected.currency}` })}</ConfirmAction>}
             </div>
             <p className="detail-bottom-note">{t("myWork.completionNote")}</p>
         </article>
