@@ -1,0 +1,99 @@
+/* Invoice editor layout (OE-07): one column of cards in reading order on phones and tablets, with
+   the invoice's own buttons held in a bar at the bottom of the screen; from 1024 px the totals and
+   buttons sit beside the lines in the same order. Presentation only: every control, label and rule
+   is the editor's own. Existing tokens only (styles.css, map.css); logical properties throughout,
+   so Arabic mirrors by itself. Nothing here animates, so reduced motion needs no exception. */
+
+.invoice-editor .invoice-editor-grid { align-items: start; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.invoice-editor .invoice-entry-desk { gap: 16px; }
+/* Below 1024 px the summary cards are items of the grid itself, so the bar can stay in view while
+   the whole invoice scrolls under it. */
+.invoice-summary-column { display: contents; }
+.invoice-editor .invoice-tally { position: static; }
+
+/* ---------- Customer ---------- */
+.customer-search-hint { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 8px 0 0; }
+.invoice-customer-results .customer-owes { color: var(--warn); font-weight: 600; }
+
+/* ---------- Items: the entry methods as one compact switch ---------- */
+.invoice-editor .entry-switch { display: grid; gap: 4px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-block: 0 12px; }
+.invoice-editor .entry-switch button { font-size: 14px; line-height: 1.25; min-height: 44px; padding: 6px 8px; }
+
+/* ---------- Lines: quantity, unit and line total in view; the rest behind "More" ---------- */
+.invoice-editor .invoice-line { gap: 10px; padding: 14px 16px; }
+.invoice-line .line-essentials { align-items: end; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.line-total { align-items: baseline; display: flex; font-size: 14px; gap: 8px; grid-column: 1 / -1; justify-content: space-between; margin: 0; }
+.line-total > span { color: var(--muted); font-size: 12px; }
+.line-total bdi { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+@container (min-width: 32rem) {
+  .invoice-line .line-essentials { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .line-total { align-items: flex-end; flex-direction: column; gap: 2px; grid-column: auto; justify-content: flex-end; min-height: 44px; }
+}
+.line-more-toggle { align-items: center; display: inline-flex; justify-self: start; min-height: 44px; text-align: start; }
+.line-more { display: grid; gap: 10px; }
+.line-more .line-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.invoice-editor .remove-line { min-height: 44px; }
+
+/* ---------- Subtotal and adjustments, then the total ---------- */
+.tally-group { display: grid; gap: 8px; }
+.tally-group + .tally-group { border-block-start: 1px solid var(--line); padding-block-start: 12px; }
+.tally-group-title { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; margin: 0; text-transform: uppercase; }
+html[lang="ar"] .tally-group-title { letter-spacing: 0; }
+.invoice-editor .invoice-tally .tally-group dl { margin: 0; }
+
+/* ---------- The bar: total, Save, Confirm (Print on a confirmed or cancelled invoice) ---------- */
+.invoice-action-bar { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-record); display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
+.invoice-action-total { align-items: baseline; display: flex; flex: 1 1 7rem; flex-wrap: wrap; gap: 2px 8px; justify-content: space-between; margin: 0; min-width: 0; }
+.invoice-action-total > span { color: var(--muted); font-size: 13px; }
+.invoice-action-total strong { font-family: var(--font-mono); font-size: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.invoice-action-bar > .notice { flex: 1 1 100%; font-size: 13px; margin: 0; }
+.invoice-action-buttons { display: flex; flex: 1 1 12rem; flex-wrap: wrap; gap: 8px; }
+.invoice-action-buttons > .button { flex: 1 1 9rem; font-size: 14px; margin: 0; min-height: 48px; width: auto; }
+/* Two buttons (Save and Confirm) take their own row, side by side, under the total. */
+.invoice-action-buttons:has(> :nth-child(2)) { flex-basis: 100%; }
+.invoice-cancel-card .cancel-controls { border-block-start: 0; padding-block-start: 0; }
+
+@media (max-width: 1023px) {
+  /* Above the bottom navigation, and above the on-screen keyboard while it is open (AppShell sets
+     --keyboard and hides the navigation then). */
+  .invoice-action-bar { box-shadow: var(--lift); inset-block-end: calc(var(--bottom-nav) + env(safe-area-inset-bottom) + 8px); position: sticky; z-index: 18; }
+  body.keyboard-open .invoice-action-bar { inset-block-end: calc(var(--keyboard) + 8px); }
+}
+
+@media (max-width: 599px) {
+  .invoice-editor { gap: 16px; }
+  .invoice-editor .content-card { padding: 16px; }
+  .invoice-editor .invoice-tally { padding-inline: 16px; padding-block-start: 16px; }
+  .invoice-editor .entry-switch { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- From 1024 px: lines on one side, totals and buttons on the other, same order ---------- */
+@media (min-width: 1024px) {
+  .invoice-editor .invoice-editor-grid { grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); }
+  .invoice-summary-column { align-content: start; display: grid; gap: 16px; inset-block-start: 16px; min-width: 0; position: sticky; }
+  /* The totals are right beside the buttons, so the bar shows the buttons alone. */
+  .invoice-action-bar { background: none; border: 0; padding: 0; }
+  .invoice-action-total { display: none; }
+  .invoice-summary-column .invoice-action-buttons { display: grid; }
+  /* A tall summary scrolls on its own, and its buttons stay at its foot, so they are always in reach. */
+  .invoice-summary-column { max-block-size: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain; padding-inline: 2px; }
+  .invoice-summary-column .invoice-action-bar { background: var(--paper); inset-block-end: 0; padding-block: 8px; position: sticky; z-index: 1; }
+  .invoice-document .invoice-action-buttons > .button { flex: 0 0 auto; }
+}
+
+/* 1024-1099 px still shows the bottom navigation: the summary ends above it. */
+@media (min-width: 1024px) and (max-width: 1099px) {
+  .invoice-summary-column { max-block-size: calc(100vh - 32px - var(--bottom-nav) - env(safe-area-inset-bottom)); }
+}
+
+/* ---------- History: a single revision folds away behind its title ---------- */
+.invoice-history .invoice-history-fold { background: none; border: 0; border-radius: 0; box-shadow: none; }
+.invoice-history .invoice-history-fold > summary { display: flex; gap: 12px; justify-content: space-between; min-height: 44px; padding: 0; }
+.invoice-history .invoice-history-fold > summary h4 { margin: 0; }
+.invoice-history .invoice-history-fold[open] > summary { margin-block-end: 8px; }
+.invoice-history-fold > details + details { margin-block-start: 8px; }
+
+/* The printed invoice stays exactly as before: the bar is screen furniture. */
+@media print {
+  .invoice-action-bar { display: none !important; }
+}
