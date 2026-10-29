@@ -35,7 +35,7 @@ from tawzeevo_api.schemas.cash_van import (
     TenantProductResponse,
     TenantProductUpdateRequest,
 )
-from tawzeevo_api.schemas.customer_lists import CustomerListResponse
+from tawzeevo_api.schemas.customer_lists import CustomerListResponse, CustomerListSort
 from tawzeevo_api.services.cash_van import (
     add_product_barcode,
     archive_category,
@@ -122,9 +122,11 @@ def tenant_list_customers(
     context: Annotated[TenantContext, Depends(require_tenant_owner)],
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    q: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
+    sort: CustomerListSort = "name",
 ) -> CustomerListResponse:
-    """Every customer of the business, by name, one page at a time (D-101)."""
-    return list_customers(db, context.tenant.id, page, limit)
+    """Search and sort the business's customers, one page at a time (OE-03b)."""
+    return list_customers(db, context.tenant.id, page, limit, q=q, sort=sort)
 
 
 @cash_van_router.get("/customers/search", response_model=CustomerSearchResponse)
