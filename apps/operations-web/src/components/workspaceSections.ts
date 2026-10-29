@@ -40,7 +40,7 @@ export const PHONE_PRIMARY_SECTIONS: readonly WorkspaceSection[] = ["work", "cus
  */
 export const WORKSPACE_GROUPS = [
   { id: "today", label: "nav.groups.today", icon: "work", sections: ["work"] },
-  { id: "sales", label: "nav.groups.sales", icon: "invoice", sections: ["orders", "invoices"] },
+  { id: "sales", label: "nav.groups.sales", icon: "invoice", sections: ["invoices", "orders"] },
   { id: "customers", label: "nav.groups.customers", icon: "people", sections: ["customers"] },
   { id: "deliveries", label: "nav.groups.deliveries", icon: "van", sections: ["deliveries"] },
   { id: "catalog", label: "nav.groups.catalog", icon: "box", sections: ["products", "categories", "pricing"] },
@@ -53,7 +53,7 @@ export type WorkspaceGroup = (typeof WORKSPACE_GROUPS)[number];
 export type WorkspaceGroupId = WorkspaceGroup["id"];
 
 /** The groups that sit directly in the owner's phone bar; the others live under More. */
-export const PHONE_PRIMARY_GROUPS: readonly WorkspaceGroupId[] = ["today", "sales", "customers"];
+export const PHONE_PRIMARY_GROUPS: readonly WorkspaceGroupId[] = ["today", "sales", "customers", "catalog"];
 
 /** The group a section belongs to (every section belongs to exactly one). */
 export function groupOf(section: WorkspaceSection): WorkspaceGroup {
@@ -123,4 +123,14 @@ export function workspaceSearch(section: WorkspaceSection, tenantId: string | nu
 /** Sections are carried by a query parameter on the existing route; Work is the bare route. */
 export function sectionHref(section: WorkspaceSection, tenantId: string | null = null, context: SectionContext = {}): string {
   return `/workspace${workspaceSearch(section, tenantId, context)}`;
+}
+
+/** Owner navigation distinguishes Today from entry, and reserves the invoices front page address. */
+export function ownerSectionHref(section: WorkspaceSection, tenantId: string | null = null): string {
+  if (section === "work") {
+    const params = new URLSearchParams(workspaceSearch(section, tenantId));
+    params.set(SECTION_PARAM, section);
+    return `/workspace?${params.toString()}`;
+  }
+  return sectionHref(section, tenantId, section === "invoices" ? { view: "list" } : {});
 }

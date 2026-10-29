@@ -1288,3 +1288,17 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
 /* Driver collection reports (D-114). */
 .collection-claim { border: 1px solid var(--line); border-radius: var(--radius-control); display: grid; gap: 6px; margin: 0 0 8px; padding: 8px 12px; }
 .collection-inbox { margin-block-end: 12px; }
+/* Owner bar + More (OE-01) */
+@media screen and (max-width: 1099px) {
+  .frame[data-role="owner"] .mobile-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .keyboard-open .frame[data-role="owner"] .mobile-nav { display: none; }
+  .frame[data-role="owner"] .mobile-nav-item { min-inline-size: 0; min-block-size: 58px; inline-size: 100%; padding-inline: 2px; }
+  .frame[data-role="owner"] .mobile-nav-item > span:not(.nav-badge) { white-space: nowrap; }
+  .frame[data-role="owner"] .owner-more-sheet { inset-inline: 0; border-end-start-radius: 0; border-end-end-radius: 0; padding: 12px; }
+  .owner-more-sheet .more-item { min-block-size: 48px; border-radius: var(--radius-control); border-block-end: 1px solid var(--line); }
+  .owner-more-sheet .more-group { padding-block: 8px; }
+  .owner-more-copy { display: grid; gap: 2px; }
+  .owner-more-copy small { color: var(--muted); font-size: 12px; }
+  .owner-more-chevron { margin-inline-start: auto; font-size: 24px; color: var(--muted); }
+  html[dir="rtl"] .owner-more-chevron { transform: scaleX(-1); }
+}

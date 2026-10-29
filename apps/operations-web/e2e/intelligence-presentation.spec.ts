@@ -55,6 +55,7 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
+  await openSection(page, "Work"); // Owner entry now opens Invoices.
   const today = page.getByRole("list", { name: "Today's priorities" });
   await expect(today.getByRole("link")).toHaveCount(1);
   await expect(today).toContainText("Tyre Fresh Foods");
@@ -111,7 +112,7 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
 
   // ----- Phone width: Work keeps the priorities inside the screen -----
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/workspace?tenant=${tenantId}`);
+  await page.goto(`/workspace?tenant=${tenantId}&section=work`);
   await expect(page.getByRole("list", { name: "Today's priorities" })).toBeVisible();
   const overflow = await page.evaluate<number>("document.documentElement.scrollWidth - window.innerWidth");
   expect(overflow).toBeLessThanOrEqual(0);

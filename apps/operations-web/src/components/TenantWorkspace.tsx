@@ -49,7 +49,7 @@ import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
 import { readLastChoice, rememberChoice } from "./lastChoice";
 import { SyncPanel } from "./SyncPanel";
-import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
+import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, isWorkspaceSection, ownerSectionHref, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
 import { useOptionalUser } from "../auth/AuthContext";
 import { PENDING_ORDERS_KEY, fetchPendingOrders } from "./pendingOrders";
 
@@ -79,7 +79,7 @@ function SectionTabs({ view, tenantParam, tenantId }: { view: WorkspaceSection; 
       {group.sections.map((id) => {
         const meta = WORKSPACE_SECTIONS.find((entry) => entry.id === id)!;
         return (
-          <Link aria-current={id === view ? "page" : undefined} className={id === view ? "active" : undefined} key={id} to={sectionHref(id, tenantParam)}>
+          <Link aria-current={id === view ? "page" : undefined} className={id === view ? "active" : undefined} key={id} to={ownerSectionHref(id, tenantParam)}>
             {t(meta.label)}
             {id === "orders" && waiting > 0 ? <span className="nav-badge"><span aria-hidden="true">{waiting}</span><span className="sr-only">{t("orders.awaitingBadge", { count: waiting })}</span></span> : null}
           </Link>
@@ -789,7 +789,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const queryClient = useQueryClient();
   // The selected business and the open section are both carried by the route's query string
   // (`tenant`, `section`) so the shell's phone bar, the desktop rail, this body and the browser
-  // history all agree; the first listed business and Work are the defaults. Which
+  // history all agree; entry resolves the remembered business and the owner's invoice landing. Which
   // panels a membership gets is still read from the server's context (role, status) below.
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -805,12 +805,19 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   useEffect(() => {
     if (enteredOnce.current) return;
     enteredOnce.current = true;
-    if (addressTenant) return;
-    const last = readLastTenant(user?.id);
-    if (last && last !== contexts[0]?.tenant_id && contexts.some((item) => item.tenant_id === last)) {
-      void navigate({ pathname: "/workspace", search: workspaceSearch(view, last), hash: location.hash }, { replace: true });
+    const last = addressTenant ? null : readLastTenant(user?.id);
+    const remembered = last ? contexts.find((item) => item.tenant_id === last) : undefined;
+    const landingContext = remembered ?? context;
+    if (!isWorkspaceSection(searchParams.get("section")) && landingContext.role === "owner" && landingContext.tenant_status === "ACTIVE") {
+      const params = new URLSearchParams(searchParams);
+      if (remembered) params.set("tenant", remembered.tenant_id);
+      params.set("section", "invoices");
+      params.set("view", "list");
+      void navigate({ pathname: "/workspace", search: `?${params.toString()}`, hash: location.hash }, { replace: true });
+    } else if (remembered && remembered.tenant_id !== contexts[0]?.tenant_id) {
+      void navigate({ pathname: "/workspace", search: workspaceSearch(view, remembered.tenant_id), hash: location.hash }, { replace: true });
     }
-  }, [addressTenant, contexts, location.hash, navigate, user?.id, view]);
+  }, [addressTenant, context, contexts, location.hash, navigate, searchParams, user?.id, view]);
   useEffect(() => { rememberTenant(user?.id, context.tenant_id); }, [user?.id, context.tenant_id]);
   const setView = useCallback((next: WorkspaceSection, replace = false) => {
     setSearchParams((current) => workspaceSearch(next, tenantFromSearch(current)), { replace });

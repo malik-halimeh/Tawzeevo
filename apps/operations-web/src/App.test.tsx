@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { MemoryRouter, type NavigateFunction, useLocation, useNavigate } from "react-router-dom";
+import { MemoryRouter, type NavigateFunction, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 
 import { App } from "./App";
 import { clearSession } from "./api/client";
@@ -89,18 +89,20 @@ async function openTab(group: string, tab: string) {
 let browserNavigate: NavigateFunction | undefined;
 /** The memory router's current address, for assertions on where a flow ends up. */
 let currentAddress = "";
+let navigationType = "";
 function NavigationProbe() {
   browserNavigate = useNavigate();
+  navigationType = useNavigationType();
   const location = useLocation();
   currentAddress = `${location.pathname}${location.search}${location.hash}`;
   return null;
 }
 
-function renderApp(path: string) {
+function renderApp(path: string, previous?: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[path]}>
+      <MemoryRouter initialEntries={previous ? [previous, path] : [path]}>
         <NavigationProbe />
         <AuthProvider><App /></AuthProvider>
       </MemoryRouter>
@@ -515,7 +517,7 @@ describe("tenant customer and category workspace", () => {
       if (url.includes("/categories?")) return Promise.resolve(json({ categories: [] }));
       throw new Error(`Unexpected request: ${url}`);
     }));
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
 
     expect(await screen.findByRole("heading", { name: "North Route" })).toBeInTheDocument();
     fireEvent.click(railLink("Customers"));
@@ -710,7 +712,7 @@ describe("tenant customer and category workspace", () => {
       }
       throw new Error(`Unexpected request: ${url}`);
     }));
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     await screen.findByRole("heading", { name: "North Route" });
     await openTab("Catalog", "Categories");
 
@@ -756,7 +758,7 @@ describe("tenant customer and category workspace", () => {
       }
       throw new Error(`Unexpected request: ${url}`);
     }));
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     await screen.findByRole("heading", { name: "North Route" });
     fireEvent.click(railLink("Catalog")); // Catalog opens on Products
     fireEvent.click(await screen.findByRole("button", { name: "Add product" })); // the list comes first; adding opens on demand
@@ -807,7 +809,7 @@ describe("tenant customer and category workspace", () => {
       }
       throw new Error(`Unexpected request: ${url}`);
     }));
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     await screen.findByRole("heading", { name: "North Route" });
     fireEvent.click(railLink("Catalog")); // Catalog opens on Products
     fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
@@ -884,7 +886,7 @@ describe("tenant customer and category workspace", () => {
       throw new Error(`Unexpected request: ${url}`);
     }));
 
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     await screen.findByRole("heading", { name: "North Route" });
     await openTab("Catalog", "Pricing"); // grade discounts have their own tab
     const discountInput = await screen.findByLabelText("Grade A discount (%)");
@@ -1047,6 +1049,43 @@ describe("phone navigation follows the member's role", () => {
   const primaryNav = () => screen.getByRole("navigation", { name: "Primary navigation" });
   const primaryLinks = () => within(primaryNav()).getAllByRole("link").map((link) => link.textContent);
   const moreSheet = () => screen.getByRole("group", { name: "More options" });
+
+  test("entry honors the remembered driver business before deciding the owner landing", async () => {
+    vi.stubGlobal("fetch", mixedFetch());
+    localStorage.setItem(`tawzeevo.lastTenant.${clientUser.id}`, harbour.id);
+    renderApp("/workspace");
+    expect(await screen.findByRole("heading", { name: "Harbour Line" }, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "My route" }, { timeout: 5000 })).toBeInTheDocument();
+    expect(primaryLinks()).toEqual(["My work", "Sync"]);
+    expect(currentAddress).toBe(`/workspace?tenant=${harbour.id}`);
+  });
+
+  test.each(["/workspace", "/workspace?section=unknown", `/workspace?tenant=${tenant.id}`])("owner entry %s replaces the address with the new-invoice landing", async (path) => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp(path, "/stats");
+    expect(await screen.findByRole("group", { name: "Invoice views" }, { timeout: 5000 })).toBeInTheDocument();
+    await waitFor(() => {
+      const params = new URLSearchParams(currentAddress.split("?")[1]);
+      expect(params.get("section")).toBe("invoices");
+      expect(params.get("view")).toBe("list");
+    }, { timeout: 5000 });
+    expect(navigationType).toBe("REPLACE");
+    expect(within(primaryNav()).getByRole("link", { name: "Sales" })).toHaveAttribute("aria-current", "page");
+    expect(within(sectionTabs()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Invoices", "Orders"]);
+    expect(within(sectionTabs()).getByRole("link", { name: "Invoices" })).toHaveAttribute("href", path.includes("tenant=") ? `/workspace?tenant=${tenant.id}&section=invoices&view=list` : "/workspace?section=invoices&view=list");
+    act(() => { void browserNavigate?.(-1); });
+    await waitFor(() => expect(currentAddress).toBe("/stats"), { timeout: 5000 });
+  });
+
+  test.each(["/workspace?section=invoices", "/workspace?section=invoices&view=list", "/workspace?section=invoices&view=unknown"]) ("%s still opens a new invoice in the editor", async (path) => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp(path);
+    const views = await screen.findByRole("group", { name: "Invoice views" }, { timeout: 5000 });
+    expect(within(views).getByRole("button", { name: "Invoice" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Phone")).toHaveValue("");
+    expect(screen.getByRole("button", { name: i18n.t("invoiceEditor.saveDraft") })).toBeDisabled();
+    expect(currentAddress).toBe(path);
+  });
   // The compact business header is the page heading of an active workspace.
   const businessHeader = () => screen.getByRole("heading", { level: 1 }).closest("header")!;
   const businessRole = () => within(businessHeader()).getByText(/^(Owner|Driver)$/).textContent;
@@ -1075,17 +1114,17 @@ describe("phone navigation follows the member's role", () => {
     });
   };
 
-  test("an owner gets Today, Sales, Customers and More; Today opens on the stop list and More reaches every other group", async () => {
+  test("an owner gets five phone slots; Today opens on the stop list and More reaches all tools and settings", async () => {
     vi.stubGlobal("fetch", memberFetch("owner"));
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     expect(await screen.findByRole("heading", { name: "My route" })).toBeInTheDocument(); // the assigned-stop workflow comes first
     expect(await screen.findByRole("button", { name: /01.*Corner Shop/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Find every matching customer" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /My deliveries|^Deliveries$/ })).not.toBeInTheDocument(); // management forms never sit in front of the route
 
-    expect(within(primaryNav()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Today", "Sales", "Customers"]);
+    expect(within(primaryNav()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Today", "Sales", "Customers", "Catalog"]);
     expect(within(primaryNav()).getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
-    expect(within(primaryNav()).getByRole("link", { name: "Sales" })).toHaveAttribute("href", "/workspace?section=orders"); // Sales opens on the order inbox
+    expect(within(primaryNav()).getByRole("link", { name: "Sales" })).toHaveAttribute("href", "/workspace?section=invoices&view=list"); // Sales reserves the invoices front page
 
     // With a stop open, tapping Work returns to the stop list (as the driver's My work anchor does).
     const route = screen.getByRole("region", { name: "My route" });
@@ -1093,7 +1132,7 @@ describe("phone navigation follows the member's role", () => {
     expect(route).toHaveClass("show-detail");
     fireEvent.click(within(primaryNav()).getByRole("link", { name: "Today" }));
     await waitFor(() => expect(route).not.toHaveClass("show-detail"));
-    expect(within(primaryNav()).getByRole("link", { name: "Today" })).toHaveAttribute("href", "/workspace");
+    expect(within(primaryNav()).getByRole("link", { name: "Today" })).toHaveAttribute("href", "/workspace?section=work");
 
     fireEvent.click(within(primaryNav()).getByRole("link", { name: "Customers" }));
     expect(await screen.findByRole("heading", { name: "Find every matching customer" })).toBeInTheDocument();
@@ -1103,7 +1142,7 @@ describe("phone navigation follows the member's role", () => {
     const more = within(primaryNav()).getByRole("button", { name: "More" });
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
-    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Deliveries", "Catalog", "Buying", "Insights", "Settings", "Profile", "Public statistics"]);
+    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent?.replace(/\u203a/g, ""))).toEqual(["Deliveries", "ProcurementBuying", "Suppliers & costsBuying", "AnalyticsInsights", "AssistantInsights", "Branding", "Storefront", "Offline sync", "Backup", "Profile", "Public statistics"]);
     expect(within(moreSheet()).getByRole("link", { name: "Deliveries" })).toHaveAttribute("href", "/workspace?section=deliveries"); // management stays one step away
     expect(within(moreSheet()).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -1111,7 +1150,7 @@ describe("phone navigation follows the member's role", () => {
     expect(more).toHaveFocus();
 
     fireEvent.click(more);
-    fireEvent.click(within(moreSheet()).getByRole("link", { name: "Catalog" }));
+    fireEvent.click(within(primaryNav()).getByRole("link", { name: "Catalog" }));
     await waitFor(() => expect(railLink("Catalog")).toHaveAttribute("aria-current", "page"));
     expect(screen.queryByRole("group", { name: "More options" })).not.toBeInTheDocument(); // the sheet closes once the section opens
     // A group with several sections shows them as tabs; the group stays current on every tab.
@@ -1124,7 +1163,7 @@ describe("phone navigation follows the member's role", () => {
 
   test("an owner's desktop rail carries every group once, like the phone, and the business header leads the page", async () => {
     vi.stubGlobal("fetch", memberFetch("owner"));
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     expect(await screen.findByRole("button", { name: /01.*Corner Shop/ })).toBeInTheDocument();
     expect(railLinks()).toEqual(["Today", "Sales", "Customers", "Deliveries", "Catalog", "Buying", "Insights", "Settings"]);
     expect(within(railNav()).queryByRole("group", { name: "More" })).not.toBeInTheDocument();
@@ -1152,7 +1191,7 @@ describe("phone navigation follows the member's role", () => {
     const topBar = () => document.querySelector(".topline") as HTMLElement;
     // Owner: language and assistant in the top bar on Today and on another section.
     vi.stubGlobal("fetch", memberFetch("owner"));
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     expect(await screen.findByRole("heading", { name: "My route" })).toBeInTheDocument();
     expect(within(topBar()).getByRole("button", { name: "العربية" })).toBeInTheDocument();
     const ask = within(topBar()).getByRole("button", { name: "Ask the assistant" });
@@ -1231,10 +1270,10 @@ describe("phone navigation follows the member's role", () => {
 
   test("an owner who also drives for another business gets the navigation of the selected business only, through switching and the browser's history", async () => {
     vi.stubGlobal("fetch", mixedFetch());
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     expect(await screen.findByRole("heading", { name: "North Route" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /01.*Corner Shop/ })).toBeInTheDocument();
-    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers"]);
+    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers", "Catalog"]);
     expect(businessRole()).toBe("Owner"); // the page heading describes the selected business
     fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
     fireEvent.click(screen.getByRole("button", { name: "Yes, delivered" })); // a final action asks once
@@ -1266,7 +1305,7 @@ describe("phone navigation follows the member's role", () => {
     act(() => { void browserNavigate?.(-1); });
     expect(await screen.findByRole("heading", { name: "Find every matching customer" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "North Route" })).toBeInTheDocument();
-    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers"]);
+    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers", "Catalog"]);
     expect(railLink("Customers")).toHaveAttribute("aria-current", "page");
     expect(businessRole()).toBe("Owner");
     expect(screen.getByLabelText("Business")).toHaveValue(tenant.id);
@@ -1281,7 +1320,7 @@ describe("phone navigation follows the member's role", () => {
     // Switching back through the picker opens the owner's Work view, not a stale section.
     fireEvent.change(screen.getByLabelText("Business"), { target: { value: tenant.id } });
     expect(await screen.findByRole("heading", { name: "North Route" })).toBeInTheDocument();
-    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers"]);
+    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers", "Catalog"]);
     expect(within(primaryNav()).getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
     expect(railLink("Today")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "My route" })).toBeInTheDocument();
@@ -1302,7 +1341,7 @@ describe("phone navigation follows the member's role", () => {
     renderApp("/workspace?tenant=99999999-9999-4999-8999-999999999999&section=customers");
     expect(await screen.findByRole("heading", { name: "North Route" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Find every matching customer" })).toBeInTheDocument();
-    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers"]);
+    expect(primaryLinks()).toEqual(["Today", "Sales", "Customers", "Catalog"]);
     expect(railLink("Customers")).toHaveAttribute("aria-current", "page");
     expect(screen.getByLabelText("Business")).toHaveValue(tenant.id);
     cleanup();
@@ -1311,8 +1350,8 @@ describe("phone navigation follows the member's role", () => {
     vi.stubGlobal("fetch", mixedFetch());
     renderApp(`/workspace?tenant=${tenant.id}&section=customers`);
     expect(await screen.findByRole("heading", { name: "Find every matching customer" })).toBeInTheDocument();
-    expect(railLink("Sales")).toHaveAttribute("href", `/workspace?tenant=${tenant.id}&section=orders`);
-    expect(railLink("Today")).toHaveAttribute("href", `/workspace?tenant=${tenant.id}`);
+    expect(railLink("Sales")).toHaveAttribute("href", `/workspace?tenant=${tenant.id}&section=invoices&view=list`);
+    expect(railLink("Today")).toHaveAttribute("href", `/workspace?tenant=${tenant.id}&section=work`);
   });
 });
 
@@ -1368,7 +1407,7 @@ describe("owner intelligence in the workspace (D-089)", () => {
 
   test("a priority on Work opens that customer's record in Customers, with the reason it is on the list", async () => {
     const calls = intelligenceApi();
-    renderApp("/workspace");
+    renderApp("/workspace?section=work");
     const today = await screen.findByRole("list", { name: "Today's priorities" });
     fireEvent.click(within(today).getByRole("link", { name: /Tyre Fresh Foods/ }));
     const record = await screen.findByRole("article", { name: "Tyre Fresh Foods" });
