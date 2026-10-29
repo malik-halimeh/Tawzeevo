@@ -7,6 +7,7 @@ import { browserOffline } from "../offline/network";
 import { queueProcurementItemEdit } from "../offline/supplierCommands";
 import { PurchasePanel } from "./PurchasePanel";
 import { ErrorState } from "./Ui";
+import { ListHeader } from "./listKit/ListHeader";
 import { useKeepFocus } from "./useKeepFocus";
 import { tenantCalendarDate } from "../utils/tenantCalendar";
 
@@ -113,12 +114,9 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
   const groups = detail ? Object.entries(detail.items.reduce<Record<string, Line[]>>((acc, line) => { const key = groupBySupplier ? (line.supplier_name ?? t("procurement.noSupplier")) : t("procurement.allLines"); (acc[key] ??= []).push(line); return acc; }, {})) : [];
 
   return (
-    <section className="procurement-panel" aria-labelledby="procurement-title" ref={root}>
-      <header>
-        <p className="section-kicker">{t("procurement.kicker")}</p>
-        <h3 id="procurement-title">{t("procurement.title")}</h3>
-        <p>{t("procurement.body")}</p>
-      </header>
+    <section className="procurement-panel" aria-label={t("procurement.title")} ref={root}>
+      <ListHeader count={loadedLists?.length} eyebrow={t("procurement.kicker")} title={t("procurement.title")} />
+      <p>{t("procurement.body")}</p>
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
 

@@ -31,11 +31,13 @@ test("sole owner creates a delivery for a confirmed invoice with no driver setup
   }));
 
   render(<DeliveryPanel tenantId="t1" />);
+  expect(document.querySelector(".list-head-count")).toBeNull(); // no count before the list loads
   expect(await screen.findByText("My deliveries")).toBeInTheDocument(); // sole-operator wording
   expect(screen.queryByLabelText("Deliver by")).not.toBeInTheDocument(); // no driver setup demanded
   fireEvent.change(screen.getByLabelText("Confirmed invoice"), { target: { value: "inv1" } });
   fireEvent.click(screen.getByRole("button", { name: "Create delivery" }));
   expect(await screen.findByText("Delivery created.")).toBeInTheDocument();
+  await waitFor(() => expect(document.querySelector(".list-head-count")).toHaveTextContent("1 item"));
   expect(bodies[0]).toEqual({ invoice_id: "inv1", assigned_membership_id: null, delivery_date: null });
   expect(await screen.findByText(/Corner Shop/)).toBeInTheDocument();
   expect(screen.getByText(/30\.0000 USD/)).toBeInTheDocument();

@@ -35,8 +35,10 @@ test("owner builds a list from demand, edits the target, waives with a reason an
   }));
 
   render(<ProcurementPanel tenantId="t1" />);
+  expect(document.querySelector(".list-head-count")).toBeNull(); // no count before the list loads
   fireEvent.click(await screen.findByRole("button", { name: "Build from confirmed demand" }));
   expect(await screen.findByText("List built from confirmed demand.")).toBeInTheDocument();
+  expect(document.querySelector(".list-head-count")).toHaveTextContent("1 item");
   expect(screen.getByText((_, node) => node?.tagName === "SMALL" && /2 invoices/.test(node.textContent ?? ""))).toBeInTheDocument();
   expect(screen.getAllByText(/40\.0000 USD/).length).toBeGreaterThan(0); // labelled estimate
   expect(screen.getByRole("table").textContent).not.toMatch(/stock|on hand|available/i); // demand and progress only

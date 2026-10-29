@@ -6,6 +6,7 @@ import type { ProductPriceBasis, TenantProduct, TenantProductListResponse } from
 import { browserOffline } from "../offline/network";
 import { queueCostAppend } from "../offline/supplierCommands";
 import { ErrorState } from "./Ui";
+import { ListHeader } from "./listKit/ListHeader";
 import { PurchasePanel } from "./PurchasePanel";
 import { SupplierLedgerPanel } from "./SupplierLedgerPanel";
 import { useSupplierBalances } from "./supplierBalances";
@@ -217,12 +218,9 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
   const supplierName_ = (id: string) => suppliers.find((supplier) => supplier.id === id)?.name ?? "—";
 
   return (
-    <section className="supplier-setup" aria-labelledby="supplier-setup-title" ref={root}>
-      <header>
-        <p className="section-kicker">{t("supplierSetup.kicker")}</p>
-        <h3 id="supplier-setup-title">{t("supplierSetup.title")}</h3>
-        <p>{t("supplierSetup.body")}</p>
-      </header>
+    <section className="supplier-setup" aria-label={t("supplierSetup.title")} ref={root}>
+      <ListHeader count={loadedSuppliers?.length} eyebrow={t("supplierSetup.kicker")} title={t("supplierSetup.title")} />
+      <p>{t("supplierSetup.body")}</p>
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
 

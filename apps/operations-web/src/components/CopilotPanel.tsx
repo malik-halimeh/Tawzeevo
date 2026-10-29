@@ -7,6 +7,7 @@ import { askCopilot, type CopilotResponse, type CopilotTurn, useCopilotStatus } 
 import { AnswerDetails, AnswerText } from "./AiAnswer";
 import { readConversation, writeConversation } from "./copilotSession";
 import { Icon } from "./Icon";
+import { ListHeader } from "./listKit/ListHeader";
 import { ErrorState, LoadingState } from "./Ui";
 import { sectionHref } from "./workspaceSections";
 
@@ -96,12 +97,9 @@ export function CopilotPanel({ tenantId }: { tenantId: string }) {
 
   const configured = status.data?.configured === true && !unconfigured;
   return (
-    <section aria-labelledby="copilot-title" className="copilot">
-      <header className="section-head">
-        <p className="eyebrow"><Icon name="chat" small />{t("copilot.kicker")}</p>
-        <h3 id="copilot-title">{t("copilot.title")}</h3>
-        <p>{t("copilot.body")}</p>
-      </header>
+    <section aria-label={t("copilot.title")} className="copilot">
+      <ListHeader eyebrow={t("copilot.kicker")} title={t("copilot.title")} />
+      <p>{t("copilot.body")}</p>
       {status.isPending ? <LoadingState /> : null}
       {status.error ? <><ErrorState error={status.error} /><button className="button button-secondary" onClick={() => { void status.refetch(); }} type="button"><Icon name="sync" small />{t("intelligence.retry")}</button></> : null}
       {status.data && !configured ? <SetupRequired tenantId={tenantId} /> : null}
