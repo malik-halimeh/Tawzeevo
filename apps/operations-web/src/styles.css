@@ -376,7 +376,7 @@ html[dir="rtl"] .hero-art::before { border-radius: 16px 100px 16px 16px; }
 .assistant-drawer-head { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: 12px 16px; }
 .assistant-drawer-head strong { align-items: center; display: inline-flex; gap: 8px; }
 .assistant-drawer-body { flex: 1; overflow-y: auto; padding: 12px 16px 24px; }
-.assistant-drawer-body .copilot > header .eyebrow, .assistant-drawer-body .copilot > header h3 { display: none; }
+.assistant-drawer-body .copilot > header .eyebrow, .assistant-drawer-body .copilot > header h1 { display: none; }
 @media (max-width: 1099px) {
   .assistant-drawer { bottom: calc(var(--bottom-nav) + env(safe-area-inset-bottom)); width: 100vw; }
 }
@@ -751,6 +751,7 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .owner-today h3 { font-size: 15px; }
 .owner-today-orders { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; margin: 0; }
 .owner-today-list { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.owner-today-invoice-number { white-space: nowrap; }
 .owner-today-list li { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 4px 12px; grid-template-columns: 1fr auto auto; padding-top: 6px; }
 @media (max-width: 560px) { .owner-today-list li { grid-template-columns: 1fr auto; } }
 .document-head { align-items: flex-start; display: flex; gap: 12px; justify-content: space-between; }
@@ -1288,3 +1289,17 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
 /* Driver collection reports (D-114). */
 .collection-claim { border: 1px solid var(--line); border-radius: var(--radius-control); display: grid; gap: 6px; margin: 0 0 8px; padding: 8px 12px; }
 .collection-inbox { margin-block-end: 12px; }
+/* Owner bar + More (OE-01) */
+@media screen and (max-width: 1099px) {
+  .frame[data-role="owner"] .mobile-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .keyboard-open .frame[data-role="owner"] .mobile-nav { display: none; }
+  .frame[data-role="owner"] .mobile-nav-item { min-inline-size: 0; min-block-size: 58px; inline-size: 100%; padding-inline: 2px; }
+  .frame[data-role="owner"] .mobile-nav-item > span:not(.nav-badge) { white-space: nowrap; }
+  .frame[data-role="owner"] .owner-more-sheet { inset-inline: 0; border-end-start-radius: 0; border-end-end-radius: 0; padding: 12px; }
+  .owner-more-sheet .more-item { min-block-size: 48px; border-radius: var(--radius-control); border-block-end: 1px solid var(--line); }
+  .owner-more-sheet .more-group { padding-block: 8px; }
+  .owner-more-copy { display: grid; gap: 2px; }
+  .owner-more-copy small { color: var(--muted); font-size: 12px; }
+  .owner-more-chevron { display: inline-block; margin-inline-start: auto; font-size: 24px; color: var(--muted); }
+  /* The chevron text glyph mirrors itself in RTL. */
+}

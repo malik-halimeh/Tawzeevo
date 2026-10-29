@@ -22,7 +22,7 @@ interface InvoicePage { page: number; total_pages: number; total: number; invoic
 const PAGE_SIZE = 20;
 const STATUS_KEY = { DRAFT: "invoiceEditor.draft", CONFIRMED: "invoiceEditor.confirmed", CANCELLED: "invoiceEditor.cancelled" } as const;
 
-function CustomerInvoices({ tenantId, customer }: { tenantId: string; customer: Customer }) {
+export function CustomerInvoices({ tenantId, customer }: { tenantId: string; customer: Customer }) {
   const { t, i18n } = useTranslation();
   const [page, setPage] = useState(1);
   const [data, setData] = useState<InvoicePage>();

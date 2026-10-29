@@ -3,8 +3,9 @@ cancellation requests and decisions, one-owner/zero-driver operation (PHASE_05.m
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from test_checkout import REF, _cart, _checkout
@@ -135,8 +136,10 @@ def test_owner_reviews_links_explicitly_and_confirms_through_phase_3(client, ses
             select(DeliveryReminder).where(DeliveryReminder.tenant_id == UUID(tenant))
         )
         assert reminder is not None and reminder.status == "SCHEDULED"
-        assert reminder.remind_at.astimezone(UTC).hour == 6, (
-            "09:00 Beirut (UTC+3) executes at 06:00 UTC"
+        assert reminder.remind_at.tzinfo is not None
+        beirut = ZoneInfo("Asia/Beirut")
+        assert reminder.remind_at.astimezone(beirut) == datetime.combine(
+            tomorrow, time(9), tzinfo=beirut
         )
         assert (
             db.scalar(

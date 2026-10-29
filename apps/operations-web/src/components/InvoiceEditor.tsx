@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiBlobRequest, apiRequest } from "../api/client";
+import { apiRequest } from "../api/client";
 import { financialIntent, retireFinancialIntent } from "../api/financialIntent";
 import type {
   BarcodeLookupResponse,
@@ -18,7 +18,6 @@ import type {
   InvoiceEditorResponse,
   InvoiceHistoryResponse,
   InvoiceItemParserResponse,
-  ProductCostOption,
   ProductCostOptionsResponse,
   ProductPriceBasis,
   TenantProduct,
@@ -37,32 +36,12 @@ import type { Supplier } from "./SupplierSetup";
 import { queueInvoiceConfirm, queueInvoiceDraft, queueInvoiceUpdate, queueReceipt } from "../offline/commands";
 import { browserOffline } from "../offline/network";
 import { findLocalProductByBarcode, searchLocalCustomers } from "../offline/sync";
-
-interface AcceptedMatch {
-  query: string;
-  selected_product_id: string;
-  score: string;
-}
-
-interface EditorLine {
-  key: string;
-  productId?: string | undefined;
-  manualName?: string | undefined;
-  name: string;
-  imageUrl?: string | undefined;
-  barcode?: string | undefined;
-  quantity: string;
-  basis: ProductPriceBasis;
-  piecesPerBox?: number | undefined;
-  manualUnitPrice?: string | undefined;
-  lineDiscount: string;
-  lineMarkup: string;
-  acceptedMatch?: AcceptedMatch | undefined;
-  costOptions: ProductCostOption[];
-  supplierId?: string | undefined;
-  costOverride: string;
-  costOverrideReason: string;
-}
+import { InvoiceActionBar } from "./invoiceEditor/InvoiceActionBar";
+import { InvoiceLineCard } from "./invoiceEditor/InvoiceLineCard";
+import { InvoiceLineImage } from "./invoiceEditor/InvoiceLineImage";
+import { localAsCustomers, useCustomerSuggestions, type CustomerMatch } from "./invoiceEditor/customerSuggestions";
+import { money, type AcceptedMatch, type EditorLine } from "./invoiceEditor/editorLine";
+import "../invoiceEditorLayout.css";
 
 function lineKey() {
   return crypto.randomUUID();
@@ -86,10 +65,6 @@ const ENTRY_METHODS: readonly (readonly [EntryMethod, string])[] = [
   ["text", "invoiceEditor.textEntry"],
   ["manual", "invoiceEditor.manualEntry"],
 ];
-
-function money(value: string, currency: string) {
-  return `${value} ${currency}`;
-}
 
 function productLine(
   match: InvoiceCatalogMatch,
@@ -144,28 +119,6 @@ function signatureOf(customerId: string | null, currency: string, invoiceDiscoun
   });
 }
 
-function InvoiceLineImage({ url, name }: { url: string; name: string }) {
-  const [source, setSource] = useState<string>();
-
-  useEffect(() => {
-    let active = true;
-    let objectUrl: string | undefined;
-    void apiBlobRequest(url)
-      .then((blob) => {
-        if (!active) return;
-        objectUrl = URL.createObjectURL(blob);
-        setSource(objectUrl);
-      })
-      .catch(() => setSource(undefined));
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [url]);
-
-  return source ? <img alt={name} className="invoice-line-image" src={source} /> : null;
-}
-
 /**
  * `onOpenSupplierSetup` opens supplier and cost setup for a line's product while this editor stays
  * mounted (hidden), so the invoice in progress survives; each change of `costsRefreshKey` (the
@@ -175,7 +128,9 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [customerPhone, setCustomerPhone] = useState("");
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<CustomerMatch[]>([]);
+  // Where the listed customers came from: the matches shown while typing, or the Search (exact phone) answer.
+  const [typedMatches, setTypedMatches] = useState<{ offline: boolean } | null>(null);
   const [customer, setCustomer] = useState<Customer>();
   // The currency named in the address, else the one this business used last on this device, else USD.
   const [currency, setCurrency] = useState(() => (initialCurrency && /^[A-Z]{3}$/.test(initialCurrency) ? initialCurrency : readLastChoice("currency", tenantId) ?? "USD"));
@@ -352,6 +307,10 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     return () => { live = false; };
   }, [invoiceId, initialView, tenantId, loadHistory]);
 
+  useEffect(() => {
+    if (initialView === "balances") setView("balances");
+  }, [initialView]);
+
   // A new invoice starts at the customer's phone; nothing moves when an invoice, a customer or another view was asked for.
   useEffect(() => {
     if (!invoiceId && !customerId && (initialView === null || initialView === "invoice")) customerPhoneInput.current?.focus();
@@ -464,8 +423,26 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     void loadCostOptions(line).catch(setError);
   };
 
+  const cancelSuggestions = useCustomerSuggestions({
+    tenantId,
+    membershipId,
+    query: customerPhone,
+    active: customer === undefined,
+    onMatches: (matches, offline) => {
+      setCustomers(matches);
+      setTypedMatches({ offline });
+    },
+    onCleared: () => {
+      if (!typedMatches) return;
+      setCustomers([]);
+      setTypedMatches(null);
+    },
+  });
+
   const searchCustomers = (event: FormEvent) => {
     event.preventDefault();
+    cancelSuggestions();
+    setTypedMatches(null);
     void run(async () => {
       try {
         const response = await apiRequest<CustomerSearchResponse>(
@@ -477,7 +454,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
         // Network failure (offline): fall back to the local projection downloaded for this device.
         if (!(problem instanceof TypeError)) throw problem;
         const local = await searchLocalCustomers(tenantId, membershipId, customerPhone);
-        setCustomers(local.map((row) => ({ ...row, phone_raw: row.phone_raw ?? row.phone, latitude: row.latitude, longitude: row.longitude, grade: row.grade })) as unknown as Customer[]);
+        setCustomers(localAsCustomers(local));
         setNotice(t("invoiceEditor.offlineMatches", { count: local.length }));
       }
     });
@@ -602,7 +579,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
 
   // The total of the invoice as it stands, calculated by the server shortly after each change and
   // never saved (D-107). Shown only while it differs from what was saved.
-  const [calculated, setCalculated] = useState<{ signature: string; net_sales: string; total_due: string; currency: string }>();
+  const [calculated, setCalculated] = useState<{ signature: string; net_sales: string; total_due: string; currency: string; lines: { line_number: number; line_total: string }[] }>();
   const currentSignature = draftSignature();
   const editable = !saved || saved.status === "DRAFT" || (saved.status === "CONFIRMED" && revising);
   const wantsCalculation = editable && customer !== undefined && lines.length > 0 && currentSignature !== savedSignature;
@@ -612,8 +589,8 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
       if (!customer) return;
       const signature = draftSignature();
       const body = { customer_id: customer.id, currency, invoice_discount_expression: invoiceDiscount, invoice_markup_expression: invoiceMarkup, items: requestItems() };
-      const answer = await apiRequest<{ net_sales: string; total_due: string; currency: string }>(`/api/v1/invoices/calculate?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify(body) });
-      if (mounted.current) setCalculated({ signature, net_sales: answer.net_sales, total_due: answer.total_due, currency: answer.currency });
+      const answer = await apiRequest<{ net_sales: string; total_due: string; currency: string; lines?: { line_number: number; line_total: string }[] }>(`/api/v1/invoices/calculate?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify(body) });
+      if (mounted.current) setCalculated({ signature, net_sales: answer.net_sales, total_due: answer.total_due, currency: answer.currency, lines: answer.lines ?? [] });
     };
   });
   useEffect(() => {
@@ -622,6 +599,15 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     return () => window.clearTimeout(timer);
   }, [wantsCalculation, currentSignature]);
   const shownCalculation = wantsCalculation && calculated?.signature === currentSignature ? calculated : undefined;
+  // What the server says about the invoice as it stands now: the calculation while it differs from
+  // the save, else the saved revision itself. Nothing is added up here.
+  const savedMatches = saved !== undefined && (!editable || currentSignature === savedSignature);
+  const serverLines: { line_number: number; line_total: string }[] = shownCalculation?.lines ?? (saved && savedMatches ? saved.items : []);
+  const lineTotalAt = (index: number) => serverLines.find((row) => row.line_number === index + 1)?.line_total;
+  const lineTotalCurrency = shownCalculation?.currency ?? saved?.currency ?? currency;
+  const barFigure = shownCalculation
+    ? { amount: shownCalculation.net_sales, currency: shownCalculation.currency, pending: true }
+    : saved && savedMatches ? { amount: saved.net_sales, currency: saved.currency, pending: false } : undefined;
 
   const saveDraft = () => {
     if (!customer) {
@@ -1003,6 +989,23 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     </dl>
   );
 
+  // Each entry opens to that revision's own items and totals, read-only, as the server kept them.
+  const revisionEntry = (revision: InvoiceHistoryResponse["revisions"][number]) => (
+    <details className={revision.is_current ? "is-current" : undefined} key={revision.current_revision_id}>
+      <summary>
+        <span className="revision-name"><strong>R{revision.server_revision_number}</strong>{revision.is_current ? <span className="current-mark">{t("invoiceEditor.currentRevision")}</span> : null}</span>
+        <time dateTime={revision.revision_created_at}>{new Date(revision.revision_created_at).toLocaleString()}</time>
+        <bdi className="revision-amount" dir="ltr">{money(revision.net_sales, revision.currency)}</bdi>
+        {revision.ledger_delta !== null ? <small className="revision-delta" dir="ltr">Δ {money(revision.ledger_delta, revision.currency)}</small> : null}
+      </summary>
+      <div className="revision-detail">
+        {revision.reason ? <p className="revision-reason"><span>{t("invoiceEditor.revisionReason")}</span> {revision.reason}</p> : null}
+        {itemsTable(revision.items, revision.currency, `R${revision.server_revision_number} · ${t("invoiceEditor.invoiceLines")}`)}
+        {totalsList(revision)}
+      </div>
+    </details>
+  );
+
   return (
     <div className="invoice-editor">
       <header className="invoice-editor-heading">
@@ -1052,7 +1055,6 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
               <h4 id="invoice-document-title" ref={documentTitle} tabIndex={-1}><bdi dir="ltr">{saved.official_invoice_number ?? `R${saved.server_revision_number}`}</bdi></h4>
               <p className="document-tone">{t(saved.status === "CANCELLED" ? "invoiceEditor.cancelledTone" : "invoiceEditor.confirmedTone")}</p>
             </div>
-            <button className="button button-secondary document-print" onClick={printDocument} type="button">{t("invoiceEditor.print")}</button>
           </header>
           <dl className="document-meta">
             <div><dt>{t("invoiceEditor.customerStep")}</dt><dd><strong>{snapshotText("name") ?? customer?.name ?? "—"}</strong>{snapshotText("phone") ?? customer?.phone ? <bdi dir="ltr">{snapshotText("phone") ?? customer?.phone}</bdi> : null}</dd></div>
@@ -1067,6 +1069,9 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
               <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p>
             </div>
           </div>
+          <InvoiceActionBar figure={{ amount: saved.net_sales, currency: saved.currency, pending: false }}>
+            <button className="button button-secondary document-print" onClick={printDocument} type="button">{t("invoiceEditor.print")}</button>
+          </InvoiceActionBar>
           {saved.status === "CONFIRMED" ? (
             <footer className="document-actions">
               <button className="button" disabled={busy} onClick={openRevision} type="button">{t("invoiceEditor.createRevision")}</button>
@@ -1087,23 +1092,28 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
           <button className="text-button" onClick={closeRevision} type="button"><Arrow back small />{t("invoiceEditor.backToDocument")}</button>
         </div>
       ) : null}
+      {/* One column of cards in reading order (customer, items, lines, subtotal, total, actions); from
+          1024 px the totals and actions sit beside the lines in the same order. */}
       <div className="invoice-editor-grid">
         <div className="invoice-entry-desk">
           {customer ? null : (
           <article className="content-card invoice-customer-card">
             <p className="section-kicker">{t("invoiceEditor.customerStep")}</p>
-            <h4>{t("invoiceEditor.findCustomer")}</h4>
+            <h4>{t("invoiceEditorLayout.findCustomer")}</h4>
                 <form className="inline-form" onSubmit={searchCustomers}>
                   <label className="field">
                     <span>{t("fields.phone")}</span>
-                    <input dir="ltr" ref={customerPhoneInput} required value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} />
+                    <input aria-describedby="invoice-customer-hint" autoComplete="off" dir="auto" ref={customerPhoneInput} required value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} />
                   </label>
                   <button className="button" disabled={busy} type="submit">{t("common.search")}</button>
                 </form>
+                <p className="customer-search-hint" id="invoice-customer-hint">{t("invoiceEditorLayout.customerHint")}</p>
+                <p aria-live="polite" className="sr-only">{typedMatches ? t(typedMatches.offline ? "invoiceEditorLayout.typedMatchesOffline" : "invoiceEditorLayout.typedMatches", { count: customers.length }) : ""}</p>
                 <div className="invoice-customer-results">
                   {customers.map((match) => (
                     <button key={match.id} onClick={() => chooseCustomer(match)} type="button">
                       <strong>{match.name}</strong><bdi dir="ltr">{match.phone}</bdi><span>{match.address ?? "—"}</span>
+                      {match.balances?.length ? <span className="customer-owes">{t("invoiceEditorLayout.owes")} {match.balances.map((owed, index) => <bdi dir="ltr" key={owed.currency}>{index ? " · " : ""}{money(owed.balance, owed.currency)}</bdi>)}</span> : null}
                     </button>
                   ))}
                 </div>
@@ -1153,51 +1163,60 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
 
           <section className="invoice-lines" aria-label={t("invoiceEditor.invoiceLines")}>
             {lines.map((line, index) => (
-              <article className="invoice-line" key={line.key}>
-                <span className="line-number">{String(index + 1).padStart(2, "0")}</span>
-                <div className="line-main">{line.imageUrl ? <InvoiceLineImage name={line.name} url={line.imageUrl} /> : <span className="invoice-line-image invoice-line-image-empty" aria-hidden="true">□</span>}<span><strong>{line.name}</strong><code dir="ltr">{line.barcode ?? t("invoiceEditor.manual")}</code></span></div>
-                <div className="line-fields">
-                <label className="field"><span>{t("invoiceEditor.quantityExpression")}</span><input dir="ltr" value={line.quantity} onChange={(event) => changeLine(line.key, { quantity: event.target.value })} /></label>
-                <label className="field"><span>{t("tenantWorkspace.priceBasis")}</span><select value={line.basis} onChange={(event) => { const basis = event.target.value as ProductPriceBasis; changeLine(line.key, { basis, barcode: undefined }); void loadCostOptions({ ...line, basis, barcode: undefined }).catch(setError); }}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label>
-                <label className="field"><span>{t("invoiceEditor.lineDiscount")}</span><input dir="ltr" value={line.lineDiscount} onChange={(event) => changeLine(line.key, { lineDiscount: event.target.value })} /></label>
-                <label className="field"><span>{t("invoiceEditor.lineMarkup")}</span><input dir="ltr" value={line.lineMarkup} onChange={(event) => changeLine(line.key, { lineMarkup: event.target.value })} /></label>
-                </div>
-                {line.costOptions.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.supplierCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value })}><option value="">—</option>{line.costOptions.map((option) => <option key={option.supplier_id} value={option.supplier_id}>{option.supplier_name} · {option.unit_cost ?? "—"} {option.currency}{option.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
-                {!line.productId && suppliers.length ? <div className="line-cost-controls"><label className="field"><span>{t("invoiceEditor.manualLineCost")}</span><select value={line.supplierId ?? ""} onChange={(event) => changeLine(line.key, { supplierId: event.target.value || undefined })}><option value="">—</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label className="field"><span>{t("invoiceEditor.costOverride")}</span><input dir="ltr" min="0" step="0.0001" type="number" value={line.costOverride} onChange={(event) => changeLine(line.key, { costOverride: event.target.value })} /></label>{line.costOverride ? <label className="field field-wide"><span>{t("invoiceEditor.overrideReason")}</span><input required value={line.costOverrideReason} onChange={(event) => changeLine(line.key, { costOverrideReason: event.target.value })} /></label> : null}</div> : null}
-                {(line.productId ? !line.costOptions.some((option) => option.unit_cost !== null) : suppliers.length === 0) && !line.costOverride ? <p className="cost-missing" role="note">{t("invoiceEditor.costMissing")}{onOpenSupplierSetup ? <> <button className="text-button" onClick={() => onOpenSupplierSetup(line.productId)} type="button">{t("invoiceEditor.openSupplierSetup")}</button></> : null}</p> : null}
-                <button className="text-button danger-link remove-line" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))} type="button">{t("common.remove")}</button>
-              </article>
+              <InvoiceLineCard
+                index={index}
+                key={line.key}
+                line={line}
+                lineTotal={lineTotalAt(index)}
+                onBasisChange={(basis) => { changeLine(line.key, { basis, barcode: undefined }); void loadCostOptions({ ...line, basis, barcode: undefined }).catch(setError); }}
+                onChange={(changes) => changeLine(line.key, changes)}
+                onOpenSupplierSetup={onOpenSupplierSetup}
+                onRemove={() => setLines((current) => current.filter((item) => item.key !== line.key))}
+                suppliers={suppliers}
+                totalCurrency={lineTotalCurrency}
+              />
             ))}
             {!lines.length ? <div className="invoice-empty-lines"><strong>{t("invoiceEditor.emptyTitle")}</strong><span>{t("invoiceEditor.emptyBody")}</span></div> : null}
           </section>
         </div>
 
+        <div className="invoice-summary-column">
         <aside className="invoice-tally" aria-label={t("invoiceEditor.totals")}>
           <div className="tally-top"><span>{t(saved?.status === "CONFIRMED" ? "invoiceEditor.confirmed" : saved?.status === "CANCELLED" ? "invoiceEditor.cancelled" : "invoiceEditor.draft")}</span><strong><bdi dir="ltr">{saved?.official_invoice_number ?? (saved ? `R${saved.server_revision_number}` : "R—")}</bdi></strong></div>
-          <dl>
-            <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr">{saved ? money(saved.prior_balance, saved.currency) : "—"}</dd></div>
-            <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr">{saved ? money(saved.subtotal, saved.currency) : "—"}</dd></div>
-            <div><dt>{t("invoiceEditor.discounts")}</dt><dd dir="ltr">{saved ? `− ${money(saved.discount_total, saved.currency)}` : "—"}</dd></div>
-            <div><dt>{t("invoiceEditor.markups")}</dt><dd dir="ltr">{saved ? `+ ${money(saved.markup_total, saved.currency)}` : "—"}</dd></div>
-            <div className="net-sales"><dt>{t("invoiceEditor.netSales")}</dt><dd dir="ltr">{saved ? money(saved.net_sales, saved.currency) : "—"}</dd></div>
-            <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr">{saved ? money(saved.total_due, saved.currency) : "—"}</dd></div>
-          </dl>
-          {saved ? <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p> : null}
-          {shownCalculation ? (
-            <div className="calculated-total" role="status">
-              <span>{t("invoiceEditor.notSavedTotal")}</span>
-              <strong dir="ltr">{money(shownCalculation.net_sales, shownCalculation.currency)}</strong>
-              <small>{t("invoiceEditor.notSavedDue", { amount: money(shownCalculation.total_due, shownCalculation.currency) })}</small>
-            </div>
-          ) : null}
-          <div className="tally-adjustments"><label className="field"><span>{t("invoiceEditor.invoiceDiscount")}</span><input dir="ltr" value={invoiceDiscount} onChange={(event) => setInvoiceDiscount(event.target.value)} /></label><label className="field"><span>{t("invoiceEditor.invoiceMarkup")}</span><input dir="ltr" value={invoiceMarkup} onChange={(event) => setInvoiceMarkup(event.target.value)} /></label></div>
-          {saved?.items.map((item) => <div className="saved-line-proof" key={item.id}>{item.media_snapshot.images?.[0]?.url ? <InvoiceLineImage name={item.product_name} url={item.media_snapshot.images[0].url} /> : null}<strong>{item.product_name}</strong><span>{item.price_source === "EXPLICIT_GRADE_PRICE" ? t("invoiceEditor.explicitGradePrice") : item.price_source === "GRADE_DISCOUNT" ? t("invoiceEditor.gradeDiscount", { value: item.grade_discount_percent }) : t("invoiceEditor.normalPrice")}</span><bdi dir="ltr">{money(item.line_total, saved.currency)}</bdi>{item.unit_cost ? <small>{t("invoiceEditor.costSnapshot", { value: item.unit_cost, currency: item.cost_currency })}</small> : null}</div>)}
-          {saved?.status !== "CANCELLED" ? <button className="button tally-save" disabled={busy || !customer || !lines.length} onClick={saveDraft} type="button">{busy ? t("common.saving") : t(saved?.status === "CONFIRMED" ? "invoiceEditor.saveConfirmedRevision" : saved ? "invoiceEditor.recalculate" : "invoiceEditor.saveDraft")}</button> : null}
-          {saved?.status === "DRAFT" ? <button className="button button-confirm" disabled={busy || unsavedChanges} onClick={confirmSaved} type="button">{t("invoiceEditor.confirmInvoice")}</button> : null}
-          {unsavedChanges ? <p className="notice" role="note">{t("invoiceEditor.saveBeforeConfirm")}</p> : null}
-          {saved && saved.status !== "CANCELLED" ? <div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><ConfirmAction confirmLabel={t("invoiceEditor.confirmCancel")} danger disabled={busy} label={t("invoiceEditor.cancelInvoice")} onConfirm={cancelSaved}>{t("invoiceEditor.cancelExplain")}</ConfirmAction></div> : null}
+          <div aria-labelledby="tally-subtotal-title" className="tally-group" role="group">
+            <p className="tally-group-title" id="tally-subtotal-title">{t("invoiceEditorLayout.subtotalCard")}</p>
+            <dl>
+              <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr">{saved ? money(saved.subtotal, saved.currency) : "—"}</dd></div>
+              <div><dt>{t("invoiceEditor.discounts")}</dt><dd dir="ltr">{saved ? `− ${money(saved.discount_total, saved.currency)}` : "—"}</dd></div>
+              <div><dt>{t("invoiceEditor.markups")}</dt><dd dir="ltr">{saved ? `+ ${money(saved.markup_total, saved.currency)}` : "—"}</dd></div>
+            </dl>
+            <div className="tally-adjustments"><label className="field"><span>{t("invoiceEditor.invoiceDiscount")}</span><input dir="ltr" value={invoiceDiscount} onChange={(event) => setInvoiceDiscount(event.target.value)} /></label><label className="field"><span>{t("invoiceEditor.invoiceMarkup")}</span><input dir="ltr" value={invoiceMarkup} onChange={(event) => setInvoiceMarkup(event.target.value)} /></label></div>
+            {saved?.items.map((item) => <div className="saved-line-proof" key={item.id}>{item.media_snapshot.images?.[0]?.url ? <InvoiceLineImage name={item.product_name} url={item.media_snapshot.images[0].url} /> : null}<strong>{item.product_name}</strong><span>{item.price_source === "EXPLICIT_GRADE_PRICE" ? t("invoiceEditor.explicitGradePrice") : item.price_source === "GRADE_DISCOUNT" ? t("invoiceEditor.gradeDiscount", { value: item.grade_discount_percent }) : t("invoiceEditor.normalPrice")}</span><bdi dir="ltr">{money(item.line_total, saved.currency)}</bdi>{item.unit_cost ? <small>{t("invoiceEditor.costSnapshot", { value: item.unit_cost, currency: item.cost_currency })}</small> : null}</div>)}
+          </div>
+          <div aria-labelledby="tally-total-title" className="tally-group" role="group">
+            <p className="tally-group-title" id="tally-total-title">{t("invoiceEditorLayout.totalCard")}</p>
+            <dl>
+              <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr">{saved ? money(saved.prior_balance, saved.currency) : "—"}</dd></div>
+              <div className="net-sales"><dt>{t("invoiceEditor.netSales")}</dt><dd dir="ltr">{saved ? money(saved.net_sales, saved.currency) : "—"}</dd></div>
+              <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr">{saved ? money(saved.total_due, saved.currency) : "—"}</dd></div>
+            </dl>
+            {saved ? <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p> : null}
+            {shownCalculation ? (
+              <div className="calculated-total" role="status">
+                <span>{t("invoiceEditor.notSavedTotal")}</span>
+                <strong dir="ltr">{money(shownCalculation.net_sales, shownCalculation.currency)}</strong>
+                <small>{t("invoiceEditor.notSavedDue", { amount: money(shownCalculation.total_due, shownCalculation.currency) })}</small>
+              </div>
+            ) : null}
+          </div>
           <p className="backend-note">{t("invoiceEditor.backendNote")}</p>
         </aside>
+        <InvoiceActionBar figure={barFigure} note={unsavedChanges ? <p className="notice" id="invoice-save-first" role="note">{t("invoiceEditor.saveBeforeConfirm")}</p> : null}>
+          {saved?.status !== "CANCELLED" ? <button className="button tally-save" disabled={busy || !customer || !lines.length} onClick={saveDraft} type="button">{busy ? t("common.saving") : t(saved?.status === "CONFIRMED" ? "invoiceEditor.saveConfirmedRevision" : saved ? "invoiceEditor.recalculate" : "invoiceEditor.saveDraft")}</button> : null}
+          {saved?.status === "DRAFT" ? <button aria-describedby={unsavedChanges ? "invoice-save-first" : undefined} className="button button-confirm" disabled={busy || unsavedChanges} onClick={confirmSaved} type="button">{t("invoiceEditor.confirmInvoice")}</button> : null}
+        </InvoiceActionBar>
+        {saved && saved.status !== "CANCELLED" ? <div className="content-card invoice-cancel-card"><div className="cancel-controls"><label className="field"><span>{t("invoiceEditor.cancellationReason")}</span><input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><ConfirmAction confirmLabel={t("invoiceEditor.confirmCancel")} danger disabled={busy} label={t("invoiceEditor.cancelInvoice")} onConfirm={cancelSaved}>{t("invoiceEditor.cancelExplain")}</ConfirmAction></div></div> : null}
+        </div>
       </div>
       </>
       )}
@@ -1209,23 +1228,18 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
       {saved?.status === "CONFIRMED" ? <InvoiceSharing key={saved.id} tenantId={tenantId} invoiceId={saved.id} /> : saved ? <p className="backend-note">{t("invoiceEditor.sharingAfterConfirmation")}</p> : null}
       {history?.revisions.length ? (
         <section aria-labelledby="invoice-history-title" className="invoice-history">
-          <h4 id="invoice-history-title">{t("invoiceEditor.revisionHistory")}</h4>
-          {/* Each entry opens to that revision's own items and totals, read-only, as the server kept them. */}
-          {history.revisions.map((revision) => (
-            <details className={revision.is_current ? "is-current" : undefined} key={revision.current_revision_id}>
-              <summary>
-                <span className="revision-name"><strong>R{revision.server_revision_number}</strong>{revision.is_current ? <span className="current-mark">{t("invoiceEditor.currentRevision")}</span> : null}</span>
-                <time dateTime={revision.revision_created_at}>{new Date(revision.revision_created_at).toLocaleString()}</time>
-                <bdi className="revision-amount" dir="ltr">{money(revision.net_sales, revision.currency)}</bdi>
-                {revision.ledger_delta !== null ? <small className="revision-delta" dir="ltr">Δ {money(revision.ledger_delta, revision.currency)}</small> : null}
-              </summary>
-              <div className="revision-detail">
-                {revision.reason ? <p className="revision-reason"><span>{t("invoiceEditor.revisionReason")}</span> {revision.reason}</p> : null}
-                {itemsTable(revision.items, revision.currency, `R${revision.server_revision_number} · ${t("invoiceEditor.invoiceLines")}`)}
-                {totalsList(revision)}
-              </div>
+          {/* A single revision folds away behind its title; with more, every entry is listed at once. */}
+          {history.revisions.length === 1 ? (
+            <details className="invoice-history-fold">
+              <summary><h4 id="invoice-history-title">{t("invoiceEditor.revisionHistory")}</h4></summary>
+              {history.revisions.map(revisionEntry)}
             </details>
-          ))}
+          ) : (
+            <>
+              <h4 id="invoice-history-title">{t("invoiceEditor.revisionHistory")}</h4>
+              {history.revisions.map(revisionEntry)}
+            </>
+          )}
         </section>
       ) : null}
       </section>

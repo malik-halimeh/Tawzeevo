@@ -4,25 +4,34 @@ import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/client";
 import { Icon, type IconName } from "./Icon";
 
+/**
+ * The page title block. `eyebrow`, `className` and `children` are optional additions for the list
+ * kit (src/components/listKit); without them the output is the same as before.
+ */
 export function PageHeader({
   eyebrow,
   title,
   description,
   actions,
+  className,
+  children,
 }: {
-  eyebrow: string;
+  eyebrow?: string | undefined;
   title: string;
-  description?: string;
+  description?: string | undefined;
   actions?: ReactNode;
+  className?: string | undefined;
+  children?: ReactNode;
 }) {
   return (
-    <header className="page-head">
+    <header className={className ? `page-head ${className}` : "page-head"}>
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
         <h1>{title}</h1>
         {description ? <p className="page-description">{description}</p> : null}
       </div>
       {actions ? <div className="page-actions">{actions}</div> : null}
+      {children}
     </header>
   );
 }
@@ -39,12 +48,20 @@ export function LoadingState() {
   );
 }
 
-export function EmptyState({ title, body, icon = "box" }: { title: string; body: string; icon?: IconName }) {
+/** `body`, `action` and `className` are optional additions for the list kit's EmptyHint; existing output is unchanged. */
+export function EmptyState({ title, body, icon = "box", action, className }: {
+  title: string;
+  body?: string | undefined;
+  icon?: IconName | undefined;
+  action?: ReactNode;
+  className?: string | undefined;
+}) {
   return (
-    <div className="empty-state">
+    <div className={className ? `empty-state ${className}` : "empty-state"}>
       <Icon name={icon} />
       <strong>{title}</strong>
-      <p>{body}</p>
+      {body ? <p>{body}</p> : null}
+      {action}
     </div>
   );
 }

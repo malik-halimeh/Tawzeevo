@@ -1,0 +1,18 @@
+/* One navigation-height reserve covers the 56px Fab and its gap; the other covers its phone offset. */
+.invoices-front-page { min-inline-size: 0; padding-block-end: calc(var(--bottom-nav) + var(--bottom-nav) + var(--keyboard) + env(safe-area-inset-bottom)); }
+.invoice-money-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 12px; margin-block: 16px; }
+.invoice-money-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-record); background: var(--surface); }
+.invoice-money-card h2 { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--muted); }
+.invoice-money-card button { display: grid; align-content: start; gap: 4px; min-inline-size: 0; min-block-size: 44px; padding: 8px; border-radius: var(--radius-control); text-align: start; }
+.invoice-money-card button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.invoice-money-card bdi { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; font-weight: 600; }
+.invoice-money-card small { color: var(--muted); }
+.invoice-list-tools { margin-block: 8px 16px; }
+.invoice-list-paging { display: grid; justify-items: center; gap: 8px; margin-block: 16px; }
+.invoice-list-paging p { margin: 0; color: var(--muted); }
+.invoices-front-page .list-row-main { flex-wrap: wrap; }
+.invoices-front-page .list-row-text { flex-basis: 7rem; }
+.invoices-front-page .list-row-end { min-inline-size: 0; max-inline-size: 100%; }
+.invoices-front-page .list-row-amount { white-space: normal; overflow-wrap: anywhere; }
+.invoices-front-page .status-badge { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
+.invoices-front-page .filter-sheet :is(input, select) { min-inline-size: 0; max-inline-size: 100%; min-block-size: 44px; }

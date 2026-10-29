@@ -47,7 +47,8 @@ const renderSection = (section: string) => render(
     <MemoryRouter initialEntries={[`/workspace?section=${section}`]}><TenantWorkspace contexts={[owner]} /></MemoryRouter>
   </QueryClientProvider>,
 );
-const productNames = () => screen.queryAllByRole("heading", { level: 4 }).map((heading) => heading.textContent);
+// ListRow uses a button title instead of the former card heading.
+const productNames = () => Array.from(document.querySelectorAll(".list-row-title")).map((title) => title.textContent);
 
 test("the product list comes first and is found by typing or by category, with settings on their own tabs", async () => {
   renderSection("products");
@@ -55,20 +56,22 @@ test("the product list comes first and is found by typing or by category, with s
   expect(screen.queryByRole("heading", { name: "Scan once. Resolve the right catalog identity." })).not.toBeInTheDocument();
   expect(screen.queryByText(/Customer access policy/)).not.toBeInTheDocument(); // storefront settings live in Settings
   expect(screen.queryByLabelText("Grade A discount (%)")).not.toBeInTheDocument(); // grade discounts live in Pricing
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
   fireEvent.change(screen.getByLabelText("Find a product"), { target: { value: "olive" } });
-  expect(productNames()).toEqual(["Olive Chips"]);
+  await waitFor(() => expect(productNames()).toEqual(["Olive Chips"]));
   fireEvent.change(screen.getByLabelText("Find a product"), { target: { value: "5280001" } });
-  expect(productNames()).toEqual(["Cedar Water"]); // by barcode too
+  await waitFor(() => expect(productNames()).toEqual(["Cedar Water"])); // by barcode too
   fireEvent.change(screen.getByLabelText("Find a product"), { target: { value: "" } });
-  fireEvent.change(within(screen.getByRole("button", { name: "Add product" }).parentElement!).getByLabelText("Category"), { target: { value: "c-snacks" } });
-  expect(productNames()).toEqual(["Olive Chips"]);
+  // Category selection now lives in chips (and the filter sheet).
+  fireEvent.click(within(screen.getByRole("group", { name: "Category" })).getByRole("button", { name: "Snacks" }));
+  await waitFor(() => expect(productNames()).toEqual(["Olive Chips"]));
 });
 
 test("a new product starts in the category and currency used last, and a missing category is created from the form", async () => {
   localStorage.setItem(`tawzeevo.last.category.${tenantId}`, "c-snacks");
   localStorage.setItem(`tawzeevo.last.currency.${tenantId}`, "LBP");
   renderSection("products");
-  fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
+  fireEvent.click((await screen.findAllByRole("button", { name: "Add product" }))[0]!); // desktop button; the Fab has the same label
   const form = screen.getByRole("heading", { name: "Product details" }).closest("div")!;
   await waitFor(() => expect(within(form).getByLabelText("Category")).toHaveValue("c-snacks"));
   expect(within(form).getByLabelText("Currency")).toHaveValue("LBP");

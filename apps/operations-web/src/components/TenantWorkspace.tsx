@@ -22,13 +22,19 @@ import type {
   TenantProduct,
   TenantProductListResponse,
 } from "../api/types";
-import { AllCustomers } from "./AllCustomers";
+import { CustomerInvoices } from "./AllCustomers";
+import { CustomersList } from "./customers/CustomersList";
+import { Fab } from "./listKit/Fab";
+import { ProductsList, type PublicationFilter } from "./products/ProductsList";
+import "../productsPage.css";
+import "../customersPage.css";
 import { CameraScanButton } from "./CameraScan";
 import { PickupInbox } from "./PickupReports";
 import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
 import { CopilotPanel } from "./CopilotPanel";
 import { AttentionList, CustomerSignals, TodayBrief } from "./IntelligencePanel";
 import { InvoiceEditor } from "./InvoiceEditor";
+import { InvoicesFrontPage } from "./InvoicesFrontPage";
 import { SupplierSetup } from "./SupplierSetup";
 import { CONNECT_RESULT_KEY } from "../backup/connect";
 import { isOfflineFailure } from "../offline/network";
@@ -47,9 +53,10 @@ import { OwnerTodayStrip } from "./OwnerTodayStrip";
 import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
+import { SettingsHub } from "./settings/SettingsHub";
 import { readLastChoice, rememberChoice } from "./lastChoice";
 import { SyncPanel } from "./SyncPanel";
-import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
+import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, isWorkspaceSection, ownerSectionHref, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
 import { useOptionalUser } from "../auth/AuthContext";
 import { PENDING_ORDERS_KEY, fetchPendingOrders } from "./pendingOrders";
 
@@ -79,7 +86,7 @@ function SectionTabs({ view, tenantParam, tenantId }: { view: WorkspaceSection; 
       {group.sections.map((id) => {
         const meta = WORKSPACE_SECTIONS.find((entry) => entry.id === id)!;
         return (
-          <Link aria-current={id === view ? "page" : undefined} className={id === view ? "active" : undefined} key={id} to={sectionHref(id, tenantParam)}>
+          <Link aria-current={id === view ? "page" : undefined} className={id === view ? "active" : undefined} key={id} to={ownerSectionHref(id, tenantParam)}>
             {t(meta.label)}
             {id === "orders" && waiting > 0 ? <span className="nav-badge"><span aria-hidden="true">{waiting}</span><span className="sr-only">{t("orders.awaitingBadge", { count: waiting })}</span></span> : null}
           </Link>
@@ -470,6 +477,7 @@ function ProductEditForm({ product, tenantId, categories, onClose }: { product: 
 
   return (
     <form aria-label={t("tenantWorkspace.editProduct", { name: product.name })} className="form-grid product-edit-form" onSubmit={save}>
+      <div className="product-pane-head field-wide"><h2>{t("tenantWorkspace.editProduct", { name: product.name })}</h2><button className="button button-secondary" disabled={busy} onClick={() => onClose(false)} type="button"><Arrow back />{t("common.back")}</button></div>
       {error ? <div className="field-wide"><ErrorState error={error} /></div> : null}
       <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
       <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={draft.name_ar} onChange={(event) => setDraft({ ...draft, name_ar: event.target.value })} /></label>
@@ -549,7 +557,7 @@ interface CustomerDirectoryProps {
 }
 
 /**
- * Customers as a list and a record, like the work screen: the phone search and its results beside
+ * Customers as a list and a record, like the work screen: the server list and exact phone lookup beside
  * the chosen customer from 1100px, one pane at a time below. Presentation only — the search, save
  * and edit handlers (with their offline paths), the notices and the storefront-link controls are the
  * workspace's own, passed in unchanged; this component keeps which pane is open and where focus goes.
@@ -561,6 +569,10 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   const [selectedId, setSelectedId] = useState(editingCustomerId);
   const [creating, setCreating] = useState(false);
   const [detailOpen, setDetailOpen] = useState(editingCustomerId !== undefined);
+  const [openedCustomer, setOpenedCustomer] = useState<Customer>();
+  const [showInvoices, setShowInvoices] = useState(false);
+  const [moreFields, setMoreFields] = useState(Boolean(editingCustomerId && (customerDraft.address || customerDraft.latitude || customerDraft.longitude || customerDraft.grade)));
+  const [listRefresh, setListRefresh] = useState(0);
   // The phone of the last finished search, offered for "Add customer with this phone" when nothing matched.
   const [searchedPhone, setSearchedPhone] = useState("");
   const [, setFocusRequests] = useState(0);
@@ -572,6 +584,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   const editButton = useRef<HTMLButtonElement>(null);
   const saveButton = useRef<HTMLButtonElement>(null);
   const rows = useRef(new Map<string, HTMLButtonElement>());
+  const listOrigin = useRef<{ id: string | null; node: HTMLElement } | null>(null);
   const listScroll = useRef(0);
   const pendingSave = useRef<Customer[] | undefined>(undefined);
   const pendingFocus = useRef<CustomerFocus | undefined>(undefined);
@@ -581,7 +594,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   }, []);
 
   const formMode = editingCustomerId ? "edit" : creating ? "create" : undefined;
-  const selected = matches.find((customer) => customer.id === selectedId);
+  const selected = matches.find((customer) => customer.id === selectedId) ?? (openedCustomer?.id === selectedId ? openedCustomer : undefined);
   // The record the detail pane shows, marked in the list; none while a new customer is being added.
   const shownId = formMode === "edit" ? editingCustomerId : formMode ? undefined : selected?.id;
   const initial = (name: string) => name.trim().slice(0, 1).toUpperCase();
@@ -600,7 +613,9 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
       case "list": {
         // Back on the results: the same scroll position, with focus on the customer just viewed.
         if (onePane) window.scrollTo(0, next.scrollY);
-        const target = (next.row ? rows.current.get(next.row) : undefined) ?? addButton.current;
+        const listRow = next.row ? Array.from(root.current?.querySelectorAll<HTMLAnchorElement>(".list-row-main") ?? []).find((row) => new URL(row.href).searchParams.get("customer") === next.row) : undefined;
+        const origin = listOrigin.current;
+        const target = (origin && origin.id === next.row && origin.node.isConnected ? origin.node : undefined) ?? (next.row ? rows.current.get(next.row) : undefined) ?? listRow ?? addButton.current;
         target?.focus(onePane ? { preventScroll: true } : undefined);
         // Moves only when the target is not fully visible (a saved record joins the end of the results);
         // its scroll margin keeps it clear of the bottom bar.
@@ -632,8 +647,11 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     const before = pendingSave.current;
     if (!before || busy) return;
     pendingSave.current = undefined;
-    if (matches === before) { focusAfterRender({ to: "failed" }); return; }
+    // Errors carry no field metadata: reveal optional inputs after a refused save so an error
+    // there can always be corrected, while leaving the workspace's validation message untouched.
+    if (matches === before) { setMoreFields(true); focusAfterRender({ to: "failed" }); return; }
     const saved = matches[matches.length - 1];
+    setListRefresh((value) => value + 1);
     setCreating(false);
     setSelectedId(saved?.id);
     if (saved) { focusAfterRender({ to: "saved" }); return; }
@@ -649,6 +667,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     setCustomerDraft(emptyCustomer);
     setCreating(false);
     setSelectedId(focusCustomerId);
+    setShowInvoices(false);
     setDetailOpen(true);
     if (singlePane()) focusAfterRender({ to: "detail" });
   }, [focusCustomerId, matches, setEditingCustomerId, setCustomerDraft, focusAfterRender]);
@@ -672,6 +691,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     clearFocus();
     rememberListScroll();
     setSelectedId(customer.id);
+    setOpenedCustomer(customer);
+    setShowInvoices(false);
     setDetailOpen(true);
     // On a phone the record replaces the list and focus moves to its name; beside the list it stays on the row.
     if (singlePane()) focusAfterRender({ to: "detail" });
@@ -686,12 +707,18 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     discardForm(); // an edit left open never leaks into a new customer
     if (phone) setCustomerDraft({ ...emptyCustomer, phone });
     setCreating(true);
+    setMoreFields(false);
     setDetailOpen(true);
     focusAfterRender({ to: "form" });
   };
   const editSelected = (customer: Customer) => {
+    if (focusCustomerId !== customer.id) clearFocus();
+    setSelectedId(customer.id);
+    setOpenedCustomer(customer);
+    setDetailOpen(true);
     editCustomer(customer);
     setCreating(false);
+    setMoreFields(Boolean(customer.address || customer.latitude || customer.longitude || customer.grade));
     focusAfterRender({ to: "form" });
   };
   const cancelForm = () => {
@@ -707,8 +734,20 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   };
 
   return (
-    <section aria-label={t("tenantWorkspace.customers")} className={`customers workspace${detailOpen && (formMode || selected) ? " show-detail" : ""}`} ref={root}>
+    <section aria-label={t("tenantWorkspace.customers")} className={`customers customers-page workspace${detailOpen && (formMode || selected) ? " show-detail" : ""}`} ref={root}>
       <div className="workspace-list">
+        <div onClickCapture={(event) => {
+          const row = (event.target as Element).closest(".list-row")?.querySelector<HTMLAnchorElement>(".list-row-main");
+          if (row) { listOrigin.current = { id: new URL(row.href).searchParams.get("customer"), node: row }; rememberListScroll(); }
+        }}>
+          <CustomersList
+            onEdit={editSelected}
+            onInvoices={(customer) => { openCustomer(customer); setShowInvoices(true); }}
+            onShopLink={(customer) => { openCustomer(customer); setLinkCustomerId(customer.id); }}
+            refreshKey={listRefresh}
+            tenantId={tenantId}
+          />
+        </div>
         <article className="customer-search">
           <p className="section-kicker">{t("tenantWorkspace.phoneLookup")}</p>
           <h2>{t("tenantWorkspace.findCustomer")}</h2>
@@ -724,7 +763,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
           <ul aria-label={t("tenantWorkspace.matchList")} className="stop-list customer-list">
             {matches.map((customer) => (
               <li className="stop-item" key={customer.id}>
-                <button aria-current={shownId === customer.id ? "true" : undefined} className={`stop-button customer-row${shownId === customer.id ? " selected" : ""}`} onClick={() => openCustomer(customer)} ref={(node) => { if (node) rows.current.set(customer.id, node); else rows.current.delete(customer.id); }} type="button">
+                <button aria-current={shownId === customer.id ? "true" : undefined} className={`stop-button customer-row${shownId === customer.id ? " selected" : ""}`} onClick={(event) => { listOrigin.current = { id: customer.id, node: event.currentTarget }; openCustomer(customer); }} ref={(node) => { if (node) rows.current.set(customer.id, node); else rows.current.delete(customer.id); }} type="button">
                   <span className="avatar" aria-hidden="true">{initial(customer.name)}</span>
                   <span className="stop-copy"><strong>{customer.name}</strong><small><bdi dir="ltr">{customer.phone}</bdi></small>{customer.address ? <small>{customer.address}</small> : null}</span>
                   {customer.grade ? <span className="badge">{t("tenantWorkspace.grade")} <bdi>{customer.grade}</bdi></span> : null}
@@ -735,8 +774,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
           </ul>
         ) : null}
         <AttentionList tenantId={tenantId} />
-        <AllCustomers tenantId={tenantId} />
       </div>
+      <Fab label={t("customersPage.newCustomer")} onSelect={() => addCustomer()} />
       {formMode ? (
         <article aria-labelledby="customer-form-title" className="detail customer-detail">
           <div className="detail-inner">
@@ -745,11 +784,16 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             <form className="form-grid" onSubmit={submitCustomer}>
               <label className="field"><span>{t("tenantWorkspace.customerName")}</span><input required value={customerDraft.name} onChange={(event) => setCustomerDraft({ ...customerDraft, name: event.target.value })} /></label>
               <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" required value={customerDraft.phone} onChange={(event) => setCustomerDraft({ ...customerDraft, phone: event.target.value })} /></label>
-              <label className="field field-wide"><span>{t("tenantWorkspace.address")}</span><input value={customerDraft.address} onChange={(event) => setCustomerDraft({ ...customerDraft, address: event.target.value })} /></label>
-              <label className="field"><span>{t("tenantWorkspace.latitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.latitude} onChange={(event) => setCustomerDraft({ ...customerDraft, latitude: event.target.value })} /></label>
-              <label className="field"><span>{t("tenantWorkspace.longitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.longitude} onChange={(event) => setCustomerDraft({ ...customerDraft, longitude: event.target.value })} /></label>
-              <label className="field"><span>{t("tenantWorkspace.grade")}</span><select value={customerDraft.grade} onChange={(event) => setCustomerDraft({ ...customerDraft, grade: event.target.value as CustomerDraft["grade"] })}><option value="">{t("tenantWorkspace.noGrade")}</option>{grades.map((grade) => <option key={grade}>{grade}</option>)}</select></label>
-              <div className="form-actions field-wide"><button className="button" disabled={busy} ref={saveButton} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button><button className="button button-secondary" onClick={cancelForm} type="button">{t("common.cancel")}</button></div>
+              <details className="customer-more-fields field-wide" onInvalidCapture={() => setMoreFields(true)} onToggle={(event) => setMoreFields(event.currentTarget.open)} open={moreFields}>
+                <summary>{t("customersPage.moreFields")}</summary>
+                <div className="form-grid">
+                  <label className="field field-wide"><span>{t("tenantWorkspace.address")}</span><input value={customerDraft.address} onChange={(event) => setCustomerDraft({ ...customerDraft, address: event.target.value })} /></label>
+                  <label className="field"><span>{t("tenantWorkspace.latitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.latitude} onChange={(event) => setCustomerDraft({ ...customerDraft, latitude: event.target.value })} /></label>
+                  <label className="field"><span>{t("tenantWorkspace.longitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.longitude} onChange={(event) => setCustomerDraft({ ...customerDraft, longitude: event.target.value })} /></label>
+                  <label className="field"><span>{t("tenantWorkspace.grade")}</span><select value={customerDraft.grade} onChange={(event) => setCustomerDraft({ ...customerDraft, grade: event.target.value as CustomerDraft["grade"] })}><option value="">{t("tenantWorkspace.noGrade")}</option>{grades.map((grade) => <option key={grade}>{grade}</option>)}</select></label>
+                </div>
+              </details>
+              <div className="form-actions customer-form-actions field-wide"><button className="button" disabled={busy} ref={saveButton} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button><button className="button button-secondary" onClick={cancelForm} type="button">{t("common.cancel")}</button></div>
             </form>
           </div>
         </article>
@@ -775,6 +819,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             {/* Why this customer is on today's list (D-089); balances and receipts themselves belong to Invoices. */}
             <CustomerSignals customerId={selected.id} tenantId={tenantId} />
             <CustomerBalanceActions customerId={selected.id} tenantId={tenantId} />
+            {showInvoices ? <section aria-label={t("allCustomers.invoicesOf", { name: selected.name })}><h3>{t("allCustomers.invoices")}</h3><CustomerInvoices customer={selected} key={selected.id} tenantId={tenantId} /></section> : null}
           </div>
         </article>
       ) : (
@@ -789,12 +834,13 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const queryClient = useQueryClient();
   // The selected business and the open section are both carried by the route's query string
   // (`tenant`, `section`) so the shell's phone bar, the desktop rail, this body and the browser
-  // history all agree; the first listed business and Work are the defaults. Which
+  // history all agree; entry resolves the remembered business and the owner's invoice landing. Which
   // panels a membership gets is still read from the server's context (role, status) below.
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
   const user = useOptionalUser();
+  const businessPicker = useRef<HTMLSelectElement>(null);
   const context = selectedContext(contexts, tenantFromSearch(searchParams)) ?? contexts[0]!;
   const view = sectionFromSearch(searchParams);
   // Entering the workspace without a business in the address: continue with the one used last on
@@ -805,12 +851,19 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   useEffect(() => {
     if (enteredOnce.current) return;
     enteredOnce.current = true;
-    if (addressTenant) return;
-    const last = readLastTenant(user?.id);
-    if (last && last !== contexts[0]?.tenant_id && contexts.some((item) => item.tenant_id === last)) {
-      void navigate({ pathname: "/workspace", search: workspaceSearch(view, last), hash: location.hash }, { replace: true });
+    const last = addressTenant ? null : readLastTenant(user?.id);
+    const remembered = last ? contexts.find((item) => item.tenant_id === last) : undefined;
+    const landingContext = remembered ?? context;
+    if (!isWorkspaceSection(searchParams.get("section")) && landingContext.role === "owner" && landingContext.tenant_status === "ACTIVE") {
+      const params = new URLSearchParams(searchParams);
+      if (remembered) params.set("tenant", remembered.tenant_id);
+      params.set("section", "invoices");
+      params.set("view", "list");
+      void navigate({ pathname: "/workspace", search: `?${params.toString()}`, hash: location.hash }, { replace: true });
+    } else if (remembered && remembered.tenant_id !== contexts[0]?.tenant_id) {
+      void navigate({ pathname: "/workspace", search: workspaceSearch(view, remembered.tenant_id), hash: location.hash }, { replace: true });
     }
-  }, [addressTenant, contexts, location.hash, navigate, user?.id, view]);
+  }, [addressTenant, context, contexts, location.hash, navigate, searchParams, user?.id, view]);
   useEffect(() => { rememberTenant(user?.id, context.tenant_id); }, [user?.id, context.tenant_id]);
   const setView = useCallback((next: WorkspaceSection, replace = false) => {
     setSearchParams((current) => workspaceSearch(next, tenantFromSearch(current)), { replace });
@@ -861,6 +914,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [addingProduct, setAddingProduct] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [productCategory, setProductCategory] = useState("");
+  const [productPublication, setProductPublication] = useState<PublicationFilter>("all");
+  const productsPage = useRef<HTMLDivElement>(null);
+  const productPane = useRef<HTMLElement>(null);
+  const productReturnId = useRef<string | undefined>(undefined);
   const [quickCategory, setQuickCategory] = useState<{ open: boolean; name_en: string; name_ar: string }>({ open: false, name_en: "", name_ar: "" });
   const [extraBarcode, setExtraBarcode] = useState("");
   const [extraPackage, setExtraPackage] = useState<BarcodePackageLevel>("PIECE");
@@ -921,7 +978,38 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const productNeedle = productQuery.trim().toLowerCase();
   const shownProducts = (products.data?.products ?? []).filter((product) =>
     (!productCategory || product.category_id === productCategory)
+    && (productPublication === "all" || product.is_published === (productPublication === "published"))
     && (!productNeedle || product.name.toLowerCase().includes(productNeedle) || (product.name_ar ?? "").toLowerCase().includes(productNeedle) || product.barcodes.some((barcode) => barcode.barcode.toLowerCase().includes(productNeedle))));
+
+  const editingProduct = products.data?.products.find((product) => product.id === editingProductId);
+  useLayoutEffect(() => {
+    if (view !== "products" || (!addingProduct && !editingProductId)) return;
+    // Menus restore their own trigger's focus; move into the new pane after that has finished.
+    const frame = requestAnimationFrame(() => productPane.current?.querySelector<HTMLInputElement>("input")?.focus());
+    if (singlePane()) productPane.current?.scrollIntoView?.({ block: "start" });
+    return () => cancelAnimationFrame(frame);
+  }, [addingProduct, editingProductId, view]);
+
+  const closeProductPane = () => {
+    setAddingProduct(false);
+    setEditingProductId(undefined);
+    requestAnimationFrame(() => {
+      const row = Array.from(productsPage.current?.querySelectorAll<HTMLElement>("[data-product-id]") ?? []).find((item) => item.dataset.productId === productReturnId.current);
+      const target = row?.querySelector<HTMLButtonElement>(".list-row-main") ?? productsPage.current?.querySelector<HTMLButtonElement>(singlePane() ? ".fab" : ".products-add-button");
+      target?.focus();
+    });
+  };
+  const openProductAdd = () => {
+    productReturnId.current = undefined;
+    setEditingProductId(undefined);
+    setAddingProduct(true);
+  };
+  const openProductEdit = (product: TenantProduct) => {
+    productReturnId.current = product.id;
+    setNotice(undefined);
+    setAddingProduct(false);
+    setEditingProductId(product.id);
+  };
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -1194,7 +1282,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
         </div>
         {contexts.length > 1 ? (
           <label className="field tenant-picker"><span>{t("tenantWorkspace.business")}</span>
-            <select value={context.tenant_id} onChange={(event) => chooseBusiness(event.target.value)}>
+            <select ref={businessPicker} value={context.tenant_id} onChange={(event) => chooseBusiness(event.target.value)}>
               {contexts.map((item) => <option key={item.tenant_id} value={item.tenant_id}>{item.tenant_name}</option>)}
             </select>
           </label>
@@ -1212,7 +1300,12 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           {/* Sections are chosen from the shell (desktop rail, phone bar and More), all carried by the address. */}
           {requestError ? <ErrorState error={requestError} /> : null}
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
-          {view === "customers" ? (
+          {view === "settings" ? (
+            <SettingsHub tenantId={context.tenant_id} tenantParam={addressTenant} businessName={context.tenant_name} onChooseBusiness={contexts.length > 1 ? () => {
+              businessPicker.current?.focus();
+              try { businessPicker.current?.showPicker?.(); } catch { /* Browsers without picker support keep the existing select focused. */ }
+            } : undefined} />
+          ) : view === "customers" ? (
             // Keyed by business: an open record or form never carries over to another membership.
             <CustomerDirectory key={context.tenant_id} busy={busy} customerDraft={customerDraft} editCustomer={editCustomer} editingCustomerId={editingCustomerId} linkCustomerId={linkCustomerId} matches={matches} phoneSearch={phoneSearch} saveCustomer={saveCustomer} searchCustomers={searchCustomers} setCustomerDraft={setCustomerDraft} setEditingCustomerId={setEditingCustomerId} focusCustomerId={focusCustomerId} setLinkCustomerId={setLinkCustomerId} setPhoneSearch={setPhoneSearch} tenantId={context.tenant_id} />
           ) : view === "categories" ? (
@@ -1244,14 +1337,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
               </article>
             </div>
           ) : view === "products" ? (
-            <div className="catalog-workspace">
-              <div className="catalog-toolbar">
-                <label className="field"><span>{t("tenantWorkspace.productSearch")}</span><input type="search" value={productQuery} onChange={(event) => setProductQuery(event.target.value)} /></label>
-                <label className="field"><span>{t("tenantWorkspace.category")}</span><select value={productCategory} onChange={(event) => setProductCategory(event.target.value)}><option value="">{t("tenantWorkspace.allCategories")}</option>{categories.data?.categories.map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
-                <button aria-expanded={addingProduct} className="button" onClick={() => setAddingProduct(!addingProduct)} type="button"><Icon name="plus" small />{t("tenantWorkspace.addProduct")}</button>
-              </div>
+            <div className={`products-page${addingProduct || editingProduct ? " show-product-pane" : ""}`} ref={productsPage}>
               {addingProduct ? (
-                <article className="content-card add-product">
+                <article aria-label={t("tenantWorkspace.addProduct")} className="content-card add-product product-pane" ref={productPane}>
+                  <div className="product-pane-head"><h2>{t("tenantWorkspace.addProduct")}</h2><button className="button button-secondary" disabled={busy} onClick={closeProductPane} type="button"><Arrow back />{t("common.back")}</button></div>
                   <div className="scan-desk">
                     <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
                     <h3>{t("tenantWorkspace.scanTitle")}</h3>
@@ -1291,37 +1380,41 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                           <label className="checkbox-row field-wide"><input checked={productDraft.is_published} onChange={(event) => setProductDraft({ ...productDraft, is_published: event.target.checked })} type="checkbox" /><span>{t("tenantWorkspace.publishVisibility")}</span></label>
                         </div>
                       </details>
-                      <button className="button field-wide" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button>
+                      <div className="product-form-actions field-wide"><button className="button" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button></div>
                     </form>
                   </div>
                 </article>
               ) : null}
-              <article className="content-card catalog-list">
-                <p className="section-kicker">{t("tenantWorkspace.tenantCatalog")}</p>
-                <h3>{t("tenantWorkspace.products")}</h3>
-                {products.isLoading ? <LoadingState /> : null}
-                {products.error ? <ErrorState error={products.error} /> : null}
-                {products.data?.products.length && !shownProducts.length ? <p className="muted">{t("tenantWorkspace.noProductMatch")}</p> : null}
-                {shownProducts.map((product) => (
-                  <article className="product-card" key={product.id}>
-                    {product.images[0] ? <CratePhoto image={product.images[0]} /> : null}
-                    <div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div>
-                    <strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong>
-                    <div className="category-actions">
-                      <button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button>
-                      <button aria-expanded={editingProductId === product.id} className="text-button" onClick={() => { setNotice(undefined); setEditingProductId(editingProductId === product.id ? undefined : product.id); }} type="button">{t("common.edit")}</button>
-                    </div>
-                    {editingProductId === product.id ? <ProductEditForm categories={categories.data?.categories ?? []} onClose={(saved) => { setEditingProductId(undefined); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={product} tenantId={context.tenant_id} /> : null}
-                    <details className="product-manage">
-                      <summary>{t("common.manage")}</summary>
+              {editingProduct ? (
+                <article aria-label={t("tenantWorkspace.editProduct", { name: editingProduct.name })} className="content-card product-pane" ref={productPane}>
+                  <ProductEditForm categories={categories.data?.categories ?? []} key={editingProduct.id} onClose={(saved) => { closeProductPane(); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={editingProduct} tenantId={context.tenant_id} />
+                </article>
+              ) : null}
+              <ProductsList
+                categories={categories.data?.categories ?? []}
+                category={productCategory}
+                hasProducts={Boolean(products.data?.products.length)}
+                onAdd={openProductAdd}
+                onBarcode={(product) => setBarcodeProductId(product.id)}
+                onCategory={setProductCategory}
+                onEdit={openProductEdit}
+                onPublication={setProductPublication}
+                onQuery={setProductQuery}
+                onTogglePublication={togglePublication}
+                products={shownProducts}
+                publication={productPublication}
+                query={productQuery}
+                renderPhoto={(product) => product.images[0] ? <CratePhoto image={product.images[0]} /> : null}
+                renderManagement={(product) => <>
                       <div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div>
                       <button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button>
                       {barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><CameraScanButton autoSubmit={false} onScan={setExtraBarcode} /><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}
                       <ProductPricingMediaControls product={product} tenantId={context.tenant_id} />
-                    </details>
-                  </article>
-                ))}
-              </article>
+                </>}
+              >
+                {products.isLoading ? <LoadingState /> : null}
+                {products.error ? <ErrorState error={products.error} /> : null}
+              </ProductsList>
             </div>
           ) : view === "pricing" ? (
             <GradeDiscountEditor tenantId={context.tenant_id} />
@@ -1350,6 +1443,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <DeliveryPanel focusInvoiceId={searchParams.get("invoice")} key={searchParams.get("invoice") ?? "all"} tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
+          ) : view === "invoices" && searchParams.get("view") === "list" && !["invoice", "customer", "fresh"].some((param) => searchParams.has(param)) ? (
+            <InvoicesFrontPage key={context.tenant_id} tenantId={context.tenant_id} />
           ) : (
             <>
               {costSetup ? (

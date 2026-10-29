@@ -24,6 +24,7 @@ test("owner sees per-currency figures, profit with coverage and the event flow, 
 
   renderPanel();
   expect(await screen.findByText("90000.0000 LBP · 24.2500 USD")).toBeInTheDocument(); // separate, never summed
+  expect(document.querySelector(".list-head-count")).toBeNull(); // figures are not a list count
   expect(screen.getByText("50.0000% (1/2)")).toBeInTheDocument(); // profit never without coverage
   expect(screen.getByText("1 line without a cost")).toBeInTheDocument();
   expect(screen.getByText(/2 confirmed invoices in the period/)).toBeInTheDocument();

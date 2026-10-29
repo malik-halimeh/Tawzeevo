@@ -53,8 +53,8 @@ function renderProducts() {
 }
 
 async function openEdit() {
-  const card = (await screen.findByRole("heading", { level: 4, name: "Cedar Water" })).closest("article")!;
-  fireEvent.click(within(card).getByRole("button", { name: "Edit" }));
+  // Products now opens its edit pane by tapping the list row.
+  fireEvent.click(await screen.findByRole("button", { name: /Cedar Water.*Published/ }));
   return screen.getByRole("form", { name: "Edit Cedar Water" });
 }
 

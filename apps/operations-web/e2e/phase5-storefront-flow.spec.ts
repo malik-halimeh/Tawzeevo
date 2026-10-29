@@ -68,8 +68,8 @@ test("guest checkout → owner link, confirm, delivery date → customer cancell
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
   await openSection(page, "Orders");
-  await expect(page.getByRole("heading", { name: /Order inbox/ })).toContainText("1 awaiting review");
-  await page.getByRole("button", { name: /Guest Buyer/ }).click();
+  await expect(page.getByRole("region", { name: "Order inbox" }).getByText("1 awaiting review")).toBeVisible();
+  await page.getByRole("button", { name: /^Guest Buyer/ }).click();
   await expect(page.getByRole("button", { name: "Confirm and assign invoice number" })).toBeDisabled();
   await page.getByRole("button", { name: "Create a new customer from these details" }).click();
   await expect(page.getByText("Customer linked and the draft repriced.")).toBeVisible();
@@ -89,7 +89,7 @@ test("guest checkout → owner link, confirm, delivery date → customer cancell
   await expect(guest.getByText("Cancellation requested — waiting for the shop.")).toBeVisible();
 
   // ----- Owner: decides the request; the customer sees the outcome -----
-  await page.getByRole("button", { name: /Guest Buyer/ }).click();
+  await page.getByRole("button", { name: /^Guest Buyer/ }).click();
   await expect(page.getByText(/Ordered twice by mistake/)).toBeVisible();
   await page.getByRole("button", { name: "Approve cancellation" }).click();
   await page.getByRole("button", { name: "Yes, approve and reverse the sale" }).click(); // a final action asks once

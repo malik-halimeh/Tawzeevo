@@ -1,21 +1,29 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from tawzeevo_api.models import InvoiceStatus
 from tawzeevo_api.schemas.cash_van import CustomerResponse
+from tawzeevo_api.schemas.customer_ledger import CustomerBalanceResponse
+
+CustomerListSort = Literal["name", "newest", "owes_most"]
+
+
+class CustomerListRow(CustomerResponse):
+    balances: list[CustomerBalanceResponse] = Field(default_factory=list)
 
 
 class CustomerListResponse(BaseModel):
-    """One page of the business's customers, by name (D-101)."""
+    """One filtered, sorted page of the business's customers (D-101, OE-03b)."""
 
     page: int
     limit: int
     total: int
     total_pages: int
-    customers: list[CustomerResponse]
+    customers: list[CustomerListRow]
 
 
 class InvoiceListRow(BaseModel):

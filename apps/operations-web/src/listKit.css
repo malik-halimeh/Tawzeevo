@@ -1,0 +1,118 @@
+/* List-page kit (src/components/listKit): list header and search, sort menu, filter chips, filter
+   sheet, list rows with their action menu, floating add button, month groups and the empty hint.
+   Presentation only. Existing custom properties only, so a later token swap restyles it; the line
+   colours (--lc, --lc-tint, --lc-deep, --lc-on, --lc-edge) are inherited from the section. */
+
+/* ---------- Header, count line and search ---------- */
+.page-head.list-head { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.page-head.list-head > div:first-child { flex: 1 1 12rem; min-width: 0; }
+.list-head .page-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; width: auto; }
+.list-head > .list-search, .list-head > .list-head-meta { flex: 1 1 100%; min-width: 0; }
+.list-head-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.list-head-count { margin: 0; color: var(--muted); font-size: 14px; }
+.list-head-count bdi { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.list-icon-button { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); }
+.list-icon-button[aria-expanded="true"] { background: var(--lc-tint); border-color: var(--lc-edge); color: var(--lc-deep); }
+
+.list-search { display: flex; align-items: center; gap: 8px; min-height: 48px; padding-inline: 12px 2px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); }
+.list-search:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px var(--lc-tint); }
+.list-search > .icon { flex: none; color: var(--muted); }
+.list-search input { flex: 1; width: 100%; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; }
+.list-search input:focus, .list-search input:focus-visible { outline: none; box-shadow: none; }
+.list-search input::-webkit-search-cancel-button { appearance: none; }
+.list-search-clear { display: inline-grid; place-items: center; flex: none; min-width: 44px; min-height: 44px; border-radius: var(--radius-control); color: var(--muted); }
+
+/* ---------- Sort button and the small menu panel (sort, row actions, add menu) ---------- */
+.list-sort { position: relative; }
+.list-sort-button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding-inline: 10px; border-radius: var(--radius-control); color: var(--ink); font-size: 14px; font-weight: 500; }
+.list-sort-caret { color: var(--muted); font-size: 12px; }
+.list-sort > .list-menu { inset-block-start: calc(100% + 4px); inset-inline-end: 0; }
+
+.list-menu { position: absolute; z-index: 25; display: grid; gap: 2px; min-width: 200px; max-width: min(320px, calc(100vw - 32px)); padding: 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-record); background: var(--surface); color: var(--ink); }
+.list-menu ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.list-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); font-weight: 500; text-align: start; text-decoration: none; }
+.list-menu-item:focus-visible { background: var(--lc-tint); }
+.list-menu-item[aria-checked="true"] { font-weight: 600; }
+.list-menu-check { display: inline-grid; place-items: center; flex: none; width: 18px; color: var(--lc-deep); }
+.list-menu-item.list-menu-danger { color: var(--bad); }
+.list-menu .confirm-action { display: grid; gap: 8px; }
+
+/* ---------- Filter chips ---------- */
+.chip-row { display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; margin-inline: -6px; padding: 6px; }
+.chip-row::-webkit-scrollbar { display: none; }
+.chip, .filter-sheet-button { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.chip[aria-pressed="true"] { border-color: var(--lc-edge); background: var(--lc); color: var(--lc-on); }
+.chip-count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding-inline: 6px; border-radius: 999px; background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] .chip-count { background: var(--surface); color: var(--ink); }
+.filter-sheet-button .chip-count { background: var(--lc); color: var(--lc-on); box-shadow: inset 0 0 0 1.5px var(--lc-edge); }
+
+/* ---------- Filter sheet: bottom sheet on a phone, side panel from 768 px ---------- */
+.filter-sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: color-mix(in srgb, var(--ink) 45%, transparent); }
+.filter-sheet { position: fixed; z-index: 41; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; inset-inline: 0; inset-block-end: 0; max-height: calc(100dvh - 24px); padding-block-end: calc(var(--keyboard) + env(safe-area-inset-bottom)); border: 1px solid var(--line); border-start-start-radius: var(--radius-dialog); border-start-end-radius: var(--radius-dialog); background: var(--surface); color: var(--ink); }
+.filter-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px 8px; padding-inline: 20px 12px; }
+.filter-sheet-head h2 { margin: 0; font-size: 20px; }
+.filter-sheet-body { display: grid; align-content: start; gap: 14px; overflow-y: auto; overscroll-behavior: contain; padding-block: 4px 16px; padding-inline: 20px; }
+.filter-sheet-foot { display: flex; gap: 10px; padding: 12px 20px; border-block-start: 1px solid var(--line); }
+.filter-sheet-foot .button { flex: 1; }
+@media (min-width: 768px) {
+  .filter-sheet { inset-block: 0; inset-inline-start: auto; width: min(400px, 100vw); max-height: none; padding-block-end: var(--keyboard); border-radius: 0; border-start-start-radius: var(--radius-dialog); border-end-start-radius: var(--radius-dialog); }
+}
+
+/* ---------- List rows ---------- */
+.list-rows { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-record); background: var(--surface); }
+.list-row { position: relative; display: flex; align-items: stretch; border-block-start: 1px solid var(--line); }
+.list-row:first-child { border-block-start: 0; }
+.list-row-main { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; min-height: 64px; padding-block: 10px; padding-inline: 16px 4px; border: 0; border-radius: var(--radius-record); background: transparent; color: var(--ink); text-align: start; text-decoration: none; }
+.list-row-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.list-row-title { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.list-row-sub { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.list-row-end { display: grid; flex: none; justify-items: end; gap: 4px; }
+.list-row-amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.list-row-actions { position: relative; display: flex; align-items: center; padding-inline-end: 4px; }
+.list-row-more { border-color: transparent; background: transparent; }
+.list-row-more > .icon { transform: rotate(90deg); }
+.list-row-actions > .list-menu { inset-block-start: calc(100% - 4px); inset-inline-end: 4px; }
+
+/* ---------- Month groups ---------- */
+.month-group { display: grid; gap: 8px; margin-block-end: 20px; }
+.month-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-inline: 4px; }
+.month-group-head :is(h2, h3) { margin: 0; color: var(--muted); font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.month-group-total { margin: 0; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- Empty hint ---------- */
+.empty-state.empty-hint { gap: 10px; padding: 28px 20px; }
+.empty-state.empty-hint strong { font-size: 16px; font-weight: 500; }
+
+/* ---------- Floating add button: above the phone bar and the keyboard, at the end of the line ---------- */
+.fab-dock { position: fixed; z-index: 19; display: grid; justify-items: end; gap: 10px; inset-inline-end: 16px; inset-block-end: calc(var(--bottom-nav) + var(--keyboard) + 16px + env(safe-area-inset-bottom)); }
+@media (min-width: 1100px) { .fab-dock { inset-inline-end: 24px; inset-block-end: calc(var(--keyboard) + 24px); } }
+.fab-dock > .list-menu { position: static; }
+.fab { position: relative; display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--lc); color: var(--lc-on); box-shadow: inset 0 0 0 1.5px var(--lc-edge), 0 0 0 3px var(--paper); text-decoration: none; }
+.fab > .icon { width: 26px; height: 26px; }
+.fab[aria-expanded="true"] > .icon { transform: rotate(45deg); }
+.fab-tip { position: absolute; inset-block-start: 50%; inset-inline-end: calc(100% + 10px); padding: 6px 10px; border-radius: var(--radius-control); background: var(--ink); color: var(--surface); font-size: 13px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transform: translateY(-50%); }
+.fab:focus-visible .fab-tip { opacity: 1; }
+.fab[aria-expanded="true"] .fab-tip { opacity: 0; }
+
+/* Hover colours only where a pointer can hover, so a tapped row does not stay tinted on a phone. */
+@media (hover: hover) {
+  .list-sort-button:hover, .list-menu-item:hover, .list-row-main:hover { background: var(--lc-tint); }
+  .list-menu-item.list-menu-danger:hover { background: var(--bad-bg); }
+  .chip:not([aria-pressed="true"]):hover, .filter-sheet-button:hover { border-color: var(--line-strong); }
+  .fab:hover .fab-tip { opacity: 1; }
+  .fab[aria-expanded="true"]:hover .fab-tip { opacity: 0; }
+}
+
+/* Short, motivated motion; none at all under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .chip, .list-menu-item, .list-row-main, .list-sort-button, .fab > .icon, .fab-tip { transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease, transform .15s ease; }
+  .filter-sheet { animation: list-sheet-up .2s ease-out; }
+  @media (min-width: 768px) { .filter-sheet { animation-name: list-sheet-fade; } }
+}
+@keyframes list-sheet-up { from { opacity: 0; transform: translateY(16px); } }
+@keyframes list-sheet-fade { from { opacity: 0; } }
+
+@media print {
+  .fab-dock, .filter-sheet-button, .list-row-actions, .list-head .list-icon-button { display: none; }
+}

@@ -5,6 +5,7 @@ import { apiRequest } from "../api/client";
 import type { Customer, CustomerSearchResponse } from "../api/types";
 import { AnomalySection, CashFlowSection } from "./IntelligencePanel";
 import { ErrorState } from "./Ui";
+import { ListHeader } from "./listKit/ListHeader";
 
 /**
  * Owner analytics baseline (PHASE_08.md A/B/C/H; D-064–D-068). Every figure is shown with its
@@ -60,12 +61,9 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
   const currencies = [...new Set([...(overview?.invoiced_sales ?? []), ...(overview?.customer_outstanding ?? []), ...(overview?.supplier_payable ?? [])].map((row) => row.currency))];
 
   return (
-    <section className="analytics-panel" aria-labelledby="analytics-title">
-      <header>
-        <p className="section-kicker">{t("analytics.kicker")}</p>
-        <h3 id="analytics-title">{t("analytics.title")}</h3>
-        <p>{t("analytics.body")}</p>
-      </header>
+    <section className="analytics-panel" aria-label={t("analytics.title")}>
+      <ListHeader eyebrow={t("analytics.kicker")} title={t("analytics.title")} />
+      <p>{t("analytics.body")}</p>
       {error ? <ErrorState error={error} /> : null}
       <label className="field"><span>{t("analytics.period")}</span>
         <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodKey)}>

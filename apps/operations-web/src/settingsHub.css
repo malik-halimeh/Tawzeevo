@@ -1,0 +1,13 @@
+/* Settings uses the list kit's surfaces and the current section's existing colour tokens. */
+.settings-hub { display: grid; gap: 16px; min-inline-size: 0; }
+.settings-hub .page-head { margin-block-end: 0; }
+.settings-pages { display: flex; flex-wrap: wrap; gap: 8px; min-inline-size: 0; }
+.settings-pages a { display: flex; align-items: center; min-block-size: 44px; padding-block: 8px; padding-inline: 12px; border: 1px solid var(--line); border-radius: var(--radius-control); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.settings-pages a[aria-current="page"] { background: var(--lc-tint); border-color: var(--lc-edge); }
+.settings-hub .settings-row { inline-size: 100%; min-block-size: 64px; padding-inline: 16px; }
+.settings-row > .icon { flex: none; color: var(--muted); }
+.settings-hub :is(.list-row-title, .list-row-sub) { white-space: normal; overflow-wrap: anywhere; }
+.settings-hub .owner-more-copy { display: grid; flex: 1; gap: 2px; min-inline-size: 0; overflow-wrap: anywhere; font-weight: 600; }
+.settings-hub .owner-more-copy small { color: var(--muted); font-size: 13px; font-weight: 400; }
+.settings-chevron, .settings-hub .owner-more-chevron { display: inline-block; flex: none; margin-inline-start: auto; color: var(--muted); font-size: 24px; }
+/* The chevron text glyph mirrors itself in RTL. */

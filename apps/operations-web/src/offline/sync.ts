@@ -1,6 +1,7 @@
 import type { Table } from "dexie";
 
 import { apiRequest } from "../api/client";
+import { foldSearchText, hasLetters } from "../utils/searchText";
 import {
   LOCAL_SCHEMA_VERSION,
   PROTOCOL_VERSION,
@@ -160,12 +161,21 @@ export async function localSyncStatus(tenantId: string, membershipId: string): P
 }
 
 function digits(value: string): string {
-  return value.replace(/[^0-9]/g, "");
+  return foldSearchText(value).replace(/[^0-9]/g, "");
 }
 
-/** Phone search over the local projection: exact normalized match, then suffix/contains match. */
+/**
+ * Search over the local projection. Text holding a letter is a name: every customer whose folded
+ * name contains it (the server's folding, see foldSearchText). Anything else is a phone: exact
+ * normalized match, then suffix/contains match.
+ */
 export async function searchLocalCustomers(tenantId: string, membershipId: string, phone: string): Promise<LocalCustomer[]> {
   const db = openLocalDatabase(tenantId, membershipId);
+  if (hasLetters(phone)) {
+    const name = foldSearchText(phone.trim());
+    const all = await db.customers.toArray();
+    return all.filter((row) => foldSearchText(row.name).includes(name)).sort((a, b) => a.name.localeCompare(b.name));
+  }
   const needle = digits(phone);
   if (!needle) return [];
   const all = await db.customers.toArray();

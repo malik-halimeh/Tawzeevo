@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { apiRequest } from "../api/client";
 import type { ProductPriceBasis } from "../api/types";
 import { readLastChoice, rememberChoice } from "./lastChoice";
+import { ListHeader } from "./listKit/ListHeader";
 import { RoutePlanner } from "./RoutePlanner";
 import { type MapRoute, StopMap } from "./StopMap";
 import { ErrorState } from "./Ui";
@@ -154,12 +155,9 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
   };
 
   return (
-    <section className="delivery-panel" aria-labelledby="delivery-title" ref={root}>
-      <header>
-        <p className="section-kicker">{t("delivery.kicker")}</p>
-        <h3 id="delivery-title">{sole ? t("delivery.titleSole") : t("delivery.title")}</h3>
-        <p>{sole ? t("delivery.bodySole") : t("delivery.body")}</p>
-      </header>
+    <section className="delivery-panel" aria-label={sole ? t("delivery.titleSole") : t("delivery.title")} ref={root}>
+      <ListHeader count={data?.tasks.length} countKey="delivery.count" eyebrow={t("delivery.kicker")} title={sole ? t("delivery.titleSole") : t("delivery.title")} />
+      <p>{sole ? t("delivery.bodySole") : t("delivery.body")}</p>
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
 

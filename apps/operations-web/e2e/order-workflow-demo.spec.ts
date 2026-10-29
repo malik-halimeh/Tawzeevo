@@ -129,7 +129,7 @@ test("personalized order → badge and notice → confirm → share → pay → 
 
   // ----- 7. Back on the order (resume), create the delivery with the invoice preselected -----
   await openSection(page, "Orders");
-  await page.getByRole("button", { name: /Karim Grocery/ }).click();
+  await page.getByRole("button", { name: /^Karim Grocery/ }).click();
   await page.getByRole("region", { name: "Next steps" }).getByRole("link", { name: "Create delivery" }).click();
   await expect(page.getByLabel("Confirmed invoice")).toHaveValue(invoice.id);
   await page.getByRole("button", { name: "Create delivery" }).click();

@@ -5,7 +5,12 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { apiRequest } from "../api/client";
+import "../ordersList.css";
 import { readLastChoice, rememberChoice } from "./lastChoice";
+import { type ListAction } from "./listKit/ActionMenu";
+import { ChipRow } from "./listKit/ChipRow";
+import { ListHeader } from "./listKit/ListHeader";
+import { ListRow } from "./listKit/ListRow";
 import { NextSteps } from "./NextSteps";
 import { PENDING_ORDERS_KEY } from "./pendingOrders";
 import { sectionHref } from "./workspaceSections";
@@ -29,6 +34,8 @@ interface InvoiceLine { id: string; product_name: string; quantity: string; effe
 interface InvoiceView { id: string; status: string; current_revision_id: string; official_invoice_number: string | null; net_sales: string; currency: string; items: InvoiceLine[] }
 interface OrderDelivery { id: string; status: "ASSIGNED" | "COMPLETED" | "CANCELLED"; delivery_date: string | null }
 interface OrderDetail { order: OrderSummary; invoice: InvoiceView | null; candidates: Candidate[]; cancellation_requests: CancellationRequest[]; linked_customer_name?: string | null; deliveries?: OrderDelivery[] }
+const ORDER_STATES = ["RECEIVED", "CONFIRMED", "DECLINED", "CANCELLED"] as const;
+type OrderFilter = "ALL" | OrderSummary["status"];
 
 export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; orderId?: string | null }) {
   const { t, i18n } = useTranslation();
@@ -39,6 +46,7 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
   // The same meaning as the Orders badge: orders still awaiting the owner's decision.
   const awaiting = orders.filter((order) => order.status === "RECEIVED").length;
   const [selected, setSelected] = useState<OrderDetail>();
+  const [stateFilter, setStateFilter] = useState<OrderFilter>("ALL");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState<string>();
@@ -161,26 +169,34 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
   const when = (value: string | null) => (value ? new Date(value).toLocaleString(i18n.language === "ar" ? "ar-LB" : "en-GB") : "—");
   const pending = selected?.cancellation_requests.find((row) => row.status === "PENDING");
   const invoice = selected?.invoice;
+  const visibleOrders = orders.filter((order) => stateFilter === "ALL" || order.status === stateFilter);
+  const review = (id: string) => { setError(undefined); setNotice(undefined); void open(id); };
+  const actionsFor = (order: OrderSummary): ListAction[] => {
+    const actions: ListAction[] = [{ label: t("orders.detail"), onSelect: () => review(order.id) }];
+    if (order.invoice_id && (order.status === "CONFIRMED" || order.status === "CANCELLED")) {
+      actions.push({ label: t("nextSteps.linkedInvoice"), href: sectionHref("invoices", tenantId, { invoice: order.invoice_id }) });
+    }
+    return actions;
+  };
 
   return (
-    <section className="orders-panel" aria-labelledby="orders-title" ref={root}>
-      <header>
-        <p className="section-kicker">{t("orders.kicker")}</p>
-        <h3 id="orders-title">{t("orders.title")} {awaiting > 0 ? <span className="status-badge">{t("orders.awaiting", { count: awaiting })}</span> : null}</h3>
-        <p>{t("orders.body")}</p>
-      </header>
+    <section className="orders-panel orders-list-page" aria-label={t("orders.title")} dir={i18n.dir()} ref={root}>
+      <ListHeader count={loadedOrders?.length} countKey="ordersList.count" eyebrow={t("orders.kicker")} title={t("orders.title")} />
+      {awaiting > 0 ? <p className="orders-awaiting"><span className="status-badge">{t("orders.awaiting", { count: awaiting })}</span></p> : null}
+      <p className="muted">{t("orders.body")}</p>
+      <ChipRow<OrderFilter> label={t("ordersList.states")} value={stateFilter} onChange={setStateFilter} chips={[
+        { value: "ALL", label: t("ordersList.all"), count: loadedOrders?.length },
+        ...ORDER_STATES.map((status) => ({ value: status, label: t(`orders.status.${status}`), count: loadedOrders === undefined ? undefined : orders.filter((order) => order.status === status).length })),
+      ]} />
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
       <div className="orders-layout">
-        <ul className="outbox-list" aria-label={t("orders.inbox")}>
+        <ul className="list-rows orders-rows" aria-label={t("orders.inbox")}>
           {loadedOrders === undefined ? (error ? null : <li className="muted">{t("common.loading")}</li>) : orders.length === 0 ? <li className="muted">{t("orders.empty")}</li> : null}
-          {orders.map((order) => (
-            <li className="outbox-row" key={order.id}>
-              <button aria-current={selected?.order.id === order.id ? "true" : undefined} className="text-button" onClick={() => { setError(undefined); setNotice(undefined); void open(order.id); }} type="button">
-                <strong>{order.contact_name}</strong> · {when(order.created_at)}
-              </button>
-              <span className="status-badge">{t(`orders.status.${order.status}`)}</span>
-            </li>
+          {loadedOrders && orders.length > 0 && visibleOrders.length === 0 ? <li className="muted">{t("ordersList.emptyState")}</li> : null}
+          {visibleOrders.map((order) => (
+            <ListRow key={order.id} title={order.contact_name} subline={<time dateTime={order.created_at}>{when(order.created_at)}</time>}
+              status={t(`orders.status.${order.status}`)} actions={actionsFor(order)} onOpen={() => review(order.id)} />
           ))}
         </ul>
         {selected ? (
@@ -224,9 +240,9 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
                   <p className="form-status">{selected.linked_customer_name ? t("orders.linkedToName", { name: selected.linked_customer_name }) : t("orders.linkedTo")}</p>
                 )}
                 <div className="category-actions">
-                  <button className="button" disabled={busy || !selected.order.linked_customer_id} onClick={confirm} type="button">{t("orders.confirm")}</button>
+                  <button className="button" disabled={busy || !selected.order.linked_customer_id} onClick={() => confirm()} type="button">{t("orders.confirm")}</button>
                   <label className="field"><span>{t("orders.noteLabel")}</span><input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-                  <ConfirmAction className="text-button danger-link" confirmLabel={t("orders.confirmDecline")} danger disabled={busy} label={t("orders.decline")} onConfirm={decline}>{t("orders.declineExplain")}</ConfirmAction>
+                  <ConfirmAction className="text-button danger-link" confirmLabel={t("orders.confirmDecline")} danger disabled={busy} label={t("orders.decline")} onConfirm={() => decline()}>{t("orders.declineExplain")}</ConfirmAction>
                 </div>
                 <p className="muted">{t("orders.editNote")}</p>
                 {scheduling ? (

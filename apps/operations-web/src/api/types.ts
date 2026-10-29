@@ -15,6 +15,47 @@ export type ProductPriceBasis = "PIECE" | "BOX";
 export type MediaOwnership = "MASTER" | "TENANT";
 export type PriceResolutionSource = "NORMAL" | "GRADE_DISCOUNT" | "EXPLICIT_GRADE_PRICE";
 export type InvoiceStatus = "DRAFT" | "CONFIRMED" | "CANCELLED";
+
+/** Owner-only, business-wide invoice projections; monetary values stay decimal strings. */
+export interface BusinessInvoiceListRow {
+  id: string;
+  status: InvoiceStatus;
+  official_invoice_number: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+  currency: string;
+  net_sales: string;
+  total_due: string;
+  server_revision_number: number;
+  customer_id: string | null;
+  customer_name: string | null;
+  outstanding: string;
+  paid_state: "UNPAID" | "PARTLY_PAID" | "PAID" | null;
+  is_overdue: boolean;
+  overdue_age_days: number | null;
+}
+
+export interface BusinessInvoiceListResponse {
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+  invoices: BusinessInvoiceListRow[];
+}
+
+export interface InvoiceCurrencySummary {
+  currency: string;
+  outstanding_total: string;
+  overdue_total: string;
+  open_count: number;
+  overdue_count: number;
+  paid_count: number;
+  draft_count: number;
+}
+
+export interface InvoiceSummaryResponse {
+  currencies: InvoiceCurrencySummary[];
+}
 export type PaymentDirection =
   | "CUSTOMER_RECEIPT"
   | "CUSTOMER_RECEIPT_REVERSAL"

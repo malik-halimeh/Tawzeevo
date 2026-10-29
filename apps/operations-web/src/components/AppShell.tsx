@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import { apiRequest } from "../api/client";
 import type { TenantContextListResponse } from "../api/types";
@@ -11,7 +12,7 @@ import { AssistantButton, AssistantDrawer } from "./AssistantDrawer";
 import { Icon, type IconName } from "./Icon";
 import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
 import { COLLECTION_REPORTS_KEY, type CollectionReport, fetchPendingCollections } from "./collectionReportsApi";
-import { PHONE_PRIMARY_GROUPS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, type WorkspaceGroup, groupOf, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
+import { PHONE_PRIMARY_GROUPS, SETTINGS_PAGES, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, WORKSPACE_SECTIONS, type WorkspaceGroup, type WorkspaceSection, groupOf, ownerSectionHref, sectionFromSearch, sectionHref, selectedContext, settingsPageFromSearch, tenantFromSearch } from "./workspaceSections";
 
 type ShellLink = readonly [string, string, IconName];
 
@@ -22,7 +23,7 @@ const adminLinks: readonly ShellLink[] = [
   ["/admin/tenants", "nav.tenants", "building"],
 ];
 
-export function LanguageButton({ className = "language" }: { className?: string }) {
+export function LanguageButton({ className = "language", currentLanguage = false, valueSeparator = ": " }: { className?: string; currentLanguage?: boolean; valueSeparator?: string }) {
   const { i18n, t } = useTranslation();
   const other = i18n.resolvedLanguage === "ar" ? "en" : "ar";
 
@@ -33,8 +34,8 @@ export function LanguageButton({ className = "language" }: { className?: string 
   };
 
   return (
-    <button className={className} lang={other} onClick={() => void switchLanguage()} type="button">
-      {t("language")}
+    <button aria-label={currentLanguage ? `${t("nav.language")}${valueSeparator}${t("nav.currentLanguage")}` : undefined} className={className} lang={currentLanguage ? i18n.resolvedLanguage : other} onClick={() => void switchLanguage()} type="button">
+      {currentLanguage ? <><Icon name="chat" /><span className="owner-more-copy">{t("nav.language")}<small>{t("nav.currentLanguage")}</small></span><span aria-hidden="true" className="owner-more-chevron">›</span></> : t("language")}
     </button>
   );
 }
@@ -115,15 +116,30 @@ function useSoftwareKeyboard() {
   }, []);
 }
 
+/** Shared verbatim by the chip and Settings; reading it must never start another sync worker. */
+function syncStateText(state: AutoSyncState, online: boolean, t: TFunction): string {
+  if (state.attention > 0) return t("shell.syncAttention", { count: state.attention });
+  if (!online) return state.pending ? t("shell.offlineWaiting", { count: state.pending }) : t("shell.browserOffline");
+  if (state.sending) return t("shell.sending");
+  if (state.pending) return t("shell.waiting", { count: state.pending });
+  return t(state.justSent ? "shell.allSent" : "shell.browserOnline");
+}
+
+export interface SettingsShellContext {
+  syncText: string;
+  signOut: () => Promise<void>;
+}
+
 /** The top-line connection chip: what is waiting, being sent, sent, or needs a look. */
 function SyncChip({ state, online, attentionHref }: { state: AutoSyncState; online: boolean; attentionHref: string }) {
   const { t } = useTranslation();
-  if (state.attention > 0) return <Link className="online offline sync-chip" data-state="attention" to={attentionHref}>{t("shell.syncAttention", { count: state.attention })}</Link>;
-  if (!online) return <span className="online offline" data-state="offline">{state.pending ? t("shell.offlineWaiting", { count: state.pending }) : t("shell.browserOffline")}</span>;
-  if (state.sending) return <span className="online sync-chip" data-state="sending" role="status">{t("shell.sending")}</span>;
-  if (state.pending) return <span className="online sync-chip" data-state="waiting">{t("shell.waiting", { count: state.pending })}</span>;
-  if (state.justSent) return <span className="online sync-chip" data-state="sent" role="status">{t("shell.allSent")}</span>;
-  return <span className="online" data-state="online">{t("shell.browserOnline")}</span>;
+  const text = syncStateText(state, online, t);
+  if (state.attention > 0) return <Link className="online offline sync-chip" data-state="attention" to={attentionHref}>{text}</Link>;
+  if (!online) return <span className="online offline" data-state="offline">{text}</span>;
+  if (state.sending) return <span className="online sync-chip" data-state="sending" role="status">{text}</span>;
+  if (state.pending) return <span className="online sync-chip" data-state="waiting">{text}</span>;
+  if (state.justSent) return <span className="online sync-chip" data-state="sent" role="status">{text}</span>;
+  return <span className="online" data-state="online">{text}</span>;
 }
 
 export function AppShell() {
@@ -259,7 +275,7 @@ export function AppShell() {
   const groupItem = (group: WorkspaceGroup, className: string) => {
     const active = section !== null && (group.sections as readonly string[]).includes(section);
     return (
-      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} data-line={group.id} key={group.id} to={sectionHref(group.sections[0], tenantParam)}>
+      <Link aria-current={active ? "page" : undefined} className={`${className}${active ? " active" : ""}`} data-line={group.id} key={group.id} to={ownerSectionHref(group.sections[0], tenantParam)}>
         <Icon name={group.icon} />
         <span>{t(group.label)}</span>
         {group.id === "sales" && pendingCount + reportedCount > 0 ? <span className="nav-badge"><span aria-hidden="true">{pendingCount + reportedCount}</span><span className="sr-only">{[pendingCount ? t("orders.awaitingBadge", { count: pendingCount }) : "", reportedCount ? t("collection.badge", { count: reportedCount }) : ""].filter(Boolean).join(", ")}</span></span> : null}
@@ -276,14 +292,29 @@ export function AppShell() {
     );
   };
   const phoneGroups = WORKSPACE_GROUPS.filter((group) => PHONE_PRIMARY_GROUPS.includes(group.id));
-  const moreGroups = WORKSPACE_GROUPS.filter((group) => !PHONE_PRIMARY_GROUPS.includes(group.id));
+  const moreActive = ownerNav && section !== null && !PHONE_PRIMARY_GROUPS.includes(groupOf(section).id);
+  const moreSection = (id: WorkspaceSection) => {
+    const meta = WORKSPACE_SECTIONS.find((item) => item.id === id)!;
+    const group = groupOf(id);
+    const label = id === "sync" ? "nav.offlineSync" : meta.label;
+    const title = t(label);
+    const groupLabel = t(group.label);
+    const showSubLabel = (group.id === "buying" || group.id === "insights") && groupLabel !== title;
+    return (
+      <Link aria-current={section === id ? "page" : undefined} aria-label={showSubLabel ? `${title}, ${groupLabel}` : undefined} className={`more-item${section === id ? " active" : ""}`} data-line={group.id} key={id} to={ownerSectionHref(id, tenantParam)}>
+        <Icon name={meta.icon} />
+        <span className="owner-more-copy">{title}{showSubLabel ? <small>{groupLabel}</small> : null}</span>
+        <span aria-hidden="true" className="owner-more-chevron">›</span>
+      </Link>
+    );
+  };
 
   return (
     <div className="frame" data-line={mapLine} data-role={mapRole}>
       <a className="skip-link" href="#main-content">{t("skipToContent")}</a>
       <aside className="rail">
         <BrandMark />
-        {/* Desktop shows the same groups as the phone for the selected business: an owner's seven
+        {/* Desktop shows the same groups as the phone for the selected business: an owner's eight
             job groups with Settings last; a driver's My work and Sync. Account links sit below. */}
         <nav aria-label={t("nav.workspaceNav")} className="rail-nav">
           {ownerNav ? (
@@ -315,7 +346,7 @@ export function AppShell() {
           </div>
         </div>
         <main id="main-content" className="main" tabIndex={-1}>
-          <Outlet />
+          <Outlet context={{ syncText: syncStateText(autoSync, online, t), signOut } satisfies SettingsShellContext} />
         </main>
       </div>
       <nav aria-label={t("nav.primary")} className="mobile-nav">
@@ -323,7 +354,7 @@ export function AppShell() {
         {driverNav ? <>{anchorItem(WORK_ANCHOR, "nav.myWork", "work")}{anchorItem(SYNC_ANCHOR, "nav.sync", "sync")}</> : null}
         {!ownerNav && !driverNav ? links.map((link) => navItem(link, "mobile-nav-item")) : null}
         {!ownerNav && !driverNav && !isAdmin ? navItem(["/profile", "nav.profile", "person"], "mobile-nav-item") : null}
-        <button aria-controls="more-sheet" aria-expanded={moreOpen} className={`mobile-nav-item${moreOpen ? " active" : ""}`} onClick={() => setMoreOpen((open) => !open)} ref={moreButton} type="button">
+        <button aria-controls="more-sheet" aria-current={moreActive ? "page" : undefined} aria-expanded={moreOpen} className={`mobile-nav-item${moreOpen || moreActive ? " active" : ""}`} onClick={() => setMoreOpen((open) => !open)} ref={moreButton} type="button">
           <Icon name="more" />
           <span>{t("nav.more")}</span>
         </button>
@@ -351,18 +382,29 @@ export function AppShell() {
         ) : null}
       </div>
       {moreOpen ? (
-        <div aria-label={t("nav.moreMenu")} className="more-sheet" id="more-sheet" ref={sheet} role="group">
+        <div aria-label={t("nav.moreMenu")} className={`more-sheet${ownerNav ? " owner-more-sheet" : ""}`} id="more-sheet" ref={sheet} role="group">
           {ownerNav ? (
-            <div className="more-group" role="group" aria-label={t("tenantWorkspace.sections")}>
-              <p className="eyebrow">{t("tenantWorkspace.sections")}</p>
-              {moreGroups.map((group) => groupItem(group, "more-item"))}
-            </div>
+            <>
+              <div className="more-group" role="group" aria-label={t("nav.workTools")}>
+                <p className="eyebrow">{t("nav.workTools")}</p>
+                {(["deliveries", "procurement", "suppliers", "analytics", "assistant"] as const).map(moreSection)}
+              </div>
+              <div className="more-group" role="group" aria-label={t("nav.groups.settings")}>
+                <p className="eyebrow">{t("nav.groups.settings")}</p>
+                {SETTINGS_PAGES.map((page) => (
+                  <Link aria-current={section === "settings" && settingsPageFromSearch(search).id === page.id ? "page" : undefined} className="more-item" data-line="settings" key={page.id} to={sectionHref("settings", tenantParam, { view: page.id })}>
+                    <Icon name={page.icon} /><span className="owner-more-copy">{t(page.label)}</span><span aria-hidden="true" className="owner-more-chevron">›</span>
+                  </Link>
+                ))}
+              </div>
+            </>
           ) : null}
           <div className="more-group" role="group" aria-label={t("shell.account")}>
             <p className="eyebrow">{t("shell.account")}</p>
-            {isAdmin || ownerNav || driverNav ? <NavLink className="more-item" to="/profile"><Icon name="person" />{t("nav.profile")}</NavLink> : null}
-            <NavLink className="more-item" to="/stats"><Icon name="chart" />{t("nav.statistics")}</NavLink>
-            <button className="more-item" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}</button>
+            {isAdmin || ownerNav || driverNav ? <NavLink className="more-item" to="/profile"><Icon name="person" />{t("nav.profile")}{ownerNav ? <span aria-hidden="true" className="owner-more-chevron">›</span> : null}</NavLink> : null}
+            {ownerNav ? <LanguageButton className="more-item" currentLanguage /> : null}
+            <NavLink className="more-item" to="/stats"><Icon name="chart" />{t("nav.statistics")}{ownerNav ? <span aria-hidden="true" className="owner-more-chevron">›</span> : null}</NavLink>
+            <button className="more-item" onClick={() => void signOut()} type="button"><Icon name="logout" />{t("nav.logout")}{ownerNav ? <span aria-hidden="true" className="owner-more-chevron">›</span> : null}</button>
           </div>
           <button className="more-item more-close" onClick={() => { setMoreOpen(false); moreButton.current?.focus(); }} type="button"><Icon name="close" />{t("nav.closeMenu")}</button>
         </div>

@@ -54,6 +54,7 @@ test("without a provider the assistant says it is not switched on and points to 
   const sent = stubAssistant({ configured: false, provider: null, model: null }, []);
   renderPanel();
   expect(await screen.findByText("The assistant is not switched on")).toBeInTheDocument();
+  expect(document.querySelector(".list-head-count")).toBeNull(); // the assistant has no list
   expect(screen.getByText(/Everything else keeps working without it/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "See today's priorities" })).toHaveAttribute("href", "/workspace?tenant=t1&section=customers");
   expect(screen.getByRole("link", { name: "Open Analytics" })).toHaveAttribute("href", "/workspace?tenant=t1&section=analytics");
