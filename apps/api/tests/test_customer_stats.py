@@ -7,7 +7,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo
 
 from test_delivery_tasks import _driver, _get, _post
 from test_invoice_editor import (
@@ -79,13 +78,11 @@ def test_lifetime_statistics_reconcile_and_never_merge_duplicates(client, sessio
     )
     # Space the confirmations out and make the first charge old enough to be paid late.
     with session_factory() as db:
-        local_noon = datetime.now(ZoneInfo("Asia/Beirut")).replace(
-            hour=12, minute=0, second=0, microsecond=0
-        )
+        now = datetime.now(UTC)
         for invoice_id, days_ago in ((first["id"], 40), (second["id"], 20), (third["id"], 0)):
             row = db.get(Invoice, UUID(invoice_id))
             assert row is not None
-            row.confirmed_at = (local_noon - timedelta(days=days_ago)).astimezone(UTC)
+            row.confirmed_at = now - timedelta(days=days_ago)
         db.commit()
     # A receipt dated 10 days after the charge, allocated oldest-first: settled late (> 7 days).
     receipt = _post(
