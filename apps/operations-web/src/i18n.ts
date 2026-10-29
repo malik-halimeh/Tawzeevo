@@ -61,6 +61,17 @@ const en = {
   setup: { title: "Get your shop ready", category: "Add a category", product: "Add and publish a product", link: "Copy your shop link", branding: "Set up branding (optional)", done: "done" },
   today: { needsYou: "Needs you now", review: "Review", collectionsTitle: "Delivered, payment not recorded yet", andMore: "and {{count}} more" },
   listKit: { count_one: "<n>{{count}}</n> item", count_other: "<n>{{count}}</n> items", searchLabel: "Search this list", clearSearch: "Clear search", sortBy: "Sort by", filters: "Filters", activeFilters_one: "{{count}} active", activeFilters_other: "{{count}} active", rowActions: "More actions for {{title}}", monthTotal: "Month total" },
+  invoicesFrontPage: {
+    title: "Invoices", count_one: "<n>{{count}}</n> invoice", count_other: "<n>{{count}}</n> invoices",
+    newInvoice: "New invoice", search: "Search by invoice number or customer", newest: "Newest first", overview: "Money overview",
+    owed: "Owed to you", overdue: "Overdue", openInvoices_one: "{{count}} open invoice", openInvoices_other: "{{count}} open invoices",
+    overdueInvoices_one: "{{count}} overdue invoice", overdueInvoices_other: "{{count}} overdue invoices",
+    all: "All", unpaid: "Unpaid", paid: "Paid", partlyPaid: "Partly paid", draft: "Draft", cancelled: "Cancelled", overdueDays: "Overdue ({{days}} days)",
+    chips: "Invoice filters", currency: "Currency", allCurrencies: "All currencies", dateFrom: "Date from", dateTo: "Date to",
+    noCustomer: "No customer", open: "Open", recordPayment: "Record payment", loadMore: "Load more", shown: "{{shown}} of {{total}}",
+    offline: "The invoice list needs a connection", retry: "Try again",
+    empty: { all: "No invoices", unpaid: "No unpaid invoices", overdue: "No overdue invoices", paid: "No paid invoices", draft: "No draft invoices", cancelled: "No cancelled invoices" },
+  },
   notFound: { title: "That stop is not on this route.", body: "The page may have moved or the address may be incorrect.", action: "Return to Tawzeevo" },
 } as const;
 
@@ -73,6 +84,17 @@ type ArabicPluralForm = "zero" | "two" | "few" | "many";
 type TranslationShape<T> = { readonly [K in keyof T]: T[K] extends string ? string : TranslationShape<T[K]> } & { readonly [key: `${string}_${ArabicPluralForm}`]: string };
 
 const ar: TranslationShape<typeof en> = {
+  invoicesFrontPage: {
+    title: "الفواتير", count_zero: "<n>{{count}}</n> فواتير", count_one: "<n>{{count}}</n> فاتورة", count_two: "<n>{{count}}</n> فاتورتان", count_few: "<n>{{count}}</n> فواتير", count_many: "<n>{{count}}</n> فاتورة", count_other: "<n>{{count}}</n> فاتورة",
+    newInvoice: "فاتورة جديدة", search: "ابحث برقم الفاتورة أو اسم العميل", newest: "الأحدث أولاً", overview: "ملخص المستحقات",
+    owed: "المستحق لك", overdue: "متأخرة", openInvoices_zero: "لا فواتير مستحقة", openInvoices_one: "فاتورة واحدة مستحقة", openInvoices_two: "فاتورتان مستحقتان", openInvoices_few: "{{count}} فواتير مستحقة", openInvoices_many: "{{count}} فاتورة مستحقة", openInvoices_other: "{{count}} فاتورة مستحقة",
+    overdueInvoices_zero: "لا فواتير متأخرة", overdueInvoices_one: "فاتورة واحدة متأخرة", overdueInvoices_two: "فاتورتان متأخرتان", overdueInvoices_few: "{{count}} فواتير متأخرة", overdueInvoices_many: "{{count}} فاتورة متأخرة", overdueInvoices_other: "{{count}} فاتورة متأخرة",
+    all: "الكل", unpaid: "غير مدفوعة", paid: "مدفوعة", partlyPaid: "مدفوعة جزئياً", draft: "مسودة", cancelled: "ملغاة", overdueDays: "متأخرة ({{days}} أيام)",
+    chips: "تصفية الفواتير", currency: "العملة", allCurrencies: "كل العملات", dateFrom: "من تاريخ", dateTo: "إلى تاريخ",
+    noCustomer: "بدون عميل", open: "فتح", recordPayment: "تسجيل دفعة", loadMore: "تحميل المزيد", shown: "{{shown}} من {{total}}",
+    offline: "قائمة الفواتير تحتاج إلى اتصال", retry: "حاول مجدداً",
+    empty: { all: "لا توجد فواتير", unpaid: "لا توجد فواتير غير مدفوعة", overdue: "لا توجد فواتير متأخرة", paid: "لا توجد فواتير مدفوعة", draft: "لا توجد فواتير مسودة", cancelled: "لا توجد فواتير ملغاة" },
+  },
   brandHome: "الصفحة الرئيسية لتوزيفو",
   language: "English",
   skipToContent: "انتقل إلى المحتوى",

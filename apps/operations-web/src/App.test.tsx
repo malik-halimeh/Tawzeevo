@@ -1040,6 +1040,10 @@ describe("phone navigation follows the member's role", () => {
       if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
       if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
       if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [context] }));
+      if (url.includes("/api/v1/invoices/all?")) return Promise.resolve(json({ page: 1, limit: 20, total: 0, total_pages: 0, invoices: [] }));
+      if (url.includes("/api/v1/invoices/summary?")) return Promise.resolve(json({ currencies: [] }));
+      if (url.includes("/api/v1/delivery-tasks?")) return Promise.resolve(json({ tasks: [] }));
+      if (url.includes("/pickup-reports?") || url.includes("/collection-reports?")) return Promise.resolve(json({ reports: [] }));
       if (url.includes("/delivery-tasks/my-work")) return Promise.resolve(json({ tasks: [stop], membership_id: context.membership_id, role }));
       if (url.includes("/procurement/my-pickups")) return Promise.resolve(json({ lists: [] }));
       if (url.includes("/categories?")) return Promise.resolve(json({ categories: [] }));
@@ -1060,10 +1064,12 @@ describe("phone navigation follows the member's role", () => {
     expect(currentAddress).toBe(`/workspace?tenant=${harbour.id}`);
   });
 
-  test.each(["/workspace", "/workspace?section=unknown", `/workspace?tenant=${tenant.id}`])("owner entry %s replaces the address with the new-invoice landing", async (path) => {
+  test.each(["/workspace", "/workspace?section=unknown", `/workspace?tenant=${tenant.id}`])("owner entry %s replaces the address with the invoices front page", async (path) => {
     vi.stubGlobal("fetch", memberFetch("owner"));
     renderApp(path, "/stats");
-    expect(await screen.findByRole("group", { name: "Invoice views" }, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Invoices" }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Invoice filters" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Invoice views" })).not.toBeInTheDocument();
     await waitFor(() => {
       const params = new URLSearchParams(currentAddress.split("?")[1]);
       expect(params.get("section")).toBe("invoices");
@@ -1077,13 +1083,37 @@ describe("phone navigation follows the member's role", () => {
     await waitFor(() => expect(currentAddress).toBe("/stats"), { timeout: 5000 });
   });
 
-  test.each(["/workspace?section=invoices", "/workspace?section=invoices&view=list", "/workspace?section=invoices&view=unknown"]) ("%s still opens a new invoice in the editor", async (path) => {
+  test.each(["/workspace?section=invoices", "/workspace?section=invoices&view=unknown"]) ("%s still opens a new invoice in the editor", async (path) => {
     vi.stubGlobal("fetch", memberFetch("owner"));
     renderApp(path);
     const views = await screen.findByRole("group", { name: "Invoice views" }, { timeout: 5000 });
     expect(within(views).getByRole("button", { name: "Invoice" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Phone")).toHaveValue("");
     expect(screen.getByRole("button", { name: i18n.t("invoiceEditor.saveDraft") })).toBeDisabled();
+    expect(currentAddress).toBe(path);
+  });
+
+  test("the explicit list address and Sales open the front page", async () => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp("/workspace?section=invoices&view=list");
+    expect(await screen.findByRole("group", { name: "Invoice filters" })).toBeInTheDocument();
+    fireEvent.click(within(primaryNav()).getByRole("link", { name: "Today" }));
+    expect(await screen.findByRole("heading", { name: "My route" })).toBeInTheDocument();
+    fireEvent.click(within(primaryNav()).getByRole("link", { name: "Sales" }));
+    expect(await screen.findByRole("group", { name: "Invoice filters" })).toBeInTheDocument();
+    expect(currentAddress).toBe("/workspace?section=invoices&view=list");
+  });
+
+  test.each([
+    "invoice=existing", "customer=existing", "view=payments", "view=balances", "view=invoice", "fresh=123",
+    "view=list&invoice=existing", "view=list&customer=existing", "view=list&fresh=123",
+    "view=list&invoice=", "view=list&customer=", "view=list&fresh=",
+  ])("invoice address %s keeps the editor", async (query) => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    const path = `/workspace?section=invoices&${query}`;
+    renderApp(path);
+    expect(await screen.findByRole("group", { name: "Invoice views" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Invoice filters" })).not.toBeInTheDocument();
     expect(currentAddress).toBe(path);
   });
   // The compact business header is the page heading of an active workspace.

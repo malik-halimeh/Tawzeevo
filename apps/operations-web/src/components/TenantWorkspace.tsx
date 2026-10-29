@@ -29,6 +29,7 @@ import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } f
 import { CopilotPanel } from "./CopilotPanel";
 import { AttentionList, CustomerSignals, TodayBrief } from "./IntelligencePanel";
 import { InvoiceEditor } from "./InvoiceEditor";
+import { InvoicesFrontPage } from "./InvoicesFrontPage";
 import { SupplierSetup } from "./SupplierSetup";
 import { CONNECT_RESULT_KEY } from "../backup/connect";
 import { isOfflineFailure } from "../offline/network";
@@ -1357,6 +1358,8 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
             <DeliveryPanel focusInvoiceId={searchParams.get("invoice")} key={searchParams.get("invoice") ?? "all"} tenantId={context.tenant_id} />
           ) : view === "suppliers" ? (
             <SupplierSetup membershipId={context.membership_id} tenantId={context.tenant_id} />
+          ) : view === "invoices" && searchParams.get("view") === "list" && !["invoice", "customer", "fresh"].some((param) => searchParams.has(param)) ? (
+            <InvoicesFrontPage key={context.tenant_id} tenantId={context.tenant_id} />
           ) : (
             <>
               {costSetup ? (
