@@ -1,7 +1,7 @@
 /* One navigation-height reserve covers the 56px Fab and its gap; the other covers its phone offset. */
 .invoices-front-page { min-inline-size: 0; padding-block-end: calc(var(--bottom-nav) + var(--bottom-nav) + var(--keyboard) + env(safe-area-inset-bottom)); }
 .invoice-money-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 12px; margin-block: 16px; }
-.invoice-money-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-record); background: var(--surface); }
+.invoice-money-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 12px; border: 1px solid var(--edge); border-radius: var(--radius-record); background: var(--card); box-shadow: var(--card-shadow); }
 .invoice-money-card h2 { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--muted); }
 .invoice-money-card button { display: grid; align-content: start; gap: 4px; min-inline-size: 0; min-block-size: 44px; padding: 8px; border-radius: var(--radius-control); text-align: start; }
 .invoice-money-card button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
