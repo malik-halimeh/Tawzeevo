@@ -22,7 +22,10 @@ import type {
   TenantProduct,
   TenantProductListResponse,
 } from "../api/types";
-import { AllCustomers } from "./AllCustomers";
+import { CustomerInvoices } from "./AllCustomers";
+import { CustomersList } from "./customers/CustomersList";
+import { Fab } from "./listKit/Fab";
+import "../customersPage.css";
 import { CameraScanButton } from "./CameraScan";
 import { PickupInbox } from "./PickupReports";
 import { ConfirmAction, ErrorState, LoadingState, StatusBadge, SuccessNotice } from "./Ui";
@@ -550,7 +553,7 @@ interface CustomerDirectoryProps {
 }
 
 /**
- * Customers as a list and a record, like the work screen: the phone search and its results beside
+ * Customers as a list and a record, like the work screen: the server list and exact phone lookup beside
  * the chosen customer from 1100px, one pane at a time below. Presentation only — the search, save
  * and edit handlers (with their offline paths), the notices and the storefront-link controls are the
  * workspace's own, passed in unchanged; this component keeps which pane is open and where focus goes.
@@ -562,6 +565,10 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   const [selectedId, setSelectedId] = useState(editingCustomerId);
   const [creating, setCreating] = useState(false);
   const [detailOpen, setDetailOpen] = useState(editingCustomerId !== undefined);
+  const [openedCustomer, setOpenedCustomer] = useState<Customer>();
+  const [showInvoices, setShowInvoices] = useState(false);
+  const [moreFields, setMoreFields] = useState(Boolean(editingCustomerId && (customerDraft.address || customerDraft.latitude || customerDraft.longitude || customerDraft.grade)));
+  const [listRefresh, setListRefresh] = useState(0);
   // The phone of the last finished search, offered for "Add customer with this phone" when nothing matched.
   const [searchedPhone, setSearchedPhone] = useState("");
   const [, setFocusRequests] = useState(0);
@@ -573,6 +580,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   const editButton = useRef<HTMLButtonElement>(null);
   const saveButton = useRef<HTMLButtonElement>(null);
   const rows = useRef(new Map<string, HTMLButtonElement>());
+  const listOrigin = useRef<{ id: string | null; node: HTMLElement } | null>(null);
   const listScroll = useRef(0);
   const pendingSave = useRef<Customer[] | undefined>(undefined);
   const pendingFocus = useRef<CustomerFocus | undefined>(undefined);
@@ -582,7 +590,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   }, []);
 
   const formMode = editingCustomerId ? "edit" : creating ? "create" : undefined;
-  const selected = matches.find((customer) => customer.id === selectedId);
+  const selected = matches.find((customer) => customer.id === selectedId) ?? (openedCustomer?.id === selectedId ? openedCustomer : undefined);
   // The record the detail pane shows, marked in the list; none while a new customer is being added.
   const shownId = formMode === "edit" ? editingCustomerId : formMode ? undefined : selected?.id;
   const initial = (name: string) => name.trim().slice(0, 1).toUpperCase();
@@ -601,7 +609,9 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
       case "list": {
         // Back on the results: the same scroll position, with focus on the customer just viewed.
         if (onePane) window.scrollTo(0, next.scrollY);
-        const target = (next.row ? rows.current.get(next.row) : undefined) ?? addButton.current;
+        const listRow = next.row ? Array.from(root.current?.querySelectorAll<HTMLAnchorElement>(".list-row-main") ?? []).find((row) => new URL(row.href).searchParams.get("customer") === next.row) : undefined;
+        const origin = listOrigin.current;
+        const target = (origin && origin.id === next.row && origin.node.isConnected ? origin.node : undefined) ?? (next.row ? rows.current.get(next.row) : undefined) ?? listRow ?? addButton.current;
         target?.focus(onePane ? { preventScroll: true } : undefined);
         // Moves only when the target is not fully visible (a saved record joins the end of the results);
         // its scroll margin keeps it clear of the bottom bar.
@@ -633,8 +643,11 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     const before = pendingSave.current;
     if (!before || busy) return;
     pendingSave.current = undefined;
-    if (matches === before) { focusAfterRender({ to: "failed" }); return; }
+    // Errors carry no field metadata: reveal optional inputs after a refused save so an error
+    // there can always be corrected, while leaving the workspace's validation message untouched.
+    if (matches === before) { setMoreFields(true); focusAfterRender({ to: "failed" }); return; }
     const saved = matches[matches.length - 1];
+    setListRefresh((value) => value + 1);
     setCreating(false);
     setSelectedId(saved?.id);
     if (saved) { focusAfterRender({ to: "saved" }); return; }
@@ -650,6 +663,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     setCustomerDraft(emptyCustomer);
     setCreating(false);
     setSelectedId(focusCustomerId);
+    setShowInvoices(false);
     setDetailOpen(true);
     if (singlePane()) focusAfterRender({ to: "detail" });
   }, [focusCustomerId, matches, setEditingCustomerId, setCustomerDraft, focusAfterRender]);
@@ -673,6 +687,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     clearFocus();
     rememberListScroll();
     setSelectedId(customer.id);
+    setOpenedCustomer(customer);
+    setShowInvoices(false);
     setDetailOpen(true);
     // On a phone the record replaces the list and focus moves to its name; beside the list it stays on the row.
     if (singlePane()) focusAfterRender({ to: "detail" });
@@ -687,12 +703,18 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
     discardForm(); // an edit left open never leaks into a new customer
     if (phone) setCustomerDraft({ ...emptyCustomer, phone });
     setCreating(true);
+    setMoreFields(false);
     setDetailOpen(true);
     focusAfterRender({ to: "form" });
   };
   const editSelected = (customer: Customer) => {
+    if (focusCustomerId !== customer.id) clearFocus();
+    setSelectedId(customer.id);
+    setOpenedCustomer(customer);
+    setDetailOpen(true);
     editCustomer(customer);
     setCreating(false);
+    setMoreFields(Boolean(customer.address || customer.latitude || customer.longitude || customer.grade));
     focusAfterRender({ to: "form" });
   };
   const cancelForm = () => {
@@ -708,8 +730,20 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
   };
 
   return (
-    <section aria-label={t("tenantWorkspace.customers")} className={`customers workspace${detailOpen && (formMode || selected) ? " show-detail" : ""}`} ref={root}>
+    <section aria-label={t("tenantWorkspace.customers")} className={`customers customers-page workspace${detailOpen && (formMode || selected) ? " show-detail" : ""}`} ref={root}>
       <div className="workspace-list">
+        <div onClickCapture={(event) => {
+          const row = (event.target as Element).closest(".list-row")?.querySelector<HTMLAnchorElement>(".list-row-main");
+          if (row) { listOrigin.current = { id: new URL(row.href).searchParams.get("customer"), node: row }; rememberListScroll(); }
+        }}>
+          <CustomersList
+            onEdit={editSelected}
+            onInvoices={(customer) => { openCustomer(customer); setShowInvoices(true); }}
+            onShopLink={(customer) => { openCustomer(customer); setLinkCustomerId(customer.id); }}
+            refreshKey={listRefresh}
+            tenantId={tenantId}
+          />
+        </div>
         <article className="customer-search">
           <p className="section-kicker">{t("tenantWorkspace.phoneLookup")}</p>
           <h2>{t("tenantWorkspace.findCustomer")}</h2>
@@ -725,7 +759,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
           <ul aria-label={t("tenantWorkspace.matchList")} className="stop-list customer-list">
             {matches.map((customer) => (
               <li className="stop-item" key={customer.id}>
-                <button aria-current={shownId === customer.id ? "true" : undefined} className={`stop-button customer-row${shownId === customer.id ? " selected" : ""}`} onClick={() => openCustomer(customer)} ref={(node) => { if (node) rows.current.set(customer.id, node); else rows.current.delete(customer.id); }} type="button">
+                <button aria-current={shownId === customer.id ? "true" : undefined} className={`stop-button customer-row${shownId === customer.id ? " selected" : ""}`} onClick={(event) => { listOrigin.current = { id: customer.id, node: event.currentTarget }; openCustomer(customer); }} ref={(node) => { if (node) rows.current.set(customer.id, node); else rows.current.delete(customer.id); }} type="button">
                   <span className="avatar" aria-hidden="true">{initial(customer.name)}</span>
                   <span className="stop-copy"><strong>{customer.name}</strong><small><bdi dir="ltr">{customer.phone}</bdi></small>{customer.address ? <small>{customer.address}</small> : null}</span>
                   {customer.grade ? <span className="badge">{t("tenantWorkspace.grade")} <bdi>{customer.grade}</bdi></span> : null}
@@ -736,8 +770,8 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
           </ul>
         ) : null}
         <AttentionList tenantId={tenantId} />
-        <AllCustomers tenantId={tenantId} />
       </div>
+      <Fab label={t("customersPage.newCustomer")} onSelect={() => addCustomer()} />
       {formMode ? (
         <article aria-labelledby="customer-form-title" className="detail customer-detail">
           <div className="detail-inner">
@@ -746,11 +780,16 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             <form className="form-grid" onSubmit={submitCustomer}>
               <label className="field"><span>{t("tenantWorkspace.customerName")}</span><input required value={customerDraft.name} onChange={(event) => setCustomerDraft({ ...customerDraft, name: event.target.value })} /></label>
               <label className="field"><span>{t("fields.phone")}</span><input dir="ltr" inputMode="tel" required value={customerDraft.phone} onChange={(event) => setCustomerDraft({ ...customerDraft, phone: event.target.value })} /></label>
-              <label className="field field-wide"><span>{t("tenantWorkspace.address")}</span><input value={customerDraft.address} onChange={(event) => setCustomerDraft({ ...customerDraft, address: event.target.value })} /></label>
-              <label className="field"><span>{t("tenantWorkspace.latitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.latitude} onChange={(event) => setCustomerDraft({ ...customerDraft, latitude: event.target.value })} /></label>
-              <label className="field"><span>{t("tenantWorkspace.longitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.longitude} onChange={(event) => setCustomerDraft({ ...customerDraft, longitude: event.target.value })} /></label>
-              <label className="field"><span>{t("tenantWorkspace.grade")}</span><select value={customerDraft.grade} onChange={(event) => setCustomerDraft({ ...customerDraft, grade: event.target.value as CustomerDraft["grade"] })}><option value="">{t("tenantWorkspace.noGrade")}</option>{grades.map((grade) => <option key={grade}>{grade}</option>)}</select></label>
-              <div className="form-actions field-wide"><button className="button" disabled={busy} ref={saveButton} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button><button className="button button-secondary" onClick={cancelForm} type="button">{t("common.cancel")}</button></div>
+              <details className="customer-more-fields field-wide" onInvalidCapture={() => setMoreFields(true)} onToggle={(event) => setMoreFields(event.currentTarget.open)} open={moreFields}>
+                <summary>{t("customersPage.moreFields")}</summary>
+                <div className="form-grid">
+                  <label className="field field-wide"><span>{t("tenantWorkspace.address")}</span><input value={customerDraft.address} onChange={(event) => setCustomerDraft({ ...customerDraft, address: event.target.value })} /></label>
+                  <label className="field"><span>{t("tenantWorkspace.latitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.latitude} onChange={(event) => setCustomerDraft({ ...customerDraft, latitude: event.target.value })} /></label>
+                  <label className="field"><span>{t("tenantWorkspace.longitude")}</span><input dir="ltr" inputMode="decimal" value={customerDraft.longitude} onChange={(event) => setCustomerDraft({ ...customerDraft, longitude: event.target.value })} /></label>
+                  <label className="field"><span>{t("tenantWorkspace.grade")}</span><select value={customerDraft.grade} onChange={(event) => setCustomerDraft({ ...customerDraft, grade: event.target.value as CustomerDraft["grade"] })}><option value="">{t("tenantWorkspace.noGrade")}</option>{grades.map((grade) => <option key={grade}>{grade}</option>)}</select></label>
+                </div>
+              </details>
+              <div className="form-actions customer-form-actions field-wide"><button className="button" disabled={busy} ref={saveButton} type="submit">{busy ? t("common.saving") : t("common.saveChanges")}</button><button className="button button-secondary" onClick={cancelForm} type="button">{t("common.cancel")}</button></div>
             </form>
           </div>
         </article>
@@ -776,6 +815,7 @@ function CustomerDirectory({ tenantId, busy, phoneSearch, setPhoneSearch, matche
             {/* Why this customer is on today's list (D-089); balances and receipts themselves belong to Invoices. */}
             <CustomerSignals customerId={selected.id} tenantId={tenantId} />
             <CustomerBalanceActions customerId={selected.id} tenantId={tenantId} />
+            {showInvoices ? <section aria-label={t("allCustomers.invoicesOf", { name: selected.name })}><h3>{t("allCustomers.invoices")}</h3><CustomerInvoices customer={selected} key={selected.id} tenantId={tenantId} /></section> : null}
           </div>
         </article>
       ) : (

@@ -484,6 +484,8 @@ describe("tenant customer and category workspace", () => {
       if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: contexts }));
       const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : undefined;
       calls.push({ url, method, ...(body ? { body } : {}) });
+      // The new list loads immediately; these legacy-flow tests still exercise the exact lookup.
+      if (/\/customers\?/.test(url)) return Promise.resolve(json({ page: 1, total: 0, total_pages: 0, customers: [] }));
       if (url.includes("/customers/search?")) return Promise.resolve(json({ customers: phoneMatches }));
       if (url.endsWith("/customers") && method === "POST") return Promise.resolve(json({ ...phoneMatches[0], ...body, id: createdId }, 201));
       const record = phoneMatches.find((customer) => url.endsWith(`/customers/${customer.id}`));
@@ -1116,8 +1118,8 @@ describe("phone navigation follows the member's role", () => {
     expect(screen.queryByRole("group", { name: "Invoice filters" })).not.toBeInTheDocument();
     expect(currentAddress).toBe(path);
   });
-  // The compact business header is the page heading of an active workspace.
-  const businessHeader = () => screen.getByRole("heading", { level: 1 }).closest("header")!;
+  // Customers now has its own ListHeader h1; identify this fixture's business header by name.
+  const businessHeader = () => screen.getByRole("heading", { level: 1, name: /^(North Route|Harbour Line)$/ }).closest("header")!;
   const businessRole = () => within(businessHeader()).getByText(/^(Owner|Driver)$/).textContent;
 
   // One person, two memberships: owner of North Route, driver for Harbour Line (synthetic).

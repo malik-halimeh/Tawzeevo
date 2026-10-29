@@ -23,6 +23,7 @@ beforeEach(async () => {
   vi.stubGlobal("scrollTo", vi.fn());
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
     const url = urlOf(input);
+    if (/\/customers\?/.test(url)) return Promise.resolve(json({ page: 1, total: 0, total_pages: 0, customers: [] }));
     if (url.includes("/customers/search")) return Promise.resolve(json({ customers: [] }));
     if (url.includes(`/tenants/${tenantId}/customers/${maya.id}`)) return Promise.resolve(json(maya));
     if (url.includes("/customer-ledger/settings")) return Promise.resolve(json({ tenant_id: tenantId, customer_overdue_threshold_days: null }));
@@ -45,7 +46,8 @@ const withProviders = (ui: React.ReactNode, path = "/") => (
 test("a search that finds nobody offers to add a customer with that phone, already filled in", async () => {
   render(withProviders(<TenantWorkspace contexts={[owner]} />, "/workspace?section=customers"));
   fireEvent.change(await screen.findByLabelText("Phone"), { target: { value: "+96171999888" } });
-  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  // The list now also has a Search toggle; this is the preserved exact-phone lookup form.
+  fireEvent.click(screen.getByLabelText("Phone").closest("form")!.querySelector("button")!);
   fireEvent.click(await screen.findByRole("button", { name: "Add customer with +96171999888" }));
   const form = await screen.findByRole("heading", { name: "Add customer" });
   expect(form).toBeInTheDocument();

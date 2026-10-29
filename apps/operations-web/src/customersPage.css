@@ -1,0 +1,19 @@
+/* Customer page presentation; shared list controls retain the list kit's tokens and behavior. */
+.customers-page { min-inline-size: 0; padding-block-end: calc(var(--bottom-nav) + var(--keyboard) + 88px + env(safe-area-inset-bottom)); }
+.customers-page-list { display: grid; gap: 16px; margin-block-end: 24px; min-inline-size: 0; }
+.customers-page-list .page-head { margin-block-end: 0; }
+.customer-list-phone, .customer-list-address, .customer-list-balance { display: block; }
+.customer-list-address { overflow: hidden; text-overflow: ellipsis; }
+.customers-page-list .list-row-end { flex-shrink: 1; min-inline-size: 0; max-inline-size: 55%; overflow-wrap: anywhere; }
+.customers-page-list .list-row-amount { white-space: normal; }
+.customers-page-list .list-row-main { scroll-margin-block-end: calc(var(--bottom-nav) + 16px + env(safe-area-inset-bottom)); }
+.customer-list-balance { text-align: end; }
+.customers-page .customer-more-fields { min-inline-size: 0; }
+.customers-page .customer-more-fields > summary { min-block-size: 44px; padding-block: 10px; cursor: pointer; }
+.customers-page .customer-more-fields > .form-grid { padding-block: 8px; }
+.customers-page .customer-invoices { min-inline-size: 0; }
+.customers-page .customer-invoices > li { flex-wrap: wrap; overflow-wrap: anywhere; }
+@media (max-width: 1099px) {
+  .customers-page.show-detail .fab-dock { display: none; }
+  .customers-page .customer-form-actions { position: sticky; z-index: 18; inset-block-end: calc(var(--bottom-nav) + var(--keyboard) + env(safe-area-inset-bottom)); padding-block: 12px; background: var(--surface); border-block-start: 1px solid var(--line); }
+}

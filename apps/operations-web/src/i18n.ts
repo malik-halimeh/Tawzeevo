@@ -2,6 +2,11 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
 const en = {
+  customersPage: {
+    search: "Search by name or phone", name: "Name", newest: "Newest", owesMost: "Who owes most",
+    loadMore: "Load more", newCustomer: "New customer", shopLink: "Shop link",
+    moreFields: "Show more fields", noMatches: "No matching customers.", retry: "Try again",
+  },
   brandHome: "Tawzeevo home",
   language: "العربية",
   skipToContent: "Skip to content",
@@ -84,6 +89,11 @@ type ArabicPluralForm = "zero" | "two" | "few" | "many";
 type TranslationShape<T> = { readonly [K in keyof T]: T[K] extends string ? string : TranslationShape<T[K]> } & { readonly [key: `${string}_${ArabicPluralForm}`]: string };
 
 const ar: TranslationShape<typeof en> = {
+  customersPage: {
+    search: "ابحث بالاسم أو الهاتف", name: "الاسم", newest: "الأحدث", owesMost: "الأكثر مديونية",
+    loadMore: "تحميل المزيد", newCustomer: "عميل جديد", shopLink: "رابط المتجر",
+    moreFields: "إظهار المزيد من الحقول", noMatches: "لا يوجد عملاء مطابقون.", retry: "حاول مجدداً",
+  },
   invoicesFrontPage: {
     title: "الفواتير", count_zero: "<n>{{count}}</n> فواتير", count_one: "<n>{{count}}</n> فاتورة", count_two: "<n>{{count}}</n> فاتورتان", count_few: "<n>{{count}}</n> فواتير", count_many: "<n>{{count}}</n> فاتورة", count_other: "<n>{{count}}</n> فاتورة",
     newInvoice: "فاتورة جديدة", search: "ابحث برقم الفاتورة أو اسم العميل", newest: "الأحدث أولاً", overview: "ملخص المستحقات",
