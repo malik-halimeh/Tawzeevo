@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import { apiRequest } from "../api/client";
 import type { TenantContextListResponse } from "../api/types";
@@ -11,7 +12,7 @@ import { AssistantButton, AssistantDrawer } from "./AssistantDrawer";
 import { Icon, type IconName } from "./Icon";
 import { PENDING_ORDERS_KEY, PENDING_POLL_MS, type PendingOrder, fetchPendingOrders, newArrivals, titleWithCount } from "./pendingOrders";
 import { COLLECTION_REPORTS_KEY, type CollectionReport, fetchPendingCollections } from "./collectionReportsApi";
-import { PHONE_PRIMARY_GROUPS, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, WORKSPACE_SECTIONS, type WorkspaceGroup, type WorkspaceSection, groupOf, ownerSectionHref, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch } from "./workspaceSections";
+import { PHONE_PRIMARY_GROUPS, SETTINGS_PAGES, SYNC_ANCHOR, WORK_ANCHOR, WORKSPACE_GROUPS, WORKSPACE_SECTIONS, type WorkspaceGroup, type WorkspaceSection, groupOf, ownerSectionHref, sectionFromSearch, sectionHref, selectedContext, settingsPageFromSearch, tenantFromSearch } from "./workspaceSections";
 
 type ShellLink = readonly [string, string, IconName];
 
@@ -22,7 +23,7 @@ const adminLinks: readonly ShellLink[] = [
   ["/admin/tenants", "nav.tenants", "building"],
 ];
 
-export function LanguageButton({ className = "language", currentLanguage = false }: { className?: string; currentLanguage?: boolean }) {
+export function LanguageButton({ className = "language", currentLanguage = false, valueSeparator = ": " }: { className?: string; currentLanguage?: boolean; valueSeparator?: string }) {
   const { i18n, t } = useTranslation();
   const other = i18n.resolvedLanguage === "ar" ? "en" : "ar";
 
@@ -33,7 +34,7 @@ export function LanguageButton({ className = "language", currentLanguage = false
   };
 
   return (
-    <button aria-label={currentLanguage ? `${t("nav.language")}: ${t("nav.currentLanguage")}` : undefined} className={className} lang={currentLanguage ? i18n.resolvedLanguage : other} onClick={() => void switchLanguage()} type="button">
+    <button aria-label={currentLanguage ? `${t("nav.language")}${valueSeparator}${t("nav.currentLanguage")}` : undefined} className={className} lang={currentLanguage ? i18n.resolvedLanguage : other} onClick={() => void switchLanguage()} type="button">
       {currentLanguage ? <><Icon name="chat" /><span className="owner-more-copy">{t("nav.language")}<small>{t("nav.currentLanguage")}</small></span><span aria-hidden="true" className="owner-more-chevron">›</span></> : t("language")}
     </button>
   );
@@ -115,15 +116,30 @@ function useSoftwareKeyboard() {
   }, []);
 }
 
+/** Shared verbatim by the chip and Settings; reading it must never start another sync worker. */
+function syncStateText(state: AutoSyncState, online: boolean, t: TFunction): string {
+  if (state.attention > 0) return t("shell.syncAttention", { count: state.attention });
+  if (!online) return state.pending ? t("shell.offlineWaiting", { count: state.pending }) : t("shell.browserOffline");
+  if (state.sending) return t("shell.sending");
+  if (state.pending) return t("shell.waiting", { count: state.pending });
+  return t(state.justSent ? "shell.allSent" : "shell.browserOnline");
+}
+
+export interface SettingsShellContext {
+  syncText: string;
+  signOut: () => Promise<void>;
+}
+
 /** The top-line connection chip: what is waiting, being sent, sent, or needs a look. */
 function SyncChip({ state, online, attentionHref }: { state: AutoSyncState; online: boolean; attentionHref: string }) {
   const { t } = useTranslation();
-  if (state.attention > 0) return <Link className="online offline sync-chip" data-state="attention" to={attentionHref}>{t("shell.syncAttention", { count: state.attention })}</Link>;
-  if (!online) return <span className="online offline" data-state="offline">{state.pending ? t("shell.offlineWaiting", { count: state.pending }) : t("shell.browserOffline")}</span>;
-  if (state.sending) return <span className="online sync-chip" data-state="sending" role="status">{t("shell.sending")}</span>;
-  if (state.pending) return <span className="online sync-chip" data-state="waiting">{t("shell.waiting", { count: state.pending })}</span>;
-  if (state.justSent) return <span className="online sync-chip" data-state="sent" role="status">{t("shell.allSent")}</span>;
-  return <span className="online" data-state="online">{t("shell.browserOnline")}</span>;
+  const text = syncStateText(state, online, t);
+  if (state.attention > 0) return <Link className="online offline sync-chip" data-state="attention" to={attentionHref}>{text}</Link>;
+  if (!online) return <span className="online offline" data-state="offline">{text}</span>;
+  if (state.sending) return <span className="online sync-chip" data-state="sending" role="status">{text}</span>;
+  if (state.pending) return <span className="online sync-chip" data-state="waiting">{text}</span>;
+  if (state.justSent) return <span className="online sync-chip" data-state="sent" role="status">{text}</span>;
+  return <span className="online" data-state="online">{text}</span>;
 }
 
 export function AppShell() {
@@ -330,7 +346,7 @@ export function AppShell() {
           </div>
         </div>
         <main id="main-content" className="main" tabIndex={-1}>
-          <Outlet />
+          <Outlet context={{ syncText: syncStateText(autoSync, online, t), signOut } satisfies SettingsShellContext} />
         </main>
       </div>
       <nav aria-label={t("nav.primary")} className="mobile-nav">
@@ -375,7 +391,11 @@ export function AppShell() {
               </div>
               <div className="more-group" role="group" aria-label={t("nav.groups.settings")}>
                 <p className="eyebrow">{t("nav.groups.settings")}</p>
-                {(["branding", "storefront", "sync", "backup"] as const).map(moreSection)}
+                {SETTINGS_PAGES.map((page) => (
+                  <Link aria-current={section === "settings" && settingsPageFromSearch(search).id === page.id ? "page" : undefined} className="more-item" data-line="settings" key={page.id} to={sectionHref("settings", tenantParam, { view: page.id })}>
+                    <Icon name={page.icon} /><span className="owner-more-copy">{t(page.label)}</span><span aria-hidden="true" className="owner-more-chevron">›</span>
+                  </Link>
+                ))}
               </div>
             </>
           ) : null}

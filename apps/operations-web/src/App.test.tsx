@@ -1042,6 +1042,12 @@ describe("phone navigation follows the member's role", () => {
       if (url.endsWith("/api/v1/auth/refresh")) return Promise.resolve(json({ access_token: "client-access", token_type: "bearer", expires_in: 900 }));
       if (url.endsWith("/users/me")) return Promise.resolve(json(clientUser));
       if (url.endsWith("/api/v1/tenant-contexts")) return Promise.resolve(json({ tenants: [context] }));
+      if (url.endsWith(`/tenants/${tenant.id}/branding`)) return Promise.resolve(json({ business_name: tenant.name, social_links: {}, default_language: "en", date_format: "DD/MM/YYYY", timezone: "Asia/Beirut" }));
+      if (url.endsWith(`/tenants/${tenant.id}/storefront?tenant_id=${tenant.id}`)) return Promise.resolve(json({ slug: "north-route", previous_slugs: [], published_products: 0, accepting_orders: true, customer_access_policy: "LINK" }));
+      if (url.endsWith(`/tenants/${tenant.id}/backup?tenant_id=${tenant.id}`)) return Promise.resolve(json({ connection: null, latest_backup: null, latest_restore: null, backups: [], retention: { daily: 30, monthly: 12 } }));
+      if (url.endsWith(`/tenants/${tenant.id}/products`)) return Promise.resolve(json({ products: [] }));
+      if (url.endsWith(`/tenants/${tenant.id}/storefront/campaigns?tenant_id=${tenant.id}`)) return Promise.resolve(json({ campaigns: [] }));
+      if (url.endsWith(`/customer-ledger/settings?tenant_id=${tenant.id}`)) return Promise.resolve(json({ customer_overdue_threshold_days: 21 }));
       if (url.includes("/api/v1/invoices/all?")) return Promise.resolve(json({ page: 1, limit: 20, total: 0, total_pages: 0, invoices: [] }));
       if (url.includes("/api/v1/invoices/summary?")) return Promise.resolve(json({ currencies: [] }));
       if (url.includes("/api/v1/delivery-tasks?")) return Promise.resolve(json({ tasks: [] }));
@@ -1085,7 +1091,7 @@ describe("phone navigation follows the member's role", () => {
     await waitFor(() => expect(currentAddress).toBe("/stats"), { timeout: 5000 });
   });
 
-  test.each(["/workspace?section=invoices", "/workspace?section=invoices&view=unknown"]) ("%s still opens a new invoice in the editor", async (path) => {
+  test.each(["/workspace?section=invoices", "/workspace?section=invoices&view=unknown", "/workspace?section=invoices&view=invoice", "/workspace?section=invoices&view=payments"]) ("%s still opens a new invoice in the editor", async (path) => {
     vi.stubGlobal("fetch", memberFetch("owner"));
     renderApp(path);
     const views = await screen.findByRole("group", { name: "Invoice views" }, { timeout: 5000 });
@@ -1093,6 +1099,18 @@ describe("phone navigation follows the member's role", () => {
     expect(screen.getByLabelText("Phone")).toHaveValue("");
     expect(screen.getByRole("button", { name: i18n.t("invoiceEditor.saveDraft") })).toBeDisabled();
     expect(currentAddress).toBe(path);
+  });
+
+  test("the balances address opens Balances with the overdue-threshold form visible", async () => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp("/workspace?section=invoices&view=balances");
+    const views = await screen.findByRole("group", { name: "Invoice views" });
+    expect(within(views).getByRole("button", { name: "Balances" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(views).getByRole("button", { name: "Invoice" })).toHaveAttribute("aria-pressed", "false");
+    const balances = screen.getByRole("region", { name: "Balances" });
+    expect(within(balances).getByLabelText(i18n.t("invoiceEditor.overdueThreshold")).closest("form")).toBeVisible();
+    expect(screen.getByLabelText("Phone")).not.toHaveFocus();
+    expect(currentAddress).toBe("/workspace?section=invoices&view=balances");
   });
 
   test("the explicit list address and Sales open the front page", async () => {
@@ -1174,7 +1192,7 @@ describe("phone navigation follows the member's role", () => {
     const more = within(primaryNav()).getByRole("button", { name: "More" });
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
-    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent?.replace(/\u203a/g, ""))).toEqual(["Deliveries", "ProcurementBuying", "Suppliers & costsBuying", "AnalyticsInsights", "AssistantInsights", "Branding", "Storefront", "Offline sync", "Backup", "Profile", "Public statistics"]);
+    expect(within(moreSheet()).getAllByRole("link").map((link) => link.textContent?.replace(/\u203a/g, ""))).toEqual(["Deliveries", "ProcurementBuying", "Suppliers & costsBuying", "AnalyticsInsights", "AssistantInsights", "Business", "Invoices & pricing", "General", "Profile", "Public statistics"]);
     expect(within(moreSheet()).getByRole("link", { name: "Deliveries" })).toHaveAttribute("href", "/workspace?section=deliveries"); // management stays one step away
     expect(within(moreSheet()).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -1202,7 +1220,7 @@ describe("phone navigation follows the member's role", () => {
     expect(railLink("Today")).toHaveAttribute("aria-current", "page");
     expect(railLink("Insights")).toHaveAttribute("href", "/workspace?section=analytics");
     expect(railLink("Buying")).toHaveAttribute("href", "/workspace?section=procurement");
-    expect(railLink("Settings")).toHaveAttribute("href", "/workspace?section=branding");
+    expect(railLink("Settings")).toHaveAttribute("href", "/workspace?section=settings");
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument(); // no section strip between the member and the work
     expect(screen.queryByRole("navigation", { name: "Section tabs" })).not.toBeInTheDocument(); // Today is a single page
     expect(within(screen.getByRole("group", { name: "Account" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Profile", "Public statistics"]);
@@ -1276,13 +1294,72 @@ describe("phone navigation follows the member's role", () => {
     expect(screen.getByText("Nothing waiting to send.")).toBeInTheDocument();
   });
 
-  test("a driver who opens an owner section's address keeps their own work and is told why the section is not there", async () => {
-    vi.stubGlobal("fetch", memberFetch("driver"));
-    renderApp("/workspace?section=customers");
+  test.each(["customers", "settings&view=general"])("a driver who opens owner section %s keeps their own work and is told why the section is not there", async (section) => {
+    const requests = memberFetch("driver");
+    vi.stubGlobal("fetch", requests);
+    renderApp(`/workspace?section=${section}`);
     expect(await screen.findByRole("button", { name: /01.*Corner Shop/ })).toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent("does not have owner permission");
     expect(screen.queryByRole("heading", { name: "Find every matching customer" })).not.toBeInTheDocument();
     expect(railLinks()).toEqual(["My work", "Sync"]);
+    expect(screen.queryByRole("navigation", { name: "Settings pages" })).not.toBeInTheDocument();
+    expect(requests.mock.calls.some(([input]) => /\/storefront\?|\/backup\?|\/customer-ledger\/settings\?/.test(requestUrl(input)))).toBe(false);
+  });
+
+  test.each(["branding", "storefront", "sync", "backup"] as const)("old section=%s keeps its screen and Settings highlight; the first Settings tab opens the hub", async (section) => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp(`/workspace?section=${section}`);
+    expect(await screen.findByRole("heading", { name: i18n.t(`${section}.title`) })).toBeInTheDocument();
+    expect(railLink("Settings")).toHaveAttribute("aria-current", "page");
+    expect(within(primaryNav()).getByRole("button", { name: "More" })).toHaveAttribute("aria-current", "page");
+    const tabs = within(sectionTabs());
+    expect(tabs.getAllByRole("link").map((link) => link.textContent)).toEqual(["Settings", "Branding", "Storefront", "Offline", "Backup"]);
+    expect(tabs.getByRole("link", { name: i18n.t(`${section}.tab`) })).toHaveAttribute("aria-current", "page");
+    expect(currentAddress).toBe(`/workspace?section=${section}`);
+    fireEvent.click(tabs.getByRole("link", { name: "Settings" }));
+    expect(await screen.findByRole("heading", { name: "Business" })).toBeInTheDocument();
+    expect(currentAddress).toBe("/workspace?section=settings");
+  });
+
+  test("desktop Settings opens Business and each hub page keeps Settings selected", async () => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp("/workspace?section=work");
+    await screen.findByRole("heading", { name: "My route" });
+    fireEvent.click(railLink("Settings"));
+    expect(await screen.findByRole("heading", { name: "Business" })).toBeInTheDocument();
+    expect(currentAddress).toBe("/workspace?section=settings");
+    expect(screen.getByRole("link", { name: `Branding, ${tenant.name}` })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Storefront & campaigns, north-route" })).toBeInTheDocument();
+    for (const [view, title] of [["invoices", "Invoices & pricing"], ["general", "General"], ["business", "Business"]] as const) {
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Settings pages" })).getByRole("link", { name: title }));
+      expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+      expect(currentAddress).toBe(`/workspace?section=settings&view=${view}`);
+      expect(railLink("Settings")).toHaveAttribute("aria-current", "page");
+    }
+  });
+
+  test.each(["Overdue after (days), 21", "Opening balances"])("the Settings hub row %s lands on Balances", async (row) => {
+    vi.stubGlobal("fetch", memberFetch("owner"));
+    renderApp("/workspace?section=settings&view=invoices");
+    await screen.findByRole("heading", { name: "Invoices & pricing" });
+    fireEvent.click(await screen.findByRole("link", { name: row }));
+    const views = await screen.findByRole("group", { name: "Invoice views" });
+    expect(within(views).getByRole("button", { name: "Balances" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("region", { name: "Balances" })).getByLabelText(i18n.t("invoiceEditor.overdueThreshold")).closest("form")).toBeVisible();
+    expect(currentAddress).toBe("/workspace?section=invoices&view=balances");
+  });
+
+  test("the Business row opens the existing picker; switching to a driver business preserves driver navigation", async () => {
+    vi.stubGlobal("fetch", mixedFetch());
+    renderApp(`/workspace?tenant=${tenant.id}&section=settings&view=business`);
+    expect(await screen.findByRole("heading", { name: "Business" })).toBeInTheDocument();
+    const picker = screen.getByRole("combobox", { name: "Business" });
+    fireEvent.click(screen.getByRole("button", { name: "Business" }));
+    expect(picker).toHaveFocus();
+    fireEvent.change(picker, { target: { value: harbour.id } });
+    expect(await screen.findByRole("button", { name: /01.*Harbour Kiosk/ })).toBeInTheDocument();
+    expect(railLinks()).toEqual(["My work", "Sync"]);
+    expect(screen.queryByRole("navigation", { name: "Settings pages" })).not.toBeInTheDocument();
   });
 
   test("a suspended business offers no section links: only the workspace entry and the account options", async () => {

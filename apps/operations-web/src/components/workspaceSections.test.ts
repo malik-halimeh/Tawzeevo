@@ -6,6 +6,8 @@ test("every existing section belongs to one unchanged group; Sales opens Invoice
   expect(WORKSPACE_GROUPS.map((group) => group.id)).toEqual(["today", "sales", "customers", "deliveries", "catalog", "buying", "insights", "settings"]);
   expect(PHONE_PRIMARY_GROUPS).toEqual(["today", "sales", "customers", "catalog"]);
   expect(groupOf("invoices").sections).toEqual(["invoices", "orders"]);
+  expect(groupOf("settings").sections).toEqual(["settings", "branding", "storefront", "sync", "backup"]);
+  expect(ownerSectionHref(groupOf("settings").sections[0])).toBe("/workspace?section=settings");
   for (const { id } of WORKSPACE_SECTIONS) {
     expect(WORKSPACE_GROUPS.filter((group) => (group.sections as readonly string[]).includes(id))).toHaveLength(1);
     expect(sectionFromSearch(new URLSearchParams({ section: id }))).toBe(id);

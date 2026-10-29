@@ -53,6 +53,7 @@ import { OwnerTodayStrip } from "./OwnerTodayStrip";
 import { PickupPanel } from "./PickupPanel";
 import { ProcurementPanel } from "./ProcurementPanel";
 import { StorefrontSettings } from "./StorefrontSettings";
+import { SettingsHub } from "./settings/SettingsHub";
 import { readLastChoice, rememberChoice } from "./lastChoice";
 import { SyncPanel } from "./SyncPanel";
 import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, isWorkspaceSection, ownerSectionHref, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
@@ -839,6 +840,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useOptionalUser();
+  const businessPicker = useRef<HTMLSelectElement>(null);
   const context = selectedContext(contexts, tenantFromSearch(searchParams)) ?? contexts[0]!;
   const view = sectionFromSearch(searchParams);
   // Entering the workspace without a business in the address: continue with the one used last on
@@ -1280,7 +1282,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
         </div>
         {contexts.length > 1 ? (
           <label className="field tenant-picker"><span>{t("tenantWorkspace.business")}</span>
-            <select value={context.tenant_id} onChange={(event) => chooseBusiness(event.target.value)}>
+            <select ref={businessPicker} value={context.tenant_id} onChange={(event) => chooseBusiness(event.target.value)}>
               {contexts.map((item) => <option key={item.tenant_id} value={item.tenant_id}>{item.tenant_name}</option>)}
             </select>
           </label>
@@ -1298,7 +1300,12 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
           {/* Sections are chosen from the shell (desktop rail, phone bar and More), all carried by the address. */}
           {requestError ? <ErrorState error={requestError} /> : null}
           {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
-          {view === "customers" ? (
+          {view === "settings" ? (
+            <SettingsHub tenantId={context.tenant_id} tenantParam={addressTenant} businessName={context.tenant_name} onChooseBusiness={contexts.length > 1 ? () => {
+              businessPicker.current?.focus();
+              try { businessPicker.current?.showPicker?.(); } catch { /* Browsers without picker support keep the existing select focused. */ }
+            } : undefined} />
+          ) : view === "customers" ? (
             // Keyed by business: an open record or form never carries over to another membership.
             <CustomerDirectory key={context.tenant_id} busy={busy} customerDraft={customerDraft} editCustomer={editCustomer} editingCustomerId={editingCustomerId} linkCustomerId={linkCustomerId} matches={matches} phoneSearch={phoneSearch} saveCustomer={saveCustomer} searchCustomers={searchCustomers} setCustomerDraft={setCustomerDraft} setEditingCustomerId={setEditingCustomerId} focusCustomerId={focusCustomerId} setLinkCustomerId={setLinkCustomerId} setPhoneSearch={setPhoneSearch} tenantId={context.tenant_id} />
           ) : view === "categories" ? (

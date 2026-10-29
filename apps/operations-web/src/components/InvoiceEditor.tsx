@@ -307,6 +307,10 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     return () => { live = false; };
   }, [invoiceId, initialView, tenantId, loadHistory]);
 
+  useEffect(() => {
+    if (initialView === "balances") setView("balances");
+  }, [initialView]);
+
   // A new invoice starts at the customer's phone; nothing moves when an invoice, a customer or another view was asked for.
   useEffect(() => {
     if (!invoiceId && !customerId && (initialView === null || initialView === "invoice")) customerPhoneInput.current?.focus();

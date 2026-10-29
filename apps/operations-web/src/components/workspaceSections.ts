@@ -21,6 +21,7 @@ export const WORKSPACE_SECTIONS = [
   { id: "analytics", label: "analytics.tab", icon: "chart" },
   { id: "assistant", label: "copilot.tab", icon: "chat" },
   { id: "pricing", label: "tenantWorkspace.pricingTab", icon: "coin" },
+  { id: "settings", label: "nav.groups.settings", icon: "key" },
   { id: "branding", label: "branding.tab", icon: "palette" },
   { id: "storefront", label: "storefront.tab", icon: "shop" },
   { id: "sync", label: "sync.tab", icon: "sync" },
@@ -46,11 +47,23 @@ export const WORKSPACE_GROUPS = [
   { id: "catalog", label: "nav.groups.catalog", icon: "box", sections: ["products", "categories", "pricing"] },
   { id: "buying", label: "nav.groups.buying", icon: "cart", sections: ["procurement", "suppliers"] },
   { id: "insights", label: "nav.groups.insights", icon: "chart", sections: ["analytics", "assistant"] },
-  { id: "settings", label: "nav.groups.settings", icon: "key", sections: ["branding", "storefront", "sync", "backup"] },
+  { id: "settings", label: "nav.groups.settings", icon: "key", sections: ["settings", "branding", "storefront", "sync", "backup"] },
 ] as const satisfies readonly { id: string; label: string; icon: IconName; sections: readonly WorkspaceSection[] }[];
 
 export type WorkspaceGroup = (typeof WORKSPACE_GROUPS)[number];
 export type WorkspaceGroupId = WorkspaceGroup["id"];
+
+/** Owner-approved settings pages (OE-08); the old section addresses remain the destinations. */
+export const SETTINGS_PAGES = [
+  { id: "business", label: "settingsHub.business", icon: "building" },
+  { id: "invoices", label: "settingsHub.invoices", icon: "invoice" },
+  { id: "general", label: "settingsHub.general", icon: "key" },
+] as const satisfies readonly { id: string; label: string; icon: IconName }[];
+
+/** The hub and More must agree on the default, including an unrecognised view in an old address. */
+export function settingsPageFromSearch(search: URLSearchParams) {
+  return SETTINGS_PAGES.find((page) => page.id === search.get("view")) ?? SETTINGS_PAGES[0];
+}
 
 /** The groups that sit directly in the owner's phone bar; the others live under More. */
 export const PHONE_PRIMARY_GROUPS: readonly WorkspaceGroupId[] = ["today", "sales", "customers", "catalog"];

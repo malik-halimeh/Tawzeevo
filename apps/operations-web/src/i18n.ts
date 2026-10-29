@@ -2,6 +2,11 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
 const en = {
+  settingsHub: {
+    business: "Business", invoices: "Invoices & pricing", general: "General", pages: "Settings pages",
+    storefront: "Storefront & campaigns", gradeDiscounts: "Customer grade discounts", overdue: "Overdue after (days)",
+    openingBalances: "Opening balances", sharing: "Invoice sharing", sharingNote: "Sharing links are created on a confirmed invoice.",
+  },
   productsPage: {
     count_one: "<n>{{count}}</n> product", count_other: "<n>{{count}}</n> products",
     visibility: "Catalog visibility", pricingPhotos: "Pricing & photos", clearFilters: "Clear filters",
@@ -93,6 +98,11 @@ type ArabicPluralForm = "zero" | "two" | "few" | "many";
 type TranslationShape<T> = { readonly [K in keyof T]: T[K] extends string ? string : TranslationShape<T[K]> } & { readonly [key: `${string}_${ArabicPluralForm}`]: string };
 
 const ar: TranslationShape<typeof en> = {
+  settingsHub: {
+    business: "النشاط التجاري", invoices: "الفواتير والتسعير", general: "عام", pages: "صفحات الإعدادات",
+    storefront: "المتجر والحملات", gradeDiscounts: "خصومات فئات الزبائن", overdue: "تأخر السداد بعد (أيام)",
+    openingBalances: "الأرصدة الافتتاحية", sharing: "مشاركة الفواتير", sharingNote: "تُنشأ روابط المشاركة من الفاتورة بعد تأكيدها.",
+  },
   productsPage: {
     count_zero: "<n>{{count}}</n> منتجات", count_one: "<n>{{count}}</n> منتج", count_two: "<n>{{count}}</n> منتجان",
     count_few: "<n>{{count}}</n> منتجات", count_many: "<n>{{count}}</n> منتجًا", count_other: "<n>{{count}}</n> منتج",
