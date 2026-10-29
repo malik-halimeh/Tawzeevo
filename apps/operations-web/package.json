@@ -42,6 +42,7 @@
     "fake-indexeddb": "^6.2.5",
     "globals": ">=15 <17",
     "jsdom": ">=25 <28",
+    "postcss": "^8.5.26",
     "typescript": ">=5.7 <6",
     "typescript-eslint": ">=8 <9",
     "vite": ">=6 <8",

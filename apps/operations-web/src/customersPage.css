@@ -15,5 +15,5 @@
 .customers-page .customer-invoices > li { flex-wrap: wrap; overflow-wrap: anywhere; }
 @media (max-width: 1099px) {
   .customers-page.show-detail .fab-dock { display: none; }
-  .customers-page .customer-form-actions { position: sticky; z-index: 18; inset-block-end: calc(var(--bottom-nav) + var(--keyboard) + env(safe-area-inset-bottom)); padding-block: 12px; background: var(--surface); border-block-start: 1px solid var(--line); }
+  .customers-page .customer-form-actions { position: sticky; z-index: 18; inset-block-end: calc(var(--bottom-nav) + var(--keyboard) + env(safe-area-inset-bottom)); padding-block: 12px; background: var(--bar); border-block-start: 1px solid var(--edge); }
 }

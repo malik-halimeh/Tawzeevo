@@ -36,13 +36,13 @@
 
 /* ---------- Subtotal and adjustments, then the total ---------- */
 .tally-group { display: grid; gap: 8px; }
-.tally-group + .tally-group { border-block-start: 1px solid var(--line); padding-block-start: 12px; }
+.tally-group + .tally-group { border-block-start: 1px solid var(--edge); padding-block-start: 12px; }
 .tally-group-title { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; margin: 0; text-transform: uppercase; }
 html[lang="ar"] .tally-group-title { letter-spacing: 0; }
 .invoice-editor .invoice-tally .tally-group dl { margin: 0; }
 
 /* ---------- The bar: total, Save, Confirm (Print on a confirmed or cancelled invoice) ---------- */
-.invoice-action-bar { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-record); display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
+.invoice-action-bar { align-items: center; background: var(--bar); border: 1px solid var(--edge); border-radius: var(--radius-record); display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
 .invoice-action-total { align-items: baseline; display: flex; flex: 1 1 7rem; flex-wrap: wrap; gap: 2px 8px; justify-content: space-between; margin: 0; min-width: 0; }
 .invoice-action-total > span { color: var(--muted); font-size: 13px; }
 .invoice-action-total strong { font-family: var(--font-mono); font-size: 18px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -56,7 +56,7 @@ html[lang="ar"] .tally-group-title { letter-spacing: 0; }
 @media (max-width: 1023px) {
   /* Above the bottom navigation, and above the on-screen keyboard while it is open (AppShell sets
      --keyboard and hides the navigation then). */
-  .invoice-action-bar { box-shadow: var(--lift); inset-block-end: calc(var(--bottom-nav) + env(safe-area-inset-bottom) + 8px); position: sticky; z-index: 18; }
+  .invoice-action-bar { box-shadow: var(--raise-shadow); inset-block-end: calc(var(--bottom-nav) + env(safe-area-inset-bottom) + 8px); position: sticky; z-index: 18; }
   body.keyboard-open .invoice-action-bar { inset-block-end: calc(var(--keyboard) + 8px); }
 }
 
@@ -77,7 +77,7 @@ html[lang="ar"] .tally-group-title { letter-spacing: 0; }
   .invoice-summary-column .invoice-action-buttons { display: grid; }
   /* A tall summary scrolls on its own, and its buttons stay at its foot, so they are always in reach. */
   .invoice-summary-column { max-block-size: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain; padding-inline: 2px; }
-  .invoice-summary-column .invoice-action-bar { background: var(--paper); inset-block-end: 0; padding-block: 8px; position: sticky; z-index: 1; }
+  .invoice-summary-column .invoice-action-bar { background: var(--bg); inset-block-end: 0; padding-block: 8px; position: sticky; z-index: 1; }
   .invoice-document .invoice-action-buttons > .button { flex: 0 0 auto; }
 }
 
@@ -87,7 +87,7 @@ html[lang="ar"] .tally-group-title { letter-spacing: 0; }
 }
 
 /* ---------- History: a single revision folds away behind its title ---------- */
-.invoice-history .invoice-history-fold { background: none; border: 0; border-radius: 0; box-shadow: none; }
+.invoice-history .invoice-history-fold { background: none; border: 0; border-radius: 0; box-shadow: var(--card-shadow); }
 .invoice-history .invoice-history-fold > summary { display: flex; gap: 12px; justify-content: space-between; min-height: 44px; padding: 0; }
 .invoice-history .invoice-history-fold > summary h4 { margin: 0; }
 .invoice-history .invoice-history-fold[open] > summary { margin-block-end: 8px; }
