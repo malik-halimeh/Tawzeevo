@@ -41,6 +41,23 @@ Merged to `main` through PR #3 (`c2d9073`, 2026-09-25). F-03 (declining an unlin
 left it RECEIVED behind a cancelled invoice) fixed separately on `fix/public-order-decline`.
 Decisions and deferred items: `docs/order-workflow/DECISIONS.md`, `docs/order-workflow/DEFERRED.md`.
 
+## Owner workspace made phone-easy (D-119, D-120, 2026-10-29, branch `feature/owner-ease`)
+
+| Milestone | Status | Scope |
+|---|---|---|
+| OE-API | COMPLETE | Read-only owner list of every invoice + per-currency summary; customer search by name/part of phone with sort and balances (D-119) |
+| OE-NAV | COMPLETE | Phone bar Today · Sales · Customers · Catalog · More; owner lands on the invoices front page; settings hub (D-120) |
+| OE-LISTS | COMPLETE | Shared list kit; invoices front page; customers, products and orders as lists; invoice editor as cards with a bottom bar; shared header on Deliveries, Buying, Insights |
+
+Presentation only apart from D-119; no migration; every earlier address still works. A control
+inventory of every owner page (EN/AR, 390/1366 px) shows nothing lost: each control that left the
+page on load is reachable from a menu, sheet or toggle and covered by a test. Validation
+2026-10-29 (disposable PostgreSQL 18): backend 458 passed, 2 failed — the same two date-dependent
+tests that fail on the unchanged baseline since Beirut left summer time on 2026-10-25
+(`test_customer_stats`, `test_order_review`); ruff/format/mypy clean; root `npm run check` green
+(operations-web 437 unit tests, storefront 24); Playwright 10/12, the two failures storefront-only
+and reproduced with `main`'s API. Guide: `docs/owner-ease/README.md`.
+
 ## Owner intelligence (D-089, 2026-09-23/25, PR #5 merged `59a0d08` and live)
 
 | Milestone | Status | Scope |
