@@ -12,19 +12,19 @@
 @font-face { font-family: "PlexMono"; src: url("./assets/fonts/plex-mono-Regular.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
 @font-face { font-family: "PlexMono"; src: url("./assets/fonts/plex-mono-SemiBold.woff2") format("woff2"); font-weight: 600 700; font-display: swap; }
 
-/* ---------- Tokens (Plan D "The Tawzeevo Map": limestone paper, cedar ink; line colours live in map.css) ---------- */
+/* ---------- Tokens (ML-02 brushed silver; Map line colours live in map.css) ---------- */
 :root {
   --paper: #f2f5f3;
-  --surface: #ffffff;
-  --ink: #13262f;
-  --muted: #4f6169;
-  --blue: #2455d6;
-  --blue-deep: #173b98;
-  --mist: #e4ecfb;
+  --surface: #fbfcfd;
+  --ink: #1b2530;
+  --muted: #4d5865;
+  --blue: #2f5f8f;
+  --blue-deep: #22374d;
+  --mist: #dde5ee;
   --citron: #ddeb6a;
   --citron-deep: #c9d94f;
-  --line: #d5deda;
-  --line-strong: #8e9c98;
+  --line: #b6bfc7;
+  --line-strong: #87929c;
   --good: #1e6b45;
   --good-bg: #e4f4ea;
   --good-line: #bddcc9;
@@ -55,20 +55,30 @@
   --danger: var(--bad);
   --danger-soft: var(--bad-bg);
   --shadow: none;
-  /* ---------- Semantic surfaces ---------- */
-  --bg: var(--paper);
-  --bar: var(--surface);
-  --card: var(--surface);
-  --chip: var(--surface);
-  --field-bg: var(--surface);
+  /* Brushed silver surfaces; image tokens belong only in backgrounds. */
+  --bg: repeating-linear-gradient(0deg, rgb(255 255 255 / .18) 0 1px, transparent 1px 3px), linear-gradient(180deg, #e9edf1, #d3d9df);
+  --bar: linear-gradient(180deg, #fbfcfd, #e3e8ec);
+  --card: linear-gradient(180deg, #ffffff, #eef1f4);
+  --chip: var(--card);
+  --field-bg: var(--card-solid);
   --edge: var(--line);
   --edge-strong: var(--line-strong);
-  --accent: var(--blue);
-  --accent-hover: var(--blue-deep);
+  /* Flat companions for fields, colour stops, borders and other colour-only properties. */
+  --bg-solid: #dfe4e9;
+  --bar-solid: #e3e8ec;
+  --card-solid: #f7f9fa;
+  --chip-solid: var(--card-solid);
+  /* Steel blue actions and their flat outlines. */
+  --accent: linear-gradient(180deg, #4f6d8f, #2c4560);
+  --accent-hover: linear-gradient(180deg, #45627f, #243a51);
+  --accent-solid: #3a5674;
+  --accent-edge: #22374d;
+  --accent-hover-edge: var(--accent-edge);
   --accent-ink: var(--on-solid);
-  --card-shadow: none;
-  --bar-shadow: none;
-  --raise-shadow: none;
+  /* Static metal highlights and elevation. */
+  --card-shadow: inset 0 1px 0 #fff, 0 1px 2px rgb(20 30 40 / .18);
+  --bar-shadow: inset 0 1px 0 #fff, 0 1px 3px rgb(20 30 40 / .15);
+  --raise-shadow: inset 0 1px 0 rgb(255 255 255 / .35), 0 3px 8px rgb(20 30 40 / .3);
   /* ---------- Controls, illustrations and shadow colours ---------- */
   --on-solid: #fff;
   --bad-hover: #862331;
@@ -153,8 +163,8 @@ html[dir="rtl"] .directional { transform: scaleX(-1); }
 .eyebrow .icon, .section-kicker .icon { width: 18px; height: 18px; color: var(--blue); }
 
 /* ---------- Buttons ---------- */
-.button { min-height: 48px; padding: 12px 19px; border-radius: 9px; border: 1px solid var(--accent); display: inline-flex; align-items: center; justify-content: center; gap: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 500; font-size: 15px; line-height: 1.3; text-align: center; text-decoration: none; transition: background .15s, border-color .15s; }
-.button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.button { min-height: 48px; padding: 12px 19px; border-radius: 9px; border: 1px solid var(--accent-edge); display: inline-flex; align-items: center; justify-content: center; gap: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 500; font-size: 15px; line-height: 1.3; text-align: center; text-decoration: none; transition: border-color .15s; }
+.button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover-edge); }
 .button:active:not(:disabled) { transform: translateY(1px); }
 .button-small { min-height: 44px; padding: 9px 16px; }
 .button-secondary, .secondary-button { background: var(--chip); border-color: var(--edge); color: var(--ink); }
@@ -1342,4 +1352,35 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
   .owner-more-copy small { color: var(--muted); font-size: 12px; }
   .owner-more-chevron { display: inline-block; margin-inline-start: auto; font-size: 24px; color: var(--muted); }
   /* The chevron text glyph mirrors itself in RTL. */
+}
+
+@media print {
+  /* ML-02 preserves the pre-metal print palette and surfaces. */
+  :root {
+    --surface: #ffffff;
+    --ink: #13262f;
+    --muted: #4f6169;
+    --blue: #2455d6;
+    --blue-deep: #173b98;
+    --mist: #e4ecfb;
+    --line: #d5deda;
+    --line-strong: #8e9c98;
+    --bg: var(--paper);
+    --bar: var(--surface);
+    --card: var(--surface);
+    --chip: var(--surface);
+    --field-bg: var(--surface);
+    --accent: var(--blue);
+    --accent-hover: var(--blue-deep);
+    --card-shadow: none;
+    --bar-shadow: none;
+    --raise-shadow: none;
+    --bg-solid: var(--paper);
+    --bar-solid: var(--surface);
+    --card-solid: var(--surface);
+    --chip-solid: var(--surface);
+    --accent-solid: var(--accent);
+    --accent-edge: var(--accent);
+    --accent-hover-edge: var(--accent-hover);
+  }
 }
