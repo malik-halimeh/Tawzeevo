@@ -53,7 +53,7 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace/);
   await openSection(page, "Deliveries");
-  await expect(page.getByRole("heading", { name: "My deliveries", level: 3 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My deliveries", level: 1 })).toBeVisible();
   await expect(page.getByLabel("Deliver by")).toHaveCount(0); // no driver setup demanded
   const pickInvoice = async (customer: string) => {
     const value = await page.getByLabel("Confirmed invoice").locator("option", { hasText: customer }).getAttribute("value");
@@ -71,7 +71,7 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
   await page.getByLabel("Driver's account e-mail").fill(driverEmail);
   await page.getByRole("button", { name: "Add driver" }).click();
   await expect(page.getByText("Driver added.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Deliveries", level: 3 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Deliveries", level: 1 })).toBeVisible();
   await pickInvoice("Achrafieh Market");
   const driverOption = await page.getByLabel("Deliver by").locator("option", { hasText: "Karim Driver" }).getAttribute("value");
   await page.getByLabel("Deliver by").selectOption(driverOption ?? "");
