@@ -219,7 +219,7 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
 
   return (
     <section className="supplier-setup" aria-label={t("supplierSetup.title")} ref={root}>
-      <ListHeader count={loadedSuppliers?.length} eyebrow={t("supplierSetup.kicker")} title={t("supplierSetup.title")} />
+      <ListHeader count={loadedSuppliers?.length} countKey="supplierSetup.count" eyebrow={t("supplierSetup.kicker")} title={t("supplierSetup.title")} />
       <p>{t("supplierSetup.body")}</p>
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}

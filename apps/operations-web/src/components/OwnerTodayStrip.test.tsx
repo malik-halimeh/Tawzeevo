@@ -58,3 +58,15 @@ test("shows the orders waiting for review from the shell's cached count, and not
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(view.container).toBeEmptyDOMElement();
 });
+
+test("Arabic keeps the official invoice reference isolated with its no-wrap class", async () => {
+  await i18n.changeLanguage("ar");
+  renderStrip(
+    [delivered("t1", "inv1", "c1", "متجر الزاوية", "2026-000179", "2026-09-27T09:00:00Z")],
+    { c1: [{ source_type: "INVOICE", source_id: "inv1", outstanding_amount: "30.0000" }] },
+  );
+  const number = await screen.findByText("2026-000179");
+  expect(number.tagName).toBe("BDI");
+  expect(number).toHaveAttribute("dir", "ltr");
+  expect(number).toHaveClass("owner-today-invoice-number");
+});

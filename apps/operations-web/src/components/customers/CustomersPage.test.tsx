@@ -105,6 +105,18 @@ test("the server list shows the count and balances separately, and rows open the
   expect(screen.getByTestId("address")).not.toHaveTextContent("customer=");
 });
 
+test.each([
+  { language: "en", expected: "17 customers" },
+  { language: "ar", expected: "17 عميلاً" },
+])("$language: the customer header names the server total and isolates its number", async ({ language, expected }) => {
+  await i18n.changeLanguage(language);
+  const { view } = setup({ listOnly: true, respond: () => page([withBalances], { total: 17 }) });
+  await screen.findByRole("list", { name: i18n.t("allCustomers.title") });
+  const count = view.container.querySelector(".list-head-count")!;
+  expect(count.textContent).toBe(expected);
+  expect(within(count as HTMLElement).getByText("17")).toHaveAttribute("dir", "ltr");
+});
+
 test("search waits for two characters and the list-kit debounce, sends literal Arabic to the server and clears on close", async () => {
   const { calls } = setup({ listOnly: true });
   await screen.findByRole("list", { name: "All customers" });

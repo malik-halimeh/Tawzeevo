@@ -156,7 +156,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
 
   return (
     <section className="delivery-panel" aria-label={sole ? t("delivery.titleSole") : t("delivery.title")} ref={root}>
-      <ListHeader count={data?.tasks.length} eyebrow={t("delivery.kicker")} title={sole ? t("delivery.titleSole") : t("delivery.title")} />
+      <ListHeader count={data?.tasks.length} countKey="delivery.count" eyebrow={t("delivery.kicker")} title={sole ? t("delivery.titleSole") : t("delivery.title")} />
       <p>{sole ? t("delivery.bodySole") : t("delivery.body")}</p>
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}

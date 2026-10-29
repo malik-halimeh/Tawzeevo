@@ -54,13 +54,13 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
   render(<SupplierSetup tenantId="tenant" />);
   expect(document.querySelector(".list-head-count")).toBeNull(); // no count before the list loads
   expect(await screen.findByText("No suppliers yet. Add the first supplier to start recording costs.")).toBeInTheDocument();
-  expect(document.querySelector(".list-head-count")).toHaveTextContent("0 items");
+  expect(document.querySelector(".list-head-count")).toHaveTextContent("0 suppliers"); // OE-11b: name the counted records.
   fireEvent.change(screen.getByLabelText("Supplier name"), { target: { value: "Bekaa Wholesale" } });
   fireEvent.change(screen.getByLabelText("Contact person"), { target: { value: "Abu Ali" } });
   fireEvent.change(screen.getByLabelText("Contact phone"), { target: { value: "03 123 456" } });
   fireEvent.click(screen.getByRole("button", { name: "Add supplier" }));
   expect(await screen.findByText("Supplier created.")).toBeInTheDocument();
-  expect(document.querySelector(".list-head-count")).toHaveTextContent("1 item");
+  expect(document.querySelector(".list-head-count")).toHaveTextContent("1 supplier");
   expect(screen.getAllByText("Bekaa Wholesale").length).toBeGreaterThan(0);
   expect(bodies[0]).toMatchObject({ name: "Bekaa Wholesale", contact_name: "Abu Ali", contact_phone: "03 123 456", address: null, latitude: null });
 

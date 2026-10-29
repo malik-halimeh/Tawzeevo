@@ -115,7 +115,7 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
 
   return (
     <section className="procurement-panel" aria-label={t("procurement.title")} ref={root}>
-      <ListHeader count={loadedLists?.length} eyebrow={t("procurement.kicker")} title={t("procurement.title")} />
+      <ListHeader count={loadedLists?.length} countKey="procurement.count" eyebrow={t("procurement.kicker")} title={t("procurement.title")} />
       <p>{t("procurement.body")}</p>
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}

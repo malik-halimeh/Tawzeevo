@@ -58,6 +58,7 @@ export function CustomersList({ tenantId, refreshKey, onEdit, onShopLink, onInvo
     <div className="customers-page-list">
       <ListHeader
         count={data?.total}
+        countKey="customersPage.count"
         onSearch={(text) => {
           const typed = text.trim().slice(0, QUERY_MAX_LENGTH);
           const next = typed.length >= SUGGESTION_MIN_LENGTH ? typed : "";

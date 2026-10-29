@@ -274,7 +274,7 @@ html[dir="rtl"] .text-button:hover .directional, html[dir="rtl"] .text-link:hove
   background: var(--lc-tint); color: var(--lc-deep); box-shadow: inset 0 0 0 2px var(--lc-edge); border-color: transparent;
 }
 .entry-switch button[aria-pressed="true"]::before, .invoice-views button[aria-pressed="true"]::before, .allocation-mode button[aria-pressed="true"]::before {
-  content: ""; display: inline-block; width: 10px; height: 6px; border-inline-start: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  content: ""; display: inline-block; width: 10px; height: 6px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor;
   transform: translateY(-2px) rotate(-45deg); margin-inline-end: 8px;
 }
 

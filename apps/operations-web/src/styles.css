@@ -751,6 +751,7 @@ td:first-child span, td:first-child small { color: var(--muted); font-size: 13px
 .owner-today h3 { font-size: 15px; }
 .owner-today-orders { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; margin: 0; }
 .owner-today-list { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.owner-today-invoice-number { white-space: nowrap; }
 .owner-today-list li { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 4px 12px; grid-template-columns: 1fr auto auto; padding-top: 6px; }
 @media (max-width: 560px) { .owner-today-list li { grid-template-columns: 1fr auto; } }
 .document-head { align-items: flex-start; display: flex; gap: 12px; justify-content: space-between; }
@@ -1299,6 +1300,6 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
   .owner-more-sheet .more-group { padding-block: 8px; }
   .owner-more-copy { display: grid; gap: 2px; }
   .owner-more-copy small { color: var(--muted); font-size: 12px; }
-  .owner-more-chevron { margin-inline-start: auto; font-size: 24px; color: var(--muted); }
-  html[dir="rtl"] .owner-more-chevron { transform: scaleX(-1); }
+  .owner-more-chevron { display: inline-block; margin-inline-start: auto; font-size: 24px; color: var(--muted); }
+  /* The chevron text glyph mirrors itself in RTL. */
 }

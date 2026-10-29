@@ -9,5 +9,5 @@
 .settings-hub :is(.list-row-title, .list-row-sub) { white-space: normal; overflow-wrap: anywhere; }
 .settings-hub .owner-more-copy { display: grid; flex: 1; gap: 2px; min-inline-size: 0; overflow-wrap: anywhere; font-weight: 600; }
 .settings-hub .owner-more-copy small { color: var(--muted); font-size: 13px; font-weight: 400; }
-.settings-chevron, .settings-hub .owner-more-chevron { flex: none; margin-inline-start: auto; color: var(--muted); font-size: 24px; }
-[dir="rtl"] .settings-chevron, [dir="rtl"] .settings-hub .owner-more-chevron { transform: scaleX(-1); }
+.settings-chevron, .settings-hub .owner-more-chevron { display: inline-block; flex: none; margin-inline-start: auto; color: var(--muted); font-size: 24px; }
+/* The chevron text glyph mirrors itself in RTL. */

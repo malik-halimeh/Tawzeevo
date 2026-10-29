@@ -74,7 +74,7 @@ export function OwnerTodayStrip({ tenantId }: { tenantId: string }) {
           <ul aria-label={t("today.collectionsTitle")} className="owner-today-list">
             {rows.slice(0, SHOWN).map(({ task, outstanding }) => (
               <li key={task.id}>
-                <span><strong>{task.customer_name}</strong> · <bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi></span>
+                <span><strong>{task.customer_name}</strong> · <bdi className="owner-today-invoice-number" dir="ltr">{task.official_invoice_number ?? "…"}</bdi></span>
                 <bdi className="money" dir="ltr">{outstanding} {task.currency}</bdi>
                 <Link className="money-link" to={sectionHref("invoices", tenantId, { invoice: task.invoice_id, view: "payments" })}>{t("tenantWorkspace.recordPayment")}</Link>
               </li>
