@@ -763,7 +763,7 @@ describe("tenant customer and category workspace", () => {
     renderApp("/workspace?section=work");
     await screen.findByRole("heading", { name: "North Route" });
     fireEvent.click(railLink("Catalog")); // Catalog opens on Products
-    fireEvent.click(await screen.findByRole("button", { name: "Add product" })); // the list comes first; adding opens on demand
+    fireEvent.click((await screen.findAllByRole("button", { name: "Add product" }))[0]!); // desktop action; Fab offers the same scan-first flow
     const scanDesk = screen.getByRole("heading", { name: "Scan once. Resolve the right catalog identity." }).closest("div");
     if (!scanDesk) throw new Error("Scan desk not found");
     expect(within(scanDesk).getByLabelText("Barcode")).toHaveFocus(); // the scanner is ready only once adding starts
@@ -814,7 +814,7 @@ describe("tenant customer and category workspace", () => {
     renderApp("/workspace?section=work");
     await screen.findByRole("heading", { name: "North Route" });
     fireEvent.click(railLink("Catalog")); // Catalog opens on Products
-    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Add product" }))[0]!); // desktop action; Fab offers the same flow
     const scanDesk = screen.getByRole("heading", { name: "Scan once. Resolve the right catalog identity." }).closest("div")!;
     fireEvent.change(within(scanDesk).getByLabelText("Barcode"), { target: { value: "LOCAL-1" } });
     fireEvent.click(within(scanDesk).getByRole("button", { name: "Scan barcode" }));
@@ -826,7 +826,7 @@ describe("tenant customer and category workspace", () => {
     fireEvent.change(within(productForm).getByLabelText("Tenant price"), { target: { value: "0.75" } });
     fireEvent.click(within(productForm).getByRole("button", { name: "Save tenant product" }));
     expect(await screen.findByText("Local Chips")).toBeInTheDocument();
-    const chips = screen.getByRole("heading", { level: 4, name: "Local Chips" }).closest("article")!;
+    const chips = screen.getByText("Local Chips", { selector: ".list-row-title" }).closest("article")!;
     fireEvent.click(within(chips).getByText("Manage")); // barcodes, grade prices and images sit under Manage
     fireEvent.click(within(chips).getByRole("button", { name: "Add package barcode" }));
     const barcodeForm = screen.getByRole("button", { name: "Save changes" }).closest("form")!;
@@ -898,7 +898,7 @@ describe("tenant customer and category workspace", () => {
     await waitFor(() => expect(discountBody).toEqual({ discount_percent: "7.5" }));
 
     fireEvent.click(within(sectionTabs()).getByRole("link", { name: "Products" }));
-    const productCard = (await screen.findByRole("heading", { name: "Cedar Juice" })).closest("article")!;
+    const productCard = (await screen.findByText("Cedar Juice", { selector: ".list-row-title" })).closest("article")!;
     fireEvent.click(within(productCard).getByText("Manage"));
     fireEvent.change(within(productCard).getByLabelText("Grade basis price"), { target: { value: "2.5" } });
     fireEvent.click(within(productCard).getByRole("button", { name: "Save grade price" }));

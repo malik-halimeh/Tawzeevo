@@ -25,6 +25,8 @@ import type {
 import { CustomerInvoices } from "./AllCustomers";
 import { CustomersList } from "./customers/CustomersList";
 import { Fab } from "./listKit/Fab";
+import { ProductsList, type PublicationFilter } from "./products/ProductsList";
+import "../productsPage.css";
 import "../customersPage.css";
 import { CameraScanButton } from "./CameraScan";
 import { PickupInbox } from "./PickupReports";
@@ -474,6 +476,7 @@ function ProductEditForm({ product, tenantId, categories, onClose }: { product: 
 
   return (
     <form aria-label={t("tenantWorkspace.editProduct", { name: product.name })} className="form-grid product-edit-form" onSubmit={save}>
+      <div className="product-pane-head field-wide"><h2>{t("tenantWorkspace.editProduct", { name: product.name })}</h2><button className="button button-secondary" disabled={busy} onClick={() => onClose(false)} type="button"><Arrow back />{t("common.back")}</button></div>
       {error ? <div className="field-wide"><ErrorState error={error} /></div> : null}
       <label className="field field-wide"><span>{t("tenantWorkspace.productName")}</span><input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
       <label className="field field-wide"><span>{t("tenantWorkspace.productNameAr")}</span><input dir="rtl" value={draft.name_ar} onChange={(event) => setDraft({ ...draft, name_ar: event.target.value })} /></label>
@@ -909,6 +912,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const [addingProduct, setAddingProduct] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [productCategory, setProductCategory] = useState("");
+  const [productPublication, setProductPublication] = useState<PublicationFilter>("all");
+  const productsPage = useRef<HTMLDivElement>(null);
+  const productPane = useRef<HTMLElement>(null);
+  const productReturnId = useRef<string | undefined>(undefined);
   const [quickCategory, setQuickCategory] = useState<{ open: boolean; name_en: string; name_ar: string }>({ open: false, name_en: "", name_ar: "" });
   const [extraBarcode, setExtraBarcode] = useState("");
   const [extraPackage, setExtraPackage] = useState<BarcodePackageLevel>("PIECE");
@@ -969,7 +976,38 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
   const productNeedle = productQuery.trim().toLowerCase();
   const shownProducts = (products.data?.products ?? []).filter((product) =>
     (!productCategory || product.category_id === productCategory)
+    && (productPublication === "all" || product.is_published === (productPublication === "published"))
     && (!productNeedle || product.name.toLowerCase().includes(productNeedle) || (product.name_ar ?? "").toLowerCase().includes(productNeedle) || product.barcodes.some((barcode) => barcode.barcode.toLowerCase().includes(productNeedle))));
+
+  const editingProduct = products.data?.products.find((product) => product.id === editingProductId);
+  useLayoutEffect(() => {
+    if (view !== "products" || (!addingProduct && !editingProductId)) return;
+    // Menus restore their own trigger's focus; move into the new pane after that has finished.
+    const frame = requestAnimationFrame(() => productPane.current?.querySelector<HTMLInputElement>("input")?.focus());
+    if (singlePane()) productPane.current?.scrollIntoView?.({ block: "start" });
+    return () => cancelAnimationFrame(frame);
+  }, [addingProduct, editingProductId, view]);
+
+  const closeProductPane = () => {
+    setAddingProduct(false);
+    setEditingProductId(undefined);
+    requestAnimationFrame(() => {
+      const row = Array.from(productsPage.current?.querySelectorAll<HTMLElement>("[data-product-id]") ?? []).find((item) => item.dataset.productId === productReturnId.current);
+      const target = row?.querySelector<HTMLButtonElement>(".list-row-main") ?? productsPage.current?.querySelector<HTMLButtonElement>(singlePane() ? ".fab" : ".products-add-button");
+      target?.focus();
+    });
+  };
+  const openProductAdd = () => {
+    productReturnId.current = undefined;
+    setEditingProductId(undefined);
+    setAddingProduct(true);
+  };
+  const openProductEdit = (product: TenantProduct) => {
+    productReturnId.current = product.id;
+    setNotice(undefined);
+    setAddingProduct(false);
+    setEditingProductId(product.id);
+  };
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -1292,14 +1330,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
               </article>
             </div>
           ) : view === "products" ? (
-            <div className="catalog-workspace">
-              <div className="catalog-toolbar">
-                <label className="field"><span>{t("tenantWorkspace.productSearch")}</span><input type="search" value={productQuery} onChange={(event) => setProductQuery(event.target.value)} /></label>
-                <label className="field"><span>{t("tenantWorkspace.category")}</span><select value={productCategory} onChange={(event) => setProductCategory(event.target.value)}><option value="">{t("tenantWorkspace.allCategories")}</option>{categories.data?.categories.map((item) => <option key={item.id} value={item.id}>{item.name_en} / {item.name_ar}</option>)}</select></label>
-                <button aria-expanded={addingProduct} className="button" onClick={() => setAddingProduct(!addingProduct)} type="button"><Icon name="plus" small />{t("tenantWorkspace.addProduct")}</button>
-              </div>
+            <div className={`products-page${addingProduct || editingProduct ? " show-product-pane" : ""}`} ref={productsPage}>
               {addingProduct ? (
-                <article className="content-card add-product">
+                <article aria-label={t("tenantWorkspace.addProduct")} className="content-card add-product product-pane" ref={productPane}>
+                  <div className="product-pane-head"><h2>{t("tenantWorkspace.addProduct")}</h2><button className="button button-secondary" disabled={busy} onClick={closeProductPane} type="button"><Arrow back />{t("common.back")}</button></div>
                   <div className="scan-desk">
                     <p className="section-kicker">{t("tenantWorkspace.scanDesk")}</p>
                     <h3>{t("tenantWorkspace.scanTitle")}</h3>
@@ -1339,37 +1373,41 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
                           <label className="checkbox-row field-wide"><input checked={productDraft.is_published} onChange={(event) => setProductDraft({ ...productDraft, is_published: event.target.checked })} type="checkbox" /><span>{t("tenantWorkspace.publishVisibility")}</span></label>
                         </div>
                       </details>
-                      <button className="button field-wide" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button>
+                      <div className="product-form-actions field-wide"><button className="button" disabled={busy} type="submit">{t("tenantWorkspace.saveProduct")}</button></div>
                     </form>
                   </div>
                 </article>
               ) : null}
-              <article className="content-card catalog-list">
-                <p className="section-kicker">{t("tenantWorkspace.tenantCatalog")}</p>
-                <h3>{t("tenantWorkspace.products")}</h3>
-                {products.isLoading ? <LoadingState /> : null}
-                {products.error ? <ErrorState error={products.error} /> : null}
-                {products.data?.products.length && !shownProducts.length ? <p className="muted">{t("tenantWorkspace.noProductMatch")}</p> : null}
-                {shownProducts.map((product) => (
-                  <article className="product-card" key={product.id}>
-                    {product.images[0] ? <CratePhoto image={product.images[0]} /> : null}
-                    <div><h4>{product.name}</h4><span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></div>
-                    <strong dir="ltr">{product.unit_price} {product.currency} / {product.price_basis}</strong>
-                    <div className="category-actions">
-                      <button className="text-button" onClick={() => togglePublication(product)} type="button">{t(product.is_published ? "tenantWorkspace.hide" : "tenantWorkspace.publish")}</button>
-                      <button aria-expanded={editingProductId === product.id} className="text-button" onClick={() => { setNotice(undefined); setEditingProductId(editingProductId === product.id ? undefined : product.id); }} type="button">{t("common.edit")}</button>
-                    </div>
-                    {editingProductId === product.id ? <ProductEditForm categories={categories.data?.categories ?? []} onClose={(saved) => { setEditingProductId(undefined); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={product} tenantId={context.tenant_id} /> : null}
-                    <details className="product-manage">
-                      <summary>{t("common.manage")}</summary>
+              {editingProduct ? (
+                <article aria-label={t("tenantWorkspace.editProduct", { name: editingProduct.name })} className="content-card product-pane" ref={productPane}>
+                  <ProductEditForm categories={categories.data?.categories ?? []} key={editingProduct.id} onClose={(saved) => { closeProductPane(); if (saved) setNotice(t("tenantWorkspace.productUpdated")); }} product={editingProduct} tenantId={context.tenant_id} />
+                </article>
+              ) : null}
+              <ProductsList
+                categories={categories.data?.categories ?? []}
+                category={productCategory}
+                hasProducts={Boolean(products.data?.products.length)}
+                onAdd={openProductAdd}
+                onBarcode={(product) => setBarcodeProductId(product.id)}
+                onCategory={setProductCategory}
+                onEdit={openProductEdit}
+                onPublication={setProductPublication}
+                onQuery={setProductQuery}
+                onTogglePublication={togglePublication}
+                products={shownProducts}
+                publication={productPublication}
+                query={productQuery}
+                renderPhoto={(product) => product.images[0] ? <CratePhoto image={product.images[0]} /> : null}
+                renderManagement={(product) => <>
                       <div className="barcode-chips">{product.barcodes.map((barcode) => <code dir="ltr" key={`${barcode.ownership}-${barcode.id}`}>{barcode.barcode} · {barcode.package_level} · {barcode.ownership}</code>)}</div>
                       <button className="text-button" onClick={() => setBarcodeProductId(product.id)} type="button">{t("tenantWorkspace.addBarcode")}</button>
                       {barcodeProductId === product.id ? <form className="inline-form barcode-form" onSubmit={addBarcode}><label className="field"><span>{t("tenantWorkspace.barcode")}</span><input dir="ltr" required value={extraBarcode} onChange={(event) => setExtraBarcode(event.target.value)} /></label><CameraScanButton autoSubmit={false} onScan={setExtraBarcode} /><label className="field"><span>{t("tenantWorkspace.packageLevel")}</span><select value={extraPackage} onChange={(event) => setExtraPackage(event.target.value as BarcodePackageLevel)}><option value="PIECE">{t("tenantWorkspace.piece")}</option><option value="BOX">{t("tenantWorkspace.box")}</option></select></label><button className="button" type="submit">{t("common.saveChanges")}</button></form> : null}
                       <ProductPricingMediaControls product={product} tenantId={context.tenant_id} />
-                    </details>
-                  </article>
-                ))}
-              </article>
+                </>}
+              >
+                {products.isLoading ? <LoadingState /> : null}
+                {products.error ? <ErrorState error={products.error} /> : null}
+              </ProductsList>
             </div>
           ) : view === "pricing" ? (
             <GradeDiscountEditor tenantId={context.tenant_id} />

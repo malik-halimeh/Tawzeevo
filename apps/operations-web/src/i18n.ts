@@ -2,6 +2,10 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
 const en = {
+  productsPage: {
+    count_one: "<n>{{count}}</n> product", count_other: "<n>{{count}}</n> products",
+    visibility: "Catalog visibility", pricingPhotos: "Pricing & photos", clearFilters: "Clear filters",
+  },
   customersPage: {
     search: "Search by name or phone", name: "Name", newest: "Newest", owesMost: "Who owes most",
     loadMore: "Load more", newCustomer: "New customer", shopLink: "Shop link",
@@ -89,6 +93,11 @@ type ArabicPluralForm = "zero" | "two" | "few" | "many";
 type TranslationShape<T> = { readonly [K in keyof T]: T[K] extends string ? string : TranslationShape<T[K]> } & { readonly [key: `${string}_${ArabicPluralForm}`]: string };
 
 const ar: TranslationShape<typeof en> = {
+  productsPage: {
+    count_zero: "<n>{{count}}</n> منتجات", count_one: "<n>{{count}}</n> منتج", count_two: "<n>{{count}}</n> منتجان",
+    count_few: "<n>{{count}}</n> منتجات", count_many: "<n>{{count}}</n> منتجًا", count_other: "<n>{{count}}</n> منتج",
+    visibility: "ظهور المنتجات", pricingPhotos: "الأسعار والصور", clearFilters: "مسح عوامل التصفية",
+  },
   customersPage: {
     search: "ابحث بالاسم أو الهاتف", name: "الاسم", newest: "الأحدث", owesMost: "الأكثر مديونية",
     loadMore: "تحميل المزيد", newCustomer: "عميل جديد", shopLink: "رابط المتجر",

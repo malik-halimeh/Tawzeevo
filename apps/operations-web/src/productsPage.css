@@ -1,0 +1,33 @@
+/* Products uses the shared list kit; these rules only arrange its catalog content and panes. */
+.products-page { min-inline-size: 0; padding-block-end: calc(var(--bottom-nav) + var(--keyboard) + 88px + env(safe-area-inset-bottom)); }
+.products-page-list { display: grid; gap: 12px; min-inline-size: 0; }
+.products-page-list .page-head { margin-block-end: 0; }
+.products-rows { min-inline-size: 0; border: 1px solid var(--line); border-radius: var(--radius-record); background: var(--surface); }
+.product-list-item { min-inline-size: 0; border-block-start: 1px solid var(--line); }
+.product-list-item:first-child { border-block-start: 0; }
+.product-list-item .list-rows { border: 0; background: transparent; }
+.products-page .list-row-main { position: relative; flex-wrap: wrap; gap: 4px 12px; padding-inline: 12px 4px; }
+.products-page .list-row-text { flex-basis: 100%; }
+.products-page .list-row-title, .products-page .list-row-sub { white-space: normal; overflow-wrap: anywhere; }
+.products-page .list-row-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.products-page .list-row-end { min-inline-size: 0; max-inline-size: 100%; }
+.products-page .list-row-amount { white-space: normal; overflow-wrap: anywhere; font-size: 14px; }
+.products-page .list-row-main:has(.crate-photo) { padding-inline-start: 72px; }
+.products-page .crate-photo { position: absolute; inset-inline-start: 12px; inset-block-start: 12px; inline-size: 48px; block-size: 48px; margin: 0; overflow: hidden; border-radius: var(--radius-control); }
+.products-page .crate-photo img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.products-page .product-manage { padding-block: 0 4px; padding-inline: 12px; border-block-start: 0; }
+.products-page .product-manage > summary { min-block-size: 44px; font-size: 14px; color: var(--muted); }
+.products-page .barcode-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.products-page .barcode-chips code { overflow-wrap: anywhere; }
+.products-page .product-management, .products-page .inline-form, .products-page .field { min-inline-size: 0; }
+.products-page .field :is(input, select) { min-inline-size: 0; max-inline-size: 100%; }
+.products-page .product-manage .text-button, .products-page .quick-category .text-button { min-block-size: 44px; }
+.product-pane { min-inline-size: 0; margin-block-end: 20px; scroll-margin-block-start: 12px; }
+.product-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.product-pane-head h2 { margin: 0; overflow-wrap: anywhere; font-size: 22px; }
+.products-page .product-edit-form { margin-block-start: 16px; }
+@media (max-width: 1099px) {
+  .products-page.show-product-pane .products-page-list, .products-add-button { display: none; }
+  .products-page .add-product { grid-template-columns: minmax(0, 1fr); }
+  .products-page .product-edit-form .form-actions, .products-page .product-form-actions { position: sticky; z-index: 18; inset-block-end: calc(var(--bottom-nav) + var(--keyboard) + env(safe-area-inset-bottom)); padding-block: 12px; background: var(--surface); border-block-start: 1px solid var(--line); }
+}
