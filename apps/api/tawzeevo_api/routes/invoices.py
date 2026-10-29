@@ -24,6 +24,12 @@ from tawzeevo_api.schemas.invoice_editor import (
     ItemParserResponse,
     ProductCostOptionsResponse,
 )
+from tawzeevo_api.schemas.invoice_lists import (
+    BusinessInvoiceListQuery,
+    BusinessInvoiceListResponse,
+    InvoiceListFilters,
+    InvoiceSummaryResponse,
+)
 from tawzeevo_api.services.customer_lists import list_customer_invoices
 from tawzeevo_api.services.invoice_editor import (
     calculate_expression,
@@ -39,6 +45,10 @@ from tawzeevo_api.services.invoice_finance import (
     confirm_invoice,
     get_invoice_history,
     update_invoice,
+)
+from tawzeevo_api.services.invoice_lists import (
+    list_business_invoices,
+    summarize_business_invoices,
 )
 
 invoices_router = APIRouter(prefix="/api/v1/invoices", tags=["invoice editor"])
@@ -118,6 +128,25 @@ def list_invoices_of_customer(
     """Every invoice of one customer, newest first (D-101). The customer is required so the list
     stays bounded; an unknown customer is 404."""
     return list_customer_invoices(db, context.tenant.id, customer_id, page, limit)
+
+
+@invoices_router.get("/all", response_model=BusinessInvoiceListResponse)
+def list_all_invoices(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    query: Annotated[BusinessInvoiceListQuery, Query()],
+) -> BusinessInvoiceListResponse:
+    """OE-06b: all business invoices; preserve the legacy customer-list response separately."""
+    return list_business_invoices(db, context.tenant.id, query)
+
+
+@invoices_router.get("/summary", response_model=InvoiceSummaryResponse)
+def invoice_list_summary(
+    db: Annotated[Session, Depends(get_db)],
+    context: Annotated[TenantContext, Depends(require_tenant_owner)],
+    filters: Annotated[InvoiceListFilters, Query()],
+) -> InvoiceSummaryResponse:
+    return summarize_business_invoices(db, context.tenant.id, filters)
 
 
 @invoices_router.post("", response_model=InvoiceEditorResponse, status_code=status.HTTP_201_CREATED)
