@@ -1,0 +1,20 @@
+/* Orders use the shared list kit and the existing section/theme tokens. */
+.orders-list-page { min-inline-size: 0; }
+.orders-list-page .orders-awaiting { margin-block: 0; }
+.orders-list-page .orders-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.orders-list-page .orders-rows { min-inline-size: 0; align-self: start; }
+.orders-rows > .muted { padding-block: 16px; padding-inline: 16px; }
+.orders-list-page .order-detail { min-inline-size: 0; overflow-wrap: anywhere; }
+.orders-list-page .order-detail :is(.field, .inline-form, .category-actions, .sync-facts > div) { min-inline-size: 0; }
+.orders-list-page .order-detail :is(input, select) { max-inline-size: 100%; min-inline-size: 0; }
+.orders-list-page :is(button, input:not([type="checkbox"]), select, .order-links a, .next-steps a) { min-block-size: 44px; }
+.orders-list-page .order-detail :is(.text-button, .button, .order-links a) { white-space: normal; overflow-wrap: anywhere; }
+.orders-list-page .order-links a { display: inline-flex; align-items: center; }
+.orders-list-page .checkbox-row { min-block-size: 44px; }
+.orders-list-page .order-detail .data-table { inline-size: 100%; table-layout: fixed; }
+.orders-list-page .order-detail .data-table :is(th, td) { padding-block: 8px; padding-inline: 4px; overflow-wrap: anywhere; }
+.orders-list-page .list-row-end { max-inline-size: 45%; min-inline-size: 0; }
+.orders-list-page .list-menu { min-inline-size: min(240px, calc(100vw - 48px)); }
+@media (min-width: 1100px) {
+  .orders-list-page .orders-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+}

@@ -36,7 +36,7 @@ test("owner links a suggested customer explicitly, then confirms the order", asy
 
   render(<OrdersPanel tenantId="t1" />);
   expect(await screen.findByText("1 awaiting review")).toBeInTheDocument(); // same meaning as the Orders badge
-  fireEvent.click(await screen.findByRole("button", { name: /Rami/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Rami/ }));
   expect(await screen.findByText("Water")).toBeInTheDocument();
   const confirm = screen.getByRole("button", { name: "Confirm and assign invoice number" });
   expect(confirm).toBeDisabled(); // nothing is linked automatically (D-072)
@@ -83,7 +83,7 @@ test("an order placed through a personalized link arrives linked: no customer pi
   }));
 
   render(<OrdersPanel tenantId="t1" />);
-  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Maya Market/ }));
   expect(await screen.findByText("Customer: Maya Market. Prices are this customer's.")).toBeInTheDocument();
   expect(screen.queryByText("Which customer is this?")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Create a new customer from these details" })).not.toBeInTheDocument();
