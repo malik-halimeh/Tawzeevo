@@ -41,6 +41,22 @@ Merged to `main` through PR #3 (`c2d9073`, 2026-09-25). F-03 (declining an unlin
 left it RECEIVED behind a cancelled invoice) fixed separately on `fix/public-order-decline`.
 Decisions and deferred items: `docs/order-workflow/DECISIONS.md`, `docs/order-workflow/DEFERRED.md`.
 
+## Owner fixes and the Cedar look (D-121, 2026-10-30)
+
+| Change | PR | Status |
+|---|---|---|
+| Evening-only backend test failures fixed (seeds on a fixed Beirut calendar day); light-silver look reverted before it went live | #14 | merged, live |
+| Catalog search finds products whatever the word order (Arabic folding; exact → prefix → word matches); Products filter accepts any order | #15 | merged, live |
+| Invoice editor: added items stay under the search as compact lines that expand in place; search as you type; barcode stays the default method | #16 | merged, live |
+| Shorter money on screen and in print (`42.50 $`, LBP without decimals); stored values unchanged | #17 | merged, live |
+| Cedar look (deep-green header band, white cards, primary green, mint add button, solid icons) and a denser phone layout | #18 | merged, live |
+| Cedar dark mode following the phone; print always light | #19 | this change |
+
+Checks for the look: every owner page in EN/AR at 390 and 1366 px (and in dark), no horizontal scroll, control inventory
+unchanged apart from translated words, printed invoice unchanged apart from the money text, colours only through tokens
+(`designTokens.test.ts`), contrast thresholds for light and dark (`designContrast.test.ts`). First phone view at 390×844 in
+Arabic: invoices 0 → 2 rows, customers 3 → 6, products 0 → 5; header band 319 → 140 px.
+
 ## Owner workspace made phone-easy (D-119, D-120, 2026-10-29, branch `feature/owner-ease`)
 
 | Milestone | Status | Scope |
