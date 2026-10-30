@@ -852,6 +852,7 @@ test("a confirmed invoice reads as a document from the server's answer, and Crea
   fireEvent.click(within(document).getByRole("button", { name: "Create revision" }));
   expect(screen.getByText("New revision of", { exact: false })).toBeVisible();
   expect(screen.getByRole("region", { name: "Invoice lines" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /Edit line 1,/ }));
   fireEvent.change(screen.getByLabelText("Quantity / calculator"), { target: { value: "4" } });
   fireEvent.click(screen.getByRole("button", { name: "Save an auditable revision" }));
 
@@ -959,6 +960,7 @@ test("a draft changed after saving cannot be confirmed until it is saved again",
   expect(confirm).toBeEnabled();
   expect(screen.queryByText(/Save it first, then confirm/)).not.toBeInTheDocument();
 
+  fireEvent.click(screen.getByRole("button", { name: /Edit line 1,/ }));
   fireEvent.change(screen.getByLabelText("Quantity / calculator"), { target: { value: "3" } });
   expect(screen.getByRole("button", { name: "Confirm and assign invoice number" })).toBeDisabled();
   expect(screen.getByText("You changed this invoice after saving. Save it first, then confirm.")).toBeVisible();

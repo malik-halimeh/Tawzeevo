@@ -56,10 +56,12 @@ test("supplier and cost setup opened from an invoice line keeps the invoice and 
   fireEvent.change(await screen.findByLabelText("Phone"), { target: { value: "+96170123456" } });
   fireEvent.click(screen.getAllByRole("button", { name: "Search" })[0]!);
   fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Item entry method" })).getByRole("button", { name: "Barcode" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Barcode" }), { target: { value: product.barcode } });
   fireEvent.click(screen.getByRole("button", { name: "Scan barcode" }));
   const lines = await screen.findByRole("region", { name: "Invoice lines" });
   expect(await within(lines).findByText("Cedar Water")).toBeInTheDocument();
+  fireEvent.click(within(lines).getByRole("button", { name: /Edit line 1,/ }));
   fireEvent.change(within(lines).getByLabelText("Quantity / calculator"), { target: { value: "7" } });
   await waitFor(() => expect(costOptionCalls).toBe(1));
 
