@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -26,7 +26,7 @@ function invoice(overrides: Record<string, unknown> = {}) {
   return { id: invoiceId, tenant_id: tenantId, status: "DRAFT", official_invoice_number: null, confirmed_at: null, customer_id: customerId, customer_snapshot: { id: customerId, name: "Maya Market", phone: "+96170123456" }, current_revision_id: "rev-1", server_revision_number: 1, pricing_version: "pricing-v1", currency: "USD", prior_balance: "3.0000", subtotal: "10.0000", discount_total: "0.0000", markup_total: "0.0000", net_sales: "10.0000", total_due: "13.0000", items: [line()], created_at: "2026-09-23T08:00:00Z", updated_at: "2026-09-23T08:00:00Z", ...overrides };
 }
 
-let requests: Array<{ method: string; url: string }> = [];
+let requests: Array<{ method: string; url: string; body: string | undefined }> = [];
 
 /** The editor's calls; `routes` answers first. Unknown calls fail like a missing route would. */
 function stubApi(routes: (url: string, method: string) => Response | Promise<Response> | undefined = () => undefined) {
@@ -34,7 +34,7 @@ function stubApi(routes: (url: string, method: string) => Response | Promise<Res
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = input instanceof Request ? input.url : input.toString();
     const method = init?.method ?? "GET";
-    requests.push({ method, url });
+    requests.push({ method, url, body: typeof init?.body === "string" ? init.body : undefined });
     const answer = routes(url, method);
     if (answer) return Promise.resolve(answer);
     if (url.includes("/customer-ledger/settings")) return Promise.resolve(Response.json({ tenant_id: tenantId, customer_overdue_threshold_days: null }));
@@ -63,6 +63,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   await i18n.changeLanguage("en");
   document.documentElement.dir = "ltr";
@@ -112,7 +113,7 @@ test("offline, a typed Arabic name finds the customer on this device with the se
   await deleteLocalDatabase(tenantId, membershipId);
 });
 
-test("each line keeps quantity, unit and line total in view and folds discount, markup and cost behind More", async () => {
+test("compact lines sit inside the entry card and expand to every existing control without losing fields", async () => {
   stubApi();
   renderEditor();
   fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
@@ -124,9 +125,19 @@ test("each line keeps quantity, unit and line total in view and folds discount, 
   fireEvent.click(screen.getByRole("button", { name: "Add manual line" }));
 
   const lines = screen.getByRole("region", { name: "Invoice lines" });
+  expect(lines.closest(".item-entry-card")).not.toBeNull();
+  expect(within(lines).getByLabelText("Quantity / calculator")).not.toBeVisible();
+  const edit = within(lines).getByRole("button", { name: "Edit line 1, Ice" });
+  expect(edit).toHaveAttribute("aria-expanded", "false");
+  expect(edit).toHaveTextContent("Ice");
+  expect(edit).toHaveTextContent("× 3 Piece");
+  expect(edit).toHaveTextContent("—");
+  expect(within(lines).getByRole("group", { name: "Quantity for Ice" })).toHaveTextContent("1");
+  fireEvent.click(edit);
   expect(within(lines).getByLabelText("Quantity / calculator")).toBeVisible();
   expect(within(lines).getByLabelText("Price basis")).toBeVisible();
   expect(within(lines).getByText("Line total")).toBeVisible();
+  expect(within(lines).getByRole("button", { name: "Remove" })).toBeVisible();
   const more = within(lines).getByRole("button", { name: "More: discount, markup, cost (Ice)" });
   expect(more).toHaveAttribute("aria-expanded", "false");
   expect(within(lines).getByLabelText("Line discount")).not.toBeVisible();
@@ -139,21 +150,34 @@ test("each line keeps quantity, unit and line total in view and folds discount, 
   fireEvent.change(within(lines).getByLabelText("Line markup"), { target: { value: "0.5" } });
   expect(more).toHaveAttribute("aria-expanded", "true");
   expect(within(lines).getByLabelText("Line markup")).toBeVisible();
+  fireEvent.click(edit);
+  expect(within(lines).getByLabelText("Line markup")).not.toBeVisible();
+  fireEvent.click(edit);
+  expect(within(lines).getByLabelText("Line markup")).toHaveValue("0.5");
 });
 
-test("a line opened by link with a discount or a cost override shows More already open; a plain line stays folded", async () => {
+test("saved adjustments have a compact marker; expanding one line closes the previous line and keeps More state", async () => {
   stubApi((url, method) => (url.includes(`/api/v1/invoices/${invoiceId}?`) && method === "GET"
     ? Response.json(invoice({ items: [line(), line({ id: "item-2", line_number: 2, product_name: "Ice bag", line_discount: "0.5000", line_total: "4.5000" })], subtotal: "15.0000", net_sales: "14.5000" }))
     : undefined));
   renderEditor({ invoiceId });
   const lines = await screen.findByRole("region", { name: "Invoice lines" });
   await within(lines).findByText("Ice bag");
+  const first = within(lines).getByRole("button", { name: "Edit line 1, Water crate" });
+  const second = within(lines).getByRole("button", { name: "Edit line 2, Ice bag" });
+  expect(first).toHaveAttribute("aria-expanded", "false");
+  expect(second).toHaveAttribute("aria-expanded", "false");
+  expect(within(second).getByLabelText("Line has adjustments or needs cost setup")).toBeVisible();
+  fireEvent.click(first);
   expect(within(lines).getByRole("button", { name: /\(Water crate\)/ })).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(second);
+  expect(first).toHaveAttribute("aria-expanded", "false");
+  expect(within(lines).getAllByLabelText("Quantity / calculator")[0]).not.toBeVisible();
   expect(within(lines).getByRole("button", { name: /\(Ice bag\)/ })).toHaveAttribute("aria-expanded", "true");
   expect(within(lines).getAllByLabelText("Line discount")[1]).toHaveValue("0.5");
   // The saved revision is what the lines show: each line's own server total.
-  expect(within(lines).getByText("10.0000 USD")).toBeVisible();
-  expect(within(lines).getByText("4.5000 USD")).toBeVisible();
+  expect(within(first).getByText("10.0000 USD")).toBeVisible();
+  expect(within(second).getByText("4.5000 USD")).toBeVisible();
 });
 
 test("the action bar holds the editor's only Save and Confirm, with their handlers and disabled rules", async () => {
@@ -192,6 +216,7 @@ test("the action bar holds the editor's only Save and Confirm, with their handle
   expect(screen.getAllByRole("button", { name: "Confirm and assign invoice number" })).toEqual([confirm]);
   expect(confirm).toBeEnabled();
   // A change after saving: the same Confirm turns off and says why, inside the bar.
+  fireEvent.click(screen.getByRole("button", { name: "Edit line 1, Water crate" }));
   fireEvent.change(screen.getByLabelText("Quantity / calculator"), { target: { value: "3" } });
   expect(confirm).toBeDisabled();
   expect(confirm).toHaveAccessibleDescription("You changed this invoice after saving. Save it first, then confirm.");
@@ -252,4 +277,115 @@ test("in Arabic the editor reads right to left with the same controls, and phone
   expect(within(match).getByText("+96170123456")).toHaveAttribute("dir", "ltr");
   expect(match).toHaveTextContent("عليه");
   expect(screen.getByText("عميل واحد يطابق ما كتبته.")).toBeInTheDocument();
+  fireEvent.click(match);
+  await waitFor(() => expect(screen.getByRole("textbox", { name: i18n.t("tenantWorkspace.barcode") })).toHaveFocus());
+  fireEvent.click(within(screen.getByRole("group", { name: i18n.t("invoiceEditor.entryMethods") })).getByRole("button", { name: i18n.t("invoiceEditor.manualEntry") }));
+  fireEvent.change(screen.getByRole("textbox", { name: i18n.t("invoiceEditor.itemName") }), { target: { value: "ماء" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: i18n.t("invoiceEditor.unitPrice") }), { target: { value: "3" } });
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("invoiceEditor.addManual") }));
+  expect(screen.getByRole("button", { name: "تعديل البند 1، ماء" })).toHaveTextContent(i18n.t("tenantWorkspace.piece"));
+  expect(screen.getByRole("button", { name: "زيادة كمية ماء" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "تقليل كمية ماء" })).toBeDisabled();
+});
+
+test("active catalog search keeps focus; catalog adds clear, announce, highlight and merge only untouched lines", async () => {
+  const match = { product_id: "oil", name: "Sunflower Oil 1.8L", barcode: "123", package_level: "PIECE", price_basis: "PIECE", unit_price: "4.0000", currency: "USD", image_url: null, match_type: "EXACT", score: "1" };
+  stubApi((url) => {
+    if (url.includes("/catalog-search")) return Response.json({ matches: [match] });
+    if (url.includes("/cost-options")) return Response.json({ options: [] });
+    return undefined;
+  });
+  renderEditor();
+  fireEvent.click(within(screen.getByRole("group", { name: "Item entry method" })).getByRole("button", { name: "Catalog search" }));
+  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+  fireEvent.submit(screen.getByLabelText("Phone").closest("form")!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  const search = screen.getByRole("textbox", { name: "Product name or barcode" });
+  await waitFor(() => expect(search).toHaveFocus());
+  const lines = screen.getByRole("region", { name: "Invoice lines" });
+  expect(lines.closest(".item-entry-card")).toBe(search.closest(".item-entry-card"));
+  const add = async () => {
+    fireEvent.change(search, { target: { value: "oil" } });
+    fireEvent.submit(search.closest("form")!);
+    fireEvent.click(await within(search.closest("form")!).findByRole("button", { name: /Sunflower Oil/ }));
+    expect(search).toHaveValue("");
+    expect(search).toHaveFocus();
+    expect(search.closest("form")).not.toHaveTextContent("Sunflower Oil");
+    expect(screen.getByText("Added Sunflower Oil 1.8L").closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+  };
+  await add();
+  expect(lines.querySelector(".is-new-line")).not.toBeNull();
+  expect(lines.querySelector(".invoice-line-image-empty")).toBeNull();
+  await add();
+  expect(within(lines).getAllByRole("button", { name: /Edit line/ })).toHaveLength(1);
+  expect(within(lines).getByRole("group", { name: /Quantity for/ })).toHaveTextContent("2");
+  fireEvent.click(within(lines).getByRole("button", { name: /Edit line 1,/ }));
+  fireEvent.click(within(lines).getByRole("button", { name: /More: discount/ }));
+  fireEvent.change(within(lines).getByLabelText("Line discount"), { target: { value: "0.5" } });
+  await add();
+  expect(within(lines).getAllByRole("button", { name: /Edit line/ })).toHaveLength(2);
+  expect(within(lines).getAllByLabelText("Quantity / calculator")[0]).toHaveValue("2");
+  expect(within(lines).getAllByLabelText("Line discount")[0]).toHaveValue("0.5");
+});
+
+test.each(["en", "ar"])("empty catalog search explains its purpose in %s", async (language) => {
+  await i18n.changeLanguage(language);
+  stubApi();
+  renderEditor();
+  fireEvent.click(within(screen.getByRole("group", { name: i18n.t("invoiceEditor.entryMethods") })).getByRole("button", { name: i18n.t("invoiceEditor.catalogEntry") }));
+  const search = screen.getByRole("textbox", { name: i18n.t("invoiceEditor.catalogSearch") });
+  expect(search).toHaveValue("");
+  expect(search).toHaveAttribute("placeholder", i18n.t("invoiceEditor.catalogSearch"));
+});
+
+test("new-line highlight expires after 1.5 seconds, even when another line is expanded", async () => {
+  stubApi();
+  renderEditor();
+  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+  fireEvent.submit(screen.getByLabelText("Phone").closest("form")!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Barcode" })).toHaveFocus());
+  fireEvent.click(within(screen.getByRole("group", { name: "Item entry method" })).getByRole("button", { name: "Manual item" }));
+  vi.useFakeTimers();
+  const add = (name: string) => {
+    fireEvent.change(screen.getByRole("textbox", { name: "Item name" }), { target: { value: name } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price" }), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add manual line" }));
+    return screen.getByRole("button", { name: new RegExp(`Edit line \\d, ${name}`) }).closest(".invoice-line")!;
+  };
+  const first = add("Ice");
+  expect(first).toHaveClass("is-new-line");
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  const latest = add("Water");
+  expect(first).not.toHaveClass("is-new-line");
+  fireEvent.click(screen.getByRole("button", { name: "Edit line 1, Ice" }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(1499); });
+  expect(latest).toHaveClass("is-new-line");
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(latest).not.toHaveClass("is-new-line");
+  expect(screen.getByRole("button", { name: "Edit line 1, Ice" })).toHaveAttribute("aria-expanded", "true");
+});
+
+test("quantity stepper displays calculator values, changes by one and saves the numeric replacement", async () => {
+  stubApi((url, method) => url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST" ? Response.json(invoice(), { status: 201 }) : undefined);
+  renderEditor();
+  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170" } });
+  fireEvent.submit(screen.getByLabelText("Phone").closest("form")!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Item entry method" })).getByRole("button", { name: "Manual item" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Item name" }), { target: { value: "Ice" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Quantity" }), { target: { value: "1+1" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price" }), { target: { value: "3" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add manual line" }));
+  expect(screen.getByRole("group", { name: "Quantity for Ice" })).toHaveTextContent("2");
+  expect(screen.getByLabelText("Quantity / calculator")).toHaveValue("1+1");
+  fireEvent.click(screen.getByRole("button", { name: "Increase quantity for Ice" }));
+  expect(screen.getByLabelText("Quantity / calculator")).toHaveValue("3");
+  fireEvent.click(screen.getByRole("button", { name: "Decrease quantity for Ice" }));
+  expect(screen.getByLabelText("Quantity / calculator")).toHaveValue("2");
+  fireEvent.click(screen.getByRole("button", { name: "Increase quantity for Ice" }));
+  fireEvent.click(screen.getByRole("button", { name: "Calculate and save draft" }));
+  await waitFor(() => expect(requests.some((request) => request.method === "POST" && request.url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`))).toBe(true));
+  const save = requests.find((request) => request.method === "POST" && request.url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`))!;
+  expect((JSON.parse(save.body ?? "{}") as { items: unknown }).items).toMatchObject([{ quantity_expression: "3", line_discount_expression: "0", line_markup_expression: "0" }]);
 });

@@ -79,6 +79,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await page.getByRole("textbox", { name: "Phone", exact: true }).fill(customerPhone);
   await page.getByRole("button", { name: "Search" }).first().click();
   await page.getByRole("button", { name: /Maya Market/ }).click();
+  await expect(page.getByRole("textbox", { name: "Barcode", exact: true })).toBeFocused();
   await page.getByRole("textbox", { name: "Barcode", exact: true }).fill(barcode);
   await page.getByRole("button", { name: "Scan barcode" }).click();
   await expect(page.getByText("Catalog item added.")).toBeVisible();

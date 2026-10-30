@@ -69,6 +69,7 @@ test("owner keeps invoicing offline and the queued draft is created once on reco
   await page.getByRole("button", { name: "Search" }).first().click();
   await expect(page.getByText("1 matching record from this device (offline).")).toBeVisible();
   await page.getByRole("button", { name: /Offline Corner Shop/ }).click();
+  await expect(page.getByRole("textbox", { name: "Barcode", exact: true })).toBeFocused();
   await page.getByRole("textbox", { name: "Barcode", exact: true }).fill(barcode);
   await page.getByRole("button", { name: "Scan barcode" }).click();
   await expect(page.getByText("Item added from this device's catalog (offline).")).toBeVisible();

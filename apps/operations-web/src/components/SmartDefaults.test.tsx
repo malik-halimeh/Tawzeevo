@@ -42,6 +42,23 @@ test("a new invoice starts at the phone in the currency used last, then moves to
   await waitFor(() => expect(screen.getByRole("textbox", { name: "Barcode" })).toHaveFocus());
 });
 
+test.each([
+  ["Catalog search", "Product name or barcode"],
+  ["Text list", "Text list"],
+  ["Manual item", "Item name"],
+])("customer choice preserves %s and focuses its input", async (method, label) => {
+  stubInvoiceApi();
+  render(<MemoryRouter><InvoiceEditor membershipId="m1" tenantId={tenantId} /></MemoryRouter>);
+  const methods = screen.getByRole("group", { name: "Item entry method" });
+  const active = within(methods).getByRole("button", { name: method });
+  fireEvent.click(active);
+  fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+96170123456" } });
+  fireEvent.submit(screen.getByLabelText("Phone").closest("form")!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  await waitFor(() => expect(screen.getByRole("textbox", { name: label })).toHaveFocus());
+  expect(active).toHaveAttribute("aria-pressed", "true");
+});
+
 test("payment method is picked from a list and sent as before", async () => {
   const receipts: Array<Record<string, unknown>> = [];
   stubInvoiceApi(receipts);

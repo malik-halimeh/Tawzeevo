@@ -13,7 +13,6 @@ import type {
   CustomerSearchResponse,
   FinancialSettingsResponse,
   InvoiceCatalogMatch,
-  InvoiceCatalogSearchResponse,
   InvoiceEditorItem,
   InvoiceEditorResponse,
   InvoiceHistoryResponse,
@@ -40,7 +39,8 @@ import { InvoiceActionBar } from "./invoiceEditor/InvoiceActionBar";
 import { InvoiceLineCard } from "./invoiceEditor/InvoiceLineCard";
 import { InvoiceLineImage } from "./invoiceEditor/InvoiceLineImage";
 import { localAsCustomers, useCustomerSuggestions, type CustomerMatch } from "./invoiceEditor/customerSuggestions";
-import { money, type AcceptedMatch, type EditorLine } from "./invoiceEditor/editorLine";
+import { useCatalogSuggestions } from "./invoiceEditor/catalogSuggestions";
+import { lineNeedsMore, quantityValue, money, type AcceptedMatch, type EditorLine } from "./invoiceEditor/editorLine";
 import "../invoiceEditorLayout.css";
 
 function lineKey() {
@@ -78,6 +78,8 @@ function productLine(
     barcode: match.barcode ?? undefined,
     quantity,
     basis: match.package_level,
+    initialBasis: match.package_level,
+    unitPrice: match.price_basis === match.package_level ? match.unit_price : undefined,
     lineDiscount: "0",
     lineMarkup: "0",
     acceptedMatch,
@@ -97,6 +99,8 @@ function scannedLine(product: TenantProduct, barcode: string, basis: ProductPric
     barcode,
     quantity: "1",
     basis,
+    initialBasis: basis,
+    unitPrice: basis === "BOX" ? product.box_price ?? undefined : product.piece_price,
     piecesPerBox: product.pieces_per_box ?? undefined,
     lineDiscount: "0",
     lineMarkup: "0",
@@ -142,6 +146,9 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   const [manualName, setManualName] = useState("");
   const [manualPrice, setManualPrice] = useState("");
   const [manualQuantity, setManualQuantity] = useState("1");
+  const [expandedLine, setExpandedLine] = useState<string>();
+  const [addedLine, setAddedLine] = useState<{ key: string; name: string; event: string }>();
+  const catalogInput = useRef<HTMLInputElement>(null);
   const [lines, setLines] = useState<EditorLine[]>([]);
   const [invoiceDiscount, setInvoiceDiscount] = useState("0");
   const [invoiceMarkup, setInvoiceMarkup] = useState("0");
@@ -285,7 +292,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
         const owner = await apiRequest<Customer>(`/api/v1/tenants/${tenantId}/customers/${loaded.customer_id}?tenant_id=${tenantId}`);
         if (!live) return;
         const rebuilt = rebuildFromRevision(loaded);
-        const restored: EditorLine[] = rebuilt.lines.map((line) => ({ ...line, key: lineKey(), costOptions: [] }));
+        const restored: EditorLine[] = rebuilt.lines.map((line, index) => ({ ...line, key: lineKey(), initialBasis: line.basis, unitPrice: loaded.items[index]?.effective_unit_price, costOptions: [] }));
         setLines(restored);
         setInvoiceDiscount(rebuilt.invoiceDiscount);
         setInvoiceMarkup(rebuilt.invoiceMarkup);
@@ -418,9 +425,32 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
     if (costsRefreshKey > 0) refreshMissingCosts.current();
   }, [costsRefreshKey]);
 
-  const addLine = (line: EditorLine) => {
-    setLines((current) => [...current, line]);
-    void loadCostOptions(line).catch(setError);
+  const catalogSuggestions = useCatalogSuggestions({ tenantId, query: catalogQuery, active: entryMethod === "catalog", onMatches: setCatalogMatches });
+
+  const addLine = (line: EditorLine, combine = false) => {
+    const existing = combine && line.productId ? lines.find((item) => item.productId === line.productId && item.basis === line.basis && (item.initialBasis ?? item.basis) === item.basis && !lineNeedsMore(item) && !item.supplierTouched && !item.acceptedMatch && quantityValue(item.quantity) !== undefined) : undefined;
+    const key = existing?.key ?? line.key;
+    if (existing) {
+      setLines((current) => current.map((item) => item.key === key ? { ...item, quantity: String(Number((quantityValue(item.quantity)! + 1).toFixed(4))) } : item));
+    } else {
+      setLines((current) => [...current, line]);
+      void loadCostOptions(line).catch(setError);
+    }
+    setAddedLine({ key, name: line.name, event: line.key });
+  };
+  // A separate event key restarts the brief highlight and live announcement for repeated adds.
+  useEffect(() => {
+    if (!addedLine) return;
+    const timer = window.setTimeout(() => setAddedLine(undefined), 1500);
+    return () => window.clearTimeout(timer);
+  }, [addedLine]);
+
+  const addCatalogMatch = (match: InvoiceCatalogMatch) => {
+    addLine(productLine(match), true);
+    catalogSuggestions.cancel();
+    setCatalogQuery("");
+    setCatalogMatches([]);
+    catalogInput.current?.focus({ preventScroll: true });
   };
 
   const cancelSuggestions = useCustomerSuggestions({
@@ -473,7 +503,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
         if (!(problem instanceof TypeError)) throw problem;
         const local = await findLocalProductByBarcode(tenantId, membershipId, barcode);
         if (!local) throw new Error(t("invoiceEditor.barcodeNotAdopted"));
-        addLine(scannedLine({ ...local.product, images: [] } as unknown as TenantProduct, local.barcode.barcode, local.barcode.package_level));
+        addLine(scannedLine({ ...local.product, images: [] } as unknown as TenantProduct, local.barcode.barcode, local.barcode.package_level), true);
         setBarcode("");
         setNotice(t("invoiceEditor.itemAddedOffline"));
         return;
@@ -481,7 +511,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
       if (!result.tenant_product) {
         throw new Error(t("invoiceEditor.barcodeNotAdopted"));
       }
-      addLine(scannedLine(result.tenant_product, result.barcode, result.package_level));
+      addLine(scannedLine(result.tenant_product, result.barcode, result.package_level), true);
       setBarcode("");
       setNotice(t("invoiceEditor.itemAdded"));
     });
@@ -489,13 +519,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
 
   const searchCatalog = (event: FormEvent) => {
     event.preventDefault();
-    void run(async () => {
-      const result = await apiRequest<InvoiceCatalogSearchResponse>(
-        `/api/v1/invoices/catalog-search?tenant_id=${tenantId}` +
-          `&query=${encodeURIComponent(catalogQuery)}`,
-      );
-      setCatalogMatches(result.matches);
-    });
+    void run(() => catalogSuggestions.search(catalogQuery));
   };
 
   const parseText = (event: FormEvent) => {
@@ -579,7 +603,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
 
   // The total of the invoice as it stands, calculated by the server shortly after each change and
   // never saved (D-107). Shown only while it differs from what was saved.
-  const [calculated, setCalculated] = useState<{ signature: string; net_sales: string; total_due: string; currency: string; lines: { line_number: number; line_total: string }[] }>();
+  const [calculated, setCalculated] = useState<{ signature: string; net_sales: string; total_due: string; currency: string; lines: { line_number: number; line_total: string; effective_unit_price?: string }[] }>();
   const currentSignature = draftSignature();
   const editable = !saved || saved.status === "DRAFT" || (saved.status === "CONFIRMED" && revising);
   const wantsCalculation = editable && customer !== undefined && lines.length > 0 && currentSignature !== savedSignature;
@@ -589,7 +613,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
       if (!customer) return;
       const signature = draftSignature();
       const body = { customer_id: customer.id, currency, invoice_discount_expression: invoiceDiscount, invoice_markup_expression: invoiceMarkup, items: requestItems() };
-      const answer = await apiRequest<{ net_sales: string; total_due: string; currency: string; lines?: { line_number: number; line_total: string }[] }>(`/api/v1/invoices/calculate?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify(body) });
+      const answer = await apiRequest<{ net_sales: string; total_due: string; currency: string; lines?: { line_number: number; line_total: string; effective_unit_price?: string }[] }>(`/api/v1/invoices/calculate?tenant_id=${tenantId}`, { method: "POST", body: JSON.stringify(body) });
       if (mounted.current) setCalculated({ signature, net_sales: answer.net_sales, total_due: answer.total_due, currency: answer.currency, lines: answer.lines ?? [] });
     };
   });
@@ -602,7 +626,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   // What the server says about the invoice as it stands now: the calculation while it differs from
   // the save, else the saved revision itself. Nothing is added up here.
   const savedMatches = saved !== undefined && (!editable || currentSignature === savedSignature);
-  const serverLines: { line_number: number; line_total: string }[] = shownCalculation?.lines ?? (saved && savedMatches ? saved.items : []);
+  const serverLines: { line_number: number; line_total: string; effective_unit_price?: string }[] = shownCalculation?.lines ?? (saved && savedMatches ? saved.items : []);
   const lineTotalAt = (index: number) => serverLines.find((row) => row.line_number === index + 1)?.line_total;
   const lineTotalCurrency = shownCalculation?.currency ?? saved?.currency ?? currency;
   const barFigure = shownCalculation
@@ -1132,8 +1156,8 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
                 <div className="inline-form"><input aria-label={t("tenantWorkspace.barcode")} dir="ltr" required value={barcode} onChange={(event) => setBarcode(event.target.value)} /><button className="button" disabled={busy} type="submit">{t("tenantWorkspace.scan")}</button><CameraScanButton onScan={setBarcode} /></div>
               </form>
               <form className="entry-method" hidden={entryMethod !== "catalog"} id="entry-method-catalog" onSubmit={searchCatalog}>
-                <div className="inline-form"><input aria-label={t("invoiceEditor.catalogSearch")} required value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} /><button className="button button-secondary" disabled={busy} type="submit">{t("common.search")}</button></div>
-                <div className="catalog-match-buttons">{catalogMatches.map((match) => <button key={match.product_id} onClick={() => addLine(productLine(match))} type="button"><strong>{match.name}</strong><span>{money(match.unit_price, match.currency)}</span></button>)}</div>
+                <div className="inline-form"><input ref={catalogInput} aria-label={t("invoiceEditor.catalogSearch")} placeholder={t("invoiceEditor.catalogSearch")} required value={catalogQuery} onChange={(event) => { catalogSuggestions.cancel(); setCatalogMatches([]); setCatalogQuery(event.target.value); }} /><button className="button button-secondary" disabled={busy} type="submit">{t("common.search")}</button></div>
+                <div className="catalog-match-buttons">{catalogMatches.map((match) => <button key={match.product_id} onClick={() => addCatalogMatch(match)} type="button"><strong>{match.name}</strong><span>{money(match.unit_price, match.currency)}</span></button>)}</div>
               </form>
               <form className="entry-method text-list-method" hidden={entryMethod !== "text"} id="entry-method-text" onSubmit={parseText}>
                 <textarea aria-label={t("invoiceEditor.textEntry")} placeholder={t("invoiceEditor.textPlaceholder")} required rows={4} value={textList} onChange={(event) => setTextList(event.target.value)} />
@@ -1159,16 +1183,18 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
                 ))}
               </div>
             ) : null}
-          </article>
-
+          <p className="sr-only" aria-live="polite" aria-atomic="true">{addedLine ? <span key={addedLine.event}>{t("invoiceEditorLayout.addedName", { name: addedLine.name })}</span> : null}</p>
           <section className="invoice-lines" aria-label={t("invoiceEditor.invoiceLines")}>
             {lines.map((line, index) => (
               <InvoiceLineCard
                 index={index}
                 key={line.key}
-                line={line}
+                line={{ ...line, unitPrice: serverLines.find((row) => row.line_number === index + 1)?.effective_unit_price ?? line.unitPrice }}
+                expanded={expandedLine === line.key}
+                onToggle={() => setExpandedLine((current) => current === line.key ? undefined : line.key)}
+                highlighted={addedLine?.key === line.key ? addedLine.event : undefined}
                 lineTotal={lineTotalAt(index)}
-                onBasisChange={(basis) => { changeLine(line.key, { basis, barcode: undefined }); void loadCostOptions({ ...line, basis, barcode: undefined }).catch(setError); }}
+                onBasisChange={(basis) => { changeLine(line.key, { basis, barcode: undefined, unitPrice: undefined }); void loadCostOptions({ ...line, basis, barcode: undefined }).catch(setError); }}
                 onChange={(changes) => changeLine(line.key, changes)}
                 onOpenSupplierSetup={onOpenSupplierSetup}
                 onRemove={() => setLines((current) => current.filter((item) => item.key !== line.key))}
@@ -1178,6 +1204,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
             ))}
             {!lines.length ? <div className="invoice-empty-lines"><strong>{t("invoiceEditor.emptyTitle")}</strong><span>{t("invoiceEditor.emptyBody")}</span></div> : null}
           </section>
+          </article>
         </div>
 
         <div className="invoice-summary-column">

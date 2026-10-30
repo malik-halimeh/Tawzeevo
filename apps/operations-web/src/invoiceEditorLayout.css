@@ -2,7 +2,7 @@
    the invoice's own buttons held in a bar at the bottom of the screen; from 1024 px the totals and
    buttons sit beside the lines in the same order. Presentation only: every control, label and rule
    is the editor's own. Existing tokens only (styles.css, map.css); logical properties throughout,
-   so Arabic mirrors by itself. Nothing here animates, so reduced motion needs no exception. */
+   so Arabic mirrors by itself. New lines receive a short, motion-safe highlight. */
 
 .invoice-editor .invoice-editor-grid { align-items: start; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .invoice-editor .invoice-entry-desk { gap: 16px; }
@@ -16,23 +16,40 @@
 .invoice-customer-results .customer-owes { color: var(--warn); font-weight: 600; }
 
 /* ---------- Items: the entry methods as one compact switch ---------- */
-.invoice-editor .entry-switch { display: grid; gap: 4px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-block: 0 12px; }
+.invoice-editor .entry-switch { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-block: 0 8px; }
 .invoice-editor .entry-switch button { font-size: 14px; line-height: 1.25; min-height: 44px; padding: 6px 8px; }
 
-/* ---------- Lines: quantity, unit and line total in view; the rest behind "More" ---------- */
-.invoice-editor .invoice-line { gap: 10px; padding: 14px 16px; }
+/* ---------- Items: compact lines inside the entry card ---------- */
+.invoice-editor .item-entry-card { padding: 12px; }
+.invoice-editor .item-entry-card .invoice-lines { background: var(--card); border: 0; border-radius: 0; margin-block-start: 8px; overflow: visible; }
+.invoice-editor .invoice-line { display: block; padding-block: 8px; padding-inline: 0; border: 0; min-inline-size: 0; scroll-margin-block: 16px calc(var(--bottom-nav) + 176px); }
+.invoice-editor .invoice-line + .invoice-line { border-block-start: 1px solid var(--edge); }
+.invoice-editor .catalog-match-buttons { max-block-size: 144px; overflow-y: auto; }
+.line-compact { position: relative; min-inline-size: 0; }
+.invoice-editor .line-expand { background: none; border: 0; border-radius: var(--radius-record); color: var(--ink); display: grid; gap: 0 8px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 20px 32px; min-block-size: 56px; padding: 2px 0; text-align: start; inline-size: 100%; }
+.line-compact-name { align-items: center; display: flex; gap: 8px; grid-column: 1 / -1; min-inline-size: 0; }
+.line-compact-name strong { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-compact-name .invoice-line-image { block-size: 20px; inline-size: 20px; flex-shrink: 0; }
+.line-marker { color: var(--warn); flex-shrink: 0; }
+.line-unit-price { align-self: center; color: var(--muted); font-size: 12px; margin-inline-start: 104px; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-compact-total { align-self: center; font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.line-stepper { align-items: center; display: flex; gap: 2px; inset-block-end: 2px; inset-inline-start: 0; position: absolute; }
+.invoice-editor .line-stepper button { background: var(--paper); border: 1px solid var(--edge); border-radius: var(--radius-record); color: var(--ink); font-size: 16px; block-size: 32px; inline-size: 32px; padding: 0; }
+.line-stepper bdi { font-size: 13px; font-variant-numeric: tabular-nums; min-inline-size: 28px; max-inline-size: 32px; overflow: hidden; text-align: center; text-overflow: ellipsis; }
+.line-expanded { display: grid; gap: 8px; padding-block: 8px 12px; }
+.line-expanded > code { color: var(--muted); font-size: 12px; }
 .invoice-line .line-essentials { align-items: end; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .line-total { align-items: baseline; display: flex; font-size: 14px; gap: 8px; grid-column: 1 / -1; justify-content: space-between; margin: 0; }
 .line-total > span { color: var(--muted); font-size: 12px; }
 .line-total bdi { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-@container (min-width: 32rem) {
-  .invoice-line .line-essentials { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .line-total { align-items: flex-end; flex-direction: column; gap: 2px; grid-column: auto; justify-content: flex-end; min-height: 44px; }
-}
 .line-more-toggle { align-items: center; display: inline-flex; justify-self: start; min-height: 44px; text-align: start; }
-.line-more { display: grid; gap: 10px; }
+.line-more { display: grid; gap: 8px; }
 .line-more .line-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .invoice-editor .remove-line { min-height: 44px; }
+.invoice-editor .invoice-line.is-new-line { background: var(--lc-tint); border-radius: var(--radius-record); }
+@media (prefers-reduced-motion: no-preference) {
+  .invoice-editor .invoice-line { transition: background-color 180ms ease-out; }
+}
 
 /* ---------- Subtotal and adjustments, then the total ---------- */
 .tally-group { display: grid; gap: 8px; }
@@ -63,6 +80,7 @@ html[lang="ar"] .tally-group-title { letter-spacing: 0; }
 @media (max-width: 599px) {
   .invoice-editor { gap: 16px; }
   .invoice-editor .content-card { padding: 16px; }
+  .invoice-editor .item-entry-card { padding: 12px; }
   .invoice-editor .invoice-tally { padding-inline: 16px; padding-block-start: 16px; }
   .invoice-editor .entry-switch { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
