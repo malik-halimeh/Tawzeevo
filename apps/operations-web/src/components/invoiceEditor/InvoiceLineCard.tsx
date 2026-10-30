@@ -53,7 +53,7 @@ export function InvoiceLineCard({ line, index, lineTotal, totalCurrency, supplie
     <article className={`invoice-line${highlighted ? " is-new-line" : ""}`} ref={article}>
       <div className="line-compact">
         <button aria-controls={controlsId} aria-expanded={expanded} aria-label={t("invoiceEditorLayout.editLine", { number: index + 1, name: line.name })} className="line-expand" onClick={onToggle} type="button">
-          <span className="line-compact-name">{line.imageUrl ? <InvoiceLineImage name={line.name} url={line.imageUrl} /> : null}<strong>{line.name}</strong>{needsMore || costMissing ? <span className="line-marker" title={t("invoiceEditorLayout.lineDetails")} aria-label={t("invoiceEditorLayout.lineDetails")}>•</span> : null}</span>
+          <span className="line-compact-name">{line.imageUrl ? <InvoiceLineImage name={line.name} url={line.imageUrl} /> : null}<strong dir="auto">{line.name}</strong>{needsMore || costMissing ? <span className="line-marker" title={t("invoiceEditorLayout.lineDetails")} aria-label={t("invoiceEditorLayout.lineDetails")}>•</span> : null}</span>
           <span className="line-unit-price"><bdi dir="ltr">× {money(line.unitPrice ?? line.manualUnitPrice ?? "—", totalCurrency)}</bdi> {t(line.basis === "BOX" ? "tenantWorkspace.box" : "tenantWorkspace.piece")}</span>
           <bdi className="line-compact-total" dir="ltr">{lineTotal === undefined ? "—" : money(lineTotal, totalCurrency)}</bdi>
         </button>

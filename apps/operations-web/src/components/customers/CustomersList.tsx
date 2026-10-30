@@ -6,6 +6,7 @@ import { apiRequest } from "../../api/client";
 import { type CustomerMatch, SUGGESTION_MIN_LENGTH } from "../invoiceEditor/customerSuggestions";
 import { EmptyHint } from "../listKit/EmptyHint";
 import { ListHeader } from "../listKit/ListHeader";
+import { ListToolbar } from "../listKit/ListToolbar";
 import { ListRow } from "../listKit/ListRow";
 import { SortMenu } from "../listKit/SortMenu";
 import { ErrorState } from "../Ui";
@@ -66,12 +67,14 @@ export function CustomersList({ tenantId, refreshKey, onEdit, onShopLink, onInvo
           if (next !== query) { reset(); setQuery(next); }
         }}
         searchLabel={t("customersPage.search")}
+        title={t("tenantWorkspace.customers")}
+      />
+      <ListToolbar
         sort={<SortMenu onChange={(next) => { reset(); setSort(next); }} options={[
           { value: "name", label: t("customersPage.name") },
           { value: "newest", label: t("customersPage.newest") },
           { value: "owes_most", label: t("customersPage.owesMost") },
         ]} value={sort} />}
-        title={t("tenantWorkspace.customers")}
       />
       {error ? <><ErrorState error={error} /><button className="button button-secondary" onClick={() => setRetry((value) => value + 1)} type="button">{t("customersPage.retry")}</button></> : null}
       {loading ? <p className="muted" role="status">{t("common.loading")}</p> : null}

@@ -35,7 +35,7 @@ export function LanguageButton({ className = "language", currentLanguage = false
 
   return (
     <button aria-label={currentLanguage ? `${t("nav.language")}${valueSeparator}${t("nav.currentLanguage")}` : undefined} className={className} lang={currentLanguage ? i18n.resolvedLanguage : other} onClick={() => void switchLanguage()} type="button">
-      {currentLanguage ? <><Icon name="chat" /><span className="owner-more-copy">{t("nav.language")}<small>{t("nav.currentLanguage")}</small></span><span aria-hidden="true" className="owner-more-chevron">›</span></> : t("language")}
+      {currentLanguage ? <><Icon name="chat" /><span className="owner-more-copy">{t("nav.language")}<small>{t("nav.currentLanguage")}</small></span><span aria-hidden="true" className="owner-more-chevron">›</span></> : <><span className="language-icon" aria-hidden="true" dir="ltr">عA</span><span className="language-label">{t("language")}</span></>}
     </button>
   );
 }
@@ -134,12 +134,15 @@ export interface SettingsShellContext {
 function SyncChip({ state, online, attentionHref }: { state: AutoSyncState; online: boolean; attentionHref: string }) {
   const { t } = useTranslation();
   const text = syncStateText(state, online, t);
-  if (state.attention > 0) return <Link className="online offline sync-chip" data-state="attention" to={attentionHref}>{text}</Link>;
-  if (!online) return <span className="online offline" data-state="offline">{text}</span>;
-  if (state.sending) return <span className="online sync-chip" data-state="sending" role="status">{text}</span>;
-  if (state.pending) return <span className="online sync-chip" data-state="waiting">{text}</span>;
-  if (state.justSent) return <span className="online sync-chip" data-state="sent" role="status">{text}</span>;
-  return <span className="online" data-state="online">{text}</span>;
+  const shortKey = state.attention > 0 ? "attention" : !online ? "offline" : state.sending ? "sending" : "online";
+  const content = <><span className="sync-full">{text}</span><span aria-hidden="true" className="sync-short">{t(`shell.short.${shortKey}`)}</span></>;
+  const accessible = { "aria-label": text, title: text };
+  if (state.attention > 0) return <Link {...accessible} className="online offline sync-chip" data-state="attention" to={attentionHref}>{content}</Link>;
+  if (!online) return <span {...accessible} className="online offline" data-state="offline">{content}</span>;
+  if (state.sending) return <span {...accessible} className="online sync-chip" data-state="sending" role="status">{content}</span>;
+  if (state.pending) return <span {...accessible} className="online sync-chip" data-state="waiting">{content}</span>;
+  if (state.justSent) return <span {...accessible} className="online sync-chip" data-state="sent" role="status">{content}</span>;
+  return <span {...accessible} className="online" data-state="online">{content}</span>;
 }
 
 export function AppShell() {

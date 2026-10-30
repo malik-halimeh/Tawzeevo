@@ -10,6 +10,7 @@ import "../ordersList.css";
 import { readLastChoice, rememberChoice } from "./lastChoice";
 import { type ListAction } from "./listKit/ActionMenu";
 import { ChipRow } from "./listKit/ChipRow";
+import { ListToolbar } from "./listKit/ListToolbar";
 import { ListHeader } from "./listKit/ListHeader";
 import { ListRow } from "./listKit/ListRow";
 import { NextSteps } from "./NextSteps";
@@ -185,10 +186,10 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
       <ListHeader count={loadedOrders?.length} countKey="ordersList.count" eyebrow={t("orders.kicker")} title={t("orders.title")} />
       {awaiting > 0 ? <p className="orders-awaiting"><span className="status-badge">{t("orders.awaiting", { count: awaiting })}</span></p> : null}
       <p className="muted">{t("orders.body")}</p>
-      <ChipRow<OrderFilter> label={t("ordersList.states")} value={stateFilter} onChange={setStateFilter} chips={[
+      <ListToolbar chips={<ChipRow<OrderFilter> label={t("ordersList.states")} value={stateFilter} onChange={setStateFilter} chips={[
         { value: "ALL", label: t("ordersList.all"), count: loadedOrders?.length },
         ...ORDER_STATES.map((status) => ({ value: status, label: t(`orders.status.${status}`), count: loadedOrders === undefined ? undefined : orders.filter((order) => order.status === status).length })),
-      ]} />
+      ]} />} />
       {error ? <ErrorState error={error} /> : null}
       {notice ? <p className="form-status" role="status">{notice}</p> : null}
       <div className="orders-layout">

@@ -116,3 +116,23 @@
 @media print {
   .fab-dock, .filter-sheet-button, .list-row-actions, .list-head .list-icon-button { display: none; }
 }
+
+@media screen {
+  .list-toolbar { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+  .list-toolbar-chips { flex: 1; min-inline-size: 0; }
+  .list-toolbar-chips .chip-row { margin-inline: 0; }
+  .list-toolbar > :is(.filter-sheet-button, .list-sort) { flex: none; }
+  .list-toolbar:not(:has(.list-toolbar-chips)) { justify-content: end; }
+  .list-toolbar .list-sort-button { font-size: 12px; padding-inline: var(--space-2); white-space: nowrap; }
+  .list-row-sub { unicode-bidi: plaintext; }
+  .chip, .filter-sheet-button { box-shadow: var(--card-shadow); }
+  .chip:focus-visible, .filter-sheet-button:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .chip[aria-pressed="true"] { border-color: var(--accent-edge); }
+  .fab { border-radius: 18px; background: var(--citron); color: var(--mint-ink); box-shadow: var(--raise-shadow); }
+  .fab:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+  .fab:hover { background: var(--citron); }
+  .list-rows { display: grid; gap: 8px; border: 0; background: transparent; box-shadow: none; }
+  .list-row { border: 1px solid var(--edge); border-radius: var(--radius-record); background: var(--card); box-shadow: var(--card-shadow); }
+  .list-row:first-child { border-block-start: 1px solid var(--edge); }
+}

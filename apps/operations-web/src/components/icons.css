@@ -1,0 +1,17 @@
+/* More specific than legacy .icon and contextual stroke widths, in either import order. */
+svg.icon.icon-solid {
+  fill: currentColor;
+  stroke: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+svg.icon.icon-solid .icon-strokes {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+}
+
+/* Black details remove coverage rather than painting a background colour. */
+svg.icon.icon-solid .icon-mask { mask-type: luminance; }

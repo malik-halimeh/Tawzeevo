@@ -81,6 +81,13 @@ function violations(css: string, file: string): string[] {
 }
 
 describe("design tokens", () => {
+  it("defines the approved six-step spacing scale", () => {
+    const tokens: Record<string, string> = {};
+    postcss.parse(readFileSync(resolve(__dirname, "styles.css"), "utf8")).walkRules(":root", (rule) => {
+      rule.walkDecls(/^--space-/, ({ prop, value }) => { tokens[prop] = value; });
+    });
+    expect(tokens).toEqual({ "--space-1": "4px", "--space-2": "8px", "--space-3": "12px", "--space-4": "16px", "--space-5": "20px", "--space-6": "24px" });
+  });
   it("keeps screen colour literals in custom properties throughout src, excluding src/demo", () => {
     const files = cssFiles(__dirname);
     expect(files.length).toBeGreaterThan(0);

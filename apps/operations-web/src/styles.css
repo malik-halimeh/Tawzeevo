@@ -12,30 +12,37 @@
 @font-face { font-family: "PlexMono"; src: url("./assets/fonts/plex-mono-Regular.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
 @font-face { font-family: "PlexMono"; src: url("./assets/fonts/plex-mono-SemiBold.woff2") format("woff2"); font-weight: 600 700; font-display: swap; }
 
-/* ---------- Tokens (Plan D "The Tawzeevo Map": limestone paper, cedar ink; line colours live in map.css) ---------- */
+/* ---------- Cedar tokens (owner-approved MR-10; paper-object shapes live in map.css) ---------- */
 :root {
-  --paper: #f2f5f3;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --paper: #f3f6f4;
   --surface: #ffffff;
-  --ink: #13262f;
-  --muted: #4f6169;
-  --blue: #2455d6;
-  --blue-deep: #173b98;
-  --mist: #e4ecfb;
-  --citron: #ddeb6a;
-  --citron-deep: #c9d94f;
-  --line: #d5deda;
-  --line-strong: #8e9c98;
-  --good: #1e6b45;
-  --good-bg: #e4f4ea;
+  --ink: #10231e;
+  --muted: #56675f;
+  --blue: #0f6b55;
+  --blue-deep: #0b5644;
+  --mist: #def3eb;
+  --citron: #13c08e;
+  --citron-deep: #0f6b55;
+  --mint-ink: #062a20;
+  --line: #e3ebe7;
+  --line-strong: #87988f;
+  --good: #127e4c;
+  --good-bg: #e3f6ec;
   --good-line: #bddcc9;
-  --warn: #7d4e00;
-  --warn-bg: #fff1cf;
+  --warn: #9a5b00;
+  --warn-bg: #fff0d6;
   --warn-line: #e6cd92;
-  --bad: #a3263a;
-  --bad-bg: #fde9ec;
+  --bad: #c62842;
+  --bad-bg: #ffe6ea;
   --bad-line: #efc3ca;
-  --radius-control: 8px;
-  --radius-record: 13px;
+  --radius-control: 12px;
+  --radius-record: 14px;
   --radius-dialog: 16px;
   --bottom-nav: 76px;
   --keyboard: 0px;
@@ -43,11 +50,11 @@
   --font-arabic: "PlexArabic", "Plex", "Segoe UI", Tahoma, sans-serif;
   /* Names kept from the earlier stylesheet so the gated role gallery (src/demo) stays coherent. */
   --panel: var(--surface);
-  --ink-soft: #2b4257;
+  --ink-soft: var(--blue-deep);
   --route: var(--blue);
   --route-dark: var(--blue-deep);
   --sky: var(--mist);
-  --sky-deep: #c5d5ec;
+  --sky-deep: #b7d9cd;
   --success: var(--good);
   --success-soft: var(--good-bg);
   --warning: var(--warn);
@@ -55,42 +62,56 @@
   --danger: var(--bad);
   --danger-soft: var(--bad-bg);
   --shadow: none;
-  /* ---------- Semantic surfaces ---------- */
+  /* Flat surfaces; the signature header is the only graduated surface. */
   --bg: var(--paper);
   --bar: var(--surface);
   --card: var(--surface);
-  --chip: var(--surface);
-  --field-bg: var(--surface);
+  --chip: var(--card);
+  --field-bg: #f5f8f6;
   --edge: var(--line);
   --edge-strong: var(--line-strong);
+  /* Flat companions for fields, colour stops, borders and other colour-only properties. */
+  --bg-solid: var(--bg);
+  --bar-solid: var(--bar);
+  --card-solid: var(--card);
+  --chip-solid: var(--card-solid);
   --accent: var(--blue);
   --accent-hover: var(--blue-deep);
+  --accent-solid: var(--accent);
+  --accent-edge: var(--accent);
+  --accent-hover-edge: var(--accent-hover);
   --accent-ink: var(--on-solid);
-  --card-shadow: none;
-  --bar-shadow: none;
-  --raise-shadow: none;
+  --card-shadow: 0 1px 2px rgb(16 35 30 / .07);
+  --bar-shadow: var(--card-shadow);
+  --raise-shadow: 0 6px 16px rgb(19 192 142 / .4);
+  --band-start: #0d3b31;
+  --band-end: #12584a;
+  --band: linear-gradient(160deg, var(--band-start), var(--band-end));
+  --band-ink: #ffffff;
+  --band-muted: #b7d9cd;
+  --band-glass: rgb(255 255 255 / .12);
   /* ---------- Controls, illustrations and shadow colours ---------- */
   --on-solid: #fff;
-  --bad-hover: #862331;
-  --good-hover: #184c35;
-  --input-icon: #677f94;
-  --loading-fill: #e7edf5;
-  --board-edge: #d1deec;
-  --board-hover: #dce7f7;
-  --story-ink: #e0e8ff;
-  --story-path: #91b1ff;
-  --story-icon: #f0f4ff;
-  --story-edge: #7597f0;
-  --edge-cool: #bdcad9;
+  --bad-hover: var(--bad);
+  --good-hover: var(--blue-deep);
+  --input-icon: var(--muted);
+  --loading-fill: var(--line);
+  --board-edge: var(--line);
+  --board-hover: var(--mist);
+  --story-ink: var(--band-muted);
+  --story-path: var(--citron);
+  --story-icon: var(--surface);
+  --story-edge: var(--line-strong);
+  --edge-cool: var(--line);
   --attention-edge: #c9b47a;
-  --day-ink: #dbe6ff;
-  --day-meter: #8aa5e6;
-  --day-foot-ink: #e9efff;
+  --day-ink: var(--band-muted);
+  --day-meter: var(--citron);
+  --day-foot-ink: var(--band-ink);
   --estimate-ink: #815108;
-  --selected-edge: #b9cbed;
-  --action-edge: #c9d5e5;
+  --selected-edge: var(--line-strong);
+  --action-edge: var(--line);
   --camera-bg: #000;
-  --shadow-tint: 19 38 47;
+  --shadow-tint: 16 35 30;
   --toast-shadow: 0 8px 24px rgb(23 42 58 / 14%);
   --drawer-shadow: 0 0 24px rgba(23, 42, 58, 0.18);
   --pin-shadow: 0 1px 3px rgba(23, 42, 58, .35);
@@ -153,8 +174,8 @@ html[dir="rtl"] .directional { transform: scaleX(-1); }
 .eyebrow .icon, .section-kicker .icon { width: 18px; height: 18px; color: var(--blue); }
 
 /* ---------- Buttons ---------- */
-.button { min-height: 48px; padding: 12px 19px; border-radius: 9px; border: 1px solid var(--accent); display: inline-flex; align-items: center; justify-content: center; gap: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 500; font-size: 15px; line-height: 1.3; text-align: center; text-decoration: none; transition: background .15s, border-color .15s; }
-.button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.button { min-height: 48px; padding: 12px 19px; border-radius: 9px; border: 1px solid var(--accent-edge); display: inline-flex; align-items: center; justify-content: center; gap: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 500; font-size: 15px; line-height: 1.3; text-align: center; text-decoration: none; transition: border-color .15s; }
+.button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover-edge); }
 .button:active:not(:disabled) { transform: translateY(1px); }
 .button-small { min-height: 44px; padding: 9px 16px; }
 .button-secondary, .secondary-button { background: var(--chip); border-color: var(--edge); color: var(--ink); }
@@ -1342,4 +1363,35 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
   .owner-more-copy small { color: var(--muted); font-size: 12px; }
   .owner-more-chevron { display: inline-block; margin-inline-start: auto; font-size: 24px; color: var(--muted); }
   /* The chevron text glyph mirrors itself in RTL. */
+}
+
+@media print {
+  /* ML-02 preserves the pre-metal print palette and surfaces. */
+  :root {
+    --surface: #ffffff;
+    --ink: #13262f;
+    --muted: #4f6169;
+    --blue: #2455d6;
+    --blue-deep: #173b98;
+    --mist: #e4ecfb;
+    --line: #d5deda;
+    --line-strong: #8e9c98;
+    --bg: var(--paper);
+    --bar: var(--surface);
+    --card: var(--surface);
+    --chip: var(--surface);
+    --field-bg: var(--surface);
+    --accent: var(--blue);
+    --accent-hover: var(--blue-deep);
+    --card-shadow: none;
+    --bar-shadow: none;
+    --raise-shadow: none;
+    --bg-solid: var(--paper);
+    --bar-solid: var(--surface);
+    --card-solid: var(--surface);
+    --chip-solid: var(--surface);
+    --accent-solid: var(--accent);
+    --accent-edge: var(--accent);
+    --accent-hover-edge: var(--accent-hover);
+  }
 }
