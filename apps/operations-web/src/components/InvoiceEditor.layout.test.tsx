@@ -54,6 +54,37 @@ function stubApi(routes: (url: string, method: string) => Response | Promise<Res
 const typedSearches = () => requests.filter((row) => row.url.includes("/customers?q="));
 const renderEditor = (props: { invoiceId?: string } = {}) => render(<MemoryRouter><InvoiceEditor membershipId={membershipId} tenantId={tenantId} {...props} /></MemoryRouter>);
 
+test.each(["en", "ar"])("short line and grand totals preserve four-decimal manual prices and payloads in %s", async (language) => {
+  await i18n.changeLanguage(language);
+  const saved = invoice({ subtotal: "6.5100", net_sales: "6.5100", total_due: "9.5100", items: [line({ normal_unit_price: "3.2550", effective_unit_price: "3.2550", line_total: "6.5100" })] });
+  stubApi((url, method) => url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`) && method === "POST" ? Response.json(saved, { status: 201 }) : undefined);
+  renderEditor();
+  const phone = screen.getByLabelText(i18n.t("fields.phone"));
+  fireEvent.change(phone, { target: { value: "+96170" } });
+  fireEvent.submit(phone.closest("form")!);
+  fireEvent.click(await screen.findByRole("button", { name: /Maya Market/ }));
+  fireEvent.click(within(screen.getByRole("group", { name: i18n.t("invoiceEditor.entryMethods") })).getByRole("button", { name: i18n.t("invoiceEditor.manualEntry") }));
+  fireEvent.change(screen.getByRole("textbox", { name: i18n.t("invoiceEditor.itemName") }), { target: { value: "Water crate" } });
+  fireEvent.change(screen.getByRole("textbox", { name: i18n.t("invoiceEditor.quantity") }), { target: { value: "2" } });
+  const price = screen.getByRole<HTMLInputElement>("spinbutton", { name: i18n.t("invoiceEditor.unitPrice") });
+  expect(price).toHaveAttribute("placeholder", "0.0000");
+  expect(price).toHaveAttribute("step", "0.0001");
+  fireEvent.change(price, { target: { value: "3.2550" } });
+  expect(price.value).toBe("3.2550");
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("invoiceEditor.addManual") }));
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("invoiceEditor.saveDraft") }));
+  const lines = screen.getByRole("region", { name: i18n.t("invoiceEditor.invoiceLines") });
+  const compact = await within(lines).findByText("6.51 $", { selector: ".line-compact-total" });
+  expect(compact.tagName).toBe("BDI");
+  expect(compact).toHaveAttribute("dir", "ltr");
+  expect(document.querySelector(".tally-group .total-due")).toHaveTextContent("9.51 $");
+  expect(within(screen.getByRole("group", { name: i18n.t("invoiceEditorLayout.actions") })).getByText("6.51 $")).toHaveAttribute("dir", "ltr");
+  const save = requests.find((request) => request.method === "POST" && request.url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`))!;
+  expect((JSON.parse(save.body!) as { items: unknown }).items).toMatchObject([{ manual_unit_price: "3.2550", quantity_expression: "2" }]);
+  fireEvent.change(price, { target: { value: "0.0000" } });
+  expect(price.value).toBe("0.0000");
+});
+
 beforeEach(async () => {
   sessionStorage.clear();
   await i18n.changeLanguage("en");
@@ -83,7 +114,7 @@ test("typing two or more characters shows matching customers by name, after a sh
   expect(typedSearches().map((row) => row.url.split("/api/v1")[1])).toEqual([`/tenants/${tenantId}/customers?q=may&limit=10`]); // only the latest text
   expect(within(match).getByText("+96170123456")).toHaveAttribute("dir", "ltr");
   expect(within(match).getByText("+96170123456").tagName).toBe("BDI");
-  expect(match).toHaveTextContent("Owes 12.5000 USD");
+  expect(match).toHaveTextContent("Owes 12.50 $");
   expect(screen.getByText("1 customer matches what you typed.")).toBeInTheDocument();
   fireEvent.click(match);
   expect(within(screen.getByRole("region", { name: "Customer and currency" })).getByText("Maya Market")).toBeInTheDocument();
@@ -130,7 +161,7 @@ test("compact lines sit inside the entry card and expand to every existing contr
   const edit = within(lines).getByRole("button", { name: "Edit line 1, Ice" });
   expect(edit).toHaveAttribute("aria-expanded", "false");
   expect(edit).toHaveTextContent("Ice");
-  expect(edit).toHaveTextContent("× 3 Piece");
+  expect(edit).toHaveTextContent("× 3.00 $ Piece");
   expect(edit).toHaveTextContent("—");
   expect(within(lines).getByRole("group", { name: "Quantity for Ice" })).toHaveTextContent("1");
   fireEvent.click(edit);
@@ -176,8 +207,8 @@ test("saved adjustments have a compact marker; expanding one line closes the pre
   expect(within(lines).getByRole("button", { name: /\(Ice bag\)/ })).toHaveAttribute("aria-expanded", "true");
   expect(within(lines).getAllByLabelText("Line discount")[1]).toHaveValue("0.5");
   // The saved revision is what the lines show: each line's own server total.
-  expect(within(first).getByText("10.0000 USD")).toBeVisible();
-  expect(within(second).getByText("4.5000 USD")).toBeVisible();
+  expect(within(first).getByText("10.00 $")).toBeVisible();
+  expect(within(second).getByText("4.50 $")).toBeVisible();
 });
 
 test("the action bar holds the editor's only Save and Confirm, with their handlers and disabled rules", async () => {
@@ -212,7 +243,7 @@ test("the action bar holds the editor's only Save and Confirm, with their handle
   const confirm = await within(bar()).findByRole("button", { name: "Confirm and assign invoice number" });
   expect(saves).toHaveLength(1);
   expect(within(bar()).getByText("Invoice total (USD)")).toBeInTheDocument();
-  expect(within(bar()).getByText("10.0000")).toBeInTheDocument(); // the saved revision's total
+  expect(within(bar()).getByText("10.00 $")).toBeInTheDocument(); // the saved revision's total
   expect(screen.getAllByRole("button", { name: "Confirm and assign invoice number" })).toEqual([confirm]);
   expect(confirm).toBeEnabled();
   // A change after saving: the same Confirm turns off and says why, inside the bar.
@@ -231,8 +262,15 @@ test("the action bar holds the editor's only Save and Confirm, with their handle
   const document_ = await screen.findByRole("article", { name: "2026-000007" });
   expect(confirms).toHaveLength(1);
   const documentBar = within(document_).getByRole("group", { name: "Invoice actions" });
+  expect(within(document_).getByText("13.00 $")).toHaveAttribute("dir", "ltr");
+  expect(within(document_).getByRole("table")).toHaveTextContent("5.00 $");
+  expect(within(documentBar).getByText("10.00 $")).toHaveAttribute("dir", "ltr");
   fireEvent.click(within(documentBar).getByRole("button", { name: "Print" }));
   expect(print).toHaveBeenCalledTimes(1);
+  expect(document.body).toHaveClass("print-invoice");
+  expect(within(document_).getByText("13.00 $")).toBeVisible();
+  fireEvent(window, new Event("afterprint"));
+  expect(document.body).not.toHaveClass("print-invoice");
   expect(screen.getAllByRole("button", { name: "Print" })).toHaveLength(1);
 });
 

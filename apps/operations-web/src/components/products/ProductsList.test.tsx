@@ -219,7 +219,7 @@ test("Arabic RTL shows both product names, translated controls and an isolated L
   renderProducts(); await ready();
   expect(row().closest("[dir]")).toHaveAttribute("dir", "rtl");
   expect(within(row()).getByText("مياه الأرز")).toHaveAttribute("lang", "ar");
-  expect(within(row()).getByText("2.0000 USD / PIECE")).toHaveAttribute("dir", "ltr");
+  expect(within(row()).getByText("2.00 $ / PIECE")).toHaveAttribute("dir", "ltr");
   expect(screen.getByRole("button", { name: "مشروبات" })).toBeInTheDocument();
   fireEvent.click(within(row()).getByRole("button", { name: "إجراءات أخرى لـ Cedar Water" }));
   const menu = within(row()).getByRole("group", { name: "إجراءات أخرى لـ Cedar Water" });

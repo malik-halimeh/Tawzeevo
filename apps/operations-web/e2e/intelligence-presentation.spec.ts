@@ -60,7 +60,7 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
   await expect(today.getByRole("link")).toHaveCount(1);
   await expect(today).toContainText("Tyre Fresh Foods");
   await expect(today).toContainText("Collect the overdue balance");
-  await expect(today).toContainText(loose("250.0000 USD overdue for 40 days"));
+  await expect(today).toContainText(loose("250.00 $ overdue for 40 days"));
 
   // ----- The priority opens the customer's record with the phone to call and the reasons -----
   await today.getByRole("link", { name: /Tyre Fresh Foods/ }).click();
@@ -75,7 +75,7 @@ test("priorities, a customer's signals, cash ageing and the assistant work toget
   // ----- Analytics: the same 250 USD is overdue and sits in the 31–60 day bucket -----
   await openSection(page, "Analytics");
   const cash = page.getByRole("article", { name: "Cash position in USD" });
-  await expect(cash).toContainText(loose("250.0000 USD of 250.0000 USD owed (1 customer)"));
+  await expect(cash).toContainText(loose("250.00 $ of 250.00 $ owed (1 customer)"));
   await expect(cash.getByRole("table", { name: "Unpaid balances by age, USD" })).toContainText("31–60 days");
   await expect(page.getByRole("heading", { name: "Unusual changes this week" })).toBeVisible();
   await expect(page.getByText(/Nothing unusual in the last 7 days\.|Not enough history yet/).first()).toBeVisible();

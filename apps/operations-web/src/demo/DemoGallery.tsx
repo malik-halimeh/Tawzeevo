@@ -1,3 +1,4 @@
+import { formatMoney } from "../utils/money";
 import { FormEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -22,10 +23,10 @@ interface DemoProduct {
 interface CheckoutDetails { name: string; phone: string; address: string; }
 
 const products: readonly DemoProduct[] = [
-  { id: "tomato", category: "pantry", name: { en: "Tomato paste", ar: "معجون طماطم" }, detail: { en: "660 g · piece", ar: "660 غ · حبة" }, price: "165,000 LBP", mark: "TP", tone: "coral" },
-  { id: "oil", category: "pantry", name: { en: "Sunflower oil", ar: "زيت دوار الشمس" }, detail: { en: "1.5 L · piece", ar: "1.5 ل · حبة" }, price: "235,000 LBP", mark: "SO", tone: "gold" },
-  { id: "cleaner", category: "home", name: { en: "Laundry gel", ar: "جل للغسيل" }, detail: { en: "2 L · piece", ar: "2 ل · حبة" }, price: "310,000 LBP", mark: "LG", tone: "blue" },
-  { id: "water", category: "drinks", name: { en: "Sparkling water", ar: "مياه غازية" }, detail: { en: "6 × 1.5 L · pack", ar: "6 × 1.5 ل · عبوة" }, price: "190,000 LBP", mark: "SW", tone: "mint" },
+  { id: "tomato", category: "pantry", name: { en: "Tomato paste", ar: "معجون طماطم" }, detail: { en: "660 g · piece", ar: "660 غ · حبة" }, price: "165000", mark: "TP", tone: "coral" },
+  { id: "oil", category: "pantry", name: { en: "Sunflower oil", ar: "زيت دوار الشمس" }, detail: { en: "1.5 L · piece", ar: "1.5 ل · حبة" }, price: "235000", mark: "SO", tone: "gold" },
+  { id: "cleaner", category: "home", name: { en: "Laundry gel", ar: "جل للغسيل" }, detail: { en: "2 L · piece", ar: "2 ل · حبة" }, price: "310000", mark: "LG", tone: "blue" },
+  { id: "water", category: "drinks", name: { en: "Sparkling water", ar: "مياه غازية" }, detail: { en: "6 × 1.5 L · pack", ar: "6 × 1.5 ل · عبوة" }, price: "190000", mark: "SW", tone: "mint" },
 ] as const;
 
 const categories: readonly CategoryId[] = ["all", "pantry", "home", "drinks"];
@@ -215,14 +216,14 @@ function GuestView({ language, basket, onAdd, onCheckout }: GuestViewProps) {
           {visibleProducts.map((product) => (
             <article className="demo-product-card" key={product.id}>
               <div aria-hidden="true" className={`demo-product-visual tone-${product.tone}`}><span>{product.mark}</span></div>
-              <div className="demo-product-copy"><span>{product.detail[language]}</span><h3>{product.name[language]}</h3><bdi dir="ltr">{product.price}</bdi></div>
+              <div className="demo-product-copy"><span>{product.detail[language]}</span><h3>{product.name[language]}</h3><bdi dir="ltr">{formatMoney(product.price, "LBP", language)}</bdi></div>
               <button className="button button-secondary button-small" onClick={() => onAdd(product.id)} type="button">{text.add}<span aria-hidden="true">＋</span></button>
             </article>
           ))}
         </div>
         <aside aria-labelledby="demo-basket-title" className="demo-basket">
           <div><p className="section-kicker">{formatItemCount(language, basketProducts.length)}</p><h3 id="demo-basket-title">{text.basket}</h3></div>
-          {basketProducts.length === 0 ? <p className="demo-basket-empty">{text.emptyBasket}</p> : <ol>{basketProducts.map((product, index) => <li key={`${product.id}-${index}`}><span>{product.name[language]}</span><bdi dir="ltr">{product.price}</bdi></li>)}</ol>}
+          {basketProducts.length === 0 ? <p className="demo-basket-empty">{text.emptyBasket}</p> : <ol>{basketProducts.map((product, index) => <li key={`${product.id}-${index}`}><span>{product.name[language]}</span><bdi dir="ltr">{formatMoney(product.price, "LBP", language)}</bdi></li>)}</ol>}
           <button className="button" disabled={basketProducts.length === 0} onClick={() => setCheckoutOpen(true)} type="button">{text.review}</button>
         </aside>
       </div>
@@ -246,7 +247,7 @@ function CustomerView({ language, details, basket }: CustomerViewProps) {
         <header><div><span>{text.reference}</span><strong>DEMO-1048</strong></div><span className="demo-order-stamp" aria-hidden="true">✓</span></header>
         <div className="demo-order-grid">
           <section aria-labelledby="demo-contact-title"><h3 id="demo-contact-title">{text.contact}</h3><strong>{customer.name}</strong><bdi dir="ltr">{customer.phone}</bdi><span>{customer.address}</span></section>
-          <section aria-labelledby="demo-items-title"><h3 id="demo-items-title">{text.items}</h3><ol>{orderProducts.map((product, index) => <li key={`${product.id}-${index}`}><span>{product.name[language]}</span><bdi dir="ltr">{product.price}</bdi></li>)}</ol></section>
+          <section aria-labelledby="demo-items-title"><h3 id="demo-items-title">{text.items}</h3><ol>{orderProducts.map((product, index) => <li key={`${product.id}-${index}`}><span>{product.name[language]}</span><bdi dir="ltr">{formatMoney(product.price, "LBP", language)}</bdi></li>)}</ol></section>
         </div>
         <footer>{cancellationRequested ? <div className="demo-requested" role="status"><strong>{text.requested}</strong><span>{text.requestedBody}</span></div> : <button className="button button-secondary" onClick={() => setCancellationRequested(true)} type="button">{text.request}</button>}</footer>
       </div>
@@ -314,8 +315,8 @@ function OwnerView({ language }: { language: DemoLanguage }) {
                 <small>{text.productDetail}</small><strong>{text.productName}</strong><bdi dir="ltr">5285001234567</bdi>
               </div>
               <dl>
-                <div><dt>{text.piecePrice}</dt><dd><bdi dir="ltr">165,000 LBP</bdi></dd></div>
-                <div><dt>{text.boxPrice}</dt><dd><bdi dir="ltr">1,980,000 LBP</bdi><small>{text.piecesPerBox}</small></dd></div>
+                <div><dt>{text.piecePrice}</dt><dd><bdi dir="ltr">{formatMoney("165000", "LBP", language)}</bdi></dd></div>
+                <div><dt>{text.boxPrice}</dt><dd><bdi dir="ltr">{formatMoney("1980000", "LBP", language)}</bdi><small>{text.piecesPerBox}</small></dd></div>
               </dl>
               <button className="button button-small" onClick={() => setDraftAdded(true)} type="button">{text.addToDraft}</button>
             </div>
@@ -330,7 +331,7 @@ function OwnerView({ language }: { language: DemoLanguage }) {
           {draftAdded ? (
             <div className="demo-draft-line" aria-live="polite">
               <div><strong>{text.productName}</strong><span>{text.draftLine}</span></div>
-              <bdi dir="ltr">2 × 165,000 LBP</bdi>
+              <bdi dir="ltr">2 × {formatMoney("165000", "LBP", language)}</bdi>
             </div>
           ) : <p className="demo-draft-empty">{text.draftEmpty}</p>}
           <footer>{text.previewNote}</footer>

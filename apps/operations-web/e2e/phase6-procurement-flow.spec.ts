@@ -52,7 +52,7 @@ test("demand → procurement → purchase → payable → payment", async ({ pag
   const table = page.getByRole("table").first();
   await expect(table.getByText("Labneh 500g")).toBeVisible();
   await expect(table.getByText("6.0000").first()).toBeVisible(); // required = demand
-  await expect(page.getByText(/42\.0000 USD/).first()).toBeVisible(); // labelled estimate 6 × 7
+  await expect(page.getByText(/42\.00 \$/).first()).toBeVisible(); // labelled estimate 6 × 7
   await expect(page.getByText(/stock/i)).toHaveCount(1); // only the sentence saying there is none
 
   // Sole owner assigns the list to themself.
@@ -68,12 +68,12 @@ test("demand → procurement → purchase → payable → payment", async ({ pag
   await form.getByLabel("Line 1 quantity").fill("4");
   await form.getByLabel("Line 1 unit cost").fill("7.2");
   await form.getByRole("button", { name: "Record purchase" }).click();
-  await expect(page.getByText("Purchase recorded: 28.8000 USD added to the supplier payable.")).toBeVisible();
+  await expect(page.getByText("Purchase recorded: ⁦28.80 $⁩ added to the supplier payable.")).toBeVisible();
   await expect(page.getByText("Owed to suppliers · USD")).toBeVisible();
-  await expect(page.getByText("28.8000").first()).toBeVisible();
+  await expect(page.getByText("28.80 $").first()).toBeVisible();
 
   // Price insight now shows the actual purchase as last purchase.
-  await page.getByRole("combobox", { name: "Product", exact: true }).selectOption({ label: "Labneh 500g · 10.0000 USD" });
+  await page.getByRole("combobox", { name: "Product", exact: true }).selectOption({ label: "Labneh 500g · 10.00 $" });
   await expect(page.getByRole("table", { name: "Price insight per supplier" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Price insight per supplier" }).getByRole("cell", { name: /Actual purchase/ })).toBeVisible();
 
@@ -88,13 +88,13 @@ test("demand → procurement → purchase → payable → payment", async ({ pag
   await openSection(page, "Suppliers & costs");
   const ledger = page.locator(".supplier-ledger");
   await ledger.getByRole("combobox", { name: "Supplier" }).selectOption({ label: "Bekaa Dairy" });
-  await expect(ledger.getByText("28.8000")).toBeVisible();
+  await expect(ledger.getByText("28.80 $")).toBeVisible();
   await ledger.getByRole("spinbutton", { name: "Payment amount" }).fill("50");
   await ledger.getByRole("button", { name: "Record payment" }).click();
   await expect(page.getByRole("alert").first()).toBeVisible(); // over the payable → refused (D-039)
   await ledger.getByRole("spinbutton", { name: "Payment amount" }).fill("10");
   await ledger.getByRole("button", { name: "Record payment" }).click();
-  await expect(ledger.getByText("18.8000")).toBeVisible();
+  await expect(ledger.getByText("18.80 $")).toBeVisible();
 
   // The API agrees: payable 18.8 USD, nothing summed across currencies.
   const totals = await json(await api.get(`/api/v1/supplier-ledger/totals?tenant_id=${tenantId}`, { headers: owner }));

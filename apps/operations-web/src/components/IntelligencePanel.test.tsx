@@ -115,8 +115,8 @@ test("Work shows the three most pressing customers across currencies, with the a
   const rows = within(list).getAllByRole("link");
   expect(rows.map((row) => row.querySelector("strong")?.textContent)).toEqual(["Tyre Fresh Foods", "Byblos Grocery", "Hamra Café"]);
   expect(plain(rows[0]!)).toContain("Collect the overdue balance");
-  expect(plain(rows[0]!)).toContain("640.5000 USD overdue for 75 days — well past the 30-day limit");
-  expect(plain(rows[2]!)).toContain("Owes 900000.0000 LBP (oldest unpaid charge: 12 days)"); // each amount keeps its own currency
+  expect(plain(rows[0]!)).toContain("640.50 $ overdue for 75 days — well past the 30-day limit");
+  expect(plain(rows[2]!)).toContain("Owes 900,000 LBP (oldest unpaid charge: 12 days)"); // each amount keeps its own currency
   expect(rows[0]).toHaveAttribute("href", "/workspace?tenant=t1&section=customers&customer=c-tyre");
   expect(screen.getByText("1 more customer is on the priority list in Customers.")).toBeInTheDocument();
   expect(screen.getByText(/4 unusual changes this week\./)).toBeInTheDocument();
@@ -145,7 +145,7 @@ test("Customers ranks attention per currency, hides low priority until asked, an
   const usd = await screen.findByRole("list", { name: "Priorities · USD" });
   expect(within(usd).getAllByRole("link").map((row) => row.querySelector("strong")?.textContent)).toEqual(["Tyre Fresh Foods", "Byblos Grocery", "Batroun Bakery"]);
   expect(within(usd).getAllByText(/High priority/)[0]).toHaveTextContent("High priority · 88");
-  expect(plain(usd)).toContain("Buying less: 20.0000 USD in the last 30 days against 600.0000 USD over 90 days");
+  expect(plain(usd)).toContain("Buying less: 20.00 $ in the last 30 days against 600.00 $ over 90 days");
   expect(plain(usd)).toContain("2 recent cancellations");
   expect(screen.getByRole("heading", { name: "LBP" })).toBeInTheDocument();
   expect(screen.getByText(/Currencies are listed separately on purpose/)).toBeInTheDocument();
@@ -187,11 +187,11 @@ test("the cash position shows overdue, ageing in order, net collections and a la
   const calls = stubApi(standard);
   renderWith(<CashFlowSection period="90d" tenantId={TENANT} />);
   const usd = await screen.findByRole("article", { name: "Cash position in USD" });
-  expect(plain(usd)).toContain("950.5000 USD of 1450.0000 USD owed (2 customers)");
-  expect(plain(usd)).toContain("5050.0000 USD · refunds paid 150.0000 USD");
+  expect(plain(usd)).toContain("950.50 $ of 1,450.00 $ owed (2 customers)");
+  expect(plain(usd)).toContain("5,050.00 $ · refunds paid 150.00 $");
   const ageing = within(usd).getByRole("table", { name: "Unpaid balances by age, USD" });
   expect(within(ageing).getAllByRole("row").slice(1).map((row) => row.firstChild?.textContent)).toEqual(["0–30 days", "61–90 days", "Over 90 days"]);
-  expect(plain(usd)).toContain("Planned deliveries from 2026-09-25 to 2026-10-01: 420.0000 USD to collect on 3 deliveries.");
+  expect(plain(usd)).toContain("Planned deliveries from 2026-09-25 to 2026-10-01: 420.00 $ to collect on 3 deliveries.");
   expect(plain(usd)).toContain("it leaves out later invoice adjustments and is not a promise of payment");
   const lbp = screen.getByRole("article", { name: "Cash position in LBP" });
   expect(plain(lbp)).toContain("No customer owes anything in this currency.");
@@ -208,12 +208,12 @@ test("unusual changes read as prompts to look, link to their record and say whic
   const items = within(usd).getAllByRole("listitem");
   expect(items[0]).toHaveTextContent("Sales this week are unusually high");
   expect(within(items[0]!).getByText("Very unusual")).toBeInTheDocument();
-  expect(plain(items[0]!)).toContain("4200.0000 USD this week; usually about 1500.0000 USD a week");
-  expect(plain(items[1]!)).toContain("Tripoli Traders: an invoice of 900.0000 USD; this customer's invoices are usually about 80.0000 USD");
+  expect(plain(items[0]!)).toContain("4,200.00 $ this week; usually about 1,500.00 $ a week");
+  expect(plain(items[1]!)).toContain("Tripoli Traders: an invoice of 900.00 $; this customer's invoices are usually about 80.00 $");
   expect(within(items[1]!).getByRole("link", { name: "Open the invoice" })).toHaveAttribute("href", "/workspace?tenant=t1&section=invoices&invoice=inv-9");
   expect(within(items[2]!).getByRole("link", { name: "Open the customer" })).toHaveAttribute("href", "/workspace?tenant=t1&section=customers&customer=c-zahle");
   expect(plain(items[3]!)).toContain("4 this week; usually about 0 a week"); // a count, not an amount
-  expect(plain(items[3]!)).not.toContain("4 USD");
+  expect(plain(items[3]!)).not.toContain("4.00 $");
   expect(screen.getByText("Not enough history yet in USD to check: refunds.")).toBeInTheDocument();
   expect(screen.getByText("Not enough history yet in LBP to check: weekly sales, supplier balances.")).toBeInTheDocument();
   expect(document.body.textContent).not.toMatch(/fraud|suspicious/i);
@@ -233,7 +233,7 @@ test("Arabic owners get the same ranking in Arabic, with amounts kept left-to-ri
   expect(within(usd).getAllByText(/أولوية عالية/)[0]).toHaveTextContent("أولوية عالية · 88");
   expect(within(usd).getAllByText("حصّل الرصيد المتأخر")).toHaveLength(1);
   const reason = within(usd).getByText(/متأخر منذ/);
-  expect(reason.textContent).toContain("⁦640.5000 USD⁩"); // isolated so the currency stays after the amount
+  expect(reason.textContent).toContain("⁦640.50 $⁩"); // isolated so the currency stays after the amount
   expect(within(usd).getByText("إلغاءان حديثان")).toBeInTheDocument(); // Arabic dual form
   expect(screen.getByRole("button", { name: "إيقاع الشراء" })).toBeInTheDocument();
 });
@@ -248,7 +248,7 @@ test("day counts carry their own unit in both languages (1 day, 2 days, يوم �
   });
   const { unmount } = renderWith(<CustomerSignals customerId="c-one" tenantId={TENANT} />);
   const signals = await screen.findByRole("region", { name: "Signals" });
-  await waitFor(() => expect(plain(signals)).toContain("Owes 67.2500 USD (oldest unpaid charge: 1 day)"));
+  await waitFor(() => expect(plain(signals)).toContain("Owes 67.25 $ (oldest unpaid charge: 1 day)"));
   unmount();
   await i18n.changeLanguage("ar");
   renderWith(<AttentionList tenantId={TENANT} />);

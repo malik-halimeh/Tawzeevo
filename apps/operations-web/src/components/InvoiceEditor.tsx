@@ -1004,12 +1004,12 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
   ) : <p className="empty-copy">{t("invoiceEditor.emptyTitle")}</p>;
   const totalsList = (source: InvoiceEditorResponse) => (
     <dl className="document-totals">
-      <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr">{money(source.prior_balance, source.currency)}</dd></div>
-      <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr">{money(source.subtotal, source.currency)}</dd></div>
-      <div><dt>{t("invoiceEditor.discounts")}</dt><dd dir="ltr">{`− ${money(source.discount_total, source.currency)}`}</dd></div>
-      <div><dt>{t("invoiceEditor.markups")}</dt><dd dir="ltr">{`+ ${money(source.markup_total, source.currency)}`}</dd></div>
-      <div className="net-sales"><dt>{t("invoiceEditor.netSales")}</dt><dd dir="ltr">{money(source.net_sales, source.currency)}</dd></div>
-      <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr">{money(source.total_due, source.currency)}</dd></div>
+      <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr"><bdi dir="ltr">{money(source.prior_balance, source.currency)}</bdi></dd></div>
+      <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr"><bdi dir="ltr">{money(source.subtotal, source.currency)}</bdi></dd></div>
+      <div><dt>{t("invoiceEditor.discounts")}</dt><dd dir="ltr"><bdi dir="ltr">{`− ${money(source.discount_total, source.currency)}`}</bdi></dd></div>
+      <div><dt>{t("invoiceEditor.markups")}</dt><dd dir="ltr"><bdi dir="ltr">{`+ ${money(source.markup_total, source.currency)}`}</bdi></dd></div>
+      <div className="net-sales"><dt>{t("invoiceEditor.netSales")}</dt><dd dir="ltr"><bdi dir="ltr">{money(source.net_sales, source.currency)}</bdi></dd></div>
+      <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr"><bdi dir="ltr">{money(source.total_due, source.currency)}</bdi></dd></div>
     </dl>
   );
 
@@ -1020,7 +1020,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
         <span className="revision-name"><strong>R{revision.server_revision_number}</strong>{revision.is_current ? <span className="current-mark">{t("invoiceEditor.currentRevision")}</span> : null}</span>
         <time dateTime={revision.revision_created_at}>{new Date(revision.revision_created_at).toLocaleString()}</time>
         <bdi className="revision-amount" dir="ltr">{money(revision.net_sales, revision.currency)}</bdi>
-        {revision.ledger_delta !== null ? <small className="revision-delta" dir="ltr">Δ {money(revision.ledger_delta, revision.currency)}</small> : null}
+        {revision.ledger_delta !== null ? <small className="revision-delta" dir="ltr"><bdi dir="ltr">Δ {money(revision.ledger_delta, revision.currency)}</bdi></small> : null}
       </summary>
       <div className="revision-detail">
         {revision.reason ? <p className="revision-reason"><span>{t("invoiceEditor.revisionReason")}</span> {revision.reason}</p> : null}
@@ -1157,7 +1157,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
               </form>
               <form className="entry-method" hidden={entryMethod !== "catalog"} id="entry-method-catalog" onSubmit={searchCatalog}>
                 <div className="inline-form"><input ref={catalogInput} aria-label={t("invoiceEditor.catalogSearch")} placeholder={t("invoiceEditor.catalogSearch")} required value={catalogQuery} onChange={(event) => { catalogSuggestions.cancel(); setCatalogMatches([]); setCatalogQuery(event.target.value); }} /><button className="button button-secondary" disabled={busy} type="submit">{t("common.search")}</button></div>
-                <div className="catalog-match-buttons">{catalogMatches.map((match) => <button key={match.product_id} onClick={() => addCatalogMatch(match)} type="button"><strong>{match.name}</strong><span>{money(match.unit_price, match.currency)}</span></button>)}</div>
+                <div className="catalog-match-buttons">{catalogMatches.map((match) => <button key={match.product_id} onClick={() => addCatalogMatch(match)} type="button"><strong>{match.name}</strong><bdi dir="ltr">{money(match.unit_price, match.currency)}</bdi></button>)}</div>
               </form>
               <form className="entry-method text-list-method" hidden={entryMethod !== "text"} id="entry-method-text" onSubmit={parseText}>
                 <textarea aria-label={t("invoiceEditor.textEntry")} placeholder={t("invoiceEditor.textPlaceholder")} required rows={4} value={textList} onChange={(event) => setTextList(event.target.value)} />
@@ -1213,26 +1213,26 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
           <div aria-labelledby="tally-subtotal-title" className="tally-group" role="group">
             <p className="tally-group-title" id="tally-subtotal-title">{t("invoiceEditorLayout.subtotalCard")}</p>
             <dl>
-              <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr">{saved ? money(saved.subtotal, saved.currency) : "—"}</dd></div>
-              <div><dt>{t("invoiceEditor.discounts")}</dt><dd dir="ltr">{saved ? `− ${money(saved.discount_total, saved.currency)}` : "—"}</dd></div>
-              <div><dt>{t("invoiceEditor.markups")}</dt><dd dir="ltr">{saved ? `+ ${money(saved.markup_total, saved.currency)}` : "—"}</dd></div>
+              <div><dt>{t("invoiceEditor.subtotal")}</dt><dd dir="ltr"><bdi dir="ltr">{saved ? money(saved.subtotal, saved.currency) : "—"}</bdi></dd></div>
+              <div><dt>{t("invoiceEditor.discounts")}</dt><dd dir="ltr"><bdi dir="ltr">{saved ? `− ${money(saved.discount_total, saved.currency)}` : "—"}</bdi></dd></div>
+              <div><dt>{t("invoiceEditor.markups")}</dt><dd dir="ltr"><bdi dir="ltr">{saved ? `+ ${money(saved.markup_total, saved.currency)}` : "—"}</bdi></dd></div>
             </dl>
             <div className="tally-adjustments"><label className="field"><span>{t("invoiceEditor.invoiceDiscount")}</span><input dir="ltr" value={invoiceDiscount} onChange={(event) => setInvoiceDiscount(event.target.value)} /></label><label className="field"><span>{t("invoiceEditor.invoiceMarkup")}</span><input dir="ltr" value={invoiceMarkup} onChange={(event) => setInvoiceMarkup(event.target.value)} /></label></div>
-            {saved?.items.map((item) => <div className="saved-line-proof" key={item.id}>{item.media_snapshot.images?.[0]?.url ? <InvoiceLineImage name={item.product_name} url={item.media_snapshot.images[0].url} /> : null}<strong>{item.product_name}</strong><span>{item.price_source === "EXPLICIT_GRADE_PRICE" ? t("invoiceEditor.explicitGradePrice") : item.price_source === "GRADE_DISCOUNT" ? t("invoiceEditor.gradeDiscount", { value: item.grade_discount_percent }) : t("invoiceEditor.normalPrice")}</span><bdi dir="ltr">{money(item.line_total, saved.currency)}</bdi>{item.unit_cost ? <small>{t("invoiceEditor.costSnapshot", { value: item.unit_cost, currency: item.cost_currency })}</small> : null}</div>)}
+            {saved?.items.map((item) => <div className="saved-line-proof" key={item.id}>{item.media_snapshot.images?.[0]?.url ? <InvoiceLineImage name={item.product_name} url={item.media_snapshot.images[0].url} /> : null}<strong>{item.product_name}</strong><span>{item.price_source === "EXPLICIT_GRADE_PRICE" ? t("invoiceEditor.explicitGradePrice") : item.price_source === "GRADE_DISCOUNT" ? t("invoiceEditor.gradeDiscount", { value: item.grade_discount_percent }) : t("invoiceEditor.normalPrice")}</span><bdi dir="ltr">{money(item.line_total, saved.currency)}</bdi>{item.unit_cost ? <small>{t("invoiceEditor.costSnapshot", { amount: `⁦${money(item.unit_cost, item.cost_currency ?? saved.currency)}⁩` })}</small> : null}</div>)}
           </div>
           <div aria-labelledby="tally-total-title" className="tally-group" role="group">
             <p className="tally-group-title" id="tally-total-title">{t("invoiceEditorLayout.totalCard")}</p>
             <dl>
-              <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr">{saved ? money(saved.prior_balance, saved.currency) : "—"}</dd></div>
-              <div className="net-sales"><dt>{t("invoiceEditor.netSales")}</dt><dd dir="ltr">{saved ? money(saved.net_sales, saved.currency) : "—"}</dd></div>
-              <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr">{saved ? money(saved.total_due, saved.currency) : "—"}</dd></div>
+              <div><dt>{t("invoiceEditor.previousBalance")}</dt><dd dir="ltr"><bdi dir="ltr">{saved ? money(saved.prior_balance, saved.currency) : "—"}</bdi></dd></div>
+              <div className="net-sales"><dt>{t("invoiceEditor.netSales")}</dt><dd dir="ltr"><bdi dir="ltr">{saved ? money(saved.net_sales, saved.currency) : "—"}</bdi></dd></div>
+              <div className="total-due"><dt>{t("invoiceEditor.totalDue")}</dt><dd dir="ltr"><bdi dir="ltr">{saved ? money(saved.total_due, saved.currency) : "—"}</bdi></dd></div>
             </dl>
             {saved ? <p className="backend-note snapshot-note">{t("invoiceEditor.totalDueNote")}</p> : null}
             {shownCalculation ? (
               <div className="calculated-total" role="status">
                 <span>{t("invoiceEditor.notSavedTotal")}</span>
-                <strong dir="ltr">{money(shownCalculation.net_sales, shownCalculation.currency)}</strong>
-                <small>{t("invoiceEditor.notSavedDue", { amount: money(shownCalculation.total_due, shownCalculation.currency) })}</small>
+                <strong dir="ltr"><bdi dir="ltr">{money(shownCalculation.net_sales, shownCalculation.currency)}</bdi></strong>
+                <small>{t("invoiceEditor.notSavedDue", { amount: `⁦${money(shownCalculation.total_due, shownCalculation.currency)}⁩` })}</small>
               </div>
             ) : null}
           </div>
@@ -1298,7 +1298,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
             <button className="button button-secondary" disabled={busy || !customer} type="submit">{t("invoiceEditor.issueRefund")}</button>
           </form>
         </div>
-        {lastPayment ? <article className="payment-slip" aria-live="polite"><div><span>{t(`invoiceEditor.paymentDirection.${lastPayment.direction}`)}</span><strong dir="ltr">{money(lastPayment.amount, lastPayment.currency)}</strong></div><dl><div><dt>{t("invoiceEditor.allocated")}</dt><dd dir="ltr">{money(lastPayment.allocated_amount, lastPayment.currency)}</dd></div><div><dt>{t("invoiceEditor.unallocatedCredit")}</dt><dd dir="ltr">{money(lastPayment.unallocated_amount, lastPayment.currency)}</dd></div><div><dt>{t("invoiceEditor.customerBalance")}</dt><dd dir="ltr">{money(lastPayment.customer_balance, lastPayment.currency)}</dd></div><div><dt>{t("invoiceEditor.availableCredit")}</dt><dd dir="ltr">{money(lastPayment.available_credit, lastPayment.currency)}</dd></div></dl>{lastPayment.direction === "CUSTOMER_RECEIPT" ? <div className="receipt-reversal"><label className="field"><span>{t("invoiceEditor.reversalReason")}</span><input required value={reversalReason} onChange={(event) => setReversalReason(event.target.value)} /></label><button className="text-button danger-link" disabled={busy || !reversalReason.trim()} onClick={reverseLastReceipt} type="button">{t("invoiceEditor.reverseReceipt")}</button></div> : null}</article> : null}
+        {lastPayment ? <article className="payment-slip" aria-live="polite"><div><span>{t(`invoiceEditor.paymentDirection.${lastPayment.direction}`)}</span><strong dir="ltr"><bdi dir="ltr">{money(lastPayment.amount, lastPayment.currency)}</bdi></strong></div><dl><div><dt>{t("invoiceEditor.allocated")}</dt><dd dir="ltr"><bdi dir="ltr">{money(lastPayment.allocated_amount, lastPayment.currency)}</bdi></dd></div><div><dt>{t("invoiceEditor.unallocatedCredit")}</dt><dd dir="ltr"><bdi dir="ltr">{money(lastPayment.unallocated_amount, lastPayment.currency)}</bdi></dd></div><div><dt>{t("invoiceEditor.customerBalance")}</dt><dd dir="ltr"><bdi dir="ltr">{money(lastPayment.customer_balance, lastPayment.currency)}</bdi></dd></div><div><dt>{t("invoiceEditor.availableCredit")}</dt><dd dir="ltr"><bdi dir="ltr">{money(lastPayment.available_credit, lastPayment.currency)}</bdi></dd></div></dl>{lastPayment.direction === "CUSTOMER_RECEIPT" ? <div className="receipt-reversal"><label className="field"><span>{t("invoiceEditor.reversalReason")}</span><input required value={reversalReason} onChange={(event) => setReversalReason(event.target.value)} /></label><button className="text-button danger-link" disabled={busy || !reversalReason.trim()} onClick={reverseLastReceipt} type="button">{t("invoiceEditor.reverseReceipt")}</button></div> : null}</article> : null}
       </section>
       </section>
 
@@ -1306,7 +1306,7 @@ export function InvoiceEditor({ tenantId, membershipId, onOpenSupplierSetup, cos
       <section className="debt-desk" aria-labelledby="debt-desk-title">
         <header><div><p className="section-kicker">{t("invoiceEditor.debtKicker")}</p><h3 id="debt-desk-title">{t("invoiceEditor.debtTitle")}</h3></div><form className="threshold-form" onSubmit={saveOverdueThreshold}><label className="field"><span>{t("invoiceEditor.overdueThreshold")}</span><input dir="ltr" min="0" type="number" value={overdueThreshold} onChange={(event) => setOverdueThreshold(event.target.value)} /></label><button className="button button-secondary" disabled={busy} type="submit">{t("common.saveChanges")}</button></form></header>
         <div className="debt-desk-grid">
-          <article className="content-card opening-balance-card"><h4>{t("invoiceEditor.openingBalance")}</h4><p>{t("invoiceEditor.openingBalanceBody")}</p>{customer ? <><strong>{customer.name}</strong><div className="balance-chips">{balances?.balances.length ? balances.balances.map((balance) => <span dir="ltr" key={balance.currency}>{money(balance.balance, balance.currency)}</span>) : <span>{t("invoiceEditor.noLedgerBalance")}</span>}</div></> : null}<form className="form-grid" onSubmit={recordOpeningBalance}><label className="field"><span>{t("invoiceEditor.signedOpeningAmount")}</span><input dir="ltr" required step="0.0001" type="number" value={openingAmount} onChange={(event) => setOpeningAmount(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={openingCurrency} onChange={(event) => setOpeningCurrency(event.target.value.toUpperCase())} /></label><label className="field field-wide"><span>{t("invoiceEditor.effectiveAt")}</span><input required type="datetime-local" value={openingEffectiveAt} onChange={(event) => setOpeningEffectiveAt(event.target.value)} /></label><button className="button field-wide" disabled={busy || !customer} type="submit">{t("invoiceEditor.recordOpeningBalance")}</button></form></article>
+          <article className="content-card opening-balance-card"><h4>{t("invoiceEditor.openingBalance")}</h4><p>{t("invoiceEditor.openingBalanceBody")}</p>{customer ? <><strong>{customer.name}</strong><div className="balance-chips">{balances?.balances.length ? balances.balances.map((balance) => <span dir="ltr" key={balance.currency}><bdi dir="ltr">{money(balance.balance, balance.currency)}</bdi></span>) : <span>{t("invoiceEditor.noLedgerBalance")}</span>}</div></> : null}<form className="form-grid" onSubmit={recordOpeningBalance}><label className="field"><span>{t("invoiceEditor.signedOpeningAmount")}</span><input dir="ltr" required step="0.0001" type="number" value={openingAmount} onChange={(event) => setOpeningAmount(event.target.value)} /></label><label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} minLength={3} required value={openingCurrency} onChange={(event) => setOpeningCurrency(event.target.value.toUpperCase())} /></label><label className="field field-wide"><span>{t("invoiceEditor.effectiveAt")}</span><input required type="datetime-local" value={openingEffectiveAt} onChange={(event) => setOpeningEffectiveAt(event.target.value)} /></label><button className="button field-wide" disabled={busy || !customer} type="submit">{t("invoiceEditor.recordOpeningBalance")}</button></form></article>
           <article className="content-card debt-register"><h4>{t("invoiceEditor.customerDebt")}</h4>{debts.debts.length ? debts.debts.map((debt) => <div className={debt.is_overdue ? "debt-row is-overdue" : "debt-row"} key={`${debt.customer_id}-${debt.currency}`}><span className="debt-alert-mark" aria-hidden="true">{debt.is_overdue ? "!" : "·"}</span><div><strong>{debt.customer_name}</strong><bdi dir="ltr">{debt.customer_phone}</bdi></div><bdi className="debt-amount" dir="ltr">{money(debt.balance, debt.currency)}</bdi><span>{debt.is_overdue ? t("invoiceEditor.overdueBy", { days: debt.overdue_age_days }) : t("invoiceEditor.currentDebt")}</span>{!saved && !lines.length ? <button className="text-button" disabled={busy} onClick={() => payDebt(debt)} type="button">{t("tenantWorkspace.recordPayment")}</button> : null}</div>) : <p className="empty-copy">{t("invoiceEditor.noCustomerDebt")}</p>}</article>
         </div>
       </section>

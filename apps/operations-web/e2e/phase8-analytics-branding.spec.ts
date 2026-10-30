@@ -80,18 +80,18 @@ test("dashboard reconciles, lifetime drilldown matches, branding renders on stor
   await expect(page).toHaveURL(/\/workspace/);
   await openSection(page, "Analytics");
   const analytics = page.getByRole("region", { name: "Business figures" });
-  await expect(analytics.getByText("50.0000 USD").first()).toBeVisible();
-  await expect(analytics.getByText("15.0000 USD").first()).toBeVisible();
-  await expect(analytics.getByText("35.0000 USD").first()).toBeVisible();
+  await expect(analytics.getByText("50.00 $").first()).toBeVisible();
+  await expect(analytics.getByText("15.00 $").first()).toBeVisible();
+  await expect(analytics.getByText("35.00 $").first()).toBeVisible();
   await expect(analytics.getByRole("table", { name: "Historical gross profit" }).getByRole("cell", { name: "100.0000% (2/2)" })).toBeVisible();
   await analytics.getByLabel("Phone").fill(customer.phone as string);
   await analytics.getByRole("button", { name: "Search" }).click();
   const money = analytics.getByRole("table", { name: "Money by currency" });
   await expect(money).toBeVisible();
-  await expect(money.getByRole("cell", { name: "50.0000", exact: true })).toBeVisible(); // purchased
-  await expect(money.getByRole("cell", { name: "30.0000", exact: true })).toBeVisible(); // largest
-  await expect(money.getByRole("cell", { name: "25.0000", exact: true })).toBeVisible(); // average
-  await expect(money.getByRole("cell", { name: "35.0000", exact: true })).toBeVisible(); // outstanding
+  await expect(money.getByRole("cell", { name: "50.00 $", exact: true })).toBeVisible(); // purchased
+  await expect(money.getByRole("cell", { name: "30.00 $", exact: true })).toBeVisible(); // largest
+  await expect(money.getByRole("cell", { name: "25.00 $", exact: true })).toBeVisible(); // average
+  await expect(money.getByRole("cell", { name: "35.00 $", exact: true })).toBeVisible(); // outstanding
   await expect(analytics.getByText("Cedar Water 1.5L", { exact: false }).first()).toBeVisible();
 
   // ----- Owner: branding desk -----

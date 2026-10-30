@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -106,9 +107,9 @@ export function PickupInbox({ tenantId }: { tenantId: string }) {
           <li key={report.id}>
             <p><strong>{report.supplier_name}</strong> · {report.list_title} · {report.reporter_name}</p>
             <ul className="pickup-items">
-              {report.lines.map((line) => <li key={line.procurement_item_id}><bdi dir="ltr">{Number(line.quantity)}</bdi> × {line.product_name} @ <bdi dir="ltr">{line.unit_cost} {report.currency}</bdi></li>)}
+              {report.lines.map((line) => <li key={line.procurement_item_id}><bdi dir="ltr">{Number(line.quantity)}</bdi> × {line.product_name} @ <bdi dir="ltr">{money(line.unit_cost, report.currency)}</bdi></li>)}
             </ul>
-            <p>{t("pickupReport.total")}: <bdi dir="ltr">{report.total} {report.currency}</bdi>{report.notes ? <> · <span className="muted">{report.notes}</span></> : null}</p>
+            <p>{t("pickupReport.total")}: <bdi dir="ltr">{money(report.total, report.currency)}</bdi>{report.notes ? <> · <span className="muted">{report.notes}</span></> : null}</p>
             <div className="form-actions">
               <ConfirmAction confirmLabel={t("pickupReport.confirmYes")} disabled={busy} label={t("pickupReport.confirm")} onConfirm={() => decide(report, "confirm")}>{t("pickupReport.confirmExplain")}</ConfirmAction>
               {rejecting === report.id ? (

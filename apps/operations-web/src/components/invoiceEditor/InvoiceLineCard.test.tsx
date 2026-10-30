@@ -30,8 +30,8 @@ test("expanding retains quantity, basis, totals, adjustments, supplier, override
   }
   render(<Line />);
   const edit = screen.getByRole("button", { name: "Edit line 2, Sunflower Oil 1.8L" });
-  expect(edit).toHaveTextContent("× 4.0000 Piece");
-  expect(edit).toHaveTextContent("7.7500 USD");
+  expect(edit).toHaveTextContent("× 4.00 $ Piece");
+  expect(edit).toHaveTextContent("7.75 $");
   expect(screen.getByRole("group", { name: /Quantity for/ })).toHaveTextContent("2");
   expect(screen.getByLabelText("Cost override")).not.toBeVisible();
   fireEvent.click(edit);

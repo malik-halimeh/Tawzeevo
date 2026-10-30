@@ -221,7 +221,7 @@ test("owner confirms an ambiguous suggestion, saves a draft, and confirms its of
   expect(await screen.findByText("Cedar Water")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Calculate and save draft" }));
-  expect(await screen.findByText("27.5000 USD")).toBeInTheDocument();
+  expect(await screen.findByText("27.50 $")).toBeInTheDocument();
   const save = requests.find(
     (request) => request.url.endsWith(`/api/v1/invoices?tenant_id=${tenantId}`),
   );
@@ -347,7 +347,7 @@ test("owner records a selected receipt allocation and can reverse the immutable 
   });
   fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
   expect(await screen.findByText("Customer receipt")).toBeInTheDocument();
-  expect(screen.getByText("3.0000 USD")).toBeInTheDocument();
+  expect(screen.getByText("3.00 $")).toBeInTheDocument();
   const receipt = requests.find((request) => request.url.includes("/customer-receipts"));
   const payload = JSON.parse(receipt?.body ?? "{}") as {
     allocations: Array<{ target_ledger_entry_id: string; amount: string }>;
@@ -688,7 +688,7 @@ test("debt desk marks an overdue customer with text and a non-color alert mark",
   expect(await screen.findByText("Overdue · 40 days old")).toBeInTheDocument();
   openView("Balances");
   expect(screen.getByText("Overdue · 40 days old")).toBeVisible();
-  expect(screen.getByText("75.0000 USD")).toBeInTheDocument();
+  expect(screen.getByText("75.00 $")).toBeInTheDocument();
   expect(container.querySelector(".debt-row.is-overdue .debt-alert-mark")).toHaveTextContent("!");
 });
 
@@ -843,8 +843,8 @@ test("a confirmed invoice reads as a document from the server's answer, and Crea
   const lines = within(document).getByRole("table", { name: "Invoice lines" });
   expect(within(lines).getByText("Water crate")).toBeVisible();
   expect(within(lines).getByText("2.0000")).toBeVisible();
-  expect(within(document).getByText("3.0000 USD")).toBeVisible(); // previous balance, as the server returned it
-  expect(within(document).getByText("13.0000 USD")).toBeVisible(); // due at this revision
+  expect(within(document).getByText("3.00 $")).toBeVisible(); // previous balance, as the server returned it
+  expect(within(document).getByText("13.00 $")).toBeVisible(); // due at this revision
   expect(within(document).getByText(/never this snapshot/)).toBeVisible();
   expect(document.textContent).not.toMatch(/final|locked|closed/i);
   expect(screen.queryByRole("button", { name: "Save an auditable revision" })).not.toBeInTheDocument();
@@ -857,7 +857,7 @@ test("a confirmed invoice reads as a document from the server's answer, and Crea
   fireEvent.click(screen.getByRole("button", { name: "Save an auditable revision" }));
 
   const revised = await screen.findByRole("article", { name: "2026-000007" });
-  expect(within(revised).getByText("23.0000 USD")).toBeVisible();
+  expect(within(revised).getByText("23.00 $")).toBeVisible();
   expect(within(revised).getByText("R2")).toBeVisible();
   const put = requests.find((request) => request.method === "PUT");
   expect(JSON.parse(put?.body ?? "{}")).toMatchObject({ expected_predecessor_revision_id: "rev-1", items: [{ quantity_expression: "4" }] });
@@ -879,14 +879,14 @@ test("an expanded past revision shows that revision's own items and totals, neve
   const pastEntry = within(history).getByText("R1").closest("details")!;
   const currentEntry = within(history).getByText("R2").closest("details")!;
 
-  expect(within(pastEntry).getByText("13.0000 USD")).not.toBeVisible(); // closed until the owner opens it
+  expect(within(pastEntry).getByText("13.00 $")).not.toBeVisible(); // closed until the owner opens it
   fireEvent.click(pastEntry.querySelector("summary")!);
   expect(pastEntry).toHaveAttribute("open");
-  expect(within(pastEntry).getByText("13.0000 USD")).toBeVisible(); // R1's own due, not the current 23.0000
+  expect(within(pastEntry).getByText("13.00 $")).toBeVisible(); // R1's own due, not the current 23.0000
   expect(within(pastEntry).getByText("2.0000")).toBeVisible(); // R1's own quantity
-  expect(within(pastEntry).queryByText("23.0000 USD")).not.toBeInTheDocument();
+  expect(within(pastEntry).queryByText("23.00 $")).not.toBeInTheDocument();
   expect(within(pastEntry).queryByText("4.0000")).not.toBeInTheDocument();
-  expect(within(currentEntry).getByText("23.0000 USD")).toBeInTheDocument();
+  expect(within(currentEntry).getByText("23.00 $")).toBeInTheDocument();
   expect(within(currentEntry).getByText("Customer asked for two more crates")).toBeInTheDocument();
 });
 

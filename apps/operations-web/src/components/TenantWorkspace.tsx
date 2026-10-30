@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -393,8 +394,8 @@ function ProductPricingMediaControls({
   return (
     <div className="product-management">
       <dl className="price-pair">
-        <div><dt>{t("tenantWorkspace.piecePrice")}</dt><dd dir="ltr">{product.piece_price} {product.currency}</dd></div>
-        <div><dt>{t("tenantWorkspace.boxPrice")}</dt><dd dir="ltr">{product.box_price ?? "—"} {product.currency}</dd></div>
+        <div><dt>{t("tenantWorkspace.piecePrice")}</dt><dd dir="ltr"><bdi dir="ltr">{money(product.piece_price, product.currency)}</bdi></dd></div>
+        <div><dt>{t("tenantWorkspace.boxPrice")}</dt><dd dir="ltr"><bdi dir="ltr">{money(product.box_price ?? "—", product.currency)}</bdi></dd></div>
       </dl>
       {product.images.length ? (
         <div className="product-image-strip">
@@ -403,7 +404,7 @@ function ProductPricingMediaControls({
       ) : null}
       {product.grade_prices.length ? (
         <div className="grade-price-chips">
-          {product.grade_prices.map((price) => <span key={price.id}>{price.grade}: <bdi dir="ltr">{price.unit_price} {product.currency} / {product.price_basis}</bdi></span>)}
+          {product.grade_prices.map((price) => <span key={price.id}>{price.grade}: <bdi dir="ltr">{money(price.unit_price, product.currency)} / {product.price_basis}</bdi></span>)}
         </div>
       ) : null}
       {error ? <ErrorState error={error} /> : null}
@@ -508,7 +509,7 @@ function CustomerBalanceActions({ tenantId, customerId }: { tenantId: string; cu
     <section aria-label={t("tenantWorkspace.balanceLabel")} className="customer-balance">
       <p className="eyebrow">{t("tenantWorkspace.balanceLabel")}</p>
       {balances.isLoading ? <p className="muted">{t("common.loading")}</p> : rows.length ? (
-        <div className="balance-chips">{rows.map((row) => <span dir="ltr" key={row.currency}>{row.balance} {row.currency}</span>)}</div>
+        <div className="balance-chips">{rows.map((row) => <span dir="ltr" key={row.currency}><bdi dir="ltr">{money(row.balance, row.currency)}</bdi></span>)}</div>
       ) : balances.error ? null : <p className="muted">{t("invoiceEditor.noLedgerBalance")}</p>}
       <div className="customer-actions">
         <Link className="button" to={sectionHref("invoices", tenantId, { customer: customerId })}><Icon name="invoice" small />{t("tenantWorkspace.newInvoice")}</Link>

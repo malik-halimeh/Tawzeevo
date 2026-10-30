@@ -1,3 +1,4 @@
+import { money } from "../../utils/money";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -85,7 +86,7 @@ export function CustomersList({ tenantId, refreshKey, onEdit, onShopLink, onInvo
                 { label: t("customersPage.shopLink"), onSelect: () => onShopLink(customer) },
                 { label: t("allCustomers.invoices"), onSelect: () => onInvoices(customer) },
               ]}
-              amount={customer.balances?.length ? customer.balances.map((balance) => <bdi className="customer-list-balance" dir="ltr" key={balance.currency}>{balance.balance} {balance.currency}</bdi>) : undefined}
+              amount={customer.balances?.length ? customer.balances.map((balance) => <bdi className="customer-list-balance" dir="ltr" key={balance.currency}>{money(balance.balance, balance.currency)}</bdi>) : undefined}
               href={sectionHref("customers", tenantId, { customer: customer.id })}
               key={customer.id}
               subline={<><bdi className="customer-list-phone" dir="ltr">{customer.phone}</bdi>{customer.address || customer.grade ? <span className="customer-list-address">{customer.address || `${t("tenantWorkspace.grade")} ${customer.grade}`}</span> : null}</>}

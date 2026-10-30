@@ -41,7 +41,7 @@ test("sole owner creates a delivery for a confirmed invoice with no driver setup
   await waitFor(() => expect(document.querySelector(".list-head-count")).toHaveTextContent("1 delivery"));
   expect(bodies[0]).toEqual({ invoice_id: "inv1", assigned_membership_id: null, delivery_date: null });
   expect(await screen.findByText(/Corner Shop/)).toBeInTheDocument();
-  expect(screen.getByText(/30\.0000 USD/)).toBeInTheDocument();
+  expect(screen.getByText(/30\.00 \$/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Mark delivered" }));
   fireEvent.click(screen.getByRole("button", { name: "Yes, mark delivered" })); // a final action asks once
   expect(await screen.findByText("Delivery marked done.")).toBeInTheDocument();

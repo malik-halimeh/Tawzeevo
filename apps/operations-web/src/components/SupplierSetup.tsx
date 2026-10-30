@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -266,7 +267,7 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
           <label className="field"><span>{t("supplierSetup.product")}</span>
             <select value={productId} onChange={(event) => setProductId(event.target.value)}>
               <option value="">{t("supplierSetup.chooseProduct")}</option>
-              {products.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.unit_price} {item.currency}</option>)}
+              {products.map((item) => <option dir="ltr" key={item.id} value={item.id}>{item.name} · {money(item.unit_price, item.currency)}</option>)}
             </select>
           </label>
           {product && setup ? (
@@ -307,7 +308,7 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
                       {setup.entries.map((entry) => (
                         <tr key={entry.id}>
                           <td>{supplierName_(entry.supplier_id)}{setup.preferred_supplier_id === entry.supplier_id ? ` · ${t("invoiceEditor.preferred")}` : ""}</td>
-                          <td dir="ltr">{entry.unit_cost} {entry.currency}</td>
+                          <td dir="ltr"><bdi dir="ltr">{money(entry.unit_cost, entry.currency)}</bdi></td>
                           <td>{entry.cost_basis}{entry.pieces_per_box ? ` ×${entry.pieces_per_box}` : ""}</td>
                           <td><time dateTime={entry.effective_at}>{new Date(entry.effective_at).toLocaleString()}</time></td>
                           <td>{t(`supplierSetup.sources.${entry.source_type}`, { defaultValue: entry.source_type })}{entry.quantity_context ? ` · ${t("supplierSetup.forQuantity", { quantity: entry.quantity_context })}` : ""}</td>
@@ -340,7 +341,7 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
                     <ol className="ranking" aria-label={t("supplierSetup.recommendationTitle")}>
                       {recommendation.ranked.map((row) => (
                         <li key={row.supplier_id}>
-                          <strong>{row.supplier_name}</strong> · <bdi dir="ltr">{row.unit_cost} {recommendation.currency}</bdi>
+                          <strong>{row.supplier_name}</strong> · <bdi dir="ltr">{money(row.unit_cost, recommendation.currency)}</bdi>
                           {row.rank > 1 ? <> · <bdi dir="ltr">+{row.delta_vs_best}</bdi></> : null}
                           {" · "}{t(`supplierSetup.sources.${row.source_type}`, { defaultValue: row.source_type })} · {row.is_stale ? <mark>{t("supplierSetup.ageDays", { days: row.age_days })}</mark> : t("supplierSetup.ageDays", { days: row.age_days })}
                           {" — "}<span className="muted">{t(`supplierSetup.why.${row.explanation}`)}</span>
@@ -367,10 +368,10 @@ export function SupplierSetup({ tenantId, membershipId, initialProductId }: { te
                           <tr key={`${row.supplier_id}-${row.cost_basis}-${row.pieces_per_box ?? 0}`}>
                             <td>{row.supplier_name}{row.is_preferred ? ` · ${t("invoiceEditor.preferred")}` : ""}</td>
                             <td>{row.currency} · {row.cost_basis}{row.pieces_per_box ? ` ×${row.pieces_per_box}` : ""}</td>
-                            <td dir="ltr">{row.latest_unit_cost} <small>{t(`supplierSetup.sources.${row.latest_source_type}`, { defaultValue: row.latest_source_type })} · {row.age_days >= insights.stale_after_days ? <mark>{t("supplierSetup.ageDays", { days: row.age_days })}</mark> : t("supplierSetup.ageDays", { days: row.age_days })}</small></td>
-                            <td dir="ltr">{row.lowest_unit_cost} – {row.highest_unit_cost}</td>
-                            <td>{row.last_purchase_at ? <><bdi dir="ltr">{row.last_purchase_unit_cost}</bdi> · <time dateTime={row.last_purchase_at}>{new Date(row.last_purchase_at).toLocaleDateString()}</time></> : t("supplierSetup.noPurchaseYet")}</td>
-                            <td dir="ltr">{row.recent_unit_costs.join(" ← ")}</td>
+                            <td dir="ltr"><bdi dir="ltr">{money(row.latest_unit_cost, row.currency)}</bdi> <small>{t(`supplierSetup.sources.${row.latest_source_type}`, { defaultValue: row.latest_source_type })} · {row.age_days >= insights.stale_after_days ? <mark>{t("supplierSetup.ageDays", { days: row.age_days })}</mark> : t("supplierSetup.ageDays", { days: row.age_days })}</small></td>
+                            <td dir="ltr"><bdi dir="ltr">{money(row.lowest_unit_cost, row.currency)} – {money(row.highest_unit_cost, row.currency)}</bdi></td>
+                            <td>{row.last_purchase_at ? <><bdi dir="ltr">{money(row.last_purchase_unit_cost ?? "—", row.currency)}</bdi> · <time dateTime={row.last_purchase_at}>{new Date(row.last_purchase_at).toLocaleDateString()}</time></> : t("supplierSetup.noPurchaseYet")}</td>
+                            <td dir="ltr"><bdi dir="ltr">{row.recent_unit_costs.map((value) => money(value, row.currency)).join(" ← ")}</bdi></td>
                             <td>{t(`supplierSetup.stabilityLabels.${row.stability}`)}{row.variation_percent ? ` (${row.variation_percent}%)` : ""}</td>
                           </tr>
                         ))}

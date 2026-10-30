@@ -1,3 +1,4 @@
+import { money as displayMoney } from "../utils/money";
 import type { TFunction } from "i18next";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,7 +35,7 @@ import { sectionHref } from "./workspaceSections";
 type T = TFunction;
 
 /** An amount with its currency, isolated left-to-right so Arabic copy never reorders it. */
-const money = (value: Scalar, currency: string) => `⁦${String(value)} ${currency}⁩`;
+const money = (value: Scalar, currency: string) => `⁦${displayMoney(value === null || typeof value === "boolean" ? "—" : value, currency)}⁩`;
 const num = (value: Scalar) => `⁦${String(value)}⁩`;
 
 /** A number of days with its unit, pluralised per language ("1 day", "يومان"); "—" when unknown. */
@@ -242,16 +243,16 @@ function CashCurrency({ row, threshold }: { row: CurrencyCashFlow; threshold: nu
     <article className="cash-currency" aria-label={t("intelligence.cashIn", { currency: row.currency })}>
       <h5><bdi dir="ltr">{row.currency}</bdi></h5>
       <dl className="sync-facts analytics-facts">
-        <div><dt>{t("intelligence.overdue")}</dt><dd>{threshold === null ? t("analytics.noThreshold") : t("intelligence.overdueOf", { overdue: money(row.position.overdue_receivables, row.currency), owed: money(row.position.customer_receivables, row.currency), count: row.position.overdue_customer_count })}</dd></div>
-        <div><dt>{t("intelligence.collected")}</dt><dd>{money(flow.net_customer_collections, row.currency)}{Number(flow.customer_refunds) !== 0 ? ` · ${t("intelligence.refundsPaid", { amount: money(flow.customer_refunds, row.currency) })}` : ""}</dd></div>
-        <div><dt>{t("intelligence.weekly")}</dt><dd>{flow.average_weekly_collections === null ? "—" : money(flow.average_weekly_collections, row.currency)}</dd></div>
-        <div><dt>{t("intelligence.supplierPaid")}</dt><dd>{money(flow.supplier_payments, row.currency)}</dd></div>
+        <div><dt>{t("intelligence.overdue")}</dt><dd><bdi dir="ltr">{threshold === null ? t("analytics.noThreshold") : t("intelligence.overdueOf", { overdue: money(row.position.overdue_receivables, row.currency), owed: money(row.position.customer_receivables, row.currency), count: row.position.overdue_customer_count })}</bdi></dd></div>
+        <div><dt>{t("intelligence.collected")}</dt><dd><bdi dir="ltr">{money(flow.net_customer_collections, row.currency)}{Number(flow.customer_refunds) !== 0 ? ` · ${t("intelligence.refundsPaid", { amount: money(flow.customer_refunds, row.currency) })}` : ""}</bdi></dd></div>
+        <div><dt>{t("intelligence.weekly")}</dt><dd><bdi dir="ltr">{flow.average_weekly_collections === null ? "—" : money(flow.average_weekly_collections, row.currency)}</bdi></dd></div>
+        <div><dt>{t("intelligence.supplierPaid")}</dt><dd><bdi dir="ltr">{money(flow.supplier_payments, row.currency)}</bdi></dd></div>
       </dl>
       {ageing.length ? (
         <div aria-label={t("intelligence.ageingTitle", { currency: row.currency })} className="table-region" role="region" tabIndex={0}>
           <table className="order-lines" aria-label={t("intelligence.ageingTitle", { currency: row.currency })}>
             <thead><tr><th>{t("intelligence.ageBucket")}</th><th>{t("intelligence.amount")}</th><th>{t("intelligence.customersCount")}</th></tr></thead>
-            <tbody>{ageing.map((bucket) => <tr key={bucket.bucket}><td>{t(`intelligence.bucket.${bucket.bucket}`)}</td><td dir="ltr">{bucket.amount} {row.currency}</td><td dir="ltr">{bucket.customer_count}</td></tr>)}</tbody>
+            <tbody>{ageing.map((bucket) => <tr key={bucket.bucket}><td>{t(`intelligence.bucket.${bucket.bucket}`)}</td><td dir="ltr"><bdi dir="ltr">{money(bucket.amount, row.currency)}</bdi></td><td dir="ltr">{bucket.customer_count}</td></tr>)}</tbody>
           </table>
         </div>
       ) : <p className="muted">{t("intelligence.nothingOwed")}</p>}

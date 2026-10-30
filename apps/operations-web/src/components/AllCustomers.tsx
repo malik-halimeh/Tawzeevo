@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -48,7 +49,7 @@ export function CustomerInvoices({ tenantId, customer }: { tenantId: string; cus
             </Link>
             <span className={`status-badge status-${invoice.status.toLowerCase()}`}>{t(STATUS_KEY[invoice.status])}</span>
             <time dateTime={invoice.confirmed_at ?? invoice.created_at}>{when(invoice.confirmed_at ?? invoice.created_at)}</time>
-            <bdi dir="ltr">{invoice.net_sales} {invoice.currency}</bdi>
+            <bdi dir="ltr">{money(invoice.net_sales, invoice.currency)}</bdi>
           </li>
         ))}
       </ul>

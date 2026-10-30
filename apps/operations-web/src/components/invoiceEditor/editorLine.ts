@@ -29,9 +29,7 @@ export interface EditorLine {
   costOverrideReason: string;
 }
 
-export function money(value: string, currency: string) {
-  return `${value} ${currency}`;
-}
+export { money } from "../../utils/money";
 
 /**
  * Whether a line carries anything beyond its defaults behind "More": a discount or markup other

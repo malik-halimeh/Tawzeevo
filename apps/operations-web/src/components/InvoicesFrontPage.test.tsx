@@ -68,14 +68,14 @@ test("summary displays separate currencies, server totals and counts; its two ac
   const overview = await screen.findByRole("group", { name: "Money overview" });
   const usd = await within(overview).findByRole("region", { name: "USD" });
   const lbp = within(overview).getByRole("region", { name: "LBP" });
-  expect(usd).toHaveTextContent("125.0000 USD");
+  expect(usd).toHaveTextContent("125.00 $");
   expect(usd).toHaveTextContent("3 open invoices");
-  expect(usd).toHaveTextContent("25.0000 USD");
-  expect(lbp).toHaveTextContent("900000.0000 LBP");
-  expect(lbp).toHaveTextContent("100000.0000 LBP");
+  expect(usd).toHaveTextContent("25.00 $");
+  expect(lbp).toHaveTextContent("900,000 LBP");
+  expect(lbp).toHaveTextContent("100,000 LBP");
   expect(lbp).not.toHaveTextContent("USD");
   expect(overview).not.toHaveTextContent("900125");
-  expect(within(usd).getByText("125.0000 USD")).toHaveAttribute("dir", "ltr");
+  expect(within(usd).getByText("125.00 $")).toHaveAttribute("dir", "ltr");
   expect(screen.getByRole("heading", { name: "Needs you now" })).toBeVisible();
   fireEvent.click(within(lbp).getByRole("button", { name: /Overdue/ }));
   await waitFor(() => expect(calls.at(-1)?.searchParams.get("overdue")).toBe("true"));
@@ -171,7 +171,7 @@ test("groups by confirmation date or draft creation month; rows and payment acti
   const row = within(october).getByRole("link", { name: /Customer 1/ });
   expect(row).toHaveAttribute("href", "/workspace?tenant=t1&section=invoices&invoice=1");
   expect(row).toHaveTextContent("Overdue (12 days)");
-  expect(row).toHaveTextContent("50.0000 USD");
+  expect(row).toHaveTextContent("50.00 $");
   expect(within(row).getByText("2026-1")).toHaveAttribute("dir", "ltr");
   expect(screen.getByText("Partly paid")).toBeVisible();
   expect(screen.getByText("Paid", { selector: ".status-badge" })).toBeVisible();
@@ -247,7 +247,7 @@ test("Arabic render uses RTL, Arabic month names, translated labels and LTR mone
   await screen.findByText("Customer 1");
   expect(screen.getByRole("heading", { name: "الفواتير" }).closest("[dir]")).toHaveAttribute("dir", "rtl");
   expect(screen.getByRole("heading", { name: /تشرين الأول/ })).toBeVisible();
-  expect(screen.getByText("50.0000 USD")).toHaveAttribute("dir", "ltr");
+  expect(screen.getByText("50.00 $")).toHaveAttribute("dir", "ltr");
   expect(screen.getAllByRole("button", { name: "فاتورة جديدة" })).toHaveLength(2);
 });
 

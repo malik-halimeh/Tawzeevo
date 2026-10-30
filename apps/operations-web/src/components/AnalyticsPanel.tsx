@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -57,7 +58,7 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
   }, [customerId, tenantId]);
   const when = (value: string | null) => (value ? new Date(value).toLocaleDateString() : "—");
 
-  const money = (rows: CurrencyAmount[]) => (rows.length ? rows.map((row) => `${row.amount} ${row.currency}`).join(" · ") : "—");
+  const moneyList = (rows: CurrencyAmount[]) => (rows.length ? rows.map((row) => money(row.amount, row.currency)).join(" · ") : "—");
   const currencies = [...new Set([...(overview?.invoiced_sales ?? []), ...(overview?.customer_outstanding ?? []), ...(overview?.supplier_payable ?? [])].map((row) => row.currency))];
 
   return (
@@ -78,11 +79,11 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
           <p className="muted">{t("analytics.window", { count: overview.confirmed_invoices, timezone: overview.period.timezone })}</p>
           <h4>{t("analytics.currentState")}</h4>
           <dl className="sync-facts analytics-facts">
-            <div><dt>{t("analytics.invoicedSales")}</dt><dd dir="ltr">{money(overview.invoiced_sales)}</dd></div>
-            <div><dt>{t("analytics.receipts")}</dt><dd dir="ltr">{money(overview.customer_receipts)}</dd></div>
-            <div><dt>{t("analytics.refunds")}</dt><dd dir="ltr">{money(overview.customer_refunds)}</dd></div>
-            <div><dt>{t("analytics.customerOutstanding")}</dt><dd dir="ltr">{money(overview.customer_outstanding)}{overview.customer_credit.length ? ` (${t("purchases.credit")} ${money(overview.customer_credit)})` : ""}</dd></div>
-            <div><dt>{t("analytics.supplierPayable")}</dt><dd dir="ltr">{money(overview.supplier_payable)}{overview.supplier_credit.length ? ` (${t("purchases.credit")} ${money(overview.supplier_credit)})` : ""}</dd></div>
+            <div><dt>{t("analytics.invoicedSales")}</dt><dd dir="ltr"><bdi dir="ltr">{moneyList(overview.invoiced_sales)}</bdi></dd></div>
+            <div><dt>{t("analytics.receipts")}</dt><dd dir="ltr"><bdi dir="ltr">{moneyList(overview.customer_receipts)}</bdi></dd></div>
+            <div><dt>{t("analytics.refunds")}</dt><dd dir="ltr"><bdi dir="ltr">{moneyList(overview.customer_refunds)}</bdi></dd></div>
+            <div><dt>{t("analytics.customerOutstanding")}</dt><dd dir="ltr"><bdi dir="ltr">{moneyList(overview.customer_outstanding)}{overview.customer_credit.length ? ` (${t("purchases.credit")} ${moneyList(overview.customer_credit)})` : ""}</bdi></dd></div>
+            <div><dt>{t("analytics.supplierPayable")}</dt><dd dir="ltr"><bdi dir="ltr">{moneyList(overview.supplier_payable)}{overview.supplier_credit.length ? ` (${t("purchases.credit")} ${moneyList(overview.supplier_credit)})` : ""}</bdi></dd></div>
           </dl>
           {/* D-089: how old what customers owe is, what came in, and what this week did differently. */}
           <CashFlowSection period={period} tenantId={tenantId} />
@@ -94,7 +95,7 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
             <div aria-label={t("analytics.profitTitle")} className="table-region" role="region" tabIndex={0}>
               <table className="order-lines" aria-label={t("analytics.profitTitle")}>
                 <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.grossProfit")}</th><th>{t("analytics.coverage")}</th><th>{t("analytics.uncovered")}</th></tr></thead>
-                <tbody>{overview.gross_profit.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.gross_profit}</td><td dir="ltr">{row.coverage_percent}% ({row.covered_lines}/{row.total_lines})</td><td dir="ltr">{row.uncovered_lines > 0 ? t("analytics.uncoveredLines", { count: row.uncovered_lines }) : t("analytics.allCovered")}</td></tr>)}</tbody>
+                <tbody>{overview.gross_profit.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr"><bdi dir="ltr">{money(row.gross_profit, row.currency)}</bdi></td><td dir="ltr">{row.coverage_percent}% ({row.covered_lines}/{row.total_lines})</td><td dir="ltr">{row.uncovered_lines > 0 ? t("analytics.uncoveredLines", { count: row.uncovered_lines }) : t("analytics.allCovered")}</td></tr>)}</tbody>
               </table>
             </div>
           )}
@@ -131,14 +132,14 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
               <div aria-label={t("analytics.lifetimeFinancial")} className="table-region" role="region" tabIndex={0}>
                 <table className="order-lines" aria-label={t("analytics.lifetimeFinancial")}>
                   <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.totalPurchased")}</th><th>{t("analytics.largest")}</th><th>{t("analytics.average")}</th><th>{t("analytics.receipts")}</th><th>{t("analytics.customerOutstanding")}</th><th>{t("analytics.discounts")}</th><th>{t("analytics.markups")}</th></tr></thead>
-                  <tbody>{lifetime.financial.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.total_purchased}</td><td dir="ltr">{row.largest_invoice ?? "—"}</td><td dir="ltr">{row.average_invoice ?? "—"}</td><td dir="ltr">{row.total_receipts}</td><td dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</td><td dir="ltr">{row.total_discounts}</td><td dir="ltr">{row.total_markups}</td></tr>)}</tbody>
+                  <tbody>{lifetime.financial.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr"><bdi dir="ltr">{money(row.total_purchased, row.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.largest_invoice ?? "—", row.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.average_invoice ?? "—", row.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.total_receipts, row.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.outstanding, row.currency)}</bdi><bdi dir="ltr">{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${money(row.credit, row.currency)})` : ""}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.total_discounts, row.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.total_markups, row.currency)}</bdi></td></tr>)}</tbody>
                 </table>
               </div>
               <div className="lifetime-habits">
-                <div><h5>{t("analytics.topProducts")}</h5><ol>{lifetime.top_products.map((row) => <li key={`${row.currency}-${row.name}`}>{row.name} · <bdi dir="ltr">{row.quantity}</bdi> · <bdi dir="ltr">{row.value} {row.currency}</bdi></li>)}</ol></div>
-                <div><h5>{t("analytics.topCategories")}</h5><ol>{lifetime.top_categories.map((row) => <li key={`${row.currency}-${row.name}`}>{row.name} · <bdi dir="ltr">{row.value} {row.currency}</bdi></li>)}</ol></div>
+                <div><h5>{t("analytics.topProducts")}</h5><ol>{lifetime.top_products.map((row) => <li key={`${row.currency}-${row.name}`}>{row.name} · <bdi dir="ltr">{row.quantity}</bdi> · <bdi dir="ltr">{money(row.value, row.currency)}</bdi></li>)}</ol></div>
+                <div><h5>{t("analytics.topCategories")}</h5><ol>{lifetime.top_categories.map((row) => <li key={`${row.currency}-${row.name}`}>{row.name} · <bdi dir="ltr">{money(row.value, row.currency)}</bdi></li>)}</ol></div>
                 <div><h5>{t("analytics.gradeTimeline")}</h5><ol>{lifetime.grade_timeline.map((point) => <li key={point.at}><time dateTime={point.at}>{when(point.at)}</time> · {point.grade ?? "—"}</li>)}</ol></div>
-                <div><h5>{t("analytics.monthlySpend")}</h5><ol>{lifetime.monthly_spend.map((row) => <li key={`${row.currency}-${row.month}`}><bdi dir="ltr">{row.month}</bdi> · <bdi dir="ltr">{row.amount} {row.currency}</bdi></li>)}</ol></div>
+                <div><h5>{t("analytics.monthlySpend")}</h5><ol>{lifetime.monthly_spend.map((row) => <li key={`${row.currency}-${row.month}`}><bdi dir="ltr">{row.month}</bdi> · <bdi dir="ltr">{money(row.amount, row.currency)}</bdi></li>)}</ol></div>
               </div>
             </>
           )}
@@ -152,14 +153,14 @@ export function AnalyticsPanel({ tenantId }: { tenantId: string }) {
             <div aria-label={t("analytics.eventFlow")} className="table-region" role="region" tabIndex={0}>
               <table className="order-lines" aria-label={t("analytics.eventFlow")}>
                 <thead><tr><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.confirmations")}</th><th>{t("analytics.editDeltas")}</th><th>{t("analytics.cancellations")}</th><th>{t("analytics.netEffect")}</th></tr></thead>
-                <tbody>{flow.totals.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr">{row.confirmations}</td><td dir="ltr">{row.edit_deltas}</td><td dir="ltr">{row.cancellations}</td><td dir="ltr"><strong>{row.net_effect}</strong></td></tr>)}</tbody>
+                <tbody>{flow.totals.map((row) => <tr key={row.currency}><td>{row.currency}</td><td dir="ltr"><bdi dir="ltr">{money(row.confirmations, row.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.edit_deltas, row.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(row.cancellations, row.currency)}</bdi></td><td dir="ltr"><strong><bdi dir="ltr">{money(row.net_effect, row.currency)}</bdi></strong></td></tr>)}</tbody>
               </table>
             </div>
           )}
           {flow.monthly.length ? (
             <table className="order-lines" aria-label={t("analytics.monthly")}>
               <thead><tr><th>{t("analytics.month")}</th><th>{t("tenantWorkspace.currency")}</th><th>{t("analytics.netEffect")}</th></tr></thead>
-              <tbody>{flow.monthly.map((row) => <tr key={`${row.currency}-${row.month}`}><td dir="ltr">{row.month}</td><td>{row.currency}</td><td dir="ltr">{row.net_effect}</td></tr>)}</tbody>
+              <tbody>{flow.monthly.map((row) => <tr key={`${row.currency}-${row.month}`}><td dir="ltr">{row.month}</td><td>{row.currency}</td><td dir="ltr"><bdi dir="ltr">{money(row.net_effect, row.currency)}</bdi></td></tr>)}</tbody>
             </table>
           ) : null}
         </>

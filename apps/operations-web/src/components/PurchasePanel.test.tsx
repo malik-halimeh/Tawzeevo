@@ -34,7 +34,7 @@ test("owner records a purchase with an idempotency key and sees the payable tota
   fireEvent.change(screen.getByLabelText("Line 1 quantity"), { target: { value: "4" } });
   fireEvent.change(screen.getByLabelText("Line 1 unit cost"), { target: { value: "7.5" } });
   fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
-  expect(await screen.findByText("Purchase recorded: 30.0000 USD added to the supplier payable.")).toBeInTheDocument();
+  expect(await screen.findByText("Purchase recorded: ⁦30.00 $⁩ added to the supplier payable.")).toBeInTheDocument();
   const sent = bodies.find((b) => b.supplier_id === "s1");
   expect(sent).toMatchObject({ currency: "USD", items: [{ product_id: "p1", quantity: "4", unit_cost: "7.5", procurement_item_id: null }] });
   expect(typeof sent?.idempotency_key).toBe("string");

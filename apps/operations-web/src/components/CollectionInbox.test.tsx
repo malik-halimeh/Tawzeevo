@@ -30,7 +30,7 @@ function stub(rows: unknown[]) {
 test("the owner confirms a reported payment, which records the receipt (D-114)", async () => {
   const writes = stub([report]);
   expect(await screen.findByText("Corner Shop")).toBeInTheDocument();
-  expect(screen.getByText("12.5000 USD")).toBeInTheDocument();
+  expect(screen.getByText("12.50 $")).toBeInTheDocument();
   expect(screen.getByText(/Paid partly · Karim/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Confirm payment" }));
   fireEvent.click(screen.getByRole("button", { name: "Yes, record the payment" }));

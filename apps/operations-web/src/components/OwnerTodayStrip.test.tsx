@@ -42,7 +42,7 @@ test("lists delivered invoices whose amount is still open, and links each to its
   const rows = within(list).getAllByRole("listitem");
   expect(rows).toHaveLength(1); // inv2 is paid (no open obligation) and inv3's customer owes nothing
   expect(rows[0]).toHaveTextContent("Corner Shop · 2026-000001");
-  expect(rows[0]).toHaveTextContent("30.0000 USD");
+  expect(rows[0]).toHaveTextContent("30.00 $");
   expect(within(rows[0]!).getByRole("link", { name: "Record payment" })).toHaveAttribute("href", "/workspace?tenant=t1&section=invoices&invoice=inv1&view=payments");
   expect(obligationCalls.sort()).toEqual(["c1:USD", "c2:USD"]); // one request per customer and currency
   expect(document.body.textContent).not.toMatch(/\bpaid\b/i);
