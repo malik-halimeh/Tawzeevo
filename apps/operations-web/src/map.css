@@ -31,8 +31,12 @@
   --lift: 0 1px 0 rgb(var(--shadow-tint) / .05), 0 8px 20px rgb(var(--shadow-tint) / .07);
   --ink-soft: #2b4550;
   /* ---------- Map surfaces, artwork and elevation ---------- */
-  --rail-bg: var(--bar);
-  --rail-shadow: var(--bar-shadow);
+  --accent: var(--ink);
+  --accent-hover: #0a1a21;
+  --bar-shadow: 0 1px 0 rgb(var(--shadow-tint) / .04);
+  --raise-shadow: var(--lift);
+  --rail-bg: var(--paper);
+  --rail-shadow: none;
   --desk-bg: var(--ink);
   --desk-ink: #e5ece9;
   --desk-muted: #b9c7c3;
@@ -65,8 +69,8 @@
   --mural-customers: #5fd0c1;
   --loading-start: #e3e9e6;
   --loading-end: #f3f6f4;
-  --phone-bar-shadow: inset 0 1px 0 #fff, 0 -1px 3px rgb(20 30 40 / .15);
-  --more-sheet-shadow: var(--bar-shadow);
+  --phone-bar-shadow: 0 -6px 18px rgb(var(--shadow-tint) / .06);
+  --more-sheet-shadow: 0 -10px 30px rgb(var(--shadow-tint) / .16);
   --language-shadow: inset 0 -3px 0 rgb(0 0 0 / .28);
   --online-shadow: 0 0 0 3px rgb(30 107 69 / .18);
   --waiting-shadow: 0 0 0 3px rgb(125 78 0 / .16);
@@ -130,7 +134,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .rail-nav > .nav-item > .icon, .more-item[data-line] > .icon {
   box-sizing: border-box; width: 34px; height: 34px; padding: 6px; border: 3px solid var(--lc-edge);
   border-radius: 50%; background: var(--surface); color: var(--lc-deep); position: relative; z-index: 1;
-  transition: transform .18s ease;
+  transition: transform .18s ease, background .18s ease;
 }
 .rail-nav > .nav-item[data-line="today"] > .icon { border-color: var(--lc); box-shadow: 0 0 0 1.5px var(--ink); }
 .rail-nav > .nav-item:not(:last-child)::after {
@@ -172,7 +176,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 }
 .topline::after {
   content: ""; position: absolute; inset-inline: 0; bottom: -5px; height: 10px; pointer-events: none;
-  background: radial-gradient(circle 5px at 50% 50%, var(--bg-solid) 96%, transparent 100%) 0 0 / 16px 10px repeat-x;
+  background: radial-gradient(circle 5px at 50% 50%, var(--bg) 96%, transparent 100%) 0 0 / 16px 10px repeat-x;
 }
 .topline-trail { font-size: 14px; }
 .assistant-button { background: var(--indigo); min-height: 42px; padding: 0 16px 0 6px; gap: 9px; }
@@ -258,13 +262,13 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
 }
 
 /* ---------- Buttons: shaped by what they do ---------- */
-/* Main action: a steel-blue pill everywhere, so the main action is always found the same way; an icon it carries
+/* Main action: a Cedar-ink pill everywhere, so the main action is always found the same way; an icon it carries
    sits on a round disc in the colour of the place on screen. */
 .button {
-  border-radius: 999px; background: var(--accent); border-color: var(--accent-edge); color: var(--accent-ink); font-weight: 600;
-  padding: 12px 22px; transition: transform .15s ease;
+  border-radius: 999px; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;
+  padding: 12px 22px; transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
 }
-.button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover-edge); }
+.button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 .button:active:not(:disabled) { transform: translateY(1px); }
 .button > .icon:first-child {
   box-sizing: border-box; width: 32px; height: 32px; padding: 6px; margin-block: -6px; margin-inline: -14px 0;
@@ -304,9 +308,9 @@ html[dir="rtl"] .button-send { border-radius: 6px 999px 999px 6px; padding-inlin
 /* The final step of a confirmation is a rubber stamp: a double border, pressed down and inked when used. */
 .confirm-action { background: var(--lc-tint); border-radius: 14px; padding: 10px 14px; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lc) 35%, transparent); }
 .confirm-action > .button {
-  border-radius: 12px; background: var(--surface); color: var(--good); border: 0; min-height: 50px; letter-spacing: .2px;
+  border-radius: 12px; background: var(--chip); color: var(--good); border: 0; min-height: 50px; letter-spacing: .2px;
   box-shadow: inset 0 0 0 2px var(--good), inset 0 0 0 5px var(--surface), inset 0 0 0 6.5px var(--good), 0 4px 0 rgb(var(--shadow-tint) / .2);
-  transition: transform .12s ease, color .22s ease;
+  transition: transform .12s ease, box-shadow .12s ease, background .22s ease, color .22s ease;
 }
 .confirm-action > .button:hover:not(:disabled) { background: var(--good-bg); }
 .confirm-action > .button:active:not(:disabled) { transform: translateY(3px); background: var(--good); color: var(--on-solid); box-shadow: inset 0 0 0 2px var(--good), inset 0 0 0 5px var(--good), inset 0 0 0 6.5px var(--on-solid), 0 1px 0 rgb(var(--shadow-tint) / .2); }
@@ -335,7 +339,7 @@ input:hover, select:hover, textarea:hover { border-color: var(--ink-soft); }
 .field > span, .field > label { font-weight: 600; }
 select { background-image: var(--select-indicator); }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
-.catalog-toolbar input[type="search"] { padding-inline-start: 44px; background: var(--field-bg) var(--search-indicator) no-repeat left 14px center / 18px; }
+.catalog-toolbar input[type="search"] { padding-inline-start: 44px; background: var(--card) var(--search-indicator) no-repeat left 14px center / 18px; }
 html[dir="rtl"] .catalog-toolbar input[type="search"] { background-position: right 14px center; }
 .toolbar, .filter-panel { border-radius: var(--radius-record); border-color: var(--edge); }
 fieldset { border-radius: var(--radius-control); }
@@ -472,8 +476,8 @@ html[dir="rtl"] .intel-unusual, html[dir="rtl"] .explain-card { border-radius: 1
   appearance: none; -webkit-appearance: none; width: 44px; height: 44px; margin: 0; border-radius: 50%; border: 3px solid var(--ink); background: var(--surface); cursor: pointer;
 }
 .collection-claim > .checkbox-row:nth-of-type(1) > input { background: radial-gradient(circle, var(--citron) 52%, rgb(var(--shadow-tint) / .35) 53% 58%, var(--citron) 59%); }
-.collection-claim > .checkbox-row:nth-of-type(2) > input { background: linear-gradient(90deg, var(--citron) 50%, var(--card-solid) 50%); }
-html[dir="rtl"] .collection-claim > .checkbox-row:nth-of-type(2) > input { background: linear-gradient(-90deg, var(--citron) 50%, var(--card-solid) 50%); }
+.collection-claim > .checkbox-row:nth-of-type(2) > input { background: linear-gradient(90deg, var(--citron) 50%, var(--card) 50%); }
+html[dir="rtl"] .collection-claim > .checkbox-row:nth-of-type(2) > input { background: linear-gradient(-90deg, var(--citron) 50%, var(--card) 50%); }
 .collection-claim > .checkbox-row:nth-of-type(3) > input { border-style: dashed; }
 .collection-claim > .checkbox-row > input:checked { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--lc); }
 .collection-claim > .field, .collection-claim > small { grid-column: 1 / -1; }
@@ -482,7 +486,7 @@ html[dir="rtl"] .collection-claim > .checkbox-row:nth-of-type(2) > input { backg
 /* ---------- Sales › Orders: each order is a docket with a perforated top and a tear-off status stub ---------- */
 .orders-panel .outbox-list { gap: 14px; }
 .orders-panel .outbox-list > .outbox-row {
-  position: relative; flex-wrap: nowrap; align-items: stretch; gap: 0; padding: 0; border-top: 0; background: var(--surface);
+  position: relative; flex-wrap: nowrap; align-items: stretch; gap: 0; padding: 0; border-top: 0; background: var(--card);
   border-radius: 4px 4px 14px 14px; filter: drop-shadow(0 1px 0 rgb(var(--shadow-tint) / .08)) drop-shadow(0 6px 10px rgb(var(--shadow-tint) / .07));
   -webkit-mask: radial-gradient(circle 5px at 50% 0, #0000 96%, #000 100%) 0 0 / 14px 100% repeat-x;
   mask: radial-gradient(circle 5px at 50% 0, #0000 96%, #000 100%) 0 0 / 14px 100% repeat-x;
@@ -499,7 +503,7 @@ html[dir="rtl"] .collection-claim > .checkbox-row:nth-of-type(2) > input { backg
 .order-lines tfoot th { font-family: var(--font-display); font-size: 18px; }
 
 /* ---------- Sales › Invoices: a draft is a working pad; a confirmed invoice is a sheet with a folded corner and a stamp ---------- */
-.invoice-lines { background: var(--surface) repeating-linear-gradient(to bottom, transparent 0 47px, var(--lc-tint) 47px 48px); }
+.invoice-lines { background: var(--card) repeating-linear-gradient(to bottom, transparent 0 47px, var(--lc-tint) 47px 48px); }
 .line-number { font-family: var(--font-mono); color: var(--lc-deep); }
 .invoice-tally {
   border: 0; border-top: 6px solid var(--lc); border-radius: 4px 4px 0 0; padding-bottom: 30px; font-family: var(--font-latin);
@@ -513,12 +517,12 @@ html[dir="rtl"] .collection-claim > .checkbox-row:nth-of-type(2) > input { backg
 .invoice-document {
   position: relative; border: 0; box-shadow: var(--card-shadow); border-radius: 0 0 14px 14px;
   clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 34px, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom left, transparent 50%, var(--document-fold) 50%) top right / 34px 34px no-repeat, var(--surface);
+  background: linear-gradient(to bottom left, transparent 50%, var(--document-fold) 50%) top right / 34px 34px no-repeat, var(--card);
   filter: drop-shadow(0 1px 0 rgb(var(--shadow-tint) / .1)) drop-shadow(0 8px 14px rgb(var(--shadow-tint) / .08));
 }
 html[dir="rtl"] .invoice-document {
   clip-path: polygon(34px 0, 100% 0, 100% 100%, 0 100%, 0 34px);
-  background: linear-gradient(to bottom right, transparent 50%, var(--document-fold) 50%) top left / 34px 34px no-repeat, var(--surface);
+  background: linear-gradient(to bottom right, transparent 50%, var(--document-fold) 50%) top left / 34px 34px no-repeat, var(--card);
 }
 .document-head { position: relative; }
 .document-head h4 { font-family: var(--font-mono); font-size: 24px; letter-spacing: 0; color: var(--lc-deep); }
@@ -545,7 +549,7 @@ html[dir="rtl"] .invoice-document {
 .customers .stop-list { display: grid; gap: 18px; padding-top: 12px; }
 .customers .stop-list .stop-item { border-bottom: 0; }
 .customers .stop-list .stop-button {
-  position: relative; background: var(--surface); border-radius: 0 14px 14px 14px; border-top: 4px solid var(--lc);
+  position: relative; background: var(--card); border-radius: 0 14px 14px 14px; border-top: 4px solid var(--lc);
   box-shadow: var(--raise-shadow); min-height: 76px;
 }
 html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 14px; }
@@ -554,7 +558,7 @@ html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 
   background: var(--lc); border-radius: 10px 10px 0 0;
 }
 .customers .stop-list .stop-button:hover, .customers .stop-list .stop-button.selected { background: var(--lc-tint); }
-.customer-detail { border-top: 0; background: linear-gradient(var(--lc) 0 0) top / 100% 6px no-repeat, var(--surface); }
+.customer-detail { border-top: 0; background: linear-gradient(var(--lc) 0 0) top / 100% 6px no-repeat, var(--card); }
 .customer-detail::before {
   content: ""; position: absolute; top: 6px; inset-inline-start: 26px; width: 120px; height: 12px; background: var(--lc);
   border-radius: 0 0 10px 10px;
@@ -564,13 +568,13 @@ html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 
 .customer-facts > div { border-bottom-style: dashed; }
 .customer-link { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
 .all-customers { border-top: 4px solid var(--lc); }
-.all-customers-list > li { background: var(--surface); border-radius: 0 10px 10px 10px; box-shadow: inset 0 0 0 1px var(--edge); padding: 6px 12px; }
+.all-customers-list > li { background: var(--card); border-radius: 0 10px 10px 10px; box-shadow: inset 0 0 0 1px var(--edge); padding: 6px 12px; }
 .customer-invoices { border-inline-start: 3px dashed color-mix(in srgb, var(--lc) 50%, transparent); }
 
 /* ---------- Deliveries: every delivery hangs off the route line as a pin ---------- */
 .delivery-panel .outbox-list { position: relative; gap: 12px; }
 .delivery-panel .outbox-list > .delivery-row {
-  position: relative; background: var(--surface); border-top: 0; border-radius: 14px; padding: 14px 16px; padding-inline-start: 50px; box-shadow: var(--raise-shadow);
+  position: relative; background: var(--card); border-top: 0; border-radius: 14px; padding: 14px 16px; padding-inline-start: 50px; box-shadow: var(--raise-shadow);
 }
 .delivery-panel .outbox-list > .delivery-row::before {
   content: ""; position: absolute; inset-inline-start: 16px; top: 16px; width: 20px; height: 20px; border-radius: 50% 50% 50% 4px;
@@ -588,7 +592,7 @@ html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 
 .catalog-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
 .catalog-list > :not(.product-card) { grid-column: 1 / -1; }
 .product-card {
-  position: relative; border-top: 0; background: var(--surface); border-radius: 14px; padding: 34px 16px 12px;
+  position: relative; border-top: 0; background: var(--card); border-radius: 14px; padding: 34px 16px 12px;
   box-shadow: inset 0 0 0 1px var(--edge), var(--product-shadow); align-content: start;
 }
 .product-card::before {
@@ -616,7 +620,7 @@ html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 
 /* Categories: shelf labels, stacked like shelves. */
 .category-route { gap: 12px; }
 .category-route li {
-  border-top: 0; background: var(--surface); border-inline-start: 8px solid var(--lc); border-radius: 6px 14px 14px 6px;
+  border-top: 0; background: var(--card); border-inline-start: 8px solid var(--lc); border-radius: 6px 14px 14px 6px;
   padding: 12px 14px; box-shadow: 0 6px 0 -3px var(--lc-tint), inset 0 0 0 1px var(--edge);
 }
 html[dir="rtl"] .category-route li { border-radius: 14px 6px 6px 14px; }
@@ -636,7 +640,7 @@ html[dir="rtl"] .grade-discount-grid form::before { left: auto; right: 14px; }
 /* ---------- Buying › Procurement: every shopping list is a clipboard ---------- */
 .procurement-detail {
   position: relative; border: 3px solid var(--lc); border-radius: 16px; margin-top: 16px; padding-top: 34px;
-  background: var(--surface) repeating-linear-gradient(to bottom, transparent 0 39px, var(--lc-tint) 39px 40px);
+  background: var(--card) repeating-linear-gradient(to bottom, transparent 0 39px, var(--lc-tint) 39px 40px);
 }
 .procurement-detail::before {
   content: ""; position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 86px; height: 26px; border-radius: 9px 9px 7px 7px;
@@ -651,10 +655,10 @@ html[dir="rtl"] .grade-discount-grid form::before { left: auto; right: 14px; }
 .pickup-inbox { border-top: 5px solid var(--lc); }
 /* Suppliers: ledger pages with a margin line. */
 .supplier-setup .content-card, .supplier-ledger, .purchase-history {
-  background: var(--surface) linear-gradient(90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
+  background: var(--card) linear-gradient(90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
 }
 html[dir="rtl"] :is(.supplier-setup .content-card, .supplier-ledger, .purchase-history) {
-  background: var(--surface) linear-gradient(-90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
+  background: var(--card) linear-gradient(-90deg, transparent 22px, color-mix(in srgb, var(--lc) 40%, transparent) 22px 24px, transparent 24px);
 }
 .supplier-list > li, .purchase-history .outbox-row { border-top: 1px solid var(--lc-tint); }
 .supplier-balances > div, .sync-facts > div { border-bottom-color: var(--lc-tint); }
@@ -663,7 +667,7 @@ html[dir="rtl"] :is(.supplier-setup .content-card, .supplier-ledger, .purchase-h
 
 /* ---------- Insights › Analytics: figures on grid paper ---------- */
 .analytics-panel .analytics-facts, .cash-currency {
-  background-color: var(--card-solid);
+  background-color: var(--card);
   background-image: linear-gradient(color-mix(in srgb, var(--lc) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--lc) 9%, transparent) 1px, transparent 1px);
   background-size: 16px 16px; border-radius: var(--radius-record); padding: 0 16px; box-shadow: inset 0 0 0 1px var(--edge);
 }
@@ -735,7 +739,7 @@ html[dir="rtl"] .copilot-answer { border-radius: 18px 18px 4px 18px; }
 .route-brief-marker { border-radius: 50%; }
 /* Applications arrive as envelopes; their status is a postmark. */
 .application-row {
-  position: relative; background-color: var(--card-solid);
+  position: relative; background-color: var(--card);
   background-image: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--edge) 50%, transparent calc(50% + 1px)), linear-gradient(to bottom left, transparent calc(50% - 1px), var(--edge) 50%, transparent calc(50% + 1px));
   background-size: 50% 46px; background-repeat: no-repeat; background-position: left top, right top; padding-top: 30px;
 }
@@ -866,51 +870,4 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   .document-summary, .document-totals .total-due { background: none !important; }
   .station-sign { background: none; padding: 0; }
   .station-tile, .topline::after { display: none !important; }
-}
-
-/* ML-02 surface treatment keeps the Map's geometry, line bands and focus rings. */
-@media screen {
-  .button { box-shadow: var(--raise-shadow); }
-  .button:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
-  .button-secondary, .secondary-button, .button-quiet, .button-danger, .button:disabled { box-shadow: var(--card-shadow); }
-  .content-card, .panel, .table-card, .application-row, .tenant-card, .detail, .invoice-document, .invoice-sharing, .settlement-desk, .debt-desk, .invoice-lines, .invoice-tally, .invoice-context, .state-panel, .empty-state { box-shadow: var(--card-shadow); }
-  .day-summary, .today-brief, .stop-map-canvas, .customers .stop-list .stop-button, .delivery-panel .outbox-list > .delivery-row, .branding-panel, .sync-panel, .dashboard-metrics article { box-shadow: var(--card-shadow); }
-  .copilot-answer { box-shadow: inset 0 0 0 2px var(--indigo), var(--card-shadow); }
-  .backup-panel { box-shadow: inset 0 0 0 3px var(--lc), inset 0 0 0 7px var(--surface), inset 0 0 0 9px var(--lc), var(--card-shadow); }
-  .rail-nav > .nav-item.active > .icon, .more-item.active[data-line] > .icon {
-    background: var(--accent); color: var(--accent-ink); border-color: var(--accent-edge);
-  }
-  .rail-nav > .nav-item.active > .icon { box-shadow: 0 0 0 3px var(--bg-solid), 0 0 0 5px var(--accent-edge); }
-  .section-tabs a.active::after { background: var(--accent); border-color: var(--accent-edge); box-shadow: 0 0 0 3px var(--bar-solid), 0 0 0 5px var(--accent-edge); }
-  .rail-nav > .nav-item.active > span:first-of-type, .rail-bottom .nav-item.active, .more-item.active {
-    background: var(--accent); color: var(--accent-ink);
-  }
-  .entry-switch button[aria-pressed="true"], .invoice-views button[aria-pressed="true"], .allocation-mode button[aria-pressed="true"], .segmented .text-button[aria-pressed="true"] {
-    background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 0 0 2px var(--accent-edge);
-  }
-  .orders-panel .outbox-list > .outbox-row, .invoice-tally, .invoice-document, .toast { filter: none; }
-  .orders-panel .outbox-list > .outbox-row { box-shadow: var(--card-shadow); }
-  .orders-panel .outbox-list > .outbox-row.muted { box-shadow: none; }
-  .invoice-tally { background: var(--surface); }
-  .invoice-share-issued input, .issued-link input { background: var(--field-bg); }
-}
-@media screen and (max-width: 1099px) {
-  .mobile-nav-item.active > .icon, .mobile-nav > button.mobile-nav-item.active > .icon {
-    background: var(--accent); color: var(--accent-ink); border-color: var(--accent-edge);
-    box-shadow: 0 0 0 3px var(--bar-solid), 0 0 0 5px var(--accent-edge);
-  }
-}
-
-@media print {
-  /* Restore the Map overrides used by the pre-metal invoice. */
-  :root {
-    --accent: var(--ink);
-    --accent-hover: #0a1a21;
-    --bar-shadow: 0 1px 0 rgb(var(--shadow-tint) / .04);
-    --raise-shadow: var(--lift);
-    --rail-bg: var(--paper);
-    --rail-shadow: none;
-    --phone-bar-shadow: 0 -6px 18px rgb(var(--shadow-tint) / .06);
-    --more-sheet-shadow: 0 -10px 30px rgb(var(--shadow-tint) / .16);
-  }
 }
