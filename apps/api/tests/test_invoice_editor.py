@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -36,6 +37,7 @@ from tawzeevo_api.models import (
 from tawzeevo_api.repositories.tenancy import set_tenant_scope
 from tawzeevo_api.schemas.payments import CustomerRefundRequest
 from tawzeevo_api.security import hash_password
+from tawzeevo_api.services.invoice_editor import normalize_item_text, product_response
 from tawzeevo_api.services.invoice_finance import confirm_invoice
 from tawzeevo_api.services.payments import record_customer_refund
 
@@ -387,6 +389,154 @@ def test_text_parser_is_exact_first_and_never_auto_selects_fuzzy_or_ambiguous_ma
     )
     assert prefix.status_code == 200
     assert all(match["match_type"] == "PREFIX" for match in prefix.json()["matches"])
+
+
+def _search_product(
+    client: TestClient,
+    tenant_id: str,
+    token: str,
+    category_id: object,
+    name: str,
+    barcode: str | None = None,
+) -> dict[str, object]:
+    response = client.post(
+        f"/api/v1/tenants/{tenant_id}/products",
+        headers=_auth(token),
+        json={
+            "category_id": category_id,
+            "name": name,
+            "barcode": barcode,
+            "unit_price": "2.0000",
+            "currency": "USD",
+            "price_basis": "PIECE",
+        },
+    )
+    assert response.status_code == 201, response.text
+    return dict(response.json())
+
+
+def test_catalog_search_word_prefixes_arabic_barcodes_and_tenant_isolation(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    _owner, tenant_id, token = _owner_context(client, session_factory, "word-search")
+    category, labneh, _customer = _catalog(client, tenant_id, token, name="Chtaura Labneh 500g")
+    water = _search_product(client, tenant_id, token, category["id"], "Cedar Spring Water 6x1.5L")
+    arabic = [
+        _search_product(client, tenant_id, token, category["id"], name)
+        for name in ["لبنة شتورا", "لبنه شتورا"]
+    ]
+    other_arabic = _search_product(client, tenant_id, token, category["id"], "مياه الأرز")
+    box = client.post(
+        f"/api/v1/tenants/{tenant_id}/products/{labneh['id']}/barcodes",
+        headers=_auth(token),
+        json={"barcode": "999888777", "package_level": "BOX"},
+    )
+    assert box.status_code == 201, box.text
+    _other_owner, other_tenant, other_token = _owner_context(
+        client, session_factory, "word-search-other"
+    )
+    _catalog(client, other_tenant, other_token, name="Chtaura Labneh 500g")
+
+    for query, expected in [
+        *[
+            (query, [labneh["id"]])
+            for query in [
+                "labneh",
+                "LABNEH",
+                "labneh chtaura",
+                "cht lab",
+                "500 labneh",
+                "  labneh   chtaura  ",
+                "528000",
+                "٥٢٨٠٠٠",
+            ]
+        ],
+        ("water", [water["id"]]),
+        ("abneh", []),
+        ("labneh missing", []),
+        ("000000", []),
+        ("!!!", []),
+        *[
+            (query, [item["id"] for item in arabic])
+            for query in [
+                "لبنه شتورا",
+                "شتورا لبنه",
+                "شتورا لبنة",
+                "لـبْنه شتورا",
+            ]
+        ],
+        ("ٱلارز مياه", [other_arabic["id"]]),
+    ]:
+        response = client.get(
+            "/api/v1/invoices/catalog-search",
+            params={"tenant_id": tenant_id, "query": query},
+            headers=_auth(token),
+        )
+        assert response.status_code == 200, response.text
+        assert {item["product_id"] for item in response.json()["matches"]} == set(expected), query
+
+    for query, match_type in [("999888", "PREFIX"), ("999888777", "EXACT")]:
+        response = client.get(
+            "/api/v1/invoices/catalog-search",
+            params={"tenant_id": tenant_id, "query": query},
+            headers=_auth(token),
+        )
+        assert response.status_code == 200, response.text
+        match = response.json()["matches"][0]
+        assert match["product_id"] == labneh["id"]
+        assert (match["barcode"], match["package_level"], match["match_type"]) == (
+            "999888777",
+            "BOX",
+            match_type,
+        )
+
+    # Search shares D-119 folding without broadening item-parser exact acceptance.
+    assert normalize_item_text("لبنة") != normalize_item_text("لبنه")
+    assert normalize_item_text("لـبنه") != normalize_item_text("لبنه")
+
+
+def test_catalog_search_ranking_limit_and_response_building(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    _owner, tenant_id, token = _owner_context(client, session_factory, "search-rank")
+    category, _product, _customer = _catalog(client, tenant_id, token, name="Unrelated")
+    # Insert in reverse order to prove ranking does not depend on insertion order.
+    expected = [
+        "Labneh",
+        "ZZ Barcode product",
+        "Labneh Chtaura",
+        "Labneh Zaatar",
+        "A Labneh",
+        "Z Labneh",
+        "AA Labneh",
+        "A Cold Labneh",
+    ]
+    for name in reversed(expected):
+        _search_product(
+            client,
+            tenant_id,
+            token,
+            category["id"],
+            name,
+            "labneh" if name == "ZZ Barcode product" else None,
+        )
+    for limit in [1, 3, 7, 12]:
+        with patch(
+            "tawzeevo_api.services.invoice_editor.product_response", wraps=product_response
+        ) as build_response:
+            response = client.get(
+                "/api/v1/invoices/catalog-search",
+                params={"tenant_id": tenant_id, "query": "labneh", "limit": limit},
+                headers=_auth(token),
+            )
+        assert response.status_code == 200, response.text
+        matches = response.json()["matches"]
+        assert [item["name"] for item in matches] == expected[:limit]
+        assert [item["match_type"] for item in matches] == (["EXACT", "EXACT"] + ["PREFIX"] * 6)[
+            :limit
+        ]
+        assert build_response.call_count == len(matches)
+        assert [call.args[1].name for call in build_response.call_args_list] == expected[:limit]
 
 
 def test_accepted_fuzzy_match_is_audited_and_owner_finance_is_tenant_protected(
