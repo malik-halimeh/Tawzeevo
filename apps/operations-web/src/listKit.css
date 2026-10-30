@@ -16,7 +16,7 @@
 .list-icon-button[aria-expanded="true"] { background: var(--lc-tint); border-color: var(--lc-edge); color: var(--lc-deep); }
 
 .list-search { display: flex; align-items: center; gap: 8px; min-height: 48px; padding-inline: 12px 2px; border: 1px solid var(--edge-strong); border-radius: var(--radius-control); background: var(--field-bg); }
-.list-search:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px var(--lc-tint); }
+.list-search:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px var(--search-focus); }
 .list-search > .icon { flex: none; color: var(--muted); }
 .list-search input { flex: 1; width: 100%; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; }
 .list-search input:focus, .list-search input:focus-visible { outline: none; box-shadow: none; }
@@ -91,7 +91,7 @@
 .fab { position: relative; display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--lc); color: var(--lc-on); box-shadow: inset 0 0 0 1.5px var(--lc-edge), 0 0 0 3px var(--paper); text-decoration: none; }
 .fab > .icon { width: 26px; height: 26px; }
 .fab[aria-expanded="true"] > .icon { transform: rotate(45deg); }
-.fab-tip { position: absolute; inset-block-start: 50%; inset-inline-end: calc(100% + 10px); padding: 6px 10px; border-radius: var(--radius-control); background: var(--ink); color: var(--on-solid); font-size: 13px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transform: translateY(-50%); }
+.fab-tip { position: absolute; inset-block-start: 50%; inset-inline-end: calc(100% + 10px); padding: 6px 10px; border-radius: var(--radius-control); background: var(--solid-bg); color: var(--on-solid); font-size: 13px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transform: translateY(-50%); }
 .fab:focus-visible .fab-tip { opacity: 1; }
 .fab[aria-expanded="true"] .fab-tip { opacity: 0; }
 
@@ -124,13 +124,18 @@
   .list-toolbar > :is(.filter-sheet-button, .list-sort) { flex: none; }
   .list-toolbar:not(:has(.list-toolbar-chips)) { justify-content: end; }
   .list-toolbar .list-sort-button { font-size: 12px; padding-inline: var(--space-2); white-space: nowrap; }
-  .list-row-sub { unicode-bidi: plaintext; }
+  .list-row-text { text-align: start; }
+  /* Inherit the row's page-directed alignment while dir=auto still owns truncation. */
+  .list-row-title, .list-row-sub { unicode-bidi: plaintext; }
+  /* dir=auto gives a Latin name its own direction, so align by the page's direction explicitly. */
+  html[dir="rtl"] :is(.list-row-title, .list-row-sub) { text-align: right; }
+  html[dir="ltr"] :is(.list-row-title, .list-row-sub) { text-align: left; }
   .chip, .filter-sheet-button { box-shadow: var(--card-shadow); }
-  .chip:focus-visible, .filter-sheet-button:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+  .chip:focus-visible, .filter-sheet-button:focus-visible { box-shadow: 0 0 0 5px var(--focus-edge); }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
   .chip[aria-pressed="true"] { border-color: var(--accent-edge); }
   .fab { border-radius: 18px; background: var(--citron); color: var(--mint-ink); box-shadow: var(--raise-shadow); }
-  .fab:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+  .fab:focus-visible { box-shadow: 0 0 0 5px var(--focus-edge); }
   .fab:hover { background: var(--citron); }
   .list-rows { display: grid; gap: 8px; border: 0; background: transparent; box-shadow: none; }
   .list-row { border: 1px solid var(--edge); border-radius: var(--radius-record); background: var(--card); box-shadow: var(--card-shadow); }

@@ -22,6 +22,16 @@ test("the whole row is one link with title, sub-line, amount and status", () => 
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
 
+test("a Latin customer name in an Arabic row keeps auto direction inside the page-directed text container", async () => {
+  await i18n.changeLanguage("ar");
+  render(<MemoryRouter><div dir="rtl"><ul><ListRow href="/customers/7" title="Rami Store" /></ul></div></MemoryRouter>);
+  const title = screen.getByText("Rami Store");
+  expect(title).toHaveAttribute("dir", "auto");
+  expect(title.parentElement).toHaveClass("list-row-text");
+  expect(title.parentElement?.getAttribute("dir")).toBeNull();
+  expect(title.parentElement?.closest("[dir]")).toHaveAttribute("dir", "rtl");
+});
+
 test("a row can open with a button, and its ⋮ button names the row and opens its actions", () => {
   const onOpen = vi.fn();
   const onSelect = vi.fn();

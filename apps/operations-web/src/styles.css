@@ -14,6 +14,7 @@
 
 /* ---------- Cedar tokens (owner-approved MR-10; paper-object shapes live in map.css) ---------- */
 :root {
+  color-scheme: light dark;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -92,6 +93,17 @@
   --band-glass: rgb(255 255 255 / .12);
   /* ---------- Controls, illustrations and shadow colours ---------- */
   --on-solid: #fff;
+  --on-mint: var(--ink);
+  --focus-edge: var(--ink);
+  --search-focus: var(--mist);
+  --solid-bg: var(--ink);
+  --board-bg: var(--ink);
+  --nav-bg: var(--accent);
+  --nav-ink: var(--accent-ink);
+  --nav-tint-ink: var(--blue);
+  --active-tab-bg: var(--surface);
+  --badge-bg: var(--ink);
+  --badge-ink: var(--on-solid);
   --bad-hover: var(--bad);
   --good-hover: var(--blue-deep);
   --input-icon: var(--muted);
@@ -124,6 +136,63 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-text-size-adjust: 100%;
+}
+
+/* MR-15: the phone owns the theme. Only tokens change; print restores the light palette below. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0e1714;
+    --surface: #16221e;
+    --bar: #121c19;
+    --field-bg: #1b2925;
+    --ink: #e8f0ec;
+    --muted: #9fb3aa;
+    --blue: #5fd3a8;
+    --blue-deep: #7fe0bd;
+    --mist: #173b31;
+    --citron: #3ad6a3;
+    --citron-deep: var(--blue-deep);
+    --mint-ink: #04130e;
+    --line: #263631;
+    /* Also reaches 3:1 on the field, where the proposed #5d7369 reaches only 2.96:1. */
+    --line-strong: #5e746a;
+    --good: #5bd69a;
+    --good-bg: #123526;
+    --good-line: var(--good);
+    --warn: #f0c062;
+    --warn-bg: #3a2c10;
+    --warn-line: var(--warn);
+    --bad: #ff8a9c;
+    --bad-bg: #3d1820;
+    --bad-line: var(--bad);
+    --sky-deep: var(--band-muted);
+    --accent: #2fbf8f;
+    --accent-hover: var(--citron);
+    --on-solid: var(--mint-ink);
+    --on-mint: var(--mint-ink);
+    --focus-edge: var(--paper);
+    --search-focus: var(--citron);
+    --solid-bg: var(--accent);
+    --board-bg: var(--bar);
+    --nav-bg: var(--mist);
+    --nav-ink: var(--blue-deep);
+    --nav-tint-ink: var(--blue-deep);
+    --active-tab-bg: var(--mist);
+    --badge-bg: var(--mist);
+    --badge-ink: var(--blue-deep);
+    --card-shadow: 0 1px 2px rgb(0 0 0 / .5);
+    --raise-shadow: var(--card-shadow);
+    --band-start: #0a2a23;
+    --band-end: #0f4337;
+    --band-muted: #a8cfc1;
+    --band-glass: rgb(255 255 255 / .10);
+    --good-hover: var(--citron);
+    --attention-edge: var(--warn);
+    --estimate-ink: var(--warn);
+    --shadow-tint: 0 0 0;
+    --toast-shadow: var(--card-shadow);
+    --pin-shadow: var(--card-shadow);
+  }
 }
 
 html[lang="ar"] { font-family: var(--font-arabic); line-height: 1.7; }
@@ -1368,6 +1437,44 @@ body.keyboard-open .action-area.attached { bottom: var(--keyboard); }
 @media print {
   /* ML-02 preserves the pre-metal print palette and surfaces. */
   :root {
+    /* MR-15: reset system dark tokens before the legacy light print palette. */
+    color-scheme: light;
+    --paper: #f3f6f4;
+    --citron: #13c08e;
+    --citron-deep: #0f6b55;
+    --mint-ink: #062a20;
+    --good: #127e4c;
+    --good-bg: #e3f6ec;
+    --good-line: #bddcc9;
+    --warn: #9a5b00;
+    --warn-bg: #fff0d6;
+    --warn-line: #e6cd92;
+    --bad: #c62842;
+    --bad-bg: #ffe6ea;
+    --bad-line: #efc3ca;
+    --sky-deep: #b7d9cd;
+    --on-solid: #fff;
+    --on-mint: var(--ink);
+    --focus-edge: var(--ink);
+    --search-focus: var(--mist);
+    --solid-bg: var(--ink);
+    --board-bg: var(--ink);
+    --nav-bg: var(--accent);
+    --nav-ink: var(--accent-ink);
+    --nav-tint-ink: var(--blue);
+    --active-tab-bg: var(--surface);
+    --badge-bg: var(--ink);
+    --badge-ink: var(--on-solid);
+    --band-start: #0d3b31;
+    --band-end: #12584a;
+    --band-muted: #b7d9cd;
+    --band-glass: rgb(255 255 255 / .12);
+    --good-hover: var(--blue-deep);
+    --attention-edge: #c9b47a;
+    --estimate-ink: #815108;
+    --shadow-tint: 16 35 30;
+    --toast-shadow: 0 8px 24px rgb(23 42 58 / 14%);
+    --pin-shadow: 0 1px 3px rgba(23, 42, 58, .35);
     --surface: #ffffff;
     --ink: #13262f;
     --muted: #4f6169;
