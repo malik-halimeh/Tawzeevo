@@ -22,16 +22,16 @@
 :root {
   /* Resolve the neutral here, before descendants assign line-tinted --mist values. */
   --metal-mist: var(--mist);
-  --indigo: #5140b8;
-  --indigo-tint: #eae7fa;
-  --indigo-deep: #3a2c8f;
-  --radius-control: 10px;
+  --indigo: var(--blue);
+  --indigo-tint: var(--mist);
+  --indigo-deep: var(--blue-deep);
+  --radius-control: 12px;
   --radius-record: 14px;
   --radius-dialog: 20px;
   --font-display: "PlexCondensed", "PlexArabic", "Plex", "Segoe UI", system-ui, sans-serif;
   --font-mono: "PlexMono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --lift: 0 1px 0 rgb(var(--shadow-tint) / .05), 0 8px 20px rgb(var(--shadow-tint) / .07);
-  --ink-soft: #2b4550;
+  --lift: var(--card-shadow);
+  --ink-soft: var(--blue-deep);
   /* ---------- Map surfaces, artwork and elevation ---------- */
   --rail-bg: var(--bar);
   --rail-shadow: var(--bar-shadow);
@@ -41,38 +41,38 @@
   --desk-edge: #35505b;
   --desk-selected: #25404a;
   --note-tape: rgb(255 255 255 / .62);
-  --document-fold: #d6dfdb;
-  --stamp-bg: rgb(228 244 234 / .6);
-  --cancelled-stamp-bg: rgb(253 233 236 / .6);
-  --closed-tag-bg: #eef2f0;
-  --closed-tag-stripe: #dfe6e3;
-  --clipboard-start: #9aa7a3;
-  --clipboard-end: #5e6b67;
-  --board-ink: #dbe5e1;
+  --document-fold: var(--line);
+  --stamp-bg: var(--good-bg);
+  --cancelled-stamp-bg: var(--bad-bg);
+  --closed-tag-bg: var(--field-bg);
+  --closed-tag-stripe: var(--line);
+  --clipboard-start: var(--line-strong);
+  --clipboard-end: var(--muted);
+  --board-ink: var(--band-muted);
   --attention-ring: #e6b54c;
-  --awning-stripe: #44535c;
-  --sales-art: #c4501c;
-  --sales-art-ink: #8a3510;
-  --sales-art-bg: #fdebdd;
-  --customers-art: #0b7a6e;
-  --customers-art-ink: #075a51;
-  --customers-art-bg: #ddf3ef;
-  --catalog-art: #a8326e;
-  --buying-art: #557a1f;
-  --closing-ink: #eef3f1;
-  --closing-muted: #c3d0cc;
-  --mural-sales: #f08a5d;
-  --mural-catalog: #e27fb0;
-  --mural-deliveries: #8fb0ff;
-  --mural-customers: #5fd0c1;
-  --loading-start: #e3e9e6;
-  --loading-end: #f3f6f4;
-  --phone-bar-shadow: inset 0 1px 0 #fff, 0 -1px 3px rgb(20 30 40 / .15);
+  --awning-stripe: var(--blue-deep);
+  --sales-art: var(--blue);
+  --sales-art-ink: var(--blue-deep);
+  --sales-art-bg: var(--mist);
+  --customers-art: var(--blue);
+  --customers-art-ink: var(--blue-deep);
+  --customers-art-bg: var(--mist);
+  --catalog-art: var(--blue);
+  --buying-art: var(--blue);
+  --closing-ink: var(--band-ink);
+  --closing-muted: var(--band-muted);
+  --mural-sales: var(--citron);
+  --mural-catalog: var(--band-muted);
+  --mural-deliveries: var(--citron);
+  --mural-customers: var(--band-muted);
+  --loading-start: var(--line);
+  --loading-end: var(--paper);
+  --phone-bar-shadow: none;
   --more-sheet-shadow: var(--bar-shadow);
-  --language-shadow: inset 0 -3px 0 rgb(0 0 0 / .28);
-  --online-shadow: 0 0 0 3px rgb(30 107 69 / .18);
-  --waiting-shadow: 0 0 0 3px rgb(125 78 0 / .16);
-  --attention-shadow: 0 0 0 3px rgb(163 38 58 / .16);
+  --language-shadow: none;
+  --online-shadow: none;
+  --waiting-shadow: none;
+  --attention-shadow: none;
   --note-shadow: 0 12px 18px -12px rgb(var(--shadow-tint) / .35);
   --tape-shadow: 0 1px 2px rgb(var(--shadow-tint) / .14);
   --product-shadow: 0 6px 14px -8px rgb(var(--shadow-tint) / .18);
@@ -878,9 +878,9 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   .station-tile, .topline::after { display: none !important; }
 }
 
-/* ML-02 surface treatment keeps the Map's geometry, line bands and focus rings. */
+/* Flat Cedar surfaces keep the paper objects and focus rings. */
 @media screen {
-  .button { box-shadow: var(--raise-shadow); }
+  .button { box-shadow: var(--card-shadow); }
   .button:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
   .button-secondary, .secondary-button, .button-quiet, .button-danger, .button:disabled { box-shadow: var(--card-shadow); }
   .content-card, .panel, .table-card, .application-row, .tenant-card, .detail, .invoice-document, .invoice-sharing, .settlement-desk, .debt-desk, .invoice-lines, .invoice-tally, .invoice-context, .state-panel, .empty-state { box-shadow: var(--card-shadow); }
@@ -908,5 +908,167 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
     --rail-shadow: none;
     --phone-bar-shadow: 0 -6px 18px rgb(var(--shadow-tint) / .06);
     --more-sheet-shadow: 0 -10px 30px rgb(var(--shadow-tint) / .16);
+  }
+}
+
+/* MR-10 Cedar: screen presentation only; the existing paper objects keep their geometry. */
+@media screen {
+  :root, [data-line], .stop-detail, .my-work-list, .day-meter, .stop-map,
+  .delivery-panel, .route-planner, .directions, .pickup-panel {
+    --lc: var(--blue); --lc-tint: var(--metal-mist); --lc-deep: var(--blue-deep);
+    --lc-on: var(--on-solid); --lc-edge: var(--blue);
+  }
+  .frame[data-line] { --mist: var(--metal-mist); }
+  .rail .nav-item.active { box-shadow: none; }
+  .rail-bottom { border-block-start: 1px solid var(--edge); }
+
+  /* The top bar meets the business heading without a card edge or page gutter between them. */
+  .stage { --page-gutter: 42px; }
+  .stage:has(.station-sign) .topline {
+    background: var(--band-start); color: var(--band-muted); border: 0; box-shadow: none;
+    padding-inline: var(--page-gutter); padding-block-end: 12px;
+  }
+  .main:has(.station-sign) { max-inline-size: none; padding-block-start: 0; }
+  .station-sign {
+    --mist: var(--metal-mist);
+    margin-inline: calc(-1 * var(--page-gutter)); padding-inline: var(--page-gutter);
+    padding-block: 12px 24px; gap: 0 16px; background: var(--band); color: var(--band-ink);
+    border: 0; border-radius: 0 0 24px 24px; box-shadow: none;
+  }
+  .stage:has(.station-sign) .topline :is(.brand, .topline-trail strong),
+  .station-sign .business h1, .station-sign .tenant-picker > span { color: var(--band-ink); }
+  .station-sign :is(.eyebrow, .eyebrow .icon, .muted) { color: var(--band-muted); }
+  .station-sign .business-avatar { background: var(--citron); color: var(--mint-ink); }
+  .station-tile { background: var(--band-glass); color: var(--band-ink); border: 0; border-radius: 50%; }
+  .station-sign .badge-pair .status-badge,
+  .stage:has(.station-sign) .topline :is(.language, .assistant-button, .online) {
+    background: var(--band-glass); color: var(--band-ink); border: 0; border-radius: 999px; box-shadow: none;
+  }
+  .stage:has(.station-sign) .topline .assistant-button > .icon {
+    background: transparent; color: inherit; border-radius: 50%;
+  }
+  .stage:has(.station-sign) .topline .online::before { background: var(--citron); box-shadow: none; }
+  .stage:has(.station-sign) .topline .online:is(.offline, [data-state="waiting"], [data-state="sending"])::before { background: var(--warn-bg); }
+  .stage:has(.station-sign) .topline .online[data-state="attention"]::before { background: var(--bad-bg); }
+  .stage:has(.station-sign) .topline :is(.language, .assistant-button):hover {
+    background: var(--band-glass); color: var(--band-ink); transform: none;
+    box-shadow: inset 0 0 0 1px var(--band-muted);
+  }
+  .station-sign .tenant-picker select { background-color: var(--surface); color: var(--ink); }
+  .station-sign > .section-tabs {
+    margin-block: 16px 0; margin-inline: 0; background: var(--band-glass); border: 0;
+    inline-size: fit-content;
+  }
+  .station-sign .section-tabs a { color: var(--band-ink); }
+  .station-sign .section-tabs a:hover { background: var(--band-glass); }
+  .station-sign .section-tabs a.active { background: var(--surface); color: var(--blue); }
+  .station-sign .nav-badge { background: var(--band-glass); color: var(--band-ink); }
+  .station-sign .active .nav-badge { background: var(--mist); color: var(--blue); }
+
+  .more-item { background: var(--surface); }
+  .more-item:hover, .more-item.active, .more-item[aria-current="page"] { background: var(--mist); color: var(--blue); }
+  .button { border-radius: var(--radius-control); }
+  /* Keep the send and stamp silhouettes; plain actions use a quiet, flat icon. */
+  .button:not(.button-money, .button-danger, .button-secondary, .button-quiet) > .icon:first-child {
+    background: transparent; color: inherit; box-shadow: none;
+  }
+  .button-send { border-start-end-radius: 6px; border-end-end-radius: 6px; border-start-start-radius: 999px; border-end-start-radius: 999px; }
+  .chips .text-button, .entry-switch button, .invoice-views button, .allocation-mode button,
+  .segmented .text-button, .barcode-chips code, .grade-price-chips span { border-radius: 999px; }
+  .chips .text-button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-edge); }
+  .content-card, .panel, .table-card, .application-row, .tenant-card, .state-panel {
+    border-radius: var(--radius-record);
+  }
+  .skeleton { background: var(--line); }
+  .customers .avatar, .customer-identity .avatar, .rail-context .avatar {
+    border-radius: 50%; background: var(--mist); color: var(--blue);
+  }
+  .detail-top :is(.badge, .status-badge) { background: var(--mist); color: var(--blue); }
+  .detail-top :is(.badge.good, .status-active, .status-approved, .status-current, .status-admin, .status-owner, .status-completed, .status-confirmed, .status-uploaded) { background: var(--good-bg); color: var(--good); }
+  .detail-top :is(.badge.warn, .status-pending, .status-grace, .status-received, .status-running) { background: var(--warn-bg); color: var(--warn); }
+  .detail-top :is(.badge.bad, .status-rejected, .status-suspended, .status-overdue, .status-cancelled, .status-declined, .status-failed) { background: var(--bad-bg); color: var(--bad); }
+  .detail-top :is(.status-closed, .status-client, .status-driver, .status-deleted) { background: var(--paper); color: var(--muted); }
+}
+
+@media screen and (max-width: 1250px) and (min-width: 1100px) { .stage { --page-gutter: 26px; } }
+@media screen and (max-width: 1099px) {
+  .stage { --page-gutter: 24px; }
+  .mobile-nav { background: var(--bar); border-block-start: 1px solid var(--edge); box-shadow: none; }
+  .mobile-nav-item.active { color: var(--blue); }
+  .mobile-nav-item.active::before { display: none; }
+  .mobile-nav-item.active > .icon {
+    inline-size: 48px; block-size: 34px; padding-block: 6px; padding-inline: 13px;
+    background: var(--mist); color: var(--blue); border-radius: 999px;
+  }
+  .frame[data-role="owner"] .mobile-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .frame[data-role="owner"] .mobile-nav-item { padding-inline: 2px; }
+}
+@media screen and (max-width: 620px) { .stage { --page-gutter: 18px; } }
+
+@media print {
+  /* MR-10: retain every pre-Cedar print token, including artwork and paper geometry. */
+  :root {
+    --paper: #f2f5f3;
+    --citron: #ddeb6a;
+    --citron-deep: #c9d94f;
+    --good: #1e6b45;
+    --good-bg: #e4f4ea;
+    --warn: #7d4e00;
+    --warn-bg: #fff1cf;
+    --bad: #a3263a;
+    --bad-bg: #fde9ec;
+    --radius-control: 10px;
+    --ink-soft: #2b4550;
+    --sky-deep: #c5d5ec;
+    --bad-hover: #862331;
+    --good-hover: #184c35;
+    --input-icon: #677f94;
+    --loading-fill: #e7edf5;
+    --board-edge: #d1deec;
+    --board-hover: #dce7f7;
+    --story-ink: #e0e8ff;
+    --story-path: #91b1ff;
+    --story-icon: #f0f4ff;
+    --story-edge: #7597f0;
+    --edge-cool: #bdcad9;
+    --day-ink: #dbe6ff;
+    --day-meter: #8aa5e6;
+    --day-foot-ink: #e9efff;
+    --selected-edge: #b9cbed;
+    --action-edge: #c9d5e5;
+    --shadow-tint: 19 38 47;
+    --indigo: #5140b8;
+    --indigo-tint: #eae7fa;
+    --indigo-deep: #3a2c8f;
+    --lift: 0 1px 0 rgb(var(--shadow-tint) / .05), 0 8px 20px rgb(var(--shadow-tint) / .07);
+    --document-fold: #d6dfdb;
+    --stamp-bg: rgb(228 244 234 / .6);
+    --cancelled-stamp-bg: rgb(253 233 236 / .6);
+    --closed-tag-bg: #eef2f0;
+    --closed-tag-stripe: #dfe6e3;
+    --clipboard-start: #9aa7a3;
+    --clipboard-end: #5e6b67;
+    --board-ink: #dbe5e1;
+    --awning-stripe: #44535c;
+    --sales-art: #c4501c;
+    --sales-art-ink: #8a3510;
+    --sales-art-bg: #fdebdd;
+    --customers-art: #0b7a6e;
+    --customers-art-ink: #075a51;
+    --customers-art-bg: #ddf3ef;
+    --catalog-art: #a8326e;
+    --buying-art: #557a1f;
+    --closing-ink: #eef3f1;
+    --closing-muted: #c3d0cc;
+    --mural-sales: #f08a5d;
+    --mural-catalog: #e27fb0;
+    --mural-deliveries: #8fb0ff;
+    --mural-customers: #5fd0c1;
+    --loading-start: #e3e9e6;
+    --loading-end: #f3f6f4;
+    --language-shadow: inset 0 -3px 0 rgb(0 0 0 / .28);
+    --online-shadow: 0 0 0 3px rgb(30 107 69 / .18);
+    --waiting-shadow: 0 0 0 3px rgb(125 78 0 / .16);
+    --attention-shadow: 0 0 0 3px rgb(163 38 58 / .16);
   }
 }

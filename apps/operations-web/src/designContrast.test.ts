@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import postcss, { type AnyNode } from "postcss";
 import { describe, expect, it } from "vitest";
@@ -58,7 +59,7 @@ function contrast(foreground: string, background: string): number {
 
 function stops(name: string): string[] {
   const colours = lightValue(name).match(/#[\da-f]{3}(?:[\da-f]{3})?\b/gi);
-  if (!colours?.length) throw new Error(`No gradient stops: ${name}`);
+  if (!colours?.length) throw new Error(`No surface colours: ${name}`);
   return colours;
 }
 
@@ -100,10 +101,47 @@ describe("light design contrast", () => {
     it(`${meaning} text on its background reaches 4.5:1`, () => meets(lightValue(`--${meaning}`), lightValue(`--${meaning}-bg`)));
   }
   it("strong edges on card solid reach 3:1", () => meets(lightValue("--edge-strong"), lightValue("--card-solid"), 3));
-  it("keeps fields flat at the card solid", () => expect(lightValue("--field-bg")).toBe(lightValue("--card-solid")));
+  it("keeps Cedar surfaces flat and fields softly tinted", () => {
+    for (const [name, value] of Object.entries({
+      "--bg": "#f3f6f4", "--bar": "#ffffff", "--card": "#ffffff", "--chip": "#ffffff",
+      "--field-bg": "#f5f8f6", "--accent": "#0f6b55", "--accent-hover": "#0b5644",
+    })) expect(lightValue(name), name).toBe(value);
+    for (const name of ["bg", "bar", "card", "chip", "accent"]) {
+      expect(lightValue(`--${name}-solid`)).toBe(lightValue(`--${name}`));
+    }
+  });
+  it("white text on primary reaches 4.5:1", () => meets(lightValue("--on-solid"), lightValue("--accent")));
+  for (const foreground of ["--band-ink", "--band-muted"]) {
+    it(`${foreground} on both band stops reaches 4.5:1`, () => {
+      for (const stop of stops("--band")) meets(lightValue(foreground), stop);
+    });
+  }
+  it("white glass-pill text on both composited band stops reaches 4.5:1", () => {
+    const glass = lightValue("--band-glass").match(/^rgb\(255 255 255 \/ ([\d.]+)\)$/);
+    expect(glass).not.toBeNull();
+    const opacity = Number(glass![1]);
+    for (const stop of stops("--band")) {
+      const background = "#" + stop.slice(1).match(/../g)!.map((channel) =>
+        Math.round(255 * opacity + parseInt(channel, 16) * (1 - opacity)).toString(16).padStart(2, "0"),
+      ).join("");
+      meets(lightValue("--band-ink"), background);
+    }
+  });
+  it("mint ink on mint reaches 4.5:1", () => meets(lightValue("--mint-ink"), lightValue("--citron")));
+  for (const foreground of ["--ink", "--muted"]) {
+    it(`${foreground} on the field reaches 4.5:1`, () => meets(lightValue(foreground), lightValue("--field-bg")));
+  }
 });
 
 describe("pre-metal print palette", () => {
+  it("retains every pre-Cedar resolved print token (K7)", () => {
+    const printed = rootTokens("print");
+    // Fingerprint of all resolved print tokens at 12669f0; Cedar-only tokens have no print consumers.
+    const snapshot = Object.keys(printed).filter((name) => !/^--(?:band(?:-|$)|mint-ink$)/.test(name))
+      .sort().map((name) => [name, tokenValue(printed, `var(${name})`)]);
+    expect(createHash("sha256").update(JSON.stringify(snapshot)).digest("hex"))
+      .toBe("3908e7d1e99cf01ac06dd2d28b87af5f8f96601f2f9f53b5ad57fe3276082823");
+  });
   it("restores every changed original token after the Map cascade", () => {
     const printed = rootTokens("print");
     const original: Record<string, string> = {
