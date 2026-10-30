@@ -35,6 +35,19 @@
   /* ---------- Map surfaces, artwork and elevation ---------- */
   --rail-bg: var(--bar);
   --rail-shadow: var(--bar-shadow);
+  --band-waiting: var(--warn-bg);
+  --band-attention: var(--bad-bg);
+  --desk-title-ink: var(--paper);
+  /* Leaflet's light defaults, tokenised without changing its tiles or light appearance. */
+  --map-control-bg: #fff;
+  --map-control-ink: #000;
+  --map-control-hover: #f4f4f4;
+  --map-control-disabled: #bbb;
+  --map-control-line: #ccc;
+  --map-control-edge: rgb(0 0 0 / .2);
+  --map-attribution-bg: rgb(255 255 255 / .8);
+  --map-attribution-ink: #333;
+  --map-link: #0078a8;
   --desk-bg: var(--ink);
   --desk-ink: #e5ece9;
   --desk-muted: #b9c7c3;
@@ -85,6 +98,33 @@
   --search-indicator: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f6169' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='6.5'/%3E%3Cpath d='m15 15 6 6'/%3E%3C/svg%3E");
 }
 
+/* Artwork, paper details and vendor controls need the same system-driven palette. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --band-waiting: var(--warn);
+    --band-attention: var(--bad);
+    --desk-bg: var(--bar);
+    --desk-title-ink: var(--ink);
+    --desk-ink: var(--ink);
+    --desk-muted: var(--muted);
+    --desk-edge: var(--edge-strong);
+    --desk-selected: var(--mist);
+    --note-tape: rgb(255 255 255 / .10);
+    --attention-ring: var(--warn);
+    --map-control-bg: var(--card-solid);
+    --map-control-ink: var(--ink);
+    --map-control-hover: var(--field-bg);
+    --map-control-disabled: var(--muted);
+    --map-control-line: var(--edge-strong);
+    --map-control-edge: var(--edge-strong);
+    --map-attribution-bg: var(--card-solid);
+    --map-attribution-ink: var(--ink);
+    --map-link: var(--blue);
+    --select-indicator: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8f0ec' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --search-indicator: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239fb3aa' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='6.5'/%3E%3Cpath d='m15 15 6 6'/%3E%3C/svg%3E");
+  }
+}
+
 /* ---------- Type ---------- */
 h1, .business h1, .page-head h1, .detail-name, .section-head h3, .panel-head h3, section > header > h3,
 .content-card > h3, .form-intro h1, .hero-copy h1, .document-head h4, .customer-search h2, .invoice-editor-heading h3,
@@ -107,17 +147,17 @@ code { font-size: .9em; }
 }
 
 /* ---------- Focus: a Citron ring with an ink edge, visible on every colour ---------- */
-:focus-visible { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--ink); border-radius: 6px; }
-input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"], [type="week"]):focus-within { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--ink); }
-input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--ink); outline-offset: 0; box-shadow: 0 0 0 5px var(--ink); border-radius: var(--radius-control); }
-::selection { background: var(--citron); color: var(--ink); }
+:focus-visible { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--focus-edge); border-radius: 6px; }
+input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"], [type="week"]):focus-within { outline: 3px solid var(--citron); outline-offset: 2px; box-shadow: 0 0 0 5px var(--focus-edge); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--ink); outline-offset: 0; box-shadow: 0 0 0 5px var(--focus-edge); border-radius: var(--radius-control); }
+::selection { background: var(--citron); color: var(--on-mint); }
 
 /* ---------- Brand mark: a Citron route pin ---------- */
 .brand { font-family: var(--font-display); font-weight: 600; letter-spacing: -.3px; }
 .brand-symbol { width: 32px; height: 32px; }
 .brand-symbol i { display: none; }
-.brand-symbol::before { content: ""; position: absolute; inset: 1px; height: auto; background: var(--citron); border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); box-shadow: inset 0 0 0 2px var(--ink); }
-.brand-symbol::after { content: ""; position: absolute; width: 9px; height: 9px; inset: 11.5px; border-radius: 50%; background: var(--ink); }
+.brand-symbol::before { content: ""; position: absolute; inset: 1px; height: auto; background: var(--citron); border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); box-shadow: inset 0 0 0 2px var(--on-mint); }
+.brand-symbol::after { content: ""; position: absolute; width: 9px; height: 9px; inset: 11.5px; border-radius: 50%; background: var(--on-mint); }
 
 /* ---------- Rail: metal pills with plain icons ---------- */
 .frame { grid-template-columns: 236px minmax(0, 1fr); }
@@ -127,11 +167,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .rail .nav-item:hover { background: var(--mist); }
 .rail .nav-item:hover > span:first-of-type { text-decoration: none; }
 .rail .nav-item.active {
-  background: var(--accent); color: var(--accent-ink); font-weight: 700;
+  background: var(--nav-bg); color: var(--nav-ink); font-weight: 700;
   box-shadow: inset 0 0 0 1px var(--accent-edge), var(--raise-shadow);
 }
 .nav-item.active::before { display: none; }
-.rail .nav-item:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+.rail .nav-item:focus-visible { box-shadow: 0 0 0 5px var(--focus-edge); }
 /* Both the icon and label belong to the pill; the icon has no station ring. */
 .rail-nav > .nav-item > .icon, .more-item[data-line] > .icon {
   box-sizing: border-box; width: 34px; height: 34px; padding: 6px; border-radius: 50%; position: relative; z-index: 1;
@@ -142,23 +182,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .rail-nav > .nav-item.active > span:first-of-type { color: inherit; }
 .nav-item-minor { font-size: 14px; color: var(--muted); }
 .rail-nav > .nav-item-minor > .icon { width: 30px; height: 30px; padding: 5px; }
-.nav-badge { background: var(--ink); color: var(--on-solid); }
+.nav-badge { background: var(--badge-bg); color: var(--badge-ink); }
 .rail-context .avatar, .avatar { border-radius: 50%; }
-.rail-context .avatar { background: var(--ink); color: var(--citron); }
+.rail-context .avatar { background: var(--board-bg); color: var(--citron); }
 .rail-bottom { border-top: 1px dashed var(--edge-strong); }
 .rail-bottom .nav-item { border-radius: 10px; padding: 8px 14px; }
 
 /* The platform desk keeps its dark palette with the same plain-icon structure. */
 .frame[data-role="admin"] .rail { background: var(--desk-bg); border-inline-end-color: var(--ink); color: var(--desk-ink); }
-.frame[data-role="admin"] .rail .brand, .frame[data-role="admin"] .rail .nav-item, .frame[data-role="admin"] .rail strong { color: var(--paper); }
+.frame[data-role="admin"] .rail .brand, .frame[data-role="admin"] .rail .nav-item, .frame[data-role="admin"] .rail strong { color: var(--desk-title-ink); }
 .frame[data-role="admin"] .rail small, .frame[data-role="admin"] .rail .nav-item-minor { color: var(--desk-muted); }
 .frame[data-role="admin"] .rail .nav-item:hover, .frame[data-role="admin"] .rail .nav-item.active { background: var(--desk-selected); color: var(--desk-ink); }
 .frame[data-role="admin"] .rail .nav-item.active { box-shadow: inset 0 0 0 1px var(--desk-edge), var(--raise-shadow); }
 .frame[data-role="admin"] .rail-nav > .nav-item > .icon { color: var(--citron); }
-.frame[data-role="admin"] .rail .nav-item:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+.frame[data-role="admin"] .rail .nav-item:focus-visible { box-shadow: 0 0 0 5px var(--focus-edge); }
 .frame[data-role="admin"] .rail-bottom { border-top-color: var(--desk-edge); }
 .frame[data-role="admin"] .rail-bottom .text-btn { color: var(--citron); }
-.frame[data-role="admin"] .rail-context .avatar { background: var(--citron); color: var(--ink); }
+.frame[data-role="admin"] .rail-context .avatar { background: var(--citron); color: var(--on-mint); }
 
 /* ---------- Top bar: brushed metal ---------- */
 .stage { position: relative; }
@@ -172,7 +212,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 html[dir="rtl"] .assistant-button { padding: 0 6px 0 16px; }
 html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
 .topline-language, .language.topline-language {
-  min-height: 42px; padding: 0 14px; border-radius: 12px; background: var(--ink); color: var(--citron); font-weight: 600;
+  min-height: 42px; padding: 0 14px; border-radius: 12px; background: var(--board-bg); color: var(--citron); font-weight: 600;
   box-shadow: var(--language-shadow); transition: transform .2s ease;
 }
 .topline-language:hover { color: var(--citron); transform: perspective(300px) rotateX(16deg); }
@@ -200,7 +240,7 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
 .station-tile .icon { width: 30px; height: 30px; stroke-width: 1.8; }
 .station-sign > .business-head { grid-column: 1; grid-row: 1; }
 .station-sign .business h1 { color: var(--ink); }
-.business-avatar { border-radius: 50%; background: var(--ink); color: var(--citron); font-family: var(--font-display); font-size: 22px; }
+.business-avatar { border-radius: 50%; background: var(--board-bg); color: var(--citron); font-family: var(--font-display); font-size: 22px; }
 .station-sign .status-badge { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--edge-strong); }
 .station-sign .status-badge.status-active { background: var(--good-bg); color: var(--good); box-shadow: none; }
 /* Section tabs: pills within a rounded track. */
@@ -216,7 +256,7 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
 .section-tabs a:hover { background: var(--mist); }
 .section-tabs a.active { background: var(--accent); color: var(--accent-ink); }
 .section-tabs a .nav-badge { position: static; margin: 0; flex-shrink: 0; }
-.section-tabs a:focus-visible { outline: 3px solid var(--citron); box-shadow: 0 0 0 5px var(--ink); }
+.section-tabs a:focus-visible { outline: 3px solid var(--citron); box-shadow: 0 0 0 5px var(--focus-edge); }
 
 /* ---------- Phone bar and the More sheet ---------- */
 .mobile-nav, .more-sheet { --mist: var(--metal-mist); }
@@ -295,7 +335,7 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
   box-shadow: 0 0 0 2px var(--ink);
 }
 .button-money:has(> .icon)::before { display: none; }
-.button-money > .icon:first-child { background: var(--citron); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
+.button-money > .icon:first-child { background: var(--citron); color: var(--on-mint); box-shadow: 0 0 0 2px var(--on-mint); }
 .money-link { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
 .money-link::before { width: 20px; height: 20px; margin: 0; }
 /* Send / share: the end of the pill is pointed like a paper plane (mirrored in Arabic). */
@@ -380,7 +420,7 @@ fieldset { border-radius: var(--radius-control); }
 .day-summary p { color: var(--muted); max-width: none; }
 .day-summary .date-tab {
   inset-block: 0; inset-inline-start: 0; inset-inline-end: auto; top: 0; width: 88px; border-radius: 0; place-content: center;
-  background: var(--citron); color: var(--ink); font-size: 12px; box-shadow: inset 0 0 0 1.5px var(--ink);
+  background: var(--citron); color: var(--on-mint); font-size: 12px; box-shadow: inset 0 0 0 1.5px var(--on-mint);
   border-start-start-radius: var(--radius-record); border-end-start-radius: var(--radius-record);
 }
 .day-summary .date-tab::after {
@@ -665,7 +705,7 @@ html[dir="rtl"] :is(.supplier-setup .content-card, .supplier-ledger, .purchase-h
 .analytics-facts dd, .cash-currency dd { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
 .city-bar i { background: var(--lc); }
 /* Assistant: questions and answers are speech bubbles; names still open the record. */
-.copilot-question { background: var(--ink); color: var(--on-solid); border-radius: 18px 18px 4px 18px; padding: 11px 16px; }
+.copilot-question { background: var(--solid-bg); color: var(--on-solid); border-radius: 18px 18px 4px 18px; padding: 11px 16px; }
 html[dir="rtl"] .copilot-question { border-radius: 18px 18px 18px 4px; }
 .copilot-answer {
   border-inline-start: 0; background: var(--card); border-radius: 18px 18px 18px 4px; padding: 14px 16px;
@@ -717,14 +757,14 @@ html[dir="rtl"] .copilot-answer { border-radius: 18px 18px 4px 18px; }
    Platform desk (admin)
    ====================================================================================================== */
 /* Figures read like a departures board: dark tiles, Citron numbers. */
-.dashboard-metrics article { background: var(--ink); border-color: var(--ink); color: var(--board-ink); box-shadow: var(--raise-shadow); }
+.dashboard-metrics article { background: var(--board-bg); border-color: var(--board-bg); color: var(--board-ink); box-shadow: var(--raise-shadow); }
 .dashboard-metrics article > span { color: var(--desk-muted); }
 .dashboard-metrics strong {
   color: var(--citron); font-size: 44px; font-weight: 700;
   background: repeating-linear-gradient(to bottom, transparent 0 21px, var(--board-scanline) 21px 23px); -webkit-background-clip: text; background-clip: text;
 }
 .dashboard-metrics a { color: var(--citron); }
-.dashboard-metrics .metric-attention { background: var(--ink); border-color: var(--warn-line); box-shadow: inset 0 0 0 3px var(--attention-ring); }
+.dashboard-metrics .metric-attention { background: var(--board-bg); border-color: var(--warn-line); box-shadow: inset 0 0 0 3px var(--attention-ring); }
 .route-brief-marker { border-radius: 50%; }
 /* Applications arrive as envelopes; their status is a postmark. */
 .application-row {
@@ -744,7 +784,7 @@ html[dir="rtl"] .copilot-answer { border-radius: 18px 18px 4px 18px; }
     radial-gradient(circle at 30px 0, var(--citron) 9.5px, transparent 10px) 0 20px / 40px 10px repeat-x,
     repeating-linear-gradient(90deg, var(--awning-stripe) 0 20px, var(--citron) 20px 40px) 0 0 / 100% 20px no-repeat;
 }
-.tenant-monogram { border-radius: 50%; background: var(--ink); color: var(--citron); }
+.tenant-monogram { border-radius: 50%; background: var(--board-bg); color: var(--citron); }
 
 /* ======================================================================================================
    Public pages
@@ -763,7 +803,7 @@ html[dir="rtl"] .copilot-answer { border-radius: 18px 18px 4px 18px; }
 }
 .art-sun { color: var(--ink); }
 .day-board { border: 0; border-radius: 20px; box-shadow: var(--board-shadow); }
-.board-date { background: var(--citron); color: var(--ink); border-radius: 50%; }
+.board-date { background: var(--citron); color: var(--on-mint); border-radius: 50%; }
 .route-row:not(:last-child)::before { width: 4px; inset-inline-start: 22px; border-radius: 4px; background: linear-gradient(var(--from, var(--sales-art)), var(--to, var(--blue))); }
 .route-icon { border-radius: 50%; border-width: 3px; }
 .board-route > .route-row:nth-child(1) .route-icon { border-color: var(--sales-art); color: var(--sales-art-ink); background: var(--sales-art-bg); }
@@ -778,13 +818,13 @@ html[dir="rtl"] .copilot-answer { border-radius: 18px 18px 4px 18px; }
 .feature-grid article:nth-child(1) .feature-icon { color: var(--customers-art); }
 .feature-grid article:nth-child(2) .feature-icon { color: var(--blue); }
 .feature-grid article:nth-child(3) .feature-icon { color: var(--catalog-art); }
-.closing { background: var(--ink); color: var(--closing-ink); }
+.closing { background: var(--board-bg); color: var(--closing-ink); }
 .closing .eyebrow { color: var(--citron); }
 .closing p:not(.eyebrow) { color: var(--closing-muted); }
-.closing .button { background: var(--citron); color: var(--ink); border-color: var(--citron); }
+.closing .button { background: var(--citron); color: var(--on-mint); border-color: var(--citron); }
 .closing .button:hover:not(:disabled) { background: var(--citron-deep); border-color: var(--citron-deep); }
 /* Statistics: a departures board. */
-.metric-card { background: var(--ink); border-color: var(--ink); color: var(--board-ink); }
+.metric-card { background: var(--board-bg); border-color: var(--board-bg); color: var(--board-ink); }
 .metric-card > span, .metric-card > small { color: var(--desk-muted); }
 .metric-card > strong { color: var(--citron); font-weight: 700; }
 .city-card { background: var(--card); border-color: var(--edge); color: var(--ink); }
@@ -806,13 +846,13 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   content: ""; position: absolute; inset-block: 14px; inset-inline-end: 26px; border-inline-end: 3px dashed var(--ink); opacity: .45;
 }
 .signin-panel.wide { max-width: 600px; }
-.welcome-icon { border-radius: 50%; background: var(--citron); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
-.signin-story { background: var(--ink); }
+.welcome-icon { border-radius: 50%; background: var(--citron); color: var(--on-mint); box-shadow: inset 0 0 0 2px var(--on-mint); }
+.signin-story { background: var(--board-bg); }
 .signin-story .eyebrow { color: var(--citron); }
 .signin-story > p:not(.eyebrow), .story-foot { color: var(--closing-muted); }
 .story-foot { border-top-color: var(--desk-edge); }
 .mural-path { stroke: var(--citron); opacity: .7; }
-.mural-icon { background: var(--ink); border-radius: 50%; }
+.mural-icon { background: var(--board-bg); border-radius: 50%; }
 .m0 { color: var(--citron); } .m1 { color: var(--mural-sales); } .m2 { color: var(--mural-catalog); } .m3 { color: var(--mural-deliveries); } .m4 { color: var(--mural-customers); }
 .customer-note .icon { color: var(--ink); }
 .not-found h1 { font-size: clamp(40px, 6vw, 72px); }
@@ -830,7 +870,7 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
   mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
 }
-.toast > .icon { box-sizing: border-box; width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: var(--citron); color: var(--ink); }
+.toast > .icon { box-sizing: border-box; width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: var(--citron); color: var(--on-mint); }
 .toast a { color: var(--ink); text-decoration-color: var(--citron); text-decoration-thickness: 3px; }
 
 /* ---------- Motion (motivated only; all of it is removed under reduced motion by styles.css) ---------- */
@@ -881,7 +921,7 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
 /* Flat Cedar surfaces keep the paper objects and focus rings. */
 @media screen {
   .button { box-shadow: var(--card-shadow); }
-  .button:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+  .button:focus-visible { box-shadow: 0 0 0 5px var(--focus-edge); }
   .button-secondary, .secondary-button, .button-quiet, .button-danger, .button:disabled { box-shadow: var(--card-shadow); }
   .content-card, .panel, .table-card, .application-row, .tenant-card, .detail, .invoice-document, .invoice-sharing, .settlement-desk, .debt-desk, .invoice-lines, .invoice-tally, .invoice-context, .state-panel, .empty-state { box-shadow: var(--card-shadow); }
   .day-summary, .today-brief, .stop-map-canvas, .customers .stop-list .stop-button, .branding-panel, .sync-panel, .dashboard-metrics article { box-shadow: var(--card-shadow); }
@@ -915,8 +955,8 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
 @media screen {
   :root, [data-line], .stop-detail, .my-work-list, .day-meter, .stop-map,
   .delivery-panel, .route-planner, .directions, .pickup-panel {
-    --lc: var(--blue); --lc-tint: var(--metal-mist); --lc-deep: var(--blue-deep);
-    --lc-on: var(--on-solid); --lc-edge: var(--blue);
+    --lc: var(--accent); --lc-tint: var(--metal-mist); --lc-deep: var(--blue-deep);
+    --lc-on: var(--accent-ink); --lc-edge: var(--accent-edge);
   }
   .frame[data-line] { --mist: var(--metal-mist); }
   .rail .nav-item.active { box-shadow: none; }
@@ -948,8 +988,8 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
     background: transparent; color: inherit; border-radius: 50%;
   }
   .stage:has(.station-sign) .topline .online::before { background: var(--citron); box-shadow: none; }
-  .stage:has(.station-sign) .topline .online:is(.offline, [data-state="waiting"], [data-state="sending"])::before { background: var(--warn-bg); }
-  .stage:has(.station-sign) .topline .online[data-state="attention"]::before { background: var(--bad-bg); }
+  .stage:has(.station-sign) .topline .online:is(.offline, [data-state="waiting"], [data-state="sending"])::before { background: var(--band-waiting); }
+  .stage:has(.station-sign) .topline .online[data-state="attention"]::before { background: var(--band-attention); }
   .stage:has(.station-sign) .topline :is(.language, .assistant-button):hover {
     background: var(--band-glass); color: var(--band-ink); transform: none;
     box-shadow: inset 0 0 0 1px var(--band-muted);
@@ -961,12 +1001,12 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   }
   .station-sign .section-tabs a { color: var(--band-ink); }
   .station-sign .section-tabs a:hover { background: var(--band-glass); }
-  .station-sign .section-tabs a.active { background: var(--surface); color: var(--blue); }
+  .station-sign .section-tabs a.active { background: var(--active-tab-bg); color: var(--nav-tint-ink); }
   .station-sign .nav-badge { background: var(--band-glass); color: var(--band-ink); }
-  .station-sign .active .nav-badge { background: var(--mist); color: var(--blue); }
+  .station-sign .active .nav-badge { background: var(--mist); color: var(--nav-tint-ink); }
 
   .more-item { background: var(--surface); }
-  .more-item:hover, .more-item.active, .more-item[aria-current="page"] { background: var(--mist); color: var(--blue); }
+  .more-item:hover, .more-item.active, .more-item[aria-current="page"] { background: var(--mist); color: var(--nav-tint-ink); }
   .button { border-radius: var(--radius-control); }
   /* Keep the send and stamp silhouettes; plain actions use a quiet, flat icon. */
   .button:not(.button-money, .button-danger, .button-secondary, .button-quiet) > .icon:first-child {
@@ -981,9 +1021,9 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   }
   .skeleton { background: var(--line); }
   .customers .avatar, .customer-identity .avatar, .rail-context .avatar {
-    border-radius: 50%; background: var(--mist); color: var(--blue);
+    border-radius: 50%; background: var(--mist); color: var(--nav-tint-ink);
   }
-  .detail-top :is(.badge, .status-badge) { background: var(--mist); color: var(--blue); }
+  .detail-top :is(.badge, .status-badge) { background: var(--mist); color: var(--nav-tint-ink); }
   .detail-top :is(.badge.good, .status-active, .status-approved, .status-current, .status-admin, .status-owner, .status-completed, .status-confirmed, .status-uploaded) { background: var(--good-bg); color: var(--good); }
   .detail-top :is(.badge.warn, .status-pending, .status-grace, .status-received, .status-running) { background: var(--warn-bg); color: var(--warn); }
   .detail-top :is(.badge.bad, .status-rejected, .status-suspended, .status-overdue, .status-cancelled, .status-declined, .status-failed) { background: var(--bad-bg); color: var(--bad); }
@@ -994,11 +1034,11 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
 @media screen and (max-width: 1099px) {
   .stage { --page-gutter: 24px; }
   .mobile-nav { background: var(--bar); border-block-start: 1px solid var(--edge); box-shadow: none; }
-  .mobile-nav-item.active { color: var(--blue); }
+  .mobile-nav-item.active { color: var(--nav-tint-ink); }
   .mobile-nav-item.active::before { display: none; }
   .mobile-nav-item.active > .icon {
     inline-size: 48px; block-size: 34px; padding-block: 6px; padding-inline: 13px;
-    background: var(--mist); color: var(--blue); border-radius: 999px;
+    background: var(--mist); color: var(--nav-tint-ink); border-radius: 999px;
   }
   .frame[data-role="owner"] .mobile-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .frame[data-role="owner"] .mobile-nav-item { padding-inline: 2px; }
@@ -1008,6 +1048,28 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
 @media print {
   /* MR-10: retain every pre-Cedar print token, including artwork and paper geometry. */
   :root {
+    /* MR-15: reset system dark tokens before the legacy light print palette. */
+    --band-waiting: var(--warn-bg);
+    --band-attention: var(--bad-bg);
+    --desk-bg: var(--ink);
+    --desk-title-ink: var(--paper);
+    --desk-ink: #e5ece9;
+    --desk-muted: #b9c7c3;
+    --desk-edge: #35505b;
+    --desk-selected: #25404a;
+    --note-tape: rgb(255 255 255 / .62);
+    --attention-ring: #e6b54c;
+    --map-control-bg: #fff;
+    --map-control-ink: #000;
+    --map-control-hover: #f4f4f4;
+    --map-control-disabled: #bbb;
+    --map-control-line: #ccc;
+    --map-control-edge: rgb(0 0 0 / .2);
+    --map-attribution-bg: rgb(255 255 255 / .8);
+    --map-attribution-ink: #333;
+    --map-link: #0078a8;
+    --select-indicator: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2313262f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --search-indicator: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f6169' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='6.5'/%3E%3Cpath d='m15 15 6 6'/%3E%3C/svg%3E");
     --paper: #f2f5f3;
     --citron: #ddeb6a;
     --citron-deep: #c9d94f;
@@ -1263,3 +1325,11 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
 }
 /* Extra short text is screen-only; keep the full connection sentence on paper. */
 @media print { .language-icon, .sync-short, .compact-action-icon { display: none; } }
+
+/* MR-15: replace Leaflet's light-only control/attribution colours; tile images are untouched. */
+.leaflet-container .leaflet-bar a { background-color: var(--map-control-bg); color: var(--map-control-ink); border-bottom-color: var(--map-control-line); }
+.leaflet-container .leaflet-bar a:hover, .leaflet-container .leaflet-bar a:focus { background-color: var(--map-control-hover); }
+.leaflet-container .leaflet-bar a.leaflet-disabled { background-color: var(--map-control-hover); color: var(--map-control-disabled); }
+.leaflet-touch.leaflet-container .leaflet-bar { border-color: var(--map-control-edge); }
+.leaflet-container .leaflet-control.leaflet-control-attribution { background: var(--map-attribution-bg); color: var(--map-attribution-ink); }
+.leaflet-container .leaflet-control-attribution a { color: var(--map-link); }

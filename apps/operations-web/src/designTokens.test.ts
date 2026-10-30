@@ -81,6 +81,48 @@ function violations(css: string, file: string): string[] {
 }
 
 describe("design tokens", () => {
+  it("changes only root custom properties inside the two system-dark media blocks", () => {
+    let blocks = 0;
+    for (const file of cssFiles(__dirname)) {
+      postcss.parse(readFileSync(file, "utf8")).walkAtRules("media", (media) => {
+        if (!/prefers-color-scheme/.test(media.params)) return;
+        expect(media.params).toBe("(prefers-color-scheme: dark)");
+        blocks++;
+        media.each((node) => {
+          if (node.type === "comment") return;
+          expect(node.type).toBe("rule");
+          if (node.type !== "rule") return;
+          expect(node.selector).toBe(":root");
+          node.each((declaration) => {
+            if (declaration.type === "comment") return;
+            expect(declaration.type).toBe("decl");
+            if (declaration.type === "decl") expect(declaration.prop.startsWith("--")).toBe(true);
+          });
+        });
+      });
+    }
+    expect(blocks).toBe(2);
+  });
+
+  it("aligns auto-directed list names to their page-directed parent without changing truncation", () => {
+    const kit = postcss.parse(readFileSync(resolve(__dirname, "listKit.css"), "utf8"));
+    const declarations = (selector: string) => {
+      const values: Record<string, string> = {};
+      kit.walkRules((rule) => {
+        if (rule.selectors.includes(selector)) rule.walkDecls(({ prop, value }) => { values[prop] = value; });
+      });
+      return values;
+    };
+    expect(declarations(".list-row-text")["text-align"]).toBe("start");
+    for (const selector of [".list-row-title", ".list-row-sub"]) {
+      expect(declarations(selector)).toMatchObject({ "unicode-bidi": "plaintext" });
+    }
+    expect(declarations(".list-row-title")["text-overflow"]).toBe("ellipsis");
+    // dir=auto gives a Latin name its own direction, so the page direction sets the side explicitly.
+    expect(declarations('html[dir="rtl"] :is(.list-row-title, .list-row-sub)')["text-align"]).toBe("right");
+    expect(declarations('html[dir="ltr"] :is(.list-row-title, .list-row-sub)')["text-align"]).toBe("left");
+  });
+
   it("defines the approved six-step spacing scale", () => {
     const tokens: Record<string, string> = {};
     postcss.parse(readFileSync(resolve(__dirname, "styles.css"), "utf8")).walkRules(":root", (rule) => {
