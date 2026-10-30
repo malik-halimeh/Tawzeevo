@@ -20,6 +20,8 @@
 .frame[data-line] { --mist: var(--lc-tint); }
 
 :root {
+  /* Resolve the neutral here, before descendants assign line-tinted --mist values. */
+  --metal-mist: var(--mist);
   --indigo: #5140b8;
   --indigo-tint: #eae7fa;
   --indigo-deep: #3a2c8f;
@@ -117,31 +119,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .brand-symbol::before { content: ""; position: absolute; inset: 1px; height: auto; background: var(--citron); border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); box-shadow: inset 0 0 0 2px var(--ink); }
 .brand-symbol::after { content: ""; position: absolute; width: 9px; height: 9px; inset: 11.5px; border-radius: 50%; background: var(--ink); }
 
-/* ---------- Rail: the map ---------- */
+/* ---------- Rail: metal pills with plain icons ---------- */
 .frame { grid-template-columns: 236px minmax(0, 1fr); }
-.rail { background: var(--rail-bg); gap: 26px; padding: 24px 16px; box-shadow: var(--rail-shadow); }
+.rail { --mist: var(--metal-mist); background: var(--bar); gap: 26px; padding: 24px 16px; box-shadow: var(--bar-shadow); }
 .rail-nav { position: relative; gap: 2px; }
 .nav-item { gap: 14px; border-radius: 999px; padding: 8px 12px; font-weight: 500; }
-.nav-item:hover { background: transparent; }
-.nav-item:hover > span:first-of-type { text-decoration: underline; text-underline-offset: 4px; }
-.nav-item.active { background: transparent; color: var(--ink); font-weight: 700; }
+.rail .nav-item:hover { background: var(--mist); }
+.rail .nav-item:hover > span:first-of-type { text-decoration: none; }
+.rail .nav-item.active {
+  background: var(--accent); color: var(--accent-ink); font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--accent-edge), var(--raise-shadow);
+}
 .nav-item.active::before { display: none; }
-/* Stations: the section icon sits in a ring of its line colour; the rail draws the track between them. */
+.rail .nav-item:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
+/* Both the icon and label belong to the pill; the icon has no station ring. */
 .rail-nav > .nav-item > .icon, .more-item[data-line] > .icon {
-  box-sizing: border-box; width: 34px; height: 34px; padding: 6px; border: 3px solid var(--lc-edge);
-  border-radius: 50%; background: var(--surface); color: var(--lc-deep); position: relative; z-index: 1;
-  transition: transform .18s ease;
+  box-sizing: border-box; width: 34px; height: 34px; padding: 6px; border-radius: 50%; position: relative; z-index: 1;
+  border: 0; background: transparent; color: var(--muted); box-shadow: none;
 }
-.rail-nav > .nav-item[data-line="today"] > .icon { border-color: var(--lc); box-shadow: 0 0 0 1.5px var(--ink); }
-.rail-nav > .nav-item:not(:last-child)::after {
-  content: ""; position: absolute; inset-inline-start: 27px; top: calc(50% + 15px); height: calc(100% - 26px); width: 4px;
-  border-radius: 4px; background: color-mix(in srgb, var(--lc) 45%, var(--edge)); z-index: 0;
-}
-.rail-nav > .nav-item.active > .icon {
-  background: var(--lc); color: var(--lc-on); transform: scale(1.12);
-  box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--lc-edge);
-}
-.rail-nav > .nav-item.active > span:first-of-type { background: var(--lc-tint); color: var(--ink); border-radius: 999px; padding: 3px 12px; margin-inline-start: -6px; }
+.rail-nav > .nav-item:hover > .icon { color: var(--ink); }
+.rail-nav > .nav-item.active > .icon { color: inherit; }
+.rail-nav > .nav-item.active > span:first-of-type { color: inherit; }
 .nav-item-minor { font-size: 14px; color: var(--muted); }
 .rail-nav > .nav-item-minor > .icon { width: 30px; height: 30px; padding: 5px; }
 .nav-badge { background: var(--ink); color: var(--on-solid); }
@@ -149,30 +147,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .rail-context .avatar { background: var(--ink); color: var(--citron); }
 .rail-bottom { border-top: 1px dashed var(--edge-strong); }
 .rail-bottom .nav-item { border-radius: 10px; padding: 8px 14px; }
-.rail-bottom .nav-item.active { background: var(--card); }
 
-/* Platform desk: a dark control-room rail with Citron stations, so it never looks like a business. */
+/* The platform desk keeps its dark palette with the same plain-icon structure. */
 .frame[data-role="admin"] .rail { background: var(--desk-bg); border-inline-end-color: var(--ink); color: var(--desk-ink); }
 .frame[data-role="admin"] .rail .brand, .frame[data-role="admin"] .rail .nav-item, .frame[data-role="admin"] .rail strong { color: var(--paper); }
 .frame[data-role="admin"] .rail small, .frame[data-role="admin"] .rail .nav-item-minor { color: var(--desk-muted); }
-.frame[data-role="admin"] .rail-nav > .nav-item > .icon { background: var(--ink); border-color: var(--citron); color: var(--citron); box-shadow: none; }
-.frame[data-role="admin"] .rail-nav > .nav-item:not(:last-child)::after { background: var(--desk-edge); }
-.frame[data-role="admin"] .rail-nav > .nav-item.active > .icon { background: var(--citron); color: var(--ink); box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px var(--citron); }
-.frame[data-role="admin"] .rail-nav > .nav-item.active > span:first-of-type { background: var(--desk-selected); color: var(--on-solid); }
+.frame[data-role="admin"] .rail .nav-item:hover, .frame[data-role="admin"] .rail .nav-item.active { background: var(--desk-selected); color: var(--desk-ink); }
+.frame[data-role="admin"] .rail .nav-item.active { box-shadow: inset 0 0 0 1px var(--desk-edge), var(--raise-shadow); }
+.frame[data-role="admin"] .rail-nav > .nav-item > .icon { color: var(--citron); }
+.frame[data-role="admin"] .rail .nav-item:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
 .frame[data-role="admin"] .rail-bottom { border-top-color: var(--desk-edge); }
 .frame[data-role="admin"] .rail-bottom .text-btn { color: var(--citron); }
 .frame[data-role="admin"] .rail-context .avatar { background: var(--citron); color: var(--ink); }
-.frame[data-role="admin"] .rail-bottom .nav-item.active { background: var(--desk-selected); }
 
-/* ---------- Top bar: a ticket strip with a perforated edge ---------- */
+/* ---------- Top bar: brushed metal ---------- */
 .stage { position: relative; }
 .topline {
-  max-width: none; margin: 0; background: var(--bar); padding: 12px 42px 18px; position: relative;
-  box-shadow: var(--bar-shadow);
-}
-.topline::after {
-  content: ""; position: absolute; inset-inline: 0; bottom: -5px; height: 10px; pointer-events: none;
-  background: radial-gradient(circle 5px at 50% 50%, var(--bg-solid) 96%, transparent 100%) 0 0 / 16px 10px repeat-x;
+  max-width: none; margin: 0; padding: 12px 42px 18px; position: relative; background: var(--bar); border-block-end: 1px solid var(--edge); box-shadow: var(--bar-shadow);
 }
 .topline-trail { font-size: 14px; }
 .assistant-button { background: var(--indigo); min-height: 42px; padding: 0 16px 0 6px; gap: 9px; }
@@ -195,14 +186,16 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
 @keyframes map-lamp { 50% { transform: scale(.6); opacity: .55; } }
 .main { padding-top: 26px; }
 
-/* ---------- Station sign: the business band in the colour of the place on screen ---------- */
+/* ---------- Station sign: a metal card with the section's colour on its top edge ---------- */
 .station-sign {
+  --mist: var(--metal-mist);
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 20px;
-  background: var(--lc-tint); border-radius: var(--radius-dialog); padding: 18px 22px; position: relative;
+  background: var(--card); border: 1px solid var(--edge); border-block-start: 4px solid var(--lc);
+  border-radius: var(--radius-dialog); padding: 18px 22px; position: relative; box-shadow: var(--card-shadow);
 }
 .station-tile {
   grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 58px; height: 58px; border-radius: 14px;
-  background: var(--lc); color: var(--lc-on); box-shadow: inset 0 0 0 1.5px var(--lc-edge);
+  background: var(--card-solid); border: 1px solid var(--edge); color: var(--accent-solid);
 }
 .station-tile .icon { width: 30px; height: 30px; stroke-width: 1.8; }
 .station-sign > .business-head { grid-column: 1; grid-row: 1; }
@@ -210,39 +203,51 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
 .business-avatar { border-radius: 50%; background: var(--ink); color: var(--citron); font-family: var(--font-display); font-size: 22px; }
 .station-sign .status-badge { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--edge-strong); }
 .station-sign .status-badge.status-active { background: var(--good-bg); color: var(--good); box-shadow: none; }
-/* Section tabs: stops on the band's bottom edge, the current one filled. */
+/* Section tabs: pills within a rounded track. */
 .station-sign > .section-tabs { grid-column: 1 / -1; margin: 16px 0 -8px; }
-.section-tabs { border-bottom: 0; gap: 4px 30px; position: relative; padding-bottom: 6px; }
-.section-tabs::before { content: ""; position: absolute; inset-inline: 0; bottom: 11.5px; height: 3px; border-radius: 3px; background: color-mix(in srgb, var(--lc) 30%, transparent); }
-.section-tabs a { flex-direction: column; justify-content: flex-end; gap: 6px; border-bottom: 0; padding: 4px 2px 0; color: var(--lc-deep); min-height: 58px; position: relative; }
-.section-tabs a::after { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--lc-tint); border: 3px solid var(--lc-edge); z-index: 1; box-sizing: border-box; }
-.section-tabs a.active { color: var(--ink); border-bottom: 0; }
-.section-tabs a.active::after { background: var(--lc); box-shadow: 0 0 0 3px var(--lc-tint), 0 0 0 5px var(--lc-edge); }
-.section-tabs a .nav-badge { position: absolute; top: -4px; inset-inline-end: -18px; margin: 0; }
+.section-tabs {
+  position: relative; flex-wrap: wrap; gap: 4px; padding: 4px; max-inline-size: 100%;
+  background: var(--bg-solid); border: 1px solid var(--edge); border-radius: 999px;
+}
+.section-tabs a {
+  position: relative; flex-direction: row; justify-content: center; gap: 8px; min-height: 44px; max-inline-size: 100%;
+  padding: 8px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); overflow-wrap: anywhere;
+}
+.section-tabs a:hover { background: var(--mist); }
+.section-tabs a.active { background: var(--accent); color: var(--accent-ink); }
+.section-tabs a .nav-badge { position: static; margin: 0; flex-shrink: 0; }
 .section-tabs a:focus-visible { outline: 3px solid var(--citron); box-shadow: 0 0 0 5px var(--ink); }
 
 /* ---------- Phone bar and the More sheet ---------- */
+.mobile-nav, .more-sheet { --mist: var(--metal-mist); }
+.more-item:hover, .more-item.active { background: var(--mist); color: var(--ink); }
+.more-item:hover[data-line] > .icon { color: var(--ink); }
+.more-item.active[data-line] > .icon { color: var(--accent-solid); }
 @media (max-width: 1099px) {
   .topline { padding: 12px 18px 16px; }
   .mobile-nav { padding-top: 8px; box-shadow: var(--phone-bar-shadow); }
-  .mobile-nav::before { content: ""; position: absolute; top: 24px; inset-inline: 12%; height: 3px; border-radius: 3px; background: var(--edge); }
-  .mobile-nav-item { z-index: 1; color: var(--muted); font-size: 12px; }
+  .mobile-nav-item { z-index: 1; isolation: isolate; color: var(--muted); font-size: 12px; border-radius: 999px; }
+  .mobile-nav-item:hover { background: var(--mist); color: var(--ink); }
+  .mobile-nav-item.active { background: transparent; color: var(--accent-ink); font-weight: 600; }
+  /* The background is inset; the entire slot remains the link's touch target. */
+  .mobile-nav-item.active::before {
+    content: ""; display: block; position: absolute; inset-block: 6px; inset-inline: 4px;
+    inline-size: auto; block-size: auto; border-radius: 16px; z-index: -1; pointer-events: none;
+    background: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-edge), var(--raise-shadow);
+  }
   .mobile-nav-item > .icon {
     box-sizing: border-box; width: 34px; height: 34px; padding: 6px; border-radius: 50%;
-    border: 3px solid var(--lc-edge); background: var(--surface); color: var(--lc-deep); transition: transform .18s ease;
+    border: 0; background: transparent; color: inherit;
   }
-  .mobile-nav-item[data-line="today"] > .icon { border-color: var(--lc); box-shadow: 0 0 0 1.5px var(--ink); }
-  .mobile-nav > button.mobile-nav-item > .icon, .mobile-nav-item:not([data-line]) > .icon { border-style: dashed; border-color: var(--edge-strong); color: var(--muted); box-shadow: none; }
-  .mobile-nav-item.active { color: var(--ink); font-weight: 700; }
-  .mobile-nav-item.active::before { display: none; }
-  .mobile-nav-item.active > .icon { background: var(--lc); color: var(--lc-on); transform: translateY(-3px) scale(1.1); box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--lc-edge); }
-  .mobile-nav > button.mobile-nav-item.active > .icon { background: var(--ink); color: var(--on-solid); border-style: solid; border-color: var(--ink); }
+  /* Keep the 22px glyph while fitting the icon and label inside the inset background. */
+  .mobile-nav-item.active > .icon { block-size: 24px; padding-block: 1px; }
+  /* 4px outside the pill + 6px inside it, including the longest EN/AR label at 360px. */
+  .frame[data-role="owner"] .mobile-nav { grid-template-columns: repeat(5, minmax(max-content, 1fr)); }
+  .frame[data-role="owner"] .mobile-nav-item { padding-inline: 10px; }
   .mobile-nav-item .nav-badge { top: 0; inset-inline-end: 6px; z-index: 2; }
   .more-sheet { border-radius: var(--radius-dialog); box-shadow: var(--more-sheet-shadow); padding: 10px; }
   .more-item { border-radius: 12px; }
-  .more-item:hover, .more-item.active { background: var(--lc-tint); color: var(--ink); }
   .more-item[data-line] > .icon { width: 32px; height: 32px; }
-  .more-item.active[data-line] > .icon { background: var(--lc); color: var(--lc-on); }
   .station-sign { padding: 14px 16px; border-radius: 16px; }
   .station-tile { width: 46px; height: 46px; border-radius: 12px; }
   .station-tile .icon { width: 24px; height: 24px; }
@@ -254,7 +259,6 @@ html[dir="rtl"] .assistant-button > .icon { border-radius: 50% 50% 6px 50%; }
   .action-area .amount { font-size: 26px; }
   .station-sign { grid-template-columns: minmax(0, 1fr) auto; }
   .business h1 { font-size: 26px; }
-  .section-tabs { gap: 4px 22px; }
 }
 
 /* ---------- Buttons: shaped by what they do ---------- */
@@ -355,6 +359,7 @@ fieldset { border-radius: var(--radius-control); }
 .detail { border-radius: var(--radius-dialog); }
 .section-kicker, .eyebrow { color: var(--lc-deep); }
 .eyebrow .icon, .section-kicker .icon { color: var(--lc-deep); }
+.station-sign .eyebrow, .station-sign .eyebrow .icon, .more-sheet .eyebrow { color: var(--muted); }
 
 /* ======================================================================================================
    Records by section
@@ -383,10 +388,12 @@ fieldset { border-radius: var(--radius-control); }
 }
 .date-tab strong { font-size: 36px; line-height: 1.05; }
 .day-summary-head { padding-inline-end: 0; }
-.day-meter { position: relative; gap: 0; justify-content: space-between; margin-top: 18px; padding-inline: 2px; }
-.day-meter::before { content: ""; position: absolute; inset-inline: 8px; top: calc(50% - 2px); height: 4px; border-radius: 4px; background: var(--lc-tint); }
-.day-meter span { position: relative; flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 3px var(--lc); }
-.day-meter span.done { background: var(--lc); }
+.day-meter { position: relative; gap: 4px; justify-content: space-between; margin-top: 18px; padding-inline: 2px; }
+.day-meter span {
+  position: relative; flex: 1; width: auto; min-inline-size: 0; height: 8px; border-radius: 4px;
+  background: var(--bg-solid); box-shadow: inset 0 0 0 1px var(--edge);
+}
+.day-meter span.done { background: var(--accent-solid); box-shadow: none; }
 .day-summary footer { color: var(--muted); font-size: 13px; font-weight: 500; }
 
 /* ---------- Today: "Needs you now" as sticky notes in the colour of where each one leads ---------- */
@@ -422,24 +429,17 @@ html[dir="rtl"] .intel-unusual, html[dir="rtl"] .explain-card { border-radius: 1
 .intel-unusual .icon { color: var(--indigo); }
 .intel-unusual a { color: var(--indigo-deep); font-weight: 700; }
 
-/* ---------- Stops: numbered map pins on the route line ---------- */
-.my-work-list { position: relative; }
-.my-work-list::before {
-  content: ""; position: absolute; inset-inline-start: 27px; top: 40px; bottom: 40px; width: 4px; border-radius: 4px;
-  background: repeating-linear-gradient(to bottom, var(--lc) 0 14px, color-mix(in srgb, var(--lc) 35%, transparent) 14px 22px);
-}
+/* ---------- Stops: neutral numbered circles; the real map keeps its pins ---------- */
+.my-work-list { --mist: var(--metal-mist); position: relative; }
 .stop-item { border-bottom: 0; }
 .stop-button { border-radius: 14px; position: relative; }
 .stop-button:hover, .stop-button.selected { background: var(--lc-tint); }
+.my-work-list .stop-button:hover, .my-work-list .stop-button.selected { background: var(--mist); }
 .stop-number {
-  position: relative; z-index: 1; width: 36px; height: 36px; background: var(--surface); border: 3px solid var(--lc);
-  color: var(--lc-deep); font-weight: 700; font-family: var(--font-display); font-size: 15px;
+  position: relative; z-index: 1; width: 36px; height: 36px; background: var(--card-solid); border: 2px solid var(--edge-strong);
+  color: var(--ink); font-weight: 700; font-family: var(--font-display); font-size: 15px;
 }
-.stop-number::after {
-  content: ""; position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%);
-  border: 6px solid transparent; border-top: 7px solid var(--lc); border-bottom: 0;
-}
-.selected .stop-number { background: var(--lc); border-color: var(--lc); color: var(--lc-on); }
+.selected .stop-number { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--accent-ink); }
 .stop-amount bdi { font-weight: 600; }
 .map-pin { border-width: 3px; font-family: var(--font-display); border-radius: 50% 50% 50% 4px; }
 .map-pin > * { display: inline-block; }
@@ -567,21 +567,14 @@ html[dir="rtl"] .customers .stop-list .stop-button { border-radius: 14px 0 14px 
 .all-customers-list > li { background: var(--surface); border-radius: 0 10px 10px 10px; box-shadow: inset 0 0 0 1px var(--edge); padding: 6px 12px; }
 .customer-invoices { border-inline-start: 3px dashed color-mix(in srgb, var(--lc) 50%, transparent); }
 
-/* ---------- Deliveries: every delivery hangs off the route line as a pin ---------- */
+/* ---------- Deliveries: metal cards ---------- */
+.delivery-panel { --mist: var(--metal-mist); }
 .delivery-panel .outbox-list { position: relative; gap: 12px; }
 .delivery-panel .outbox-list > .delivery-row {
-  position: relative; background: var(--surface); border-top: 0; border-radius: 14px; padding: 14px 16px; padding-inline-start: 50px; box-shadow: var(--raise-shadow);
+  position: relative; background: var(--card); border-top: 0; border-radius: 14px; padding: 14px 16px; box-shadow: var(--card-shadow);
 }
-.delivery-panel .outbox-list > .delivery-row::before {
-  content: ""; position: absolute; inset-inline-start: 16px; top: 16px; width: 20px; height: 20px; border-radius: 50% 50% 50% 4px;
-  transform: rotate(-45deg); background: var(--lc); box-shadow: inset 0 0 0 5px var(--lc), inset 0 0 0 10px var(--surface);
-}
-.delivery-panel .outbox-list > .delivery-row:not(:last-child)::after {
-  content: ""; position: absolute; inset-inline-start: 24px; top: 42px; bottom: -14px; width: 4px; border-radius: 4px;
-  background: repeating-linear-gradient(to bottom, var(--lc) 0 10px, transparent 10px 16px);
-}
-.delivery-panel .outbox-list > .delivery-row.is-context { background: var(--lc-tint); }
-.row-action { background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+.delivery-panel .outbox-list > .delivery-row.is-context { background: var(--mist); }
+.row-action { --mist: var(--metal-mist); background: var(--mist); border: 1.5px solid var(--edge); }
 .team { border-radius: var(--radius-record); }
 
 /* ---------- Catalog › Products: crates with hanging price tags ---------- */
@@ -845,26 +838,43 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   /* The assistant slides in from where its button is; a notice slides up like a printed slip. */
   .assistant-drawer { animation: map-drawer .22s ease-out; }
   .toast { animation: map-slip .3s ease-out; }
-  /* The route draws itself once, in stop order. */
-  .my-work-list::before { transform-origin: top; animation: map-draw .6s ease-out; }
   /* A confirmed invoice is stamped. */
   .document-head .doc-stamp { animation: map-stamp .26s ease-out; }
-  /* The current station settles into place. */
-  .rail-nav > .nav-item.active > .icon { animation: map-station .18s ease-out; }
 }
 @keyframes map-drawer { from { transform: translateX(24px); opacity: 0; } }
 @keyframes map-slip { from { transform: translateY(18px); opacity: 0; } }
-@keyframes map-draw { from { transform: scaleY(0); } }
 @keyframes map-stamp { from { transform: rotate(-9deg) scale(1.35); opacity: 0; } }
-@keyframes map-station { from { transform: scale(.8); } }
 
 @media print {
+  /* Preserve the pre-ML-03 station, day meter and route geometry on paper. */
+  .station-sign { --mist: var(--lc-tint); background: none; border: 0; box-shadow: none; padding: 0; }
+  .station-sign .eyebrow, .station-sign .eyebrow .icon { color: var(--lc-deep); }
+  .day-meter { gap: 0; }
+  .day-meter::before { content: ""; position: absolute; inset-inline: 8px; top: calc(50% - 2px); height: 4px; border-radius: 4px; background: var(--lc-tint); }
+  .day-meter span { flex: none; width: 16px; min-inline-size: auto; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 3px var(--lc); }
+  .day-meter span.done { background: var(--lc); box-shadow: inset 0 0 0 3px var(--lc); }
+  .my-work-list, .delivery-panel { --mist: #e4ecfb; }
+  .row-action { --mist: var(--lc-tint); background: var(--lc-tint); border: 1.5px dashed var(--lc-edge); }
+  .my-work-list::before {
+    content: ""; position: absolute; inset-inline-start: 27px; top: 40px; bottom: 40px; width: 4px; border-radius: 4px;
+    background: repeating-linear-gradient(to bottom, var(--lc) 0 14px, color-mix(in srgb, var(--lc) 35%, transparent) 14px 22px);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .my-work-list::before { transform-origin: top; animation: map-draw .6s ease-out; }
+  }
+  @keyframes map-draw { from { transform: scaleY(0); } }
+  .my-work-list .stop-button:hover, .my-work-list .stop-button.selected { background: var(--lc-tint); }
+  .stop-number { background: var(--surface); border: 3px solid var(--lc); color: var(--lc-deep); }
+  .stop-number::after {
+    content: ""; position: absolute; bottom: -9px; inset-inline-start: 50%; margin-inline-start: -6px;
+    border: 6px solid transparent; border-block-start: 7px solid var(--lc); border-block-end: 0;
+  }
+  .selected .stop-number { background: var(--lc); border-color: var(--lc); color: var(--lc-on); }
   /* The printed invoice stays plain black on white: no fold, stamp ring, tints or coloured figures. */
   .invoice-document { clip-path: none !important; filter: none !important; background: #fff !important; }
   .document-head .doc-stamp { position: static; width: auto; height: auto; transform: none; box-shadow: none; background: none; color: #000; padding: 0; display: block; text-align: start; font-size: 12px; animation: none; }
   .document-head h4, .invoice-tally .total-due, .document-totals .total-due, .document-totals .total-due dt { color: #000 !important; }
   .document-summary, .document-totals .total-due { background: none !important; }
-  .station-sign { background: none; padding: 0; }
   .station-tile, .topline::after { display: none !important; }
 }
 
@@ -874,17 +884,9 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   .button:focus-visible { box-shadow: 0 0 0 5px var(--ink); }
   .button-secondary, .secondary-button, .button-quiet, .button-danger, .button:disabled { box-shadow: var(--card-shadow); }
   .content-card, .panel, .table-card, .application-row, .tenant-card, .detail, .invoice-document, .invoice-sharing, .settlement-desk, .debt-desk, .invoice-lines, .invoice-tally, .invoice-context, .state-panel, .empty-state { box-shadow: var(--card-shadow); }
-  .day-summary, .today-brief, .stop-map-canvas, .customers .stop-list .stop-button, .delivery-panel .outbox-list > .delivery-row, .branding-panel, .sync-panel, .dashboard-metrics article { box-shadow: var(--card-shadow); }
+  .day-summary, .today-brief, .stop-map-canvas, .customers .stop-list .stop-button, .branding-panel, .sync-panel, .dashboard-metrics article { box-shadow: var(--card-shadow); }
   .copilot-answer { box-shadow: inset 0 0 0 2px var(--indigo), var(--card-shadow); }
   .backup-panel { box-shadow: inset 0 0 0 3px var(--lc), inset 0 0 0 7px var(--surface), inset 0 0 0 9px var(--lc), var(--card-shadow); }
-  .rail-nav > .nav-item.active > .icon, .more-item.active[data-line] > .icon {
-    background: var(--accent); color: var(--accent-ink); border-color: var(--accent-edge);
-  }
-  .rail-nav > .nav-item.active > .icon { box-shadow: 0 0 0 3px var(--bg-solid), 0 0 0 5px var(--accent-edge); }
-  .section-tabs a.active::after { background: var(--accent); border-color: var(--accent-edge); box-shadow: 0 0 0 3px var(--bar-solid), 0 0 0 5px var(--accent-edge); }
-  .rail-nav > .nav-item.active > span:first-of-type, .rail-bottom .nav-item.active, .more-item.active {
-    background: var(--accent); color: var(--accent-ink);
-  }
   .entry-switch button[aria-pressed="true"], .invoice-views button[aria-pressed="true"], .allocation-mode button[aria-pressed="true"], .segmented .text-button[aria-pressed="true"] {
     background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 0 0 2px var(--accent-edge);
   }
@@ -893,12 +895,6 @@ html[dir="rtl"] .signin-panel { background-position: left top; }
   .orders-panel .outbox-list > .outbox-row.muted { box-shadow: none; }
   .invoice-tally { background: var(--surface); }
   .invoice-share-issued input, .issued-link input { background: var(--field-bg); }
-}
-@media screen and (max-width: 1099px) {
-  .mobile-nav-item.active > .icon, .mobile-nav > button.mobile-nav-item.active > .icon {
-    background: var(--accent); color: var(--accent-ink); border-color: var(--accent-edge);
-    box-shadow: 0 0 0 3px var(--bar-solid), 0 0 0 5px var(--accent-edge);
-  }
 }
 
 @media print {
