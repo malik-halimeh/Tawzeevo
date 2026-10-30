@@ -15,6 +15,7 @@ test("the whole row is one link with title, sub-line, amount and status", () => 
   inList(<ListRow amount="USD 120.00" href="/invoices/1" status="overdue" subline="INV-0042" title="Rami Store" />);
   const link = screen.getByRole("link", { name: /Rami Store/ });
   expect(link).toHaveAttribute("href", "/invoices/1");
+  expect(within(link).getByText("Rami Store")).toHaveAttribute("dir", "auto");
   expect(within(link).getByText("INV-0042")).toBeVisible();
   expect(within(link).getByText("USD 120.00")).toHaveAttribute("dir", "ltr");
   expect(within(link).getByText("Overdue")).toHaveClass("status-badge", "status-overdue");

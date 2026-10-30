@@ -14,6 +14,8 @@ import { EmptyHint } from "./listKit/EmptyHint";
 import { Fab } from "./listKit/Fab";
 import { FilterSheet } from "./listKit/FilterSheet";
 import { ListHeader } from "./listKit/ListHeader";
+import { Icon } from "./Icon";
+import { ListToolbar } from "./listKit/ListToolbar";
 import { ListRow } from "./listKit/ListRow";
 import { MonthGroup } from "./listKit/MonthGroup";
 import { SortMenu } from "./listKit/SortMenu";
@@ -105,8 +107,7 @@ export function InvoicesFrontPage({ tenantId }: { tenantId: string }) {
         countKey="invoicesFrontPage.count"
         onSearch={setSearch}
         searchLabel={t("invoicesFrontPage.search")}
-        sort={<SortMenu value="newest" options={[{ value: "newest", label: t("invoicesFrontPage.newest") }]} onChange={() => undefined} />}
-        actions={<button className="button" onClick={newInvoice} type="button">{newLabel}</button>}
+        actions={<button className="button" onClick={newInvoice} type="button"><span className="compact-action-icon"><Icon name="plus" small /></span>{newLabel}</button>}
       />
       <OwnerTodayStrip tenantId={tenantId} />
       <div aria-label={t("invoicesFrontPage.overview")} className="invoice-money-overview" role="group">
@@ -128,8 +129,10 @@ export function InvoicesFrontPage({ tenantId }: { tenantId: string }) {
       </div>
       {summary.isPending ? <LoadingState /> : null}
       {summary.error && !(summary.error instanceof TypeError) && !offline ? <ErrorState error={summary.error} /> : null}
-      <ChipRow chips={CHIPS.map((value) => ({ value, label: t(`invoicesFrontPage.${value}`) }))} label={t("invoicesFrontPage.chips")} value={chip} onChange={setChip} />
-      <div className="invoice-list-tools">
+      <ListToolbar
+        chips={<ChipRow chips={CHIPS.map((value) => ({ value, label: t(`invoicesFrontPage.${value}`) }))} label={t("invoicesFrontPage.chips")} value={chip} onChange={setChip} />}
+        sort={<SortMenu value="newest" options={[{ value: "newest", label: t("invoicesFrontPage.newest") }]} onChange={() => undefined} />}
+        filters={
         <FilterSheet
           activeCount={Object.values(filters).filter(Boolean).length}
           onApply={() => setFilters(draftFilters)}
@@ -144,8 +147,8 @@ export function InvoicesFrontPage({ tenantId }: { tenantId: string }) {
           </label>
           <label className="field"><span>{t("invoicesFrontPage.dateFrom")}</span><input dir="ltr" type="date" max={draftFilters.date_to || undefined} value={draftFilters.date_from} onChange={(event) => setDraftFilters({ ...draftFilters, date_from: event.target.value })} /></label>
           <label className="field"><span>{t("invoicesFrontPage.dateTo")}</span><input dir="ltr" type="date" min={draftFilters.date_from || undefined} value={draftFilters.date_to} onChange={(event) => setDraftFilters({ ...draftFilters, date_to: event.target.value })} /></label>
-        </FilterSheet>
-      </div>
+        </FilterSheet>}
+      />
       {needsConnection ? <p className="notice" role="status">{t("invoicesFrontPage.offline")}</p> : null}
       {list.isPending ? <LoadingState /> : null}
       {list.error && !(list.error instanceof TypeError) && !offline ? <ErrorState error={list.error} /> : null}

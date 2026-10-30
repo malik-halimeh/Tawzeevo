@@ -403,7 +403,7 @@ function ProductPricingMediaControls({
       ) : null}
       {product.grade_prices.length ? (
         <div className="grade-price-chips">
-          {product.grade_prices.map((price) => <span key={price.id}>{price.grade}: <bdi dir="ltr">{money(price.unit_price, product.currency)} / {product.price_basis}</bdi></span>)}
+          {product.grade_prices.map((price) => <span key={price.id}>{price.grade}: <bdi dir="ltr">{money(price.unit_price, product.currency)} / <bdi>{t(product.price_basis === "BOX" ? "tenantWorkspace.box" : "tenantWorkspace.piece")}</bdi></bdi></span>)}
         </div>
       ) : null}
       {error ? <ErrorState error={error} /> : null}
@@ -1277,7 +1277,7 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
         <div className="business">
           <span className="avatar business-avatar" aria-hidden="true">{context.tenant_name.trim().slice(0, 1).toUpperCase()}</span>
           <div>
-            <h1>{context.tenant_name}</h1>
+            <h1 dir="auto">{context.tenant_name}</h1>
             <div className="badge-pair"><StatusBadge value={context.tenant_status} /><StatusBadge value={context.role} /></div>
           </div>
         </div>

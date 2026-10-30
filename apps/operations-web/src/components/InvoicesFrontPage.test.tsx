@@ -89,6 +89,21 @@ test("summary displays separate currencies, server totals and counts; its two ac
   for (const url of summaries) expect([...url.searchParams]).toEqual([["tenant_id", "t1"]]);
 });
 
+test.each(["en", "ar"])("chips, Filters and Sort share the toolbar above the invoice rows in %s", async (language) => {
+  await i18n.changeLanguage(language);
+  setup({ waiting: true });
+  await screen.findByText("Customer 1");
+  const toolbar = document.querySelector(".invoices-front-page > .list-toolbar")!;
+  expect(within(toolbar as HTMLElement).getByRole("group", { name: i18n.t("invoicesFrontPage.chips") })).toBeVisible();
+  expect(within(toolbar as HTMLElement).getByRole("button", { name: i18n.t("listKit.filters") })).toBeVisible();
+  const sort = within(toolbar as HTMLElement).getByRole("button", { name: new RegExp(i18n.t("listKit.sortBy")) });
+  fireEvent.click(sort);
+  expect(screen.getByRole("menuitemradio", { name: i18n.t("invoicesFrontPage.newest") })).toHaveAttribute("aria-checked", "true");
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+  expect(sort).toHaveFocus();
+  expect(toolbar.compareDocumentPosition(document.querySelector(".month-group")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 test.each([
   ["Unpaid", "paid_state", "OPEN"], ["Overdue", "overdue", "true"], ["Paid", "paid_state", "PAID"],
   ["Draft", "status", "DRAFT"], ["Cancelled", "status", "CANCELLED"],

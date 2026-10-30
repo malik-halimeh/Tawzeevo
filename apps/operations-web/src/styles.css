@@ -14,6 +14,12 @@
 
 /* ---------- Cedar tokens (owner-approved MR-10; paper-object shapes live in map.css) ---------- */
 :root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
   --paper: #f3f6f4;
   --surface: #ffffff;
   --ink: #10231e;

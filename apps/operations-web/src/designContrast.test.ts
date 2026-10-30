@@ -136,11 +136,22 @@ describe("light design contrast", () => {
 describe("pre-metal print palette", () => {
   it("retains every pre-Cedar resolved print token (K7)", () => {
     const printed = rootTokens("print");
-    // Fingerprint of all resolved print tokens at 12669f0; Cedar-only tokens have no print consumers.
-    const snapshot = Object.keys(printed).filter((name) => !/^--(?:band(?:-|$)|mint-ink$)/.test(name))
+    // Fingerprint at 12669f0; Cedar colours and MR-11 spacing have no print consumers.
+    const snapshot = Object.keys(printed).filter((name) => !/^--(?:band(?:-|$)|mint-ink$|space-[1-6]$)/.test(name))
       .sort().map((name) => [name, tokenValue(printed, `var(${name})`)]);
     expect(createHash("sha256").update(JSON.stringify(snapshot)).digest("hex"))
       .toBe("3908e7d1e99cf01ac06dd2d28b87af5f8f96601f2f9f53b5ad57fe3276082823");
+  });
+  it("never applies the compact spacing scale to printed content", () => {
+    const consumers: string[] = [];
+    for (const sheet of sheets) {
+      sheet.walkDecls((declaration) => {
+        if (!declaration.prop.startsWith("--") && applies(declaration, "print") && /var\(--space-[1-6]\)/.test(declaration.value)) {
+          consumers.push(`${declaration.prop}: ${declaration.value}`);
+        }
+      });
+    }
+    expect(consumers).toEqual([]);
   });
   it("restores every changed original token after the Map cascade", () => {
     const printed = rootTokens("print");

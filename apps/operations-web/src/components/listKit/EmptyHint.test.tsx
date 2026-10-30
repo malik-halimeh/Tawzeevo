@@ -29,7 +29,14 @@ test("the next step can be a link, and without one only the line shows", () => {
 
 test("EmptyState keeps its existing output for existing callers", () => {
   const { container } = render(<EmptyState body="Nothing here." title="Empty" />);
-  expect(container.innerHTML).toBe('<div class="empty-state"><svg aria-hidden="true" class="icon" focusable="false" viewBox="0 0 24 24"><path d="m12 3 9 5v9l-9 5-9-5V8Zm-9 5 9 5 9-5m-9 5v9M7 5.8l10 5.4"></path></svg><strong>Empty</strong><p>Nothing here.</p></div>');
+  // The icon's own drawing may change (solid icons); the structure callers rely on may not.
+  const root = container.firstElementChild!;
+  expect(root.className).toBe("empty-state");
+  expect([...root.children].map((child) => child.tagName.toLowerCase())).toEqual(["svg", "strong", "p"]);
+  expect(root.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  expect(root.querySelector("svg")?.classList.contains("icon")).toBe(true);
+  expect(root.querySelector("strong")?.textContent).toBe("Empty");
+  expect(root.querySelector("p")?.textContent).toBe("Nothing here.");
 });
 
 test("in Arabic the hint reads in Arabic inside a right-to-left page", async () => {

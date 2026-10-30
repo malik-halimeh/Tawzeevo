@@ -29,7 +29,7 @@ export function ListRow({ title, subline, amount, status, actions = [], ...targe
   const content = (
     <>
       <span className="list-row-text">
-        <span className="list-row-title">{title}</span>
+        <span className="list-row-title" dir="auto">{title}</span>
         {subline ? <span className="list-row-sub">{subline}</span> : null}
       </span>
       {amount !== undefined || status ? (

@@ -781,7 +781,7 @@ describe("tenant customer and category workspace", () => {
     fireEvent.click(within(productForm).getByRole("button", { name: "Save tenant product" }));
 
     await waitFor(() => expect(createBody).toMatchObject({ master_product_id: masterId, barcode: "012345", category_id: category.id, unit_price: "1.25", is_published: true }));
-    expect(await screen.findByText("1.25 $ / PIECE")).toBeInTheDocument();
+    expect((await screen.findByText("Piece", { selector: ".list-row-amount bdi" })).parentElement).toHaveTextContent("1.25 $ / Piece");
     expect(screen.getByText("Published")).toBeInTheDocument();
   });
 

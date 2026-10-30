@@ -57,6 +57,21 @@ function renderProducts() {
 const row = (name = "Cedar Water") => screen.getByText(name, { selector: ".list-row-title" }).closest("article")!;
 const names = () => Array.from(document.querySelectorAll(".list-row-title")).map((item) => item.textContent);
 async function ready() { await screen.findByText("Cedar Water", { selector: ".list-row-title" }); }
+
+test.each([
+  ["en", "PIECE", "Piece"], ["en", "BOX", "Box"],
+  ["ar", "PIECE", "قطعة"], ["ar", "BOX", "صندوق"],
+] as const)("prices and grade prices translate %s/%s as %s", async (language, basis, label) => {
+  await i18n.changeLanguage(language);
+  products = [{ ...water, price_basis: basis, grade_prices: [{ ...dates, id: "grade-price", tenant_id: tenantId, tenant_product_id: water.id, grade: "A", unit_price: "1.2500" }] }];
+  renderProducts(); await ready();
+  expect(row().querySelector(".list-row-amount")).toHaveTextContent(` / ${label}`);
+  fireEvent.click(within(row()).getByRole("button", { name: i18n.t("listKit.rowActions", { title: water.name }) }));
+  fireEvent.click(within(row()).getByRole("button", { name: i18n.t("productsPage.pricingPhotos") }));
+  expect(row().querySelector(".grade-price-chips")).toHaveTextContent(` / ${label}`);
+  expect(row().querySelector(".list-row-amount")).not.toHaveTextContent(basis);
+  expect(row().querySelector(".grade-price-chips")).not.toHaveTextContent(basis);
+});
 function more(name = "Cedar Water") {
   fireEvent.click(within(row(name)).getByRole("button", { name: `More actions for ${name}` }));
   return within(row(name)).getByRole("group", { name: `More actions for ${name}` });
@@ -134,7 +149,7 @@ test("Hide and Publish menu actions send the existing publication update", async
 test("Add barcode opens Manage, keeps the barcode list and submits through the existing form", async () => {
   renderProducts(); await ready();
   fireEvent.click(within(more()).getByRole("button", { name: "Add package barcode" }));
-  expect(row().querySelector("details")).toHaveAttribute("open");
+  expect(within(row()).getByRole("button", { name: "Manage" })).toHaveAttribute("aria-expanded", "true");
   expect(within(row()).getByText(/5280001/)).toBeVisible();
   const form = within(row()).getByLabelText("Barcode").closest("form")!;
   fireEvent.change(within(form).getByLabelText("Barcode"), { target: { value: "BOX-2" } });
@@ -144,10 +159,27 @@ test("Add barcode opens Manage, keeps the barcode list and submits through the e
   expect(mutations[0]).toEqual({ path: `/api/v1/tenants/${tenantId}/products/water/barcodes`, method: "POST", body: { barcode: "BOX-2", package_level: "BOX" } });
 });
 
+test.each(["en", "ar"])("the inline Manage disclosure keeps its name and management controls in %s", async (language) => {
+  await i18n.changeLanguage(language);
+  renderProducts(); await ready();
+  expect(within(row()).getByText(water.name, { selector: ".list-row-title" })).toHaveAttribute("dir", "auto");
+  expect(screen.getByRole("heading", { name: owner.tenant_name })).toHaveAttribute("dir", "auto");
+  const toggle = within(row()).getByRole("button", { name: i18n.t("common.manage") });
+  const panel = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(panel).not.toBeVisible();
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(within(row()).getByLabelText(i18n.t("tenantWorkspace.explicitGradePrice"))).toBeVisible();
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(panel).not.toBeVisible();
+});
+
 test("Pricing & photos opens the existing pricing and upload controls with their handlers", async () => {
   renderProducts(); await ready();
   fireEvent.click(within(more()).getByRole("button", { name: "Pricing & photos" }));
-  expect(row().querySelector("details")).toHaveAttribute("open");
+  expect(within(row()).getByRole("button", { name: "Manage" })).toHaveAttribute("aria-expanded", "true");
   expect(within(row()).getByLabelText("Product image")).toBeVisible();
   fireEvent.change(within(row()).getByLabelText("Grade basis price"), { target: { value: "1.5" } });
   fireEvent.click(within(row()).getByRole("button", { name: "Save grade price" }));
@@ -208,7 +240,9 @@ test("Arabic RTL shows both product names, translated controls and an isolated L
   renderProducts(); await ready();
   expect(row().closest("[dir]")).toHaveAttribute("dir", "rtl");
   expect(within(row()).getByText("مياه الأرز")).toHaveAttribute("lang", "ar");
-  expect(within(row()).getByText("2.00 $ / PIECE")).toHaveAttribute("dir", "ltr");
+  const price = row().querySelector(".list-row-amount");
+  expect(price).toHaveTextContent("2.00 $ / قطعة");
+  expect(price).toHaveAttribute("dir", "ltr");
   expect(screen.getByRole("button", { name: "مشروبات" })).toBeInTheDocument();
   fireEvent.click(within(row()).getByRole("button", { name: "إجراءات أخرى لـ Cedar Water" }));
   const menu = within(row()).getByRole("group", { name: "إجراءات أخرى لـ Cedar Water" });

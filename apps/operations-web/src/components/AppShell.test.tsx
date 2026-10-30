@@ -157,7 +157,10 @@ test.each([
   vi.mocked(useAutoSync).mockReturnValue({ ...state, online: true });
   shell("settings&view=general");
   const chip = document.querySelector(".topline-actions .online")!;
-  expect(screen.getByRole("link", { name: `Offline sync, ${chip.textContent}` })).toBeInTheDocument();
+  const full = chip.querySelector(".sync-full")!.textContent;
+  expect(chip).toHaveAttribute("aria-label", full);
+  expect(chip).toHaveAttribute("title", full);
+  expect(screen.getByRole("link", { name: `Offline sync, ${full}` })).toBeInTheDocument();
 });
 
 test.each([0, 3])("General also reuses the chip's browser-offline text with %s changes", (pending) => {
@@ -166,7 +169,36 @@ test.each([0, 3])("General also reuses the chip's browser-offline text with %s c
   fireEvent(window, new Event("offline"));
   const chip = document.querySelector(".topline-actions .online")!;
   expect(chip).toHaveAttribute("data-state", "offline");
-  expect(screen.getByRole("link", { name: `Offline sync, ${chip.textContent}` })).toBeInTheDocument();
+  const full = chip.querySelector(".sync-full")!.textContent;
+  expect(chip).toHaveAttribute("aria-label", full);
+  expect(chip).toHaveAttribute("title", full);
+  expect(screen.getByRole("link", { name: `Offline sync, ${full}` })).toBeInTheDocument();
+});
+
+test.each(["en", "ar"])("short connection words keep the full accessible description in %s", async (language) => {
+  await i18n.changeLanguage(language);
+  shell();
+  const chip = document.querySelector(".topline-actions .online")!;
+  expect(chip.querySelector(".sync-short")).toHaveTextContent(i18n.t("shell.short.online"));
+  expect(chip.querySelector(".sync-short")).toHaveAttribute("aria-hidden", "true");
+  expect(chip).toHaveAttribute("aria-label", i18n.t("shell.browserOnline"));
+  expect(chip).toHaveAttribute("title", i18n.t("shell.browserOnline"));
+  fireEvent(window, new Event("offline"));
+  expect(chip.querySelector(".sync-short")).toHaveTextContent(i18n.t("shell.short.offline"));
+  expect(chip).toHaveAttribute("aria-label", i18n.t("shell.browserOffline"));
+});
+
+test.each(["en", "ar"])("sending and attention have short words and preserve their status/link in %s", async (language) => {
+  await i18n.changeLanguage(language);
+  vi.mocked(useAutoSync).mockReturnValue({ pending: 3, attention: 0, sending: true, justSent: false, online: true });
+  shell();
+  expect(screen.getByRole("status", { name: i18n.t("shell.sending") })).toHaveTextContent(i18n.t("shell.short.sending"));
+  cleanup(); client.clear();
+  vi.mocked(useAutoSync).mockReturnValue({ pending: 0, attention: 2, sending: false, justSent: false, online: true });
+  shell();
+  const attention = screen.getByRole("link", { name: i18n.t("shell.syncAttention", { count: 2 }) });
+  expect(attention).toHaveTextContent(i18n.t("shell.short.attention"));
+  expect(attention).toHaveAttribute("href", sectionHref("sync", tenantId));
 });
 
 test.each(["", "&view=unknown", "&view=business", "&view=invoices", "&view=general"])("More agrees with the hub's selected page for settings%s", (query) => {

@@ -30,6 +30,7 @@ test("expanding retains quantity, basis, totals, adjustments, supplier, override
   }
   render(<Line />);
   const edit = screen.getByRole("button", { name: "Edit line 2, Sunflower Oil 1.8L" });
+  expect(screen.getByText(line.name)).toHaveAttribute("dir", "auto");
   expect(edit).toHaveTextContent("× 4.00 $ Piece");
   expect(edit).toHaveTextContent("7.75 $");
   expect(screen.getByRole("group", { name: /Quantity for/ })).toHaveTextContent("2");
