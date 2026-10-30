@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ML-04 — local solid icons</title>
+    <style>
+      body { margin: 0; padding: 24px; font: 14px/1.5 system-ui, sans-serif; }
+      h1 { font-size: 24px; margin: 0 0 8px; }
+      .sheet { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+      .sheet section { min-width: 0; border: 1px solid #87929c; border-radius: 12px; overflow: hidden; }
+      .sheet h2 { padding: 16px; margin: 0; font-size: 17px; }
+      .sheet table { width: 100%; border-collapse: collapse; }
+      .sheet th, .sheet td { padding: 8px; text-align: center; border-top: 1px solid currentColor; }
+      .sheet th:first-child { text-align: start; font: inherit; }
+      .sheet td { height: 64px; }
+      .sheet .sample { display: inline-grid; place-items: center; min-width: 56px; min-height: 56px; border-radius: 10px; }
+      .sheet .white { background: #fff; color: #1b2530; }
+      .sheet .dark { background: #1b1f24; color: #fff; }
+      .sheet .silver { background: var(--bar); color: var(--muted); }
+      .sheet .active { background: var(--bar); color: var(--ink); }
+      .sheet .active .sample { background: var(--accent); color: var(--accent-ink); box-shadow: var(--bar-shadow); }
+    </style>
+  </head>
+  <body>
+    <h1>ML-04 · local solid icons</h1>
+    <p>Every icon at 17, 21 and 48px. Silver and active samples follow the phone’s light/dark setting.</p>
+    <div id="root"></div>
+    <script type="module" src="/src/icon-sheet.tsx"></script>
+  </body>
+</html>
