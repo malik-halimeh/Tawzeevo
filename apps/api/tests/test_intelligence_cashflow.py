@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from beirut_days import beirut_days_ago
 from test_delivery_tasks import _post
 from test_intelligence_features import canonical_counts
 from test_invoice_editor import _attach_latest_cost, _auth, _catalog, _owner_context
@@ -59,7 +60,7 @@ def test_cash_flow_reconciles_per_currency_and_labels_the_projection(client, ses
                 "customer_id": customer["id"],
                 "currency": "USD",
                 "signed_amount": "100.0000",
-                "effective_at": (now - timedelta(days=70)).isoformat(),
+                "effective_at": beirut_days_ago(70, now=now).isoformat(),
             },
         ).status_code
         == 201
@@ -99,7 +100,7 @@ def test_cash_flow_reconciles_per_currency_and_labels_the_projection(client, ses
                 "customer_id": customer["id"],
                 "amount": amount,
                 "currency": "USD",
-                "paid_at": (now - timedelta(days=1)).isoformat(),
+                "paid_at": beirut_days_ago(1, now=now).isoformat(),
             },
         ).json()
     assert (

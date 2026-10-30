@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from beirut_days import beirut_days_ago
 from test_delivery_tasks import _post
 from test_intelligence_features import canonical_counts, set_confirmed_at
 from test_invoice_editor import (
@@ -78,7 +79,7 @@ def _weekly_customer(client, session_factory, suffix):
     now = datetime.now(UTC)
     for days in WEEKLY_DAYS:
         invoice = _confirm_invoice(client, tenant, token, customer["id"], product["id"], "1")
-        set_confirmed_at(session_factory, invoice["id"], now - timedelta(days=days))
+        set_confirmed_at(session_factory, invoice["id"], beirut_days_ago(days, now=now))
     return tenant, token, product, customer
 
 
@@ -180,7 +181,7 @@ def test_overdue_crossing_needs_a_threshold_and_a_recent_crossing(client, sessio
                     "customer_id": customer["id"],
                     "currency": "USD",
                     "signed_amount": "50.0000",
-                    "effective_at": (now - timedelta(days=days)).isoformat(),
+                    "effective_at": beirut_days_ago(days, now=now).isoformat(),
                 },
             ).status_code
             == 201
@@ -218,7 +219,7 @@ def test_large_backdated_receipt_uses_recorded_at_against_paid_at(client, sessio
                 "customer_id": customer["id"],
                 "amount": amount,
                 "currency": "USD",
-                "paid_at": (now - timedelta(days=paid_days_ago)).isoformat(),
+                "paid_at": beirut_days_ago(paid_days_ago, now=now).isoformat(),
             },
         )
         assert response.status_code == 201, response.text
@@ -249,7 +250,7 @@ def test_supplier_payable_jump_against_sporadic_history(client, session_factory)
                 "supplier_id": supplier["id"],
                 "currency": "USD",
                 "signed_amount": "10.0000",
-                "effective_at": (datetime.now(UTC) - timedelta(days=48)).isoformat(),
+                "effective_at": beirut_days_ago(48).isoformat(),
             },
         ).status_code
         == 201

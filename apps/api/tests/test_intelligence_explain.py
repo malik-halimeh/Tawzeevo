@@ -6,11 +6,11 @@ writes. The provider is always a scripted stand-in; no test reaches the network.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
 import pytest
+from beirut_days import beirut_days_ago
 from test_delivery_tasks import _driver, _post
 from test_intelligence_copilot import StubProvider, _call, _text
 from test_intelligence_features import canonical_counts, seed_customer_history
@@ -259,7 +259,7 @@ def _crossing_overdue(client, session_factory, suffix):
             "customer_id": customer["id"],
             "currency": "USD",
             "signed_amount": "743.5000",
-            "effective_at": (datetime.now(UTC) - timedelta(days=10)).isoformat(),
+            "effective_at": beirut_days_ago(10).isoformat(),
         },
     )
     assert opening.status_code == 201, opening.text

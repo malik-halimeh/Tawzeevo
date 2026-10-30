@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from beirut_days import beirut_days_ago
 from sqlalchemy import func, select
 from test_delivery_tasks import _post
 from test_invoice_editor import (
@@ -112,7 +113,7 @@ def seed_customer_history(client, session_factory, suffix: str):
             "customer_id": customer["id"],
             "currency": "USD",
             "signed_amount": "100.0000",
-            "effective_at": (now - timedelta(days=40)).isoformat(),
+            "effective_at": beirut_days_ago(40, now=now).isoformat(),
         },
     )
     assert opening.status_code == 201, opening.text
@@ -158,7 +159,7 @@ def seed_customer_history(client, session_factory, suffix: str):
     other_invoice = _confirm_invoice(client, tenant, token, other["id"], product["id"], "1")
 
     for invoice, days in ((first, 70), (second, 50), (third, 30)):
-        set_confirmed_at(session_factory, invoice["id"], now - timedelta(days=days))
+        set_confirmed_at(session_factory, invoice["id"], beirut_days_ago(days, now=now))
 
     receipt = _post(
         client,
@@ -170,7 +171,7 @@ def seed_customer_history(client, session_factory, suffix: str):
             "customer_id": customer["id"],
             "amount": "10",
             "currency": "USD",
-            "paid_at": (now - timedelta(days=2)).isoformat(),
+            "paid_at": beirut_days_ago(2, now=now).isoformat(),
         },
     )
     assert receipt.status_code == 201, receipt.text
@@ -184,7 +185,7 @@ def seed_customer_history(client, session_factory, suffix: str):
             "customer_id": customer["id"],
             "amount": "5",
             "currency": "USD",
-            "paid_at": (now - timedelta(days=1)).isoformat(),
+            "paid_at": beirut_days_ago(1, now=now).isoformat(),
         },
     ).json()
     assert (
