@@ -6,6 +6,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from beirut_days import beirut_days_ago
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -662,7 +663,7 @@ def test_post_confirmation_revision_posts_exact_delta_and_keeps_old_balance_out_
     owner, tenant_id, token = _owner_context(client, session_factory, "revision")
     _category, product, customer = _catalog(client, tenant_id, token)
     _attach_latest_cost(session_factory, owner, tenant_id, product["id"])
-    opening_at = datetime.now(UTC) - timedelta(days=5)
+    opening_at = beirut_days_ago(5)
     opening = client.post(
         "/api/v1/customer-ledger/opening-balances",
         params={"tenant_id": tenant_id},
@@ -784,7 +785,7 @@ def test_opening_balance_balance_api_overdue_alert_dedup_and_owner_security(
         "customer_id": customer["id"],
         "currency": "USD",
         "signed_amount": "75.0000",
-        "effective_at": (datetime.now(UTC) - timedelta(days=40)).isoformat(),
+        "effective_at": beirut_days_ago(40).isoformat(),
         "note": "Balance carried into Tawzeevo",
     }
     opening = client.post(
@@ -1174,7 +1175,7 @@ def test_customer_receipt_retries_one_command_and_a_new_intent_posts_again(
     for label, change in (
         ("method", {"method": "TRANSFER"}),
         ("reference", {"reference": "another slip"}),
-        ("paid_at", {"paid_at": (datetime.now(UTC) - timedelta(days=1)).isoformat()}),
+        ("paid_at", {"paid_at": beirut_days_ago(1).isoformat()}),
         (
             "allocations",
             {"allocations": [{"target_ledger_entry_id": str(uuid4()), "amount": "1.0000"}]},
