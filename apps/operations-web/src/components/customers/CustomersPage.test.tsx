@@ -89,8 +89,8 @@ test("the server list shows the count and balances separately, and rows open the
   const list = await screen.findByRole("list", { name: "All customers" });
   const row = within(list).getByRole("link", { name: /Maya Market/ });
   expect(row).toHaveAttribute("href", "/workspace?tenant=t1&section=customers&customer=c1");
-  expect(within(row).getByText("42.5000 USD")).toHaveAttribute("dir", "ltr");
-  expect(within(row).getByText("900000.0000 LBP")).toHaveAttribute("dir", "ltr");
+  expect(within(row).getByText("42.50 $")).toHaveAttribute("dir", "ltr");
+  expect(within(row).getByText("900,000 LBP")).toHaveAttribute("dir", "ltr");
   expect(within(row).getByText(customer.phone)).toHaveAttribute("dir", "ltr");
   expect(row).not.toHaveTextContent("900042");
   expect(within(list).getByRole("link", { name: /Cedar Corner/ }).querySelector(".list-row-amount")).toBeNull();
@@ -303,7 +303,7 @@ test("Arabic renders translated list controls and isolated LTR phones and amount
   expect(await screen.findByRole("heading", { name: "العملاء", level: 1 })).toBeInTheDocument();
   const list = await screen.findByRole("list", { name: i18n.t("allCustomers.title") });
   expect(list.closest("[dir]")).toHaveAttribute("dir", "rtl");
-  expect(within(list).getByText("42.5000 USD")).toHaveAttribute("dir", "ltr");
+  expect(within(list).getByText("42.50 $")).toHaveAttribute("dir", "ltr");
   expect(within(list).getByText(customer.phone)).toHaveAttribute("dir", "ltr");
   fireEvent.click(screen.getByRole("button", { name: "الترتيب حسب الاسم" }));
   expect(screen.getByRole("menuitemradio", { name: "الأكثر مديونية" })).toBeInTheDocument();

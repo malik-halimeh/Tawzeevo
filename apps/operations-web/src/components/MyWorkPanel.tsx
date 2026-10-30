@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInRouterContext, useLocation } from "react-router-dom";
@@ -323,7 +324,7 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
                   <button aria-current={selected?.id === task.id ? "true" : undefined} className={`stop-button${selected?.id === task.id ? " selected" : ""}`} onClick={() => openStop(task)} ref={(node) => { if (node) stopButtons.current.set(task.id, node); else stopButtons.current.delete(task.id); }} type="button">
                     <span className="stop-number">{stopNumber(task, index)}</span>
                     <span className="stop-copy"><strong>{task.customer_name}</strong><small>{task.customer_address ?? <bdi dir="ltr">{task.customer_phone}</bdi>}</small></span>
-                    <span className="stop-amount"><bdi className="money" dir="ltr">{task.amount_to_collect} {task.currency}</bdi><small>{queued.includes(task.id) ? t("myWork.queuedShort") : t("myWork.toVisitLabel")}</small></span>
+                    <span className="stop-amount"><bdi className="money" dir="ltr">{money(task.amount_to_collect, task.currency)}</bdi><small>{queued.includes(task.id) ? t("myWork.queuedShort") : t("myWork.toVisitLabel")}</small></span>
                     <Arrow />
                   </button>
                 </li>
@@ -383,7 +384,7 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
             <div className="action-area attached">
               <span className="context">
                 <span className="detail-label">{t("myWork.collect")}</span>
-                <strong className="amount"><bdi className="money" dir="ltr">{selected.amount_to_collect} {selected.currency}</bdi></strong>
+                <strong className="amount"><bdi className="money" dir="ltr">{money(selected.amount_to_collect, selected.currency)}</bdi></strong>
               </span>
               {owes(selected) && !queued.includes(selected.id) ? (
                 <fieldset className="collection-claim">
@@ -397,7 +398,7 @@ export function MyWorkPanel({ tenantId, membershipId, ownerBrief }: { tenantId: 
               ) : null}
               {queued.includes(selected.id)
                 ? <button className="button" disabled type="button"><Icon name="check" small />{t("myWork.queuedShort")}</button>
-                : <ConfirmAction confirmLabel={t("myWork.confirmDelivered")} disabled={busy || !claimReady(selected)} icon={<Icon name="check" small />} key={selected.id} label={t("delivery.complete")} onConfirm={() => complete(selected)}>{t("myWork.confirmDeliveredNote", { amount: `${selected.amount_to_collect} ${selected.currency}` })}</ConfirmAction>}
+                : <ConfirmAction confirmLabel={t("myWork.confirmDelivered")} disabled={busy || !claimReady(selected)} icon={<Icon name="check" small />} key={selected.id} label={t("delivery.complete")} onConfirm={() => complete(selected)}>{t("myWork.confirmDeliveredNote", { amount: `⁦${money(selected.amount_to_collect, selected.currency)}⁩` })}</ConfirmAction>}
             </div>
             <p className="detail-bottom-note">{t("myWork.completionNote")}</p>
         </article>

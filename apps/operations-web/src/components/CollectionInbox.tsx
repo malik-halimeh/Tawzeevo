@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -47,10 +48,10 @@ export function CollectionInbox({ tenantId }: { tenantId: string }) {
               <strong>{report.customer_name}</strong> · <Link to={sectionHref("invoices", tenantId, { invoice: report.invoice_id })}><bdi dir="ltr">{report.official_invoice_number ?? "…"}</bdi></Link>
               <small> · {t(`collection.kinds.${report.kind}`)}{report.reporter_name ? ` · ${report.reporter_name}` : ""}</small>
             </span>
-            {report.amount ? <bdi className="money" dir="ltr">{report.amount} {report.currency}</bdi> : <span className="muted">—</span>}
+            {report.amount ? <bdi className="money" dir="ltr">{money(report.amount, report.currency)}</bdi> : <span className="muted">—</span>}
             <span className="application-actions">
               <ConfirmAction confirmLabel={t(report.kind === "NONE" ? "collection.acknowledgeYes" : "collection.confirmYes")} disabled={busy} label={t(report.kind === "NONE" ? "collection.acknowledge" : "collection.confirm")} onConfirm={() => decide(report, "confirm")}>
-                {report.kind === "NONE" ? t("collection.acknowledgeExplain") : t("collection.confirmExplain", { amount: `${report.amount ?? ""} ${report.currency}` })}
+                <bdi dir="ltr">{report.kind === "NONE" ? t("collection.acknowledgeExplain") : t("collection.confirmExplain", { amount: `⁦${money(report.amount ?? "—", report.currency)}⁩` })}</bdi>
               </ConfirmAction>
               {rejecting === report.id ? (
                 <>

@@ -40,7 +40,7 @@ test("owner builds a list from demand, edits the target, waives with a reason an
   expect(await screen.findByText("List built from confirmed demand.")).toBeInTheDocument();
   expect(document.querySelector(".list-head-count")).toHaveTextContent("1 list"); // OE-11b: count procurement lists, not generic items.
   expect(screen.getByText((_, node) => node?.tagName === "SMALL" && /2 invoices/.test(node.textContent ?? ""))).toBeInTheDocument();
-  expect(screen.getAllByText(/40\.0000 USD/).length).toBeGreaterThan(0); // labelled estimate
+  expect(screen.getAllByText(/40\.00 \$/).length).toBeGreaterThan(0); // labelled estimate
   expect(screen.getByRole("table").textContent).not.toMatch(/stock|on hand|available/i); // demand and progress only
 
   const target = screen.getByLabelText("Target for Cedar Water");

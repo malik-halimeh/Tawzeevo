@@ -74,7 +74,7 @@ test("owner creates a supplier, appends a cost entry and sees it preferred (FA-0
   fireEvent.click(screen.getByRole("button", { name: "Save new cost entry" }));
   await waitFor(() => expect(screen.getByText("Cost entry saved. The invoice editor will preload it.")).toBeInTheDocument());
   expect(screen.getAllByText("Bekaa Wholesale · preferred").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("8.0000 USD").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("8.00 $").length).toBeGreaterThan(0);
   const cost = bodies.find((body) => body.unit_cost !== undefined);
   expect(cost).toMatchObject({ supplier_id: "supplier-1", unit_cost: "8", currency: "USD", cost_basis: "PIECE", source_type: "QUOTE", quantity_context: "120" });
   // Derived insight table: latest with source and age, no purchase yet, stability label.

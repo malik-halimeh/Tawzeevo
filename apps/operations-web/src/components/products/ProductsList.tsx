@@ -1,3 +1,4 @@
+import { money } from "../../utils/money";
 import { type ReactNode, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -42,7 +43,7 @@ function ProductRow({ product, photo, management, onEdit, onTogglePublication, o
             { label: t("tenantWorkspace.addBarcode"), onSelect: () => openManagement(true) },
             { label: t("productsPage.pricingPhotos"), onSelect: () => openManagement(false) },
           ]}
-          amount={<>{product.unit_price} {product.currency} / {product.price_basis}</>}
+          amount={<>{money(product.unit_price, product.currency)} / {product.price_basis}</>}
           onOpen={onEdit}
           subline={<>{photo}{i18n.resolvedLanguage === "ar" && product.name_ar ? <span className="product-arabic-name" dir="rtl" lang="ar">{product.name_ar}</span> : null}<span className={`status-badge ${product.is_published ? "status-current" : "status-closed"}`}>{t(product.is_published ? "tenantWorkspace.published" : "tenantWorkspace.hidden")}</span></>}
           title={product.name}

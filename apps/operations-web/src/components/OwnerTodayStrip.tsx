@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -75,7 +76,7 @@ export function OwnerTodayStrip({ tenantId }: { tenantId: string }) {
             {rows.slice(0, SHOWN).map(({ task, outstanding }) => (
               <li key={task.id}>
                 <span><strong>{task.customer_name}</strong> · <bdi className="owner-today-invoice-number" dir="ltr">{task.official_invoice_number ?? "…"}</bdi></span>
-                <bdi className="money" dir="ltr">{outstanding} {task.currency}</bdi>
+                <bdi className="money" dir="ltr">{money(outstanding, task.currency)}</bdi>
                 <Link className="money-link" to={sectionHref("invoices", tenantId, { invoice: task.invoice_id, view: "payments" })}>{t("tenantWorkspace.recordPayment")}</Link>
               </li>
             ))}

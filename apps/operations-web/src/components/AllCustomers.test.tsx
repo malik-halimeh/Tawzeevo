@@ -52,7 +52,7 @@ test("all customers page 20 at a time and each expands to its invoices, which op
   expect(within(invoices).getByRole("link", { name: "R3" })).toHaveAttribute("href", "/workspace?tenant=t&section=invoices&invoice=inv-1");
   expect(within(invoices).getByText("Confirmed")).toBeInTheDocument();
   expect(within(invoices).getByText("Draft")).toBeInTheDocument();
-  expect(within(invoices).getByText("900000.0000 LBP")).toBeInTheDocument();
+  expect(within(invoices).getByText("900,000 LBP")).toBeInTheDocument();
   expect(requested.some((url) => url.includes("customer_id=c1") && url.includes("limit=20"))).toBe(true);
   expect(within(list).getAllByRole("link", { name: "Open record" })[0]).toHaveAttribute("href", "/workspace?tenant=t&section=customers&customer=c1");
 

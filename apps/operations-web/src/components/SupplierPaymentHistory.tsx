@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,7 +27,7 @@ export function BalanceChips({ balances }: { balances: SupplierBalanceRow["balan
   if (!balances.length) return <span className="muted"> · {t("supplierHistory.noBalance")}</span>;
   return (
     <span className="balance-chips" aria-label={t("supplierLedger.payable")}>
-      {balances.map((row) => <span className="balance-chip" dir="ltr" key={row.currency}>{row.balance} {row.currency}</span>)}
+      {balances.map((row) => <span className="balance-chip" dir="ltr" key={row.currency}><bdi dir="ltr">{money(row.balance, row.currency)}</bdi></span>)}
     </span>
   );
 }
@@ -91,7 +92,7 @@ export function SupplierPaymentHistory({ tenantId, suppliers, version, onChanged
                 <div className="supplier-row">
                   <div>
                     <strong>{row.supplier_name}</strong>
-                    {" · "}<bdi dir="ltr">{reversal ? "−" : ""}{row.amount} {row.currency}</bdi>
+                    {" · "}<bdi dir="ltr">{reversal ? "−" : ""}{money(row.amount, row.currency)}</bdi>
                     {" · "}<time dateTime={row.paid_at}>{when(row.paid_at)}</time>
                     {row.method ? <span className="muted"> · {t(`invoiceEditor.methods.${row.method}`, { defaultValue: row.method })}</span> : null}
                     {row.reference ? <span className="muted"> · <bdi dir="ltr">{row.reference}</bdi></span> : null}

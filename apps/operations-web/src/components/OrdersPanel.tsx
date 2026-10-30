@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -213,8 +214,8 @@ export function OrdersPanel({ tenantId, orderId = null }: { tenantId: string; or
             {invoice ? (
               <table className="order-lines">
                 <thead><tr><th>{t("orders.item")}</th><th>{t("invoiceEditor.quantity")}</th><th>{t("invoiceEditor.unitPrice")}</th><th>{t("orders.lineTotal")}</th></tr></thead>
-                <tbody>{invoice.items.map((line) => <tr key={line.id}><td>{line.product_name}</td><td dir="ltr">{line.quantity}</td><td dir="ltr">{line.effective_unit_price}</td><td dir="ltr">{line.line_total}</td></tr>)}</tbody>
-                <tfoot><tr><th colSpan={3}>{t("invoiceEditor.netSales")}</th><th dir="ltr">{invoice.net_sales} {invoice.currency}</th></tr></tfoot>
+                <tbody>{invoice.items.map((line) => <tr key={line.id}><td>{line.product_name}</td><td dir="ltr">{line.quantity}</td><td dir="ltr"><bdi dir="ltr">{money(line.effective_unit_price, invoice.currency)}</bdi></td><td dir="ltr"><bdi dir="ltr">{money(line.line_total, invoice.currency)}</bdi></td></tr>)}</tbody>
+                <tfoot><tr><th colSpan={3}>{t("invoiceEditor.netSales")}</th><th dir="ltr"><bdi dir="ltr">{money(invoice.net_sales, invoice.currency)}</bdi></th></tr></tfoot>
               </table>
             ) : null}
 

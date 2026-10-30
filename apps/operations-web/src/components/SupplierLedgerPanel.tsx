@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -116,7 +117,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers, version = 0, onChange
         <>
           <dl className="supplier-balances">
             {balances?.balances.length ? balances.balances.map((row) => (
-              <div key={row.currency}><dt>{t("supplierLedger.payable")} · {row.currency}</dt><dd dir="ltr">{row.balance}</dd></div>
+              <div key={row.currency}><dt>{t("supplierLedger.payable")} · {row.currency}</dt><dd dir="ltr"><bdi dir="ltr">{money(row.balance, row.currency)}</bdi></dd></div>
             )) : <div><dt>{t("supplierLedger.payable")}</dt><dd>{t("supplierLedger.noBalance")}</dd></div>}
           </dl>
           <label className="field"><span>{t("tenantWorkspace.currency")}</span><input dir="ltr" maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} /></label>
@@ -132,7 +133,7 @@ export function SupplierLedgerPanel({ tenantId, suppliers, version = 0, onChange
           </form>
           {lastPayment ? (
             <div className="payment-slip" aria-live="polite">
-              <div><span>{t(lastPayment.prepayment ? "supplierLedger.prepaymentLabel" : "supplierLedger.paymentLabel")}</span><strong dir="ltr">{lastPayment.amount} {lastPayment.currency}</strong></div>
+              <div><span>{t(lastPayment.prepayment ? "supplierLedger.prepaymentLabel" : "supplierLedger.paymentLabel")}</span><strong dir="ltr"><bdi dir="ltr">{money(lastPayment.amount, lastPayment.currency)}</bdi></strong></div>
               <div className="receipt-reversal">
                 <label className="field"><span>{t("invoiceEditor.reversalReason")}</span><input value={reversalReason} onChange={(event) => setReversalReason(event.target.value)} /></label>
                 <button className="text-button danger-link" disabled={busy || !reversalReason.trim()} onClick={reverse} type="button">{t("supplierLedger.reverse")}</button>

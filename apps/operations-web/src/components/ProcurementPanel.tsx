@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -161,7 +162,7 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
                 return undefined;
               })} type="button">{t("procurement.exportCsv")}</button>
             </div>
-            <p className="muted">{t("procurement.estimateNote")}{Object.entries(detail.estimated_totals).map(([currency, total], index) => <span key={currency}>{index ? " · " : " "}<bdi dir="ltr">{total} {currency}</bdi></span>)}</p>
+            <p className="muted">{t("procurement.estimateNote")}{Object.entries(detail.estimated_totals).map(([currency, total], index) => <span key={currency}>{index ? " · " : " "}<bdi dir="ltr">{money(total, currency)}</bdi></span>)}</p>
 
             {groups.map(([group, lines]) => (
               <div className="procurement-group" key={group}>
@@ -196,7 +197,7 @@ export function ProcurementPanel({ tenantId, membershipId }: { tenantId: string;
                               {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
                             </select>
                           ) : (line.supplier_name ?? "—")}</td>
-                          <td dir="ltr">{line.estimate ? <>{line.estimate.remaining_cost} {line.estimate.currency} <small className="muted">({line.estimate.unit_cost} · {line.estimate.supplier_is_recommended ? t("procurement.cheapest") : line.estimate.supplier_name} · {line.estimate.is_stale ? <mark>{t("supplierSetup.ageDays", { days: line.estimate.age_days })}</mark> : t("supplierSetup.ageDays", { days: line.estimate.age_days })})</small></> : <span className="muted">{t("procurement.noEstimate")}</span>}</td>
+                          <td dir="ltr">{line.estimate ? <><bdi dir="ltr">{money(line.estimate.remaining_cost, line.estimate.currency)}</bdi> <small className="muted">(<bdi dir="ltr">{money(line.estimate.unit_cost, line.estimate.currency)}</bdi> · {line.estimate.supplier_is_recommended ? t("procurement.cheapest") : line.estimate.supplier_name} · {line.estimate.is_stale ? <mark>{t("supplierSetup.ageDays", { days: line.estimate.age_days })}</mark> : t("supplierSetup.ageDays", { days: line.estimate.age_days })})</small></> : <span className="muted">{t("procurement.noEstimate")}</span>}</td>
                           <td>
                             {t(`procurement.lineState.${state(line)}`)}
                             {line.remove_reason ? <small className="muted"> · {line.remove_reason}</small> : null}

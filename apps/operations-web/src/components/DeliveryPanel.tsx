@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -165,7 +166,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
         <label className="field"><span>{t("delivery.eligibleInvoice")}</span>
           <select required value={invoiceId} onChange={(event) => { setInvoiceId(event.target.value); const row = eligible.find((item) => item.invoice_id === event.target.value); if (!date && row?.delivery_date) setDate(row.delivery_date); }}>
             <option value="">{loadedEligible === undefined ? t("common.loading") : eligible.length ? "—" : t("delivery.nothingEligible")}</option>
-            {eligible.map((row) => <option key={row.invoice_id} value={row.invoice_id}>{row.official_invoice_number ?? "…"} · {row.customer_name} · {row.net_sales} {row.currency}{row.delivery_date ? ` · ${row.delivery_date}` : ""}</option>)}
+            {eligible.map((row) => <option dir="ltr" key={row.invoice_id} value={row.invoice_id}>{row.official_invoice_number ?? "…"} · {row.customer_name} · {money(row.net_sales, row.currency)}{row.delivery_date ? ` · ${row.delivery_date}` : ""}</option>)}
           </select>
         </label>
         {!sole ? (
@@ -225,7 +226,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
               <strong>{task.customer_name}</strong> · <bdi dir="ltr">{task.customer_phone}</bdi>{task.customer_address ? ` · ${task.customer_address}` : ""}
               {" · "}{task.customer_latitude && task.customer_longitude ? <a href={`https://www.google.com/maps?q=${task.customer_latitude},${task.customer_longitude}`} rel="noreferrer" target="_blank">{t("pickup.openMap")}</a> : <span className="muted">{t("delivery.noLocation")}</span>}
               <div className="muted">
-                <Link aria-label={t("delivery.openInvoice", { number: task.official_invoice_number ?? "…" })} to={sectionHref("invoices", tenantId, { invoice: task.invoice_id })}><bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi></Link> · {t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi>
+                <Link aria-label={t("delivery.openInvoice", { number: task.official_invoice_number ?? "…" })} to={sectionHref("invoices", tenantId, { invoice: task.invoice_id })}><bdi dir="ltr">{task.official_invoice_number ?? "…"}</bdi></Link> · {t("delivery.collect")}: <bdi dir="ltr">{money(task.amount_to_collect, task.currency)}</bdi>
                 {task.delivery_date ? <> · <bdi dir="ltr">{task.delivery_date}</bdi></> : null} · {task.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}
               </div>
               <div className="muted">
@@ -255,7 +256,7 @@ export function DeliveryPanel({ tenantId, focusInvoiceId = null }: { tenantId: s
                   </form>
                 ) : (
                   <div aria-label={t(rowAction.kind === "complete" ? "delivery.completeFor" : "delivery.cancelFor", { customer: task.customer_name })} className="row-action" role="group">
-                    {rowAction.kind === "complete" ? <p className="muted">{t("delivery.collect")}: <bdi dir="ltr">{task.amount_to_collect} {task.currency}</bdi> · {t("myWork.completionNote")}</p> : null}
+                    {rowAction.kind === "complete" ? <p className="muted">{t("delivery.collect")}: <bdi dir="ltr">{money(task.amount_to_collect, task.currency)}</bdi> · {t("myWork.completionNote")}</p> : null}
                     <label className="field field-wide"><span>{t(rowAction.kind === "complete" ? "delivery.completionNoteLabel" : "delivery.cancelReason")}</span><input maxLength={500} value={rowText} onChange={(event) => setRowText(event.target.value)} /></label>
                     <div className="category-actions">
                       {rowAction.kind === "complete"

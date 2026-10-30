@@ -92,7 +92,7 @@ test("sole owner delivers; a driver gets assigned-only, price-free work, complet
   await expect(driver.getByRole("link", { name: "Suppliers & costs" })).toHaveCount(0);
   const workText = await driver.locator(".my-work").innerText();
   expect(workText.toLowerCase()).not.toMatch(/cost|margin|profit|supplier price/);
-  expect(workText).toContain("30.0000 USD"); // amount to collect
+  expect(workText).toContain("30.00 $"); // amount to collect
   await driver.getByRole("button", { name: "Suggest stop order" }).click();
   await expect(driver.getByText(/stop-order suggestion|Road route/)).toBeVisible();
 

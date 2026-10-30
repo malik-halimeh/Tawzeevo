@@ -61,7 +61,7 @@ test("the owner sees pickups to confirm on Today and confirms or rejects with a 
   writes = stub();
   wrap(<PickupInbox tenantId="t1" />);
   expect(await screen.findByText(/Bekaa Wholesale/)).toBeInTheDocument();
-  expect(screen.getByText("30.0000 USD")).toBeInTheDocument();
+  expect(screen.getByText("30.00 $")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Confirm purchase" }));
   fireEvent.click(screen.getByRole("button", { name: "Yes, record the purchase" }));
   expect(await screen.findByText("Purchase recorded from the pickup.")).toBeInTheDocument();

@@ -71,8 +71,8 @@ test("the owner sees supplier payments, filters and pages them, and reverses one
 test("balance chips show each currency separately, or a short note when there is none", async () => {
   await i18n.changeLanguage("en");
   const { rerender } = render(<BalanceChips balances={[{ currency: "LBP", balance: "900000.0000" }, { currency: "USD", balance: "21.0000" }]} />);
-  expect(screen.getByText("900000.0000 LBP")).toBeInTheDocument();
-  expect(screen.getByText("21.0000 USD")).toBeInTheDocument();
+  expect(screen.getByText("900,000 LBP")).toBeInTheDocument();
+  expect(screen.getByText("21.00 $")).toBeInTheDocument();
   rerender(<BalanceChips balances={[]} />);
   expect(screen.getByText(/no balance yet/)).toBeInTheDocument();
 });

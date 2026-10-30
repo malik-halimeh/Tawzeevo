@@ -575,7 +575,7 @@ describe("tenant customer and category workspace", () => {
 
     // The balance per currency sits on the record, with the two usual next steps for this customer.
     const balance = within(record).getByRole("region", { name: "Balance" });
-    expect(await within(balance).findByText("120.0000 USD")).toBeInTheDocument();
+    expect(await within(balance).findByText("120.00 $")).toBeInTheDocument();
     const id = phoneMatches[1]!.id;
     expect(within(balance).getByRole("link", { name: "New invoice" })).toHaveAttribute("href", `/workspace?tenant=${southRoute.tenant_id}&section=invoices&customer=${id}`);
     expect(within(balance).getByRole("link", { name: "Record payment" })).toHaveAttribute("href", `/workspace?tenant=${southRoute.tenant_id}&section=invoices&view=payments&customer=${id}&currency=USD`);
@@ -781,7 +781,7 @@ describe("tenant customer and category workspace", () => {
     fireEvent.click(within(productForm).getByRole("button", { name: "Save tenant product" }));
 
     await waitFor(() => expect(createBody).toMatchObject({ master_product_id: masterId, barcode: "012345", category_id: category.id, unit_price: "1.25", is_published: true }));
-    expect(await screen.findByText("1.25 USD / PIECE")).toBeInTheDocument();
+    expect(await screen.findByText("1.25 $ / PIECE")).toBeInTheDocument();
     expect(screen.getByText("Published")).toBeInTheDocument();
   });
 
@@ -903,7 +903,7 @@ describe("tenant customer and category workspace", () => {
     fireEvent.change(within(productCard).getByLabelText("Grade basis price"), { target: { value: "2.5" } });
     fireEvent.click(within(productCard).getByRole("button", { name: "Save grade price" }));
     await waitFor(() => expect(gradePriceBody).toEqual({ unit_price: "2.5" }));
-    expect(await within(productCard).findByText(/2.5000 USD/)).toBeInTheDocument();
+    expect(await within(productCard).findByText(/2\.50 \$/)).toBeInTheDocument();
 
     const file = new File(["png"], "juice.png", { type: "image/png" });
     fireEvent.change(within(productCard).getByLabelText("Product image"), { target: { files: [file] } });

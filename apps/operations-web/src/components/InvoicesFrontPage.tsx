@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
@@ -114,12 +115,12 @@ export function InvoicesFrontPage({ tenantId }: { tenantId: string }) {
             <h2><bdi dir="ltr">{item.currency}</bdi></h2>
             <button onClick={() => showMoney(item.currency, "unpaid")} type="button">
               <span>{t("invoicesFrontPage.owed")}</span>
-              <bdi dir="ltr">{item.outstanding_total} {item.currency}</bdi>
+              <bdi dir="ltr">{money(item.outstanding_total, item.currency)}</bdi>
               <small>{t("invoicesFrontPage.openInvoices", { count: item.open_count })}</small>
             </button>
             <button onClick={() => showMoney(item.currency, "overdue")} type="button">
               <span>{t("invoicesFrontPage.overdue")}</span>
-              <bdi dir="ltr">{item.overdue_total} {item.currency}</bdi>
+              <bdi dir="ltr">{money(item.overdue_total, item.currency)}</bdi>
               <small>{t("invoicesFrontPage.overdueInvoices", { count: item.overdue_count })}</small>
             </button>
           </section>
@@ -156,7 +157,7 @@ export function InvoicesFrontPage({ tenantId }: { tenantId: string }) {
             const href = sectionHref("invoices", tenantId, { invoice: row.id });
             const actions = [{ label: t("invoicesFrontPage.open"), href }];
             if (row.status === "CONFIRMED" && Number(row.outstanding) > 0) actions.push({ label: t("invoicesFrontPage.recordPayment"), href: sectionHref("invoices", tenantId, { invoice: row.id, view: "payments" }) });
-            return <ListRow key={row.id} href={href} title={row.customer_name ?? t("invoicesFrontPage.noCustomer")} subline={<><bdi dir="ltr">{row.official_invoice_number ?? t("invoicesFrontPage.draft")}</bdi>{" · "}<time dateTime={row.confirmed_at ?? row.created_at}>{when(row.confirmed_at ?? row.created_at)}</time></>} amount={`${row.total_due} ${row.currency}`} status={status(row)} actions={actions} />;
+            return <ListRow key={row.id} href={href} title={row.customer_name ?? t("invoicesFrontPage.noCustomer")} subline={<><bdi dir="ltr">{row.official_invoice_number ?? t("invoicesFrontPage.draft")}</bdi>{" · "}<time dateTime={row.confirmed_at ?? row.created_at}>{when(row.confirmed_at ?? row.created_at)}</time></>} amount={money(row.total_due, row.currency)} status={status(row)} actions={actions} />;
           })}
         </MonthGroup>
       ))}

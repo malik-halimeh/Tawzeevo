@@ -190,7 +190,7 @@ test("a changed draft shows the server-calculated total, not saved yet, and savi
   expect(screen.queryByText("Total (not saved yet)")).not.toBeInTheDocument(); // unchanged: nothing to calculate
   fireEvent.change(screen.getByLabelText("Invoice discount"), { target: { value: "2.5" } });
   expect(await screen.findByText("Total (not saved yet)", undefined, { timeout: 3000 })).toBeInTheDocument();
-  expect(screen.getByText("23.0000 USD")).toBeInTheDocument();
+  expect(within(screen.getByText("Total (not saved yet)").closest(".calculated-total")!).getByText("23.00 $")).toBeInTheDocument();
   const calculate = sent.find((row) => row.path.endsWith("/api/v1/invoices/calculate"))!;
   expect(calculate.body).toMatchObject({ customer_id: customerId, currency: "USD", invoice_discount_expression: "2.5", items: rebuiltItems });
   expect(calculate.body).not.toHaveProperty("client_command_id");

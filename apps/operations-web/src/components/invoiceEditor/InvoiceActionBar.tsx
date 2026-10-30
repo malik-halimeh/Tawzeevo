@@ -1,3 +1,4 @@
+import { money } from "../../utils/money";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,7 +17,7 @@ export function InvoiceActionBar({ figure, children, note }: {
     <div aria-label={t("invoiceEditorLayout.actions")} className="invoice-action-bar" role="group">
       <p className="invoice-action-total">
         <span>{figure ? t("invoiceEditorLayout.totalIn", { currency: figure.currency }) : t("invoiceEditorLayout.invoiceTotal")}{figure?.pending ? <small> · {t("invoiceEditorLayout.notSavedYet")}</small> : null}</span>
-        <strong>{figure ? <bdi dir="ltr">{figure.amount}</bdi> : "—"}</strong>
+        <strong>{figure ? <bdi dir="ltr">{money(figure.amount, figure.currency)}</bdi> : "—"}</strong>
       </p>
       {note}
       <div className="invoice-action-buttons">{children}</div>

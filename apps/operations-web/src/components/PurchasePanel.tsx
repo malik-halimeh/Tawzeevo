@@ -1,3 +1,4 @@
+import { money } from "../utils/money";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -88,7 +89,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers, initialSuppli
     const reset = () => { setKey(crypto.randomUUID()); setLines([{ product_id: "", quantity: "", unit_cost: "", procurement_item_id: null }]); setReference(""); setListId(""); };
     apiRequest<Purchase>(`/api/v1/supplier-purchases${q}`, { method: "POST", body: JSON.stringify(input) })
       .then((purchase) => {
-        setNotice(purchase.replayed ? t("purchases.replayed") : t("purchases.recorded", { total: purchase.total_amount, currency: purchase.currency }));
+        setNotice(purchase.replayed ? t("purchases.replayed") : t("purchases.recorded", { amount: `⁦${money(purchase.total_amount, purchase.currency)}⁩` }));
         reset();
         onRecorded?.();
         return refresh();
@@ -120,8 +121,8 @@ export function PurchasePanel({ tenantId, membershipId, suppliers, initialSuppli
 
       {totals && !formOnly ? (
         <dl className="supplier-balances totals" aria-label={t("purchases.totalsTitle")}>
-          {totals.suppliers.map((row) => <div key={`s-${row.currency}`}><dt>{t("purchases.supplierPayable")} · {row.currency}</dt><dd dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</dd></div>)}
-          {totals.customers.map((row) => <div key={`c-${row.currency}`}><dt>{t("purchases.customerOutstanding")} · {row.currency}</dt><dd dir="ltr">{row.outstanding}{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${row.credit})` : ""}</dd></div>)}
+          {totals.suppliers.map((row) => <div key={`s-${row.currency}`}><dt>{t("purchases.supplierPayable")} · {row.currency}</dt><dd dir="ltr"><bdi dir="ltr">{money(row.outstanding, row.currency)}</bdi><bdi dir="ltr">{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${money(row.credit, row.currency)})` : ""}</bdi></dd></div>)}
+          {totals.customers.map((row) => <div key={`c-${row.currency}`}><dt>{t("purchases.customerOutstanding")} · {row.currency}</dt><dd dir="ltr"><bdi dir="ltr">{money(row.outstanding, row.currency)}</bdi><bdi dir="ltr">{Number(row.credit) > 0 ? ` (${t("purchases.credit")} ${money(row.credit, row.currency)})` : ""}</bdi></dd></div>)}
           {totals.suppliers.length === 0 && totals.customers.length === 0 ? <div><dt>{t("purchases.totalsTitle")}</dt><dd>{t("supplierLedger.noBalance")}</dd></div> : null}
         </dl>
       ) : null}
@@ -172,7 +173,7 @@ export function PurchasePanel({ tenantId, membershipId, suppliers, initialSuppli
             {purchases.map((purchase) => (
               <li className="outbox-row" key={purchase.id}>
                 <span>
-                  <strong>{purchase.supplier_name}</strong> · <bdi dir="ltr">{purchase.total_amount} {purchase.currency}</bdi> · <time dateTime={purchase.purchased_at}>{new Date(purchase.purchased_at).toLocaleDateString()}</time>
+                  <strong>{purchase.supplier_name}</strong> · <bdi dir="ltr">{money(purchase.total_amount, purchase.currency)}</bdi> · <time dateTime={purchase.purchased_at}>{new Date(purchase.purchased_at).toLocaleDateString()}</time>
                   {purchase.supplier_reference ? <> · <bdi dir="ltr">{purchase.supplier_reference}</bdi></> : null}
                   <small className="muted"> · {purchase.items.map((line) => `${line.quantity} × ${line.product_name}`).join(", ")}</small>
                   {purchase.reversed_at ? <> · <span className="status-badge">{t("purchases.reversedBadge")}</span> <small className="muted">{purchase.reversal_reason}</small></> : null}

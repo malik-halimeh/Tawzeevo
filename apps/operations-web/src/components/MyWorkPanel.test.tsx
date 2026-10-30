@@ -47,12 +47,12 @@ test("driver sees only assigned stops with contact, items and amount, and comple
 
   render(<MyWorkPanel membershipId="m2" tenantId="t1" />);
   // The stop appears in the ordered list (with its route number) and in the selected-stop detail.
-  const stop = await screen.findByRole("button", { name: /02.*Corner Shop.*30\.0000 USD/ });
+  const stop = await screen.findByRole("button", { name: /02.*Corner Shop.*30\.00 \$/ });
   expect(stop).toHaveAttribute("aria-current", "true");
   expect(screen.getByRole("heading", { name: "Corner Shop" })).toBeInTheDocument();
   expect(screen.getByText("Labneh")).toBeInTheDocument();
   expect(screen.getByText("3.0000")).toBeInTheDocument();
-  expect(screen.getAllByText(/30\.0000 USD/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/30\.00 \$/).length).toBeGreaterThan(0);
   expect(screen.getByText("Amount to collect")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open in maps" })).toHaveAttribute("href", "https://www.google.com/maps?q=33.895000,35.478000");
   expect(screen.getByRole("link", { name: "+96170000001" })).toHaveAttribute("href", "tel:+96170000001");

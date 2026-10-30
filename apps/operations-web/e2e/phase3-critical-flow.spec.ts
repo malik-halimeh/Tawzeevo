@@ -50,7 +50,7 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await page.getByRole("textbox", { name: "Supplier name" }).fill("Bekaa Wholesale");
   await page.getByRole("button", { name: "Add supplier" }).click();
   await expect(page.getByText("Supplier created.")).toBeVisible();
-  await page.getByRole("combobox", { name: "Product", exact: true }).selectOption({ label: "Cedar Sparkling Water · 12.5000 USD" });
+  await page.getByRole("combobox", { name: "Product", exact: true }).selectOption({ label: "Cedar Sparkling Water · 12.50 $" });
   await expect(page.getByText("No cost entries for this product yet.")).toBeVisible();
   await page.getByRole("combobox", { name: "Supplier", exact: true }).first().selectOption({ label: "Bekaa Wholesale" });
   await page.getByRole("spinbutton", { name: "Unit cost (USD)" }).fill("8");
@@ -64,13 +64,13 @@ test("owner sets up a supplier cost, confirms an invoice and records a receipt",
   await ledger.getByRole("spinbutton", { name: /Opening payable/ }).fill("20");
   await ledger.getByRole("button", { name: "Record opening" }).click();
   await expect(ledger.getByText("Supplier opening balance recorded.")).toBeVisible();
-  await expect(ledger.getByText("20.0000")).toBeVisible();
+  await expect(ledger.getByText("20.00 $")).toBeVisible();
   await ledger.getByRole("spinbutton", { name: "Payment amount" }).fill("25");
   await ledger.getByRole("button", { name: "Record payment", exact: true }).click();
   await expect(ledger.getByRole("alert").filter({ hasText: /cannot exceed the current payable/ })).toBeVisible(); // the refusal itself, not the explanatory body text
   await ledger.getByRole("button", { name: "Record as prepayment" }).click();
   await expect(ledger.getByText("Supplier prepayment recorded as credit.")).toBeVisible();
-  await expect(ledger.getByText("-5.0000")).toBeVisible();
+  await expect(ledger.getByText("-5.00 $")).toBeVisible();
 
   // ----- Browser: invoice create -> confirm -----
   await openSection(page, "Invoices");
