@@ -321,15 +321,8 @@ def master_product_response(
     )
 
 
-def product_response(
-    db: Session,
-    product: TenantProduct,
-    *,
-    preferred_barcode: str | None = None,
-) -> TenantProductResponse:
-    piece_price, box_price = derive_counterpart_prices(
-        product.unit_price, product.price_basis, product.pieces_per_box
-    )
+def product_barcode_responses(db: Session, product: TenantProduct) -> list[BarcodeResponse]:
+    """Read barcode aliases without loading images, prices or the full product response."""
     barcode_responses = [
         _barcode_response(barcode, BarcodeOwnership.TENANT)
         for barcode in _tenant_barcodes(db, product.tenant_id, product.id)
@@ -346,6 +339,19 @@ def product_response(
             str(item.id),
         )
     )
+    return barcode_responses
+
+
+def product_response(
+    db: Session,
+    product: TenantProduct,
+    *,
+    preferred_barcode: str | None = None,
+) -> TenantProductResponse:
+    piece_price, box_price = derive_counterpart_prices(
+        product.unit_price, product.price_basis, product.pieces_per_box
+    )
+    barcode_responses = product_barcode_responses(db, product)
     # A product may have no barcode (D-112).
     primary_barcode = next(
         (barcode.barcode for barcode in barcode_responses if barcode.barcode == preferred_barcode),

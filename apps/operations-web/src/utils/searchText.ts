@@ -24,3 +24,23 @@ export function foldSearchText(value: string): string {
 export function hasLetters(value: string): boolean {
   return /\p{L}/u.test(value);
 }
+
+/** Catalog search folding; keep the customer search's literal substring semantics unchanged. */
+function foldProductText(value: string): string {
+  return foldSearchText(value.normalize("NFKC"))
+    .replace(/[\u0610-\u061a\u0653-\u065f\u0670\u06d6-\u06ed]/gu, "")
+    .replace(/ؤ/gu, "و").replace(/ئ/gu, "ي")
+    .replace(/[^\p{L}\p{N}_\s-]/gu, " ").trim().replace(/\s+/gu, " ");
+}
+
+/** List filter: every query word appears somewhere in the name (any order); a barcode contains the query.
+ * Kept as forgiving as the earlier substring filter; the invoice picker ranks by word starts on the server. */
+export function productMatchesSearch(product: { name: string; name_ar?: string | null; barcodes: { barcode: string }[] }, query: string): boolean {
+  const needle = foldProductText(query);
+  if (!needle) return true;
+  const words = needle.split(" ");
+  return [product.name, product.name_ar ?? ""].some((name) => {
+    const folded = foldProductText(name);
+    return words.every((word) => folded.includes(word));
+  }) || product.barcodes.some(({ barcode }) => foldProductText(barcode).includes(needle));
+}

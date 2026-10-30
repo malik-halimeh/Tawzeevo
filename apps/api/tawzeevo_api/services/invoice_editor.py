@@ -46,8 +46,14 @@ from tawzeevo_api.schemas.invoice_editor import (
     ProductCostOptionResponse,
     ProductCostOptionsResponse,
 )
-from tawzeevo_api.services.cash_van import get_customer, get_product, product_response
+from tawzeevo_api.services.cash_van import (
+    get_customer,
+    get_product,
+    product_barcode_responses,
+    product_response,
+)
 from tawzeevo_api.services.pricing import derive_counterpart_prices, resolve_product_pricing
+from tawzeevo_api.services.text_search import normalize_search_text
 
 MONEY_SCALE = Decimal("0.0001")
 ZERO = Decimal("0.0000")
@@ -240,37 +246,59 @@ def _tenant_products(db: Session, tenant_id: UUID) -> list[TenantProduct]:
     )
 
 
+def _normalize_catalog_text(value: str) -> str:
+    # Share D-119 Arabic folding, then retain item-text punctuation/whitespace folding.
+    # The item parser deliberately keeps normalize_item_text's existing acceptance rules.
+    return normalize_item_text(normalize_search_text(unicodedata.normalize("NFKC", value)))
+
+
 def search_catalog(
     db: Session, tenant_id: UUID, query: str, *, limit: int = 12
 ) -> CatalogSearchResponse:
-    normalized = normalize_item_text(query)
+    normalized = _normalize_catalog_text(query)
     if not normalized:
         return CatalogSearchResponse(matches=[])
-    exact: list[tuple[TenantProduct, str | None]] = []
-    prefix: list[tuple[TenantProduct, str | None]] = []
+    words = normalized.split()
+    ranked: list[tuple[tuple[int, int, int, str, str], TenantProduct, str | None]] = []
     for product in _tenant_products(db, tenant_id):
-        name = normalize_item_text(product.name)
-        response = product_response(db, product)
-        barcodes = {normalize_item_text(item.barcode): item.barcode for item in response.barcodes}
+        name = _normalize_catalog_text(product.name)
+        name_words = name.split()
+        barcodes = {
+            _normalize_catalog_text(item.barcode): item.barcode
+            for item in product_barcode_responses(db, product)
+        }
+        matching_barcode = next(
+            (raw for code, raw in barcodes.items() if code.startswith(normalized)), None
+        )
         if normalized == name or normalized in barcodes:
-            exact.append((product, barcodes.get(normalized)))
-        elif name.startswith(normalized) or any(code.startswith(normalized) for code in barcodes):
-            matching_barcode = next(
-                (raw for code, raw in barcodes.items() if code.startswith(normalized)), None
-            )
-            prefix.append((product, matching_barcode))
-    selected = exact if exact else prefix
-    match_type: Literal["EXACT", "PREFIX"] = "EXACT" if exact else "PREFIX"
+            rank = 0
+            matching_barcode = barcodes.get(normalized)
+        elif name.startswith(normalized) or matching_barcode is not None:
+            rank = 1
+        elif all(any(word.startswith(query_word) for word in name_words) for query_word in words):
+            rank = 2
+        else:
+            continue
+        # Exact and whole-query prefixes keep name ordering. Word matches prefer less noise.
+        key = (
+            rank,
+            max(0, len(name_words) - len(words)) if rank == 2 else 0,
+            len(name) if rank == 2 else 0,
+            name,
+            str(product.id),
+        )
+        ranked.append((key, product, matching_barcode))
+    ranked.sort(key=lambda item: item[0])
     return CatalogSearchResponse(
         matches=[
             _primary_match(
                 db,
                 product,
-                match_type,
+                "EXACT" if key[0] == 0 else "PREFIX",
                 Decimal("1"),
                 preferred_barcode=preferred_barcode,
             )
-            for product, preferred_barcode in selected[:limit]
+            for key, product, preferred_barcode in ranked[:limit]
         ]
     )
 

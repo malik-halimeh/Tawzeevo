@@ -59,6 +59,7 @@ import { SyncPanel } from "./SyncPanel";
 import { SYNC_ANCHOR, WORKSPACE_SECTIONS, type WorkspaceSection, groupOf, isWorkspaceSection, ownerSectionHref, sectionFromSearch, sectionHref, selectedContext, tenantFromSearch, workspaceSearch } from "./workspaceSections";
 import { useOptionalUser } from "../auth/AuthContext";
 import { PENDING_ORDERS_KEY, fetchPendingOrders } from "./pendingOrders";
+import { productMatchesSearch } from "../utils/searchText";
 
 /** The business this member used last on this device (a convenience only; the server checks membership). */
 const lastTenantKey = (userId: string) => `tawzeevo.lastTenant.${userId}`;
@@ -975,11 +976,10 @@ export function TenantWorkspace({ contexts }: { contexts: TenantContext[] }) {
     if (!categories.data || !productDraft.category_id) return;
     if (!categories.data.categories.some((item) => item.is_active && item.id === productDraft.category_id)) setProductDraft((draft) => ({ ...draft, category_id: "" }));
   }, [categories.data, productDraft.category_id]);
-  const productNeedle = productQuery.trim().toLowerCase();
   const shownProducts = (products.data?.products ?? []).filter((product) =>
     (!productCategory || product.category_id === productCategory)
     && (productPublication === "all" || product.is_published === (productPublication === "published"))
-    && (!productNeedle || product.name.toLowerCase().includes(productNeedle) || (product.name_ar ?? "").toLowerCase().includes(productNeedle) || product.barcodes.some((barcode) => barcode.barcode.toLowerCase().includes(productNeedle))));
+    && productMatchesSearch(product, productQuery));
 
   const editingProduct = products.data?.products.find((product) => product.id === editingProductId);
   useLayoutEffect(() => {

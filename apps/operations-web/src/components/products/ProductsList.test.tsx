@@ -63,6 +63,17 @@ function more(name = "Cedar Water") {
 }
 function filters() { fireEvent.click(screen.getByRole("button", { name: /^Filters/ })); return screen.getByRole("dialog", { name: "Filters" }); }
 
+test("product search accepts words in any order and Arabic variants, and needs every word", async () => {
+  renderProducts(); await ready();
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  for (const query of ["water ced", "الارز مي", "۵۲۸"]) {
+    fireEvent.change(screen.getByLabelText("Find a product"), { target: { value: query } });
+    await waitFor(() => expect(names()).toEqual(["Cedar Water"]));
+  }
+  fireEvent.change(screen.getByLabelText("Find a product"), { target: { value: "water nothing" } });
+  await waitFor(() => expect(names()).toEqual([]));
+});
+
 test("category chips filter the shown count; every category remains selectable in the sheet", async () => {
   renderProducts(); await ready();
   expect(document.querySelector(".list-head-count")).toHaveTextContent("2 products");
